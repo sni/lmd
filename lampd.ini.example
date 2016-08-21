@@ -1,0 +1,27 @@
+# Listen for incoming livestatus requests here
+# TCP or unix sockets are allowed. Multiple entrys
+# are also valid 
+Listen          = ["127.0.0.1:3333", "/tmp/live.sock"]
+
+# daemon will log to stdout if no logfile is set
+¤LogFile         = "lampd.log"
+
+# May be Error, Warn, Info or Debug
+LogLevel        = "Info"
+
+# Refresh remote sites every x seconds 
+UpdateInterval  = 10
+
+# use tcp connections
+[[Connections]]
+name   = "Monitoring Site A"
+id     = "id1"
+source = "192.168.33.10:6557"
+
+# or local unix sockets as remote sites
+[[Connections]]
+name   = "Local Site"
+id     = "id2"
+source = "/var/tmp/nagios/run/live.sock"
+
+# add more connections as you like...
