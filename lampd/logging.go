@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/kdar/factorlog"
 	"io"
 	"os"
 	"strings"
+
+	"github.com/kdar/factorlog"
 )
 
 const logFormat = "[%{Date} %{Time}][%{Severity}][%{File}:%{Line}] %{Message}"
@@ -36,5 +37,9 @@ func InitLogging(conf *Config) {
 	if conf.LogLevel != "" {
 		LogLevel = conf.LogLevel
 	}
-	log.SetMinMaxSeverity(factorlog.StringToSeverity(strings.ToUpper(LogLevel)), factorlog.StringToSeverity("PANIC"))
+	if strings.ToLower(LogLevel) == "off" {
+		log.SetMinMaxSeverity(factorlog.StringToSeverity("PANIC"), factorlog.StringToSeverity("PANIC"))
+	} else {
+		log.SetMinMaxSeverity(factorlog.StringToSeverity(strings.ToUpper(LogLevel)), factorlog.StringToSeverity("PANIC"))
+	}
 }

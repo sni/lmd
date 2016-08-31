@@ -3,10 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/BurntSushi/toml"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/BurntSushi/toml"
 )
 
 // compile passing -ldflags "-X main.Build <build sha1>"
@@ -54,11 +55,11 @@ func main() {
 		os.Exit(2)
 	}
 	for {
-		MainLoop()
+		mainLoop()
 	}
 }
 
-func MainLoop() {
+func mainLoop() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGHUP)
 
