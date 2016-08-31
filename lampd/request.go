@@ -16,10 +16,24 @@ type Request struct {
 	Filter          []FilterGroup
 	Limit           int
 	Offset          int
-	Sort            string // TODO: ... change to something useful
+	Sort            []*SortField
 	ResponseFixed16 bool
 	OutputFormat    string
 	Backends        []string
+}
+
+type SortDirection int
+
+const (
+	Asc SortDirection = iota
+	Desc
+)
+
+type SortField struct {
+	Name      string
+	Direction SortDirection
+	Type      ColumnType
+	Index     int
 }
 
 type GroupOperator int
@@ -114,7 +128,23 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 		// TODO: implement
 		return
 	case "sort":
-		// TODO: implement
+		tmp := strings.SplitN(value, " ", 2)
+		if len(tmp) < 1 {
+			err = errors.New("invalid sort header, must be Sort: <field> <asc|desc>")
+			return
+		}
+		var direction SortDirection
+		switch strings.ToLower(tmp[1]) {
+		case "asc":
+			direction = Asc
+			break
+		case "desc":
+			direction = Desc
+			break
+		default:
+			err = errors.New("unrecognized sort direction, must be asc or desc")
+		}
+		req.Sort = append(req.Sort, &SortField{Name: strings.ToLower(tmp[0]), Direction: direction})
 		return
 	case "limit":
 		limit, cerr := strconv.Atoi(value)

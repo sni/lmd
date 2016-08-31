@@ -6,22 +6,76 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sort"
+	"strings"
+	"time"
 )
+
+type ResultData [][]interface{}
 
 type Response struct {
 	Code        int
-	Result      [][]interface{}
+	Result      ResultData
 	ResultTotal int
 	Request     *Request
 	Error       error
 	Failed      map[string]string
+	Columns     []Column
 }
 
 const (
 	PEER_KEY_INDEX = -1
 )
 
-// TODO: split into sub func
+// result sorter
+func (res Response) Len() int {
+	return len(res.Result)
+}
+
+func (res Response) Less(i, j int) bool {
+	for _, sort := range res.Request.Sort {
+		Type := res.Columns[sort.Index].Type
+		switch Type {
+		case IntCol:
+			fallthrough
+		case FloatCol:
+			if res.Result[i][sort.Index].(float64) == res.Result[j][sort.Index].(float64) {
+				continue
+			}
+			if sort.Direction == Asc {
+				return res.Result[i][sort.Index].(float64) < res.Result[j][sort.Index].(float64)
+			} else {
+				return res.Result[i][sort.Index].(float64) > res.Result[j][sort.Index].(float64)
+			}
+			break
+		case StringCol:
+			if res.Result[i][sort.Index].(string) == res.Result[j][sort.Index].(string) {
+				continue
+			}
+			if sort.Direction == Asc {
+				return res.Result[i][sort.Index].(string) < res.Result[j][sort.Index].(string)
+			} else {
+				return res.Result[i][sort.Index].(string) > res.Result[j][sort.Index].(string)
+			}
+			break
+		case StringListCol:
+			// not implemented
+			return sort.Direction == Asc
+		default:
+			panic(fmt.Sprintf("sorting not implemented for type %d", Type))
+		}
+		if sort.Direction == Asc {
+			return false
+		}
+		return true
+	}
+	return true
+}
+
+func (res Response) Swap(i, j int) {
+	res.Result[i], res.Result[j] = res.Result[j], res.Result[i]
+}
+
 func BuildResponse(req *Request) (res *Response, err error) {
 	res = &Response{
 		Code:    200,
@@ -36,23 +90,11 @@ func BuildResponse(req *Request) (res *Response, err error) {
 		return
 	}
 
-	// TODO: define size of result
-	//Result: make([][]interface{}),
-
-	indexes := []int{}
-	for _, col := range req.Columns {
-		if col == "peer_key" {
-			indexes = append(indexes, PEER_KEY_INDEX)
-			continue
-		}
-		i, Ok := table.ColumnsIndex[col]
-		if !Ok {
-			err = errors.New("bad request: table " + req.Table + " has no column " + col)
-			return
-			continue
-		}
-		indexes = append(indexes, i)
+	indexes, columns, err := BuildResponseIndexes(req, table)
+	if err != nil {
+		return
 	}
+	res.Columns = columns
 	numPerRow := len(indexes)
 
 	backendsMap := make(map[string]string)
@@ -81,21 +123,71 @@ func BuildResponse(req *Request) (res *Response, err error) {
 		// TODO: should not happen on stats requests
 		res.Result = make([][]interface{}, 0)
 	}
+	BuildResponsePostProcessing(res)
+	return
+}
 
-	// TODO: sort here
+func BuildResponsePostProcessing(res *Response) {
+	// sort our result
+	if len(res.Request.Sort) > 0 {
+		t1 := time.Now()
+		sort.Sort(res)
+		duration := time.Since(t1)
+		log.Debugf("sorting result took %s", duration.String())
+	}
 
-	if req.Offset > 0 {
-		if req.Offset > len(res.Result) {
+	// apply request offset
+	if res.Request.Offset > 0 {
+		if res.Request.Offset > len(res.Result) {
 			res.Result = make([][]interface{}, 0)
 		} else {
-			res.Result = res.Result[req.Offset:]
+			res.Result = res.Result[res.Request.Offset:]
 		}
 	}
 
-	if req.Limit > 0 {
-		if req.Limit < len(res.Result) {
-			res.Result = res.Result[0:req.Limit]
+	// apply request limit
+	if res.Request.Limit > 0 {
+		if res.Request.Limit < len(res.Result) {
+			res.Result = res.Result[0:res.Request.Limit]
 		}
+	}
+
+	return
+}
+
+func BuildResponseIndexes(req *Request, table *Table) (indexes []int, columns []Column, err error) {
+	requestColumnsMap := make(map[string]int)
+	// build array of requested columns as Column objects list
+	for j, col := range req.Columns {
+		col = strings.ToLower(col)
+		if col == "peer_key" {
+			indexes = append(indexes, PEER_KEY_INDEX)
+			columns = append(columns, Column{Name: col, Type: StringCol, Index: j})
+			continue
+		}
+		i, Ok := table.ColumnsIndex[col]
+		if !Ok {
+			err = errors.New("bad request: table " + req.Table + " has no column " + col)
+			return
+		}
+		indexes = append(indexes, i)
+		columns = append(columns, Column{Name: col, Type: table.Columns[i].Type, Index: j})
+		requestColumnsMap[col] = j
+	}
+
+	// check wether our sort columns do exist in the output
+	for _, sort := range req.Sort {
+		_, Ok := table.ColumnsIndex[sort.Name]
+		if !Ok {
+			err = errors.New("bad request: table " + req.Table + " has no column " + sort.Name + " to sort")
+			return
+		}
+		i, Ok := requestColumnsMap[sort.Name]
+		if !Ok {
+			err = errors.New("bad request: sort column " + sort.Name + " not in result set")
+			return
+		}
+		sort.Index = i
 	}
 
 	return
@@ -121,7 +213,8 @@ func BuildResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow
 			if i == PEER_KEY_INDEX {
 				resRow[k] = peer.Id
 			} else {
-				// this means this is a reference column
+				// check if this is a reference column
+				// reference columns come after the non-ref columns
 				if i >= inputRowLen {
 					refObj := refs[table.Columns[table.Columns[i].RefIndex].Name][j]
 					if len(refObj) == 0 {
@@ -161,9 +254,11 @@ func SendResponse(c net.Conn, res *Response) (err error) {
 		resBytes = out.Bytes()
 	}
 	if res.Error != nil {
+		log.Warnf("client error: %s", res.Error.Error())
 		resBytes = []byte(res.Error.Error())
 	}
 
+	// TODO: check wether we have to send column headers
 	if res.Request.ResponseFixed16 {
 		size := len(resBytes) + 1
 		_, err = c.Write([]byte(fmt.Sprintf("%d %12d\n", res.Code, size)))

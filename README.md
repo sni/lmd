@@ -71,7 +71,6 @@ ex.:
 Some things are still not complete
 
     - Filtering
-    - Sorting
     - Tests :-)
     - CI
     - Remove old sockets on exit

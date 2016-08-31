@@ -106,7 +106,7 @@ func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, Type Column
 		if col.Name != Name {
 			Column := Column{
 				Name:        Prefix + "_" + col.Name,
-				Type:        Type,
+				Type:        col.Type,
 				Update:      RefNoUpdate,
 				RefIndex:    RefIndex,
 				RefColIndex: col.Index,
@@ -166,6 +166,7 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("description", StaticUpdate, StringCol)
 	t.AddColumn("state", DynamicUpdate, IntCol)
 	t.AddColumn("contacts", StaticUpdate, StringListCol)
+	t.AddColumn("latency", DynamicUpdate, FloatCol)
 
 	t.AddRefColumn("hosts", "host", "name", StringCol)
 	return
