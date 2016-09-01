@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	InitLogging(&Config{LogLevel: "Info"})
+	InitLogging(&Config{LogLevel: "Off"})
 	InitObjects()
 }
 
@@ -59,7 +59,7 @@ func TestRequestHeaderSort(t *testing.T) {
 func TestRequestHeaderFilter1(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: name != test\n"))
 	req, _ := ParseRequestFromBuffer(buf)
-	if err := assertEq([]Filter{Filter{Column: "name", Operator: Unequal, Value: "test", Filter: []Filter(nil), GroupOperator: 0}}, req.Filter); err != nil {
+	if err := assertEq([]Filter{Filter{Column: Column{Name: "name", Type: StringCol, Index: 0, RefIndex: 0, RefColIndex: 0, Update: StaticUpdate}, Operator: Unequal, Value: "test", Filter: []Filter(nil), GroupOperator: 0}}, req.Filter); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -67,8 +67,8 @@ func TestRequestHeaderFilter1(t *testing.T) {
 func TestRequestHeaderFilter2(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces \n"))
 	req, _ := ParseRequestFromBuffer(buf)
-	expect := []Filter{Filter{Column: "state", Operator: Unequal, Value: 1, Filter: []Filter(nil), GroupOperator: 0},
-		Filter{Column: "name", Operator: Equal, Value: "with spaces", Filter: []Filter(nil), GroupOperator: 0}}
+	expect := []Filter{Filter{Column: Column{Name: "state", Type: IntCol, Index: 2, RefIndex: 0, RefColIndex: 0, Update: DynamicUpdate}, Operator: Unequal, Value: 1, Filter: []Filter(nil), GroupOperator: 0},
+		Filter{Column: Column{Name: "name", Type: StringCol, Index: 0, RefIndex: 0, RefColIndex: 0, Update: StaticUpdate}, Operator: Equal, Value: "with spaces", Filter: []Filter(nil), GroupOperator: 0}}
 	if err := assertEq(expect, req.Filter); err != nil {
 		t.Fatal(err)
 	}

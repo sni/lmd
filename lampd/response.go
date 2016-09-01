@@ -83,12 +83,7 @@ func BuildResponse(req *Request) (res *Response, err error) {
 		Request: req,
 	}
 
-	table, ok := Objects.Tables[req.Table]
-	if !ok {
-		err = errors.New("bad request: table " + req.Table + " does not exist")
-		res.Code = 404
-		return
-	}
+	table, _ := Objects.Tables[req.Table]
 
 	indexes, columns, err := BuildResponseIndexes(req, table)
 	if err != nil {
@@ -207,7 +202,19 @@ func BuildResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow
 
 	inputRowLen := len(data[0])
 	for j, row := range data {
-		// TODO: filter here
+		// does our filter match?
+		filterMatched := true
+		for _, f := range res.Request.Filter {
+			if !matchFilter(table, &refs, inputRowLen, f, &row, j) {
+				filterMatched = false
+				break
+			}
+		}
+		if !filterMatched {
+			continue
+		}
+
+		// build result row
 		resRow := make([]interface{}, numPerRow)
 		for k, i := range *(indexes) {
 			if i == PEER_KEY_INDEX {
@@ -273,4 +280,75 @@ func SendResponse(c net.Conn, res *Response) (err error) {
 	}
 	_, err = c.Write([]byte("\n"))
 	return
+}
+
+func getRowValue(index int, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}, inputRowLen int) interface{} {
+	if index >= inputRowLen {
+		refObj := (*refs)[table.Columns[table.Columns[index].RefIndex].Name][rowNum]
+		if len(refObj) == 0 {
+			return nil
+		}
+		return refObj[table.Columns[index].RefColIndex]
+	}
+	return (*row)[index]
+}
+
+func matchFilter(table *Table, refs *map[string][][]interface{}, inputRowLen int, filter Filter, row *[]interface{}, rowNum int) bool {
+	value := getRowValue(filter.Column.Index, row, rowNum, table, refs, inputRowLen)
+	if value == nil {
+		return false
+	}
+	switch filter.Column.Type {
+	case StringCol:
+		switch filter.Operator {
+		case Equal:
+			if value.(string) == filter.Value.(string) {
+				return true
+			}
+		case Unequal:
+			if value.(string) != filter.Value.(string) {
+				return true
+			}
+		default:
+			log.Errorf("not implemented op: %v", filter.Operator)
+			return false
+		}
+	case IntCol:
+		fallthrough
+	case FloatCol:
+		switch filter.Operator {
+		case Equal:
+			if value.(float64) == filter.Value.(float64) {
+				return true
+			}
+		case Unequal:
+			if value.(float64) != filter.Value.(float64) {
+				return true
+			}
+		case Less:
+			if value.(float64) < filter.Value.(float64) {
+				return true
+			}
+		case LessThan:
+			if value.(float64) <= filter.Value.(float64) {
+				return true
+			}
+		case Greater:
+			if value.(float64) > filter.Value.(float64) {
+				return true
+			}
+		case GreaterThan:
+			if value.(float64) >= filter.Value.(float64) {
+				return true
+			}
+		default:
+			log.Errorf("not implemented op: %v", filter.Operator)
+			return false
+		}
+	default:
+		log.Errorf("not implemented type: %v", filter.Column.Type)
+		return false
+
+	}
+	return false
 }

@@ -46,7 +46,7 @@ const (
 
 type Filter struct {
 	// filter can either be a single filter
-	Column   string
+	Column   Column
 	Operator Operator
 	Value    interface{}
 
@@ -91,7 +91,13 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, err error) {
 		err = errors.New("bad request in " + firstLine)
 		return
 	}
+
 	req.Table = matched[1]
+	_, ok := Objects.Tables[req.Table]
+	if !ok {
+		err = errors.New("bad request: table " + req.Table + " does not exist")
+		return
+	}
 
 	for {
 		line, berr := b.ReadString('\n')
@@ -162,9 +168,37 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 			break
 		default:
 			err = errors.New("bad request: unrecognized filter operator: " + tmp[1] + " in " + *line)
-			break
+			return
 		}
-		filter := Filter{Operator: op, Value: tmp[2], Column: tmp[0]}
+		// convert value to type of column
+		i, Ok := Objects.Tables[req.Table].ColumnsIndex[tmp[0]]
+		if !Ok {
+			err = errors.New("bad request: unrecognized column from filter: " + tmp[0] + " in " + *line)
+			return
+		}
+		var filtervalue interface{}
+		col := Objects.Tables[req.Table].Columns[i]
+		switch col.Type {
+		case IntCol:
+			var cerr error
+			filtervalue, cerr = strconv.Atoi(tmp[2])
+			if cerr != nil {
+				err = errors.New("bad request: could not convert " + tmp[2] + " to integer from filter: " + *line)
+				return
+			}
+			break
+		case FloatCol:
+			var cerr error
+			filtervalue, cerr = strconv.ParseFloat(tmp[2], 64)
+			if cerr != nil {
+				err = errors.New("bad request: could not convert " + tmp[2] + " to float from filter: " + *line)
+				return
+			}
+			break
+		default:
+			filtervalue = tmp[2]
+		}
+		filter := Filter{Operator: op, Value: filtervalue, Column: col}
 		req.Filter = append(req.Filter, filter)
 		return
 	case "and":
@@ -174,6 +208,7 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 		if cerr != nil || and < 1 {
 			err = errors.New("bad request: " + header + " must be a positive number")
 		}
+		err = errors.New("bad request: not implemented")
 		return
 	case "sort":
 		tmp := strings.SplitN(value, " ", 2)

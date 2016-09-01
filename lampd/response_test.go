@@ -14,8 +14,7 @@ func init() {
 
 func TestRequestHeaderTableFail(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET none\n"))
-	req, err := ParseRequestFromBuffer(buf)
-	_, err = BuildResponse(req)
+	_, err := ParseRequestFromBuffer(buf)
 	if err = assertEq(errors.New("bad request: table none does not exist"), err); err != nil {
 		t.Fatal(err)
 	}
