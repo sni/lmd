@@ -5,10 +5,9 @@ all: build
 LAMPDDIR=lampd
 
 deps:
-	for dep in $$(cd $(LAMPDDIR) && go list -f '{{join .Deps "\n"}}' | xargs go list -f '{{if not .Standard}}{{.ImportPath}}{{end}}'); do \
-		echo $$dep; \
-		go get $$dep; \
-	done
+	go get github.com/BurntSushi/toml
+	go get github.com/kdar/factorlog
+	go get github.com/mgutz/ansi
 	go get golang.org/x/tools/cmd/goimports
 
 build: deps fmt

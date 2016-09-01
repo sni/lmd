@@ -4,8 +4,3 @@ go:
   - 1.5
   - 1.6
   - tip
-
-install:
-  - go get github.com/BurntSushi/toml
-  - go get github.com/kdar/factorlog
-  - go get github.com/mgutz/ansi
