@@ -59,14 +59,14 @@ type Operator int
 
 const (
 	UnknownOperator Operator = iota
-	Equal        // =
-	Unequal      // !=
-	LessThan     // <=
-	Less 	     // <
-	Greater      // >
-	GreaterThan  // >=
-	Match    	 // ~~
-	MatchNot     // !~~
+	Equal                    // =
+	Unequal                  // !=
+	LessThan                 // <=
+	Less                     // <
+	Greater                  // >
+	GreaterThan              // >=
+	Match                    // ~~
+	MatchNot                 // !~~
 )
 
 var ReRequestAction = regexp.MustCompile(`^GET ([a-z]+)\n`)
@@ -161,7 +161,7 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 			op = MatchNot
 			break
 		default:
-			err = errors.New("bad request: unrecognized filter operator: " + tmp[1]+" in "+line)
+			err = errors.New("bad request: unrecognized filter operator: " + tmp[1] + " in " + line)
 			break
 		}
 		filter := Filter{Operator: op, Value: tmp[2], Column: tmp[0]}
