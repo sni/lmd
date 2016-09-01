@@ -161,7 +161,7 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 			op = MatchNot
 			break
 		default:
-			err = errors.New("bad request: unrecognized filter operator: " + tmp[1] + " in " + line)
+			err = errors.New("bad request: unrecognized filter operator: " + tmp[1] + " in " + *line)
 			break
 		}
 		filter := Filter{Operator: op, Value: tmp[2], Column: tmp[0]}
