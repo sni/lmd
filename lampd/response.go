@@ -85,7 +85,7 @@ func BuildResponse(req *Request) (res *Response, err error) {
 
 	table, ok := Objects.Tables[req.Table]
 	if !ok {
-		err = errors.New("table " + req.Table + " does not exist")
+		err = errors.New("bad request: table " + req.Table + " does not exist")
 		res.Code = 404
 		return
 	}

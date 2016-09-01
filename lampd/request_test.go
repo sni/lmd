@@ -1,46 +1,75 @@
 package main
 
 import (
-	"fmt"
-	"net"
-	"reflect"
+	"bufio"
+	"bytes"
 	"testing"
 )
 
-func assertEq(exp, got interface{}) error {
-	if !reflect.DeepEqual(exp, got) {
-		return fmt.Errorf("Wanted %#v; Got %#v", exp, got)
-	}
-	return nil
+func init() {
+	InitLogging(&Config{LogLevel: "Info"})
+	InitObjects()
 }
 
-const (
-	TEST_PORT = ":50001"
-)
-
-func TestConnection(t *testing.T) {
-	InitLogging(&Config{LogLevel: "Off"})
-
-	go func() {
-		conn, _ := net.Dial("tcp", TEST_PORT)
-		fmt.Fprintf(conn, "GET hosts\nLimit: 10\nOffset: 5\nColumns: name state\n")
-		conn.Close()
-	}()
-
-	l, _ := net.Listen("tcp", TEST_PORT)
-	conn, _ := l.Accept()
-
-	res, _ := ParseRequest(conn)
-	if err := assertEq("hosts", res.Table); err != nil {
+func TestRequestHeaderTable(t *testing.T) {
+	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\n"))
+	req, _ := ParseRequestFromBuffer(buf)
+	if err := assertEq("hosts", req.Table); err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(10, res.Limit); err != nil {
+}
+
+func TestRequestHeaderLimit(t *testing.T) {
+	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nLimit: 10\n"))
+	req, _ := ParseRequestFromBuffer(buf)
+	if err := assertEq(10, req.Limit); err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(5, res.Offset); err != nil {
+}
+
+func TestRequestHeaderOffset(t *testing.T) {
+	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nOffset: 3\n"))
+	req, _ := ParseRequestFromBuffer(buf)
+	if err := assertEq(3, req.Offset); err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq([]string{"name", "state"}, res.Columns); err != nil {
+}
+
+func TestRequestHeaderColumns(t *testing.T) {
+	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name state\n"))
+	req, _ := ParseRequestFromBuffer(buf)
+	if err := assertEq([]string{"name", "state"}, req.Columns); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRequestHeaderSort(t *testing.T) {
+	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: latency state name\nSort: name desc\nSort: state asc\n"))
+	req, _ := ParseRequestFromBuffer(buf)
+	table, _ := Objects.Tables[req.Table]
+	BuildResponseIndexes(req, table)
+	if err := assertEq(SortField{Name: "name", Direction: Desc, Index: 2}, *req.Sort[0]); err != nil {
+		t.Fatal(err)
+	}
+	if err := assertEq(SortField{Name: "state", Direction: Asc, Index: 1}, *req.Sort[1]); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRequestHeaderFilter1(t *testing.T) {
+	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: name != test\n"))
+	req, _ := ParseRequestFromBuffer(buf)
+	if err := assertEq([]Filter{Filter{Column: "name", Operator: Unequal, Value: "test", Filter: []Filter(nil), GroupOperator: 0}}, req.Filter); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRequestHeaderFilter2(t *testing.T) {
+	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces \n"))
+	req, _ := ParseRequestFromBuffer(buf)
+	expect := []Filter{Filter{Column: "state", Operator: Unequal, Value: 1, Filter: []Filter(nil), GroupOperator: 0},
+		Filter{Column: "name", Operator: Equal, Value: "with spaces", Filter: []Filter(nil), GroupOperator: 0}}
+	if err := assertEq(expect, req.Filter); err != nil {
 		t.Fatal(err)
 	}
 }

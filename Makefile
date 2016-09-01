@@ -15,7 +15,7 @@ build: deps fmt
 	cd $(LAMPDDIR) && go build -ldflags "-X main.Build=$(shell git rev-parse --short HEAD)"
 
 test: deps fmt
-	cd $(LAMPDDIR) && go test
+	cd $(LAMPDDIR) && go test -v
 
 clean:
 	rm -f $(LAMPDDIR)/lampd

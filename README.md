@@ -2,7 +2,7 @@
 
 **EXPERIMENT - this is just an experiment so far, which means the repository is subject to rebases, force pushes, etc...**
 
-Fetches livestatus data from multiple sources and provides a cached livestatus
+Fetches livestatus data from multiple sources and provides itself a livestatus
 api for those sources which makes livestatus querys a lot faster than requesting
 them directly from the remote sources.
 

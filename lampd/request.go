@@ -13,7 +13,7 @@ import (
 type Request struct {
 	Table           string
 	Columns         []string
-	Filter          []FilterGroup
+	Filter          []Filter
 	Limit           int
 	Offset          int
 	Sort            []*SortField
@@ -25,52 +25,61 @@ type Request struct {
 type SortDirection int
 
 const (
-	Asc SortDirection = iota
+	UnknownSortDirection SortDirection = iota
+	Asc
 	Desc
 )
 
 type SortField struct {
 	Name      string
 	Direction SortDirection
-	Type      ColumnType
 	Index     int
 }
 
 type GroupOperator int
 
 const (
-	And GroupOperator = iota
+	UnknownGroupOperator GroupOperator = iota
+	And
 	Or
 )
 
-type FilterGroup struct {
-	Operator    GroupOperator
-	Filter      []Filter
-	FilterGroup []FilterGroup
+type Filter struct {
+	// filter can either be a single filter
+	Column   string
+	Operator Operator
+	Value    interface{}
+
+	// or a group of filters
+	Filter        []Filter
+	GroupOperator GroupOperator
 }
 
 type Operator int
 
 const (
-	Equal    Operator = iota // ==
-	Unequal                  // !=
-	Match                    // ~~
-	MatchNot                 // !~~
+	UnknownOperator Operator = iota
+	Equal        // =
+	Unequal      // !=
+	LessThan     // <=
+	Less 	     // <
+	Greater      // >
+	GreaterThan  // >=
+	Match    	 // ~~
+	MatchNot     // !~~
 )
 
-type Filter struct {
-	Column   string
-	Operator Operator
-	Value    interface{}
-}
-
 var ReRequestAction = regexp.MustCompile(`^GET ([a-z]+)\n`)
-var ReRequestHeader = regexp.MustCompile(`^(\w+):\s*(.*)\n`)
-var ReRequestEmpty = regexp.MustCompile(`^\s*\n`)
+var ReRequestHeader = regexp.MustCompile(`^(\w+):\s*(.*)$`)
+var ReRequestEmpty = regexp.MustCompile(`^\s*$`)
 
 func ParseRequest(c net.Conn) (req *Request, err error) {
-	req = &Request{}
 	b := bufio.NewReader(c)
+	return ParseRequestFromBuffer(b)
+}
+
+func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, err error) {
+	req = &Request{}
 	firstLine, err := b.ReadString('\n')
 	if err != nil {
 		err = errors.New("bad request: " + err.Error())
@@ -93,6 +102,7 @@ func ParseRequest(c net.Conn) (req *Request, err error) {
 			err = berr
 			return
 		}
+		line = strings.TrimSpace(line)
 		log.Debugf("request: %s", line)
 		if ReRequestEmpty.MatchString(line) {
 			break
@@ -119,18 +129,56 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 
 	switch header {
 	case "filter":
-		// TODO: implement
+		tmp := strings.SplitN(value, " ", 3)
+		if len(tmp) < 3 {
+			err = errors.New("bad request: filter header, must be Filter: <field> <operator> <value>")
+			return
+		}
+		op := UnknownOperator
+		switch tmp[1] {
+		case "=":
+			op = Equal
+			break
+		case "!=":
+			op = Unequal
+			break
+		case "<":
+			op = Less
+			break
+		case "<=":
+			op = LessThan
+			break
+		case ">":
+			op = Greater
+			break
+		case ">=":
+			op = GreaterThan
+			break
+		case "~~":
+			op = Match
+			break
+		case "!~~":
+			op = MatchNot
+			break
+		default:
+			err = errors.New("bad request: unrecognized filter operator: " + tmp[1]+" in "+line)
+			break
+		}
+		filter := Filter{Operator: op, Value: tmp[2], Column: tmp[0]}
+		req.Filter = append(req.Filter, filter)
 		return
 	case "and":
-		// TODO: implement
-		return
+		fallthrough
 	case "or":
-		// TODO: implement
+		and, cerr := strconv.Atoi(value)
+		if cerr != nil || and < 1 {
+			err = errors.New("bad request: " + header + " must be a positive number")
+		}
 		return
 	case "sort":
 		tmp := strings.SplitN(value, " ", 2)
-		if len(tmp) < 1 {
-			err = errors.New("invalid sort header, must be Sort: <field> <asc|desc>")
+		if len(tmp) < 2 {
+			err = errors.New("bad request: invalid sort header, must be Sort: <field> <asc|desc>")
 			return
 		}
 		var direction SortDirection
@@ -142,14 +190,14 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 			direction = Desc
 			break
 		default:
-			err = errors.New("unrecognized sort direction, must be asc or desc")
+			err = errors.New("bad request: unrecognized sort direction, must be asc or desc")
 		}
 		req.Sort = append(req.Sort, &SortField{Name: strings.ToLower(tmp[0]), Direction: direction})
 		return
 	case "limit":
 		limit, cerr := strconv.Atoi(value)
 		if cerr != nil || limit < 1 {
-			err = errors.New("limit must be a positive number")
+			err = errors.New("bad request: limit must be a positive number")
 			return
 		}
 		req.Limit = limit
@@ -157,7 +205,7 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 	case "offset":
 		offset, cerr := strconv.Atoi(value)
 		if cerr != nil || offset < 0 {
-			err = errors.New("offset must be a positive number")
+			err = errors.New("bad request: offset must be a positive number")
 			return
 		}
 		req.Offset = offset
@@ -170,7 +218,7 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 		return
 	case "responseheader":
 		if value != "fixed16" {
-			err = errors.New("unrecognized responseformat, only fixed16 is supported")
+			err = errors.New("bad request: unrecognized responseformat, only fixed16 is supported")
 			return
 		}
 		req.ResponseFixed16 = true

@@ -4,6 +4,8 @@ type ObjectsType struct {
 	Tables map[string]*Table
 }
 
+var Objects *ObjectsType
+
 type Table struct {
 	Name                   string
 	MaxIndex               int
@@ -20,7 +22,8 @@ type Table struct {
 type UpdateType int
 
 const (
-	StaticUpdate UpdateType = iota
+	UnknownUpdate UpdateType = iota
+	StaticUpdate
 	DynamicUpdate
 	RefUpdate
 	RefNoUpdate
@@ -29,7 +32,8 @@ const (
 type ColumnType int
 
 const (
-	StringCol ColumnType = iota
+	UnknownCol ColumnType = iota
+	StringCol
 	StringListCol
 	IntCol
 	FloatCol
@@ -119,6 +123,8 @@ func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, Type Column
 
 // create all table structures
 func InitObjects() (err error) {
+	Objects = &ObjectsType{}
+
 	Objects.Tables = make(map[string]*Table)
 	Objects.Tables["status"] = NewStatusTable()
 	Objects.Tables["contacts"] = NewContactsTable()

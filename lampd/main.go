@@ -34,7 +34,6 @@ type Config struct {
 }
 
 var DataStore map[string]Peer
-var Objects *ObjectsType
 
 var GlobalConfig Config
 var flagVerbose bool
@@ -76,7 +75,6 @@ func mainLoop() {
 
 	// Set the backends to be used.
 	DataStore = make(map[string]Peer)
-	Objects = &ObjectsType{}
 	InitObjects()
 
 	// start local listeners
