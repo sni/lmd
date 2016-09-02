@@ -243,7 +243,7 @@ func BuildResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow
 func SendResponse(c net.Conn, res *Response) (err error) {
 	resBytes := []byte{}
 	if res.Result != nil {
-		if res.Request.OutputFormat == "wrapped_json" {
+		if res.Request.OutputFormat == "" || res.Request.OutputFormat == "wrapped_json" {
 			wrappedResult := make(map[string]interface{})
 			wrappedResult["data"] = res.Result
 			wrappedResult["total"] = res.ResultTotal
