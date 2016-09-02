@@ -1,8 +1,13 @@
-
-
 all: build
 
 LAMPDDIR=lampd
+
+INTERACTIVE:=$(shell [ -t 0 ] && echo 1)
+ifdef INTERACTIVE
+COLORIZE_TEST=| sed ''/PASS/s//$$(printf "\033[32mPASS\033[0m")/'' | sed ''/FAIL/s//$$(printf "\033[31mFAIL\033[0m")/''
+else
+COLORIZE_TEST=
+endif
 
 deps:
 	go get github.com/BurntSushi/toml
@@ -20,7 +25,7 @@ build: deps fmt
 	cd $(LAMPDDIR) && go build -ldflags "-X main.Build=$(shell git rev-parse --short HEAD)"
 
 test: deps fmt
-	cd $(LAMPDDIR) && go test -v
+	cd $(LAMPDDIR) && go test -v $(COLORIZE_TEST)
 
 clean:
 	rm -f $(LAMPDDIR)/lampd
