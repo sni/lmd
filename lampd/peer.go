@@ -42,8 +42,9 @@ func NewPeer(config *Connection) *Peer {
 		Status:     make(map[string]interface{}),
 		ErrorCount: 0,
 	}
-	p.Status["LastUpdate"] = nil
+	p.Status["LastUpdate"] = 0
 	p.Status["LastError"] = "connecting..."
+	p.Status["ProgramStart"] = 0
 	return &p
 }
 
@@ -61,42 +62,62 @@ func (p *Peer) Start() (_, err error) {
 }
 
 func (p *Peer) UpdateLoop() (err error) {
-	t1 := time.Now()
-	for _, t := range Objects.Tables {
-		_, err = p.CreateObjectByType(t)
-		if err != nil {
-			duration := time.Since(t1)
-			p.ErrorCount++
-			if p.Status["LastError"] == "" || p.Status["LastError"] == "connecting..." {
-				log.Errorf("[%s] fetching initial objects failed after %s: %s", p.Name, duration.String(), err.Error())
-			} else if p.ErrorCount%100 == 0 {
-				log.Infof("[%s] fetching initial objects still failing after %s: %s", p.Name, duration.String(), err.Error())
-			}
-			p.Status["LastError"] = err.Error()
-			return
-		}
-	}
-	p.Status["LastError"] = ""
-	p.Status["LastUpdate"] = time.Now()
-	p.ErrorCount = 0
-	duration := time.Since(t1)
-	log.Infof("[%s] objects created in: %s", p.Name, duration.String())
-
 	for {
-		time.Sleep(time.Duration(GlobalConfig.Updateinterval) * time.Second)
+		err = nil
 		t1 := time.Now()
 		for _, t := range Objects.Tables {
-			_, err = p.UpdateObjectByType(t)
+			_, err = p.CreateObjectByType(t)
 			if err != nil {
-				log.Warnf("[%s] updating objects failed after: %s: %s", p.Name, duration.String(), err.Error())
+				duration := time.Since(t1)
+				p.ErrorCount++
+				if p.Status["LastError"] == "" || p.Status["LastError"] == "connecting..." {
+					log.Warnf("[%s] fetching initial objects failed after %s: %s", p.Name, duration.String(), err.Error())
+				} else {
+					log.Infof("[%s] fetching initial objects still failing after %s: %s", p.Name, duration.String(), err.Error())
+				}
 				p.Status["LastError"] = err.Error()
 				return
 			}
 		}
-		p.Status["LastUpdate"] = time.Now()
+		if p.Status["LastError"] != "" && p.Status["LastError"] != "connecting..." {
+			log.Infof("[%s] site is back online", p.Name)
+		}
 		p.Status["LastError"] = ""
+		p.Status["LastUpdate"] = time.Now()
+		p.Status["ProgramStart"] = p.Tables["status"].Data[0][p.Tables["status"].Table.ColumnsIndex["program_start"]]
+		p.ErrorCount = 0
 		duration := time.Since(t1)
-		log.Infof("%s: update complete in: %s", p.Name, duration.String())
+		log.Infof("[%s] objects created in: %s", p.Name, duration.String())
+
+		for {
+			time.Sleep(time.Duration(GlobalConfig.Updateinterval) * time.Second)
+			t1 := time.Now()
+			for _, t := range Objects.Tables {
+				_, err = p.UpdateObjectByType(t)
+				if err != nil {
+					p.ErrorCount++
+					if p.ErrorCount > 3 {
+						// give site some time to recover
+						log.Warnf("[%s] updating objects failed after: %s: %s", p.Name, duration.String(), err.Error())
+					} else {
+						log.Infof("[%s] updating objects failed after: %s: %s", p.Name, duration.String(), err.Error())
+					}
+					p.Status["LastError"] = err.Error()
+					break
+				}
+			}
+			if p.Status["ProgramStart"] != p.Tables["status"].Data[0][p.Tables["status"].Table.ColumnsIndex["program_start"]] {
+				log.Infof("[%s] site has been restarted, recreating objects", p.Name)
+				break
+			}
+			if err != nil && p.ErrorCount > 3 {
+				break
+			}
+			p.Status["LastUpdate"] = time.Now()
+			p.Status["LastError"] = ""
+			duration := time.Since(t1)
+			log.Infof("[%s] update complete in: %s", p.Name, duration.String())
+		}
 	}
 }
 
