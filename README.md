@@ -77,10 +77,11 @@ TODO
 
 Some things are still not complete
 
-    - Filtering
-    - Tests :-)
-    - CI
     - Remove old sockets on exit
+    - Stats Querys
+    - Adding more tables and columns
+    - Implement "GET backends" with status and some statistics
+    - send all columns if no column is specified
 
 
 Ideas

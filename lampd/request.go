@@ -44,31 +44,6 @@ const (
 	Or
 )
 
-type Filter struct {
-	// filter can either be a single filter
-	Column   Column
-	Operator Operator
-	Value    interface{}
-
-	// or a group of filters
-	Filter        []Filter
-	GroupOperator GroupOperator
-}
-
-type Operator int
-
-const (
-	UnknownOperator Operator = iota
-	Equal                    // =
-	Unequal                  // !=
-	LessThan                 // <=
-	Less                     // <
-	Greater                  // >
-	GreaterThan              // >=
-	Match                    // ~~
-	MatchNot                 // !~~
-)
-
 var ReRequestAction = regexp.MustCompile(`^GET ([a-z]+)\n`)
 var ReRequestHeader = regexp.MustCompile(`^(\w+):\s*(.*)$`)
 var ReRequestEmpty = regexp.MustCompile(`^\s*$`)
@@ -135,89 +110,12 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 
 	switch header {
 	case "filter":
-		tmp := strings.SplitN(value, " ", 3)
-		if len(tmp) < 3 {
-			err = errors.New("bad request: filter header, must be Filter: <field> <operator> <value>")
-			return
-		}
-		op := UnknownOperator
-		switch tmp[1] {
-		case "=":
-			op = Equal
-			break
-		case "!=":
-			op = Unequal
-			break
-		case "<":
-			op = Less
-			break
-		case "<=":
-			op = LessThan
-			break
-		case ">":
-			op = Greater
-			break
-		case ">=":
-			op = GreaterThan
-			break
-		case "~~":
-			op = Match
-			break
-		case "!~~":
-			op = MatchNot
-			break
-		default:
-			err = errors.New("bad request: unrecognized filter operator: " + tmp[1] + " in " + *line)
-			return
-		}
-		// convert value to type of column
-		i, Ok := Objects.Tables[req.Table].ColumnsIndex[tmp[0]]
-		if !Ok {
-			err = errors.New("bad request: unrecognized column from filter: " + tmp[0] + " in " + *line)
-			return
-		}
-		var filtervalue interface{}
-		col := Objects.Tables[req.Table].Columns[i]
-		switch col.Type {
-		case IntCol:
-			var cerr error
-			filtervalue, cerr = strconv.Atoi(tmp[2])
-			if cerr != nil {
-				err = errors.New("bad request: could not convert " + tmp[2] + " to integer from filter: " + *line)
-				return
-			}
-			break
-		case FloatCol:
-			var cerr error
-			filtervalue, cerr = strconv.ParseFloat(tmp[2], 64)
-			if cerr != nil {
-				err = errors.New("bad request: could not convert " + tmp[2] + " to float from filter: " + *line)
-				return
-			}
-			break
-		default:
-			filtervalue = tmp[2]
-		}
-		filter := Filter{Operator: op, Value: filtervalue, Column: col}
-		req.Filter = append(req.Filter, filter)
+		err = ParseFilter(value, line, req.Table, &req.Filter)
 		return
 	case "and":
 		fallthrough
 	case "or":
-		num, cerr := strconv.Atoi(value)
-		if cerr != nil || num < 1 {
-			err = errors.New("bad request: " + header + " must be a positive number in" + *line)
-		}
-		// remove x entrys from stack and combine them to a new group
-		groupedStack, remainingStack := req.Filter[len(req.Filter)-num:], req.Filter[:len(req.Filter)-num]
-		req.Filter = remainingStack
-		op := Or
-		if header == "and" {
-			op = And
-		}
-		stackedFilter := Filter{Filter: groupedStack, GroupOperator: op, Value: nil}
-		req.Filter = []Filter{}
-		req.Filter = append(req.Filter, stackedFilter)
+		err = ParseFilterOp(header, value, line, &req.Filter)
 		return
 	case "sort":
 		tmp := strings.SplitN(value, " ", 2)
@@ -235,6 +133,7 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 			break
 		default:
 			err = errors.New("bad request: unrecognized sort direction, must be asc or desc")
+			return
 		}
 		req.Sort = append(req.Sort, &SortField{Name: strings.ToLower(tmp[0]), Direction: direction})
 		return

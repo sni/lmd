@@ -73,3 +73,13 @@ func TestRequestHeaderFilter2(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestRequestHeaderFilter3(t *testing.T) {
+	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces\nOr: 2"))
+	req, _ := ParseRequestFromBuffer(buf)
+	expect := []Filter{Filter{Column: Column{Name: "state", Type: IntCol, Index: 2, RefIndex: 0, RefColIndex: 0, Update: DynamicUpdate}, Operator: Unequal, Value: 1, Filter: []Filter(nil), GroupOperator: 0},
+		Filter{Column: Column{Name: "name", Type: StringCol, Index: 0, RefIndex: 0, RefColIndex: 0, Update: StaticUpdate}, Operator: Equal, Value: "with spaces", Filter: []Filter(nil), GroupOperator: 0}}
+	if err := assertEq(expect, req.Filter); err != nil {
+		t.Fatal(err)
+	}
+}
