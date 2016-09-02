@@ -76,10 +76,7 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, err error) {
 
 	for {
 		line, berr := b.ReadString('\n')
-		if berr == io.EOF {
-			break
-		}
-		if berr != nil {
+		if berr != nil && berr != io.EOF {
 			err = berr
 			return
 		}
@@ -93,6 +90,9 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, err error) {
 		if perr != nil {
 			err = perr
 			return
+		}
+		if berr == io.EOF {
+			break
 		}
 	}
 
