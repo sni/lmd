@@ -294,6 +294,26 @@ func getRowValue(index int, row *[]interface{}, rowNum int, table *Table, refs *
 }
 
 func matchFilter(table *Table, refs *map[string][][]interface{}, inputRowLen int, filter Filter, row *[]interface{}, rowNum int) bool {
+	// recursive group filter
+	if len(filter.Filter) > 0 {
+		for _, f := range filter.Filter {
+			subresult := matchFilter(table, refs, inputRowLen, f, row, rowNum)
+			if subresult == false && filter.GroupOperator == And {
+				return false
+			}
+			if subresult == true && filter.GroupOperator == Or {
+				return true
+			}
+		}
+		// if we did not return yet, this means all AND filter have matched
+		if filter.GroupOperator == And {
+			return true
+		}
+		// if we did not return yet, this means no OR filter have matched
+		return false
+	}
+
+	// normal field filter
 	value := getRowValue(filter.Column.Index, row, rowNum, table, refs, inputRowLen)
 	if value == nil {
 		return false
@@ -313,42 +333,50 @@ func matchFilter(table *Table, refs *map[string][][]interface{}, inputRowLen int
 			log.Errorf("not implemented op: %v", filter.Operator)
 			return false
 		}
+		break
 	case IntCol:
 		fallthrough
 	case FloatCol:
+		valueA := value.(float64)
+		var valueB float64
+		if filter.Column.Type == IntCol {
+			valueB = float64(filter.Value.(int))
+		} else {
+			valueB = filter.Value.(float64)
+		}
 		switch filter.Operator {
 		case Equal:
-			if value.(float64) == filter.Value.(float64) {
+			if valueA == valueB {
 				return true
 			}
 		case Unequal:
-			if value.(float64) != filter.Value.(float64) {
+			if valueA != valueB {
 				return true
 			}
 		case Less:
-			if value.(float64) < filter.Value.(float64) {
+			if valueA < valueB {
 				return true
 			}
 		case LessThan:
-			if value.(float64) <= filter.Value.(float64) {
+			if valueA <= valueB {
 				return true
 			}
 		case Greater:
-			if value.(float64) > filter.Value.(float64) {
+			if valueA > valueB {
 				return true
 			}
 		case GreaterThan:
-			if value.(float64) >= filter.Value.(float64) {
+			if valueA >= valueB {
 				return true
 			}
 		default:
 			log.Errorf("not implemented op: %v", filter.Operator)
 			return false
 		}
+		break
 	default:
 		log.Errorf("not implemented type: %v", filter.Column.Type)
 		return false
-
 	}
 	return false
 }

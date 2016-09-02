@@ -204,11 +204,20 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 	case "and":
 		fallthrough
 	case "or":
-		and, cerr := strconv.Atoi(value)
-		if cerr != nil || and < 1 {
-			err = errors.New("bad request: " + header + " must be a positive number")
+		num, cerr := strconv.Atoi(value)
+		if cerr != nil || num < 1 {
+			err = errors.New("bad request: " + header + " must be a positive number in" + *line)
 		}
-		err = errors.New("bad request: not implemented")
+		// remove x entrys from stack and combine them to a new group
+		groupedStack, remainingStack := req.Filter[len(req.Filter)-num:], req.Filter[:len(req.Filter)-num]
+		req.Filter = remainingStack
+		op := Or
+		if header == "and" {
+			op = And
+		}
+		stackedFilter := Filter{Filter: groupedStack, GroupOperator: op, Value: nil}
+		req.Filter = []Filter{}
+		req.Filter = append(req.Filter, stackedFilter)
 		return
 	case "sort":
 		tmp := strings.SplitN(value, " ", 2)
