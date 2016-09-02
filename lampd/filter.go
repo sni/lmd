@@ -8,6 +8,16 @@ import (
 	"strings"
 )
 
+type StatsType int
+
+const (
+	Counter StatsType = iota
+	Sum               // sum
+	Average           // avg
+	Min               // min
+	Max               // max
+)
+
 type Filter struct {
 	// filter can either be a single filter
 	Column   Column
@@ -17,6 +27,11 @@ type Filter struct {
 	// or a group of filters
 	Filter        []Filter
 	GroupOperator GroupOperator
+
+	// stats query
+	Stats      float64
+	StatsCount int
+	StatsType  StatsType
 }
 
 type Operator int
@@ -147,6 +162,44 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 	return
 }
 
+func ParseStats(value string, line *string, table string, stack *[]Filter) (err error) {
+	tmp := strings.SplitN(value, " ", 3)
+	if len(tmp) < 2 {
+		err = errors.New("bad request: stats header, must be Stats: <field> <operator> <value> OR Stats: <avg|min|max> <field>")
+		return
+	}
+	startWith := float64(0)
+	op := Counter
+	switch strings.ToLower(tmp[0]) {
+	case "avg":
+		op = Average
+		break
+	case "min":
+		op = Min
+		startWith = -1
+		break
+	case "max":
+		op = Max
+		break
+	case "sum":
+		op = Sum
+		break
+	default:
+		return ParseFilter(value, line, table, stack)
+	}
+
+	i, Ok := Objects.Tables[table].ColumnsIndex[tmp[1]]
+	if !Ok {
+		err = errors.New("bad request: unrecognized column from stats: " + tmp[1] + " in " + *line)
+		return
+	}
+	col := Objects.Tables[table].Columns[i]
+
+	stats := Filter{Column: col, StatsType: op, Stats: startWith, StatsCount: 0}
+	*stack = append(*stack, stats)
+	return
+}
+
 func ParseFilterOp(header string, value string, line *string, stack *[]Filter) (err error) {
 	num, cerr := strconv.Atoi(value)
 	if cerr != nil || num < 1 {
@@ -205,6 +258,7 @@ func matchFilter(table *Table, refs *map[string][][]interface{}, inputRowLen int
 		return matchNumberFilter(&filter, valueA, valueB)
 	case FloatCol:
 		valueA := value.(float64)
+		Dump(filter)
 		valueB := filter.Value.(float64)
 		return matchNumberFilter(&filter, valueA, valueB)
 	case StringListCol:

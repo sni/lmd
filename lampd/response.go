@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -131,9 +130,11 @@ func BuildResponsePostProcessing(res *Response) {
 		log.Debugf("sorting result took %s", duration.String())
 	}
 
+	res.ResultTotal = len(res.Result)
+
 	// apply request offset
 	if res.Request.Offset > 0 {
-		if res.Request.Offset > len(res.Result) {
+		if res.Request.Offset > res.ResultTotal {
 			res.Result = make([][]interface{}, 0)
 		} else {
 			res.Result = res.Result[res.Request.Offset:]
@@ -142,16 +143,54 @@ func BuildResponsePostProcessing(res *Response) {
 
 	// apply request limit
 	if res.Request.Limit > 0 {
-		if res.Request.Limit < len(res.Result) {
+		if res.Request.Limit < res.ResultTotal {
 			res.Result = res.Result[0:res.Request.Limit]
 		}
 	}
 
+	// final calculation of stats querys
+	if len(res.Request.Stats) > 0 {
+		res.Result = make([][]interface{}, 1)
+		res.Result[0] = make([]interface{}, len(res.Request.Stats))
+		for i, s := range res.Request.Stats {
+			switch s.StatsType {
+			case Counter:
+				res.Result[0][i] = s.StatsCount
+				break
+			case Min:
+				res.Result[0][i] = s.Stats
+				break
+			case Max:
+				res.Result[0][i] = s.Stats
+				break
+			case Sum:
+				res.Result[0][i] = s.Stats
+				break
+			case Average:
+				if s.StatsCount > 0 {
+					res.Result[0][i] = float64(s.Stats) / float64(s.StatsCount)
+				} else {
+					res.Result[0][i] = 0
+				}
+				break
+			}
+		}
+	}
 	return
 }
 
 func BuildResponseIndexes(req *Request, table *Table) (indexes []int, columns []Column, err error) {
 	requestColumnsMap := make(map[string]int)
+	// if no column header was given, return all columns
+	// but only if this is no stats query
+	if len(req.Columns) == 0 && len(req.Stats) == 0 {
+		req.SendColumnsHeader = true
+		for _, col := range table.Columns {
+			if col.Update == StaticUpdate || col.Update == DynamicUpdate {
+				req.Columns = append(req.Columns, col.Name)
+			}
+		}
+	}
 	// build array of requested columns as Column objects list
 	for j, col := range req.Columns {
 		col = strings.ToLower(col)
@@ -204,6 +243,7 @@ func BuildResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow
 		return
 	}
 	inputRowLen := len(data[0])
+	statsLen := len(res.Request.Stats)
 	for j, row := range data {
 		// does our filter match?
 		filterMatched := true
@@ -214,6 +254,43 @@ func BuildResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow
 			}
 		}
 		if !filterMatched {
+			continue
+		}
+
+		// count stats
+		if statsLen > 0 {
+			for i, s := range res.Request.Stats {
+				if s.StatsType != Counter || matchFilter(table, &refs, inputRowLen, s, &row, j) {
+					val := getRowValue(s.Column.Index, &row, j, table, &refs, inputRowLen)
+					switch s.StatsType {
+					case Counter:
+						s.Stats++
+						break
+					case Average:
+						value := val.(float64)
+						s.Stats += value
+						break
+					case Sum:
+						value := val.(float64)
+						s.Stats += value
+						break
+					case Min:
+						value := val.(float64)
+						if s.Stats > value || s.Stats == -1 {
+							s.Stats = value
+						}
+						break
+					case Max:
+						value := val.(float64)
+						if s.Stats < value {
+							s.Stats = value
+						}
+						break
+					}
+					s.StatsCount++
+					res.Request.Stats[i] = s
+				}
+			}
 			continue
 		}
 
@@ -245,6 +322,16 @@ func BuildResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow
 
 func SendResponse(c net.Conn, res *Response) (err error) {
 	resBytes := []byte{}
+	if res.Request.SendColumnsHeader {
+		var result ResultData = make([][]interface{}, 0)
+		cols := make([]interface{}, len(res.Request.Columns)+len(res.Request.Stats))
+		for i, v := range res.Request.Columns {
+			cols[i] = v
+		}
+		result = append(result, cols)
+		result = append(result, res.Result...)
+		res.Result = result
+	}
 	if res.Result != nil {
 		if res.Request.OutputFormat == "" || res.Request.OutputFormat == "wrapped_json" {
 			wrappedResult := make(map[string]interface{})
@@ -258,25 +345,26 @@ func SendResponse(c net.Conn, res *Response) (err error) {
 		if err != nil {
 			log.Errorf("json error: %s", err.Error())
 		}
-		var out bytes.Buffer
 		// TODO: remove pretty json or make extra header for it
-		json.Indent(&out, resBytes, "", "  ")
-		resBytes = out.Bytes()
+		//var out bytes.Buffer
+		//json.Indent(&out, resBytes, "", "  ")
+		//resBytes = out.Bytes()
 	}
 	if res.Error != nil {
 		log.Warnf("client error: %s", res.Error.Error())
 		resBytes = []byte(res.Error.Error())
 	}
 
-	// TODO: check wether we have to send column headers
 	if res.Request.ResponseFixed16 {
 		size := len(resBytes) + 1
-		_, err = c.Write([]byte(fmt.Sprintf("%d %12d\n", res.Code, size)))
+		log.Debugf("write: %s", fmt.Sprintf("%d %11d", res.Code, size))
+		_, err = c.Write([]byte(fmt.Sprintf("%d %11d\n", res.Code, size)))
 		if err != nil {
 			log.Errorf("write error: %s", err.Error())
 		}
 	}
 	// TODO: send array line by line to avoid to long lines
+	log.Debugf("write: %s", resBytes)
 	_, err = c.Write(resBytes)
 	if err != nil {
 		log.Errorf("write error: %s", err.Error())

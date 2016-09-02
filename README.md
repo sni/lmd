@@ -87,10 +87,9 @@ TODO
 Some things are still not complete
 
     - Remove old sockets on exit
-    - Stats Querys
     - Implement "GET backends" with status and some statistics
-    - send all columns if no column is specified
     - commands handling
+    - logs handling
 
 
 Ideas

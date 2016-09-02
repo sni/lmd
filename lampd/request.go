@@ -11,15 +11,17 @@ import (
 )
 
 type Request struct {
-	Table           string
-	Columns         []string
-	Filter          []Filter
-	Limit           int
-	Offset          int
-	Sort            []*SortField
-	ResponseFixed16 bool
-	OutputFormat    string
-	Backends        []string
+	Table             string
+	Columns           []string
+	Filter            []Filter
+	Stats             []Filter
+	Limit             int
+	Offset            int
+	Sort              []*SortField
+	ResponseFixed16   bool
+	OutputFormat      string
+	Backends          []string
+	SendColumnsHeader bool
 }
 
 type SortDirection int
@@ -54,7 +56,7 @@ func ParseRequest(c net.Conn) (req *Request, err error) {
 }
 
 func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, err error) {
-	req = &Request{}
+	req = &Request{SendColumnsHeader: false}
 	firstLine, err := b.ReadString('\n')
 	firstLine = strings.TrimSpace(firstLine)
 	if err != nil {
@@ -97,6 +99,11 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, err error) {
 		}
 	}
 
+	if len(req.Columns) > 0 && len(req.Stats) > 0 {
+		err = errors.New("bad request: stats and columns cannot be mixed")
+		return
+	}
+
 	return
 }
 
@@ -117,6 +124,12 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 		fallthrough
 	case "or":
 		err = ParseFilterOp(header, value, line, &req.Filter)
+		return
+	case "stats":
+		err = ParseStats(value, line, req.Table, &req.Stats)
+		return
+	case "statsand":
+		err = ParseFilterOp(header, value, line, &req.Stats)
 		return
 	case "sort":
 		tmp := strings.SplitN(value, " ", 2)
