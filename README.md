@@ -3,11 +3,15 @@ LAMPD - Livestatus Acceleration Multi Proxy Daemon
 
 **EXPERIMENT - this is just an experiment so far, which means the repository is subject to rebases, force pushes, etc...**
 
+[![Build Status](https://travis-ci.org/sni/lampd.svg?branch=master)](https://travis-ci.org/sni/lampd)
+
 Fetches livestatus data from multiple sources and provides itself a livestatus
 api for those sources which makes livestatus querys a lot faster than requesting
 them directly from the remote sources.
 
 Map / reduce included to combine response from multiple sources.
+
+[![Architecture](docs/Architecture.png)](docs/Architecture.png)
 
 
 Installation
