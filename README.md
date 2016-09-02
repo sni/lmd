@@ -11,7 +11,7 @@ them directly from the remote sources.
 
 Map / reduce included to combine response from multiple sources.
 
-[![Architecture](docs/Architecture.png)](docs/Architecture.png)
+<img src="docs/Architecture.png" alt="Architecture" style="width: 600px;"/>
 
 
 Installation
