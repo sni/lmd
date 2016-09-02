@@ -10,7 +10,8 @@ import (
 )
 
 const logFormat = "[%{Date} %{Time}][%{Severity}][%{File}:%{Line}] %{Message}"
-const logColors = "%{Color \"reset\"}%{Color \"yellow\" \"WARN\"}%{Color \"red\" \"ERROR\"}"
+const logColors = "%{Color \"yellow\" \"WARN\"}%{Color \"red\" \"ERROR\"}"
+const logColorReset = "%{Color \"reset\"}"
 
 var log *factorlog.FactorLog
 
@@ -19,7 +20,7 @@ func InitLogging(conf *Config) {
 	var targetWriter io.Writer
 	var err error
 	if conf.LogFile == "" {
-		logFormatter = factorlog.NewStdFormatter(logColors + logFormat)
+		logFormatter = factorlog.NewStdFormatter(logColors + logFormat + logColorReset)
 		targetWriter = os.Stdout
 	} else {
 		logFormatter = factorlog.NewStdFormatter(logFormat)
