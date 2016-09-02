@@ -90,6 +90,7 @@ Some things are still not complete
     - Stats Querys
     - Implement "GET backends" with status and some statistics
     - send all columns if no column is specified
+    - commands handling
 
 
 Ideas

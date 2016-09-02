@@ -200,6 +200,9 @@ func BuildResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow
 	data := peer.Tables[req.Table].Data
 	refs := peer.Tables[req.Table].Refs
 
+	if len(data) == 0 {
+		return
+	}
 	inputRowLen := len(data[0])
 	for j, row := range data {
 		// does our filter match?

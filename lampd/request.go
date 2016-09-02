@@ -44,7 +44,7 @@ const (
 	Or
 )
 
-var ReRequestAction = regexp.MustCompile(`^GET ([a-z]+)\n`)
+var ReRequestAction = regexp.MustCompile(`^GET ([a-z]+)$`)
 var ReRequestHeader = regexp.MustCompile(`^(\w+):\s*(.*)$`)
 var ReRequestEmpty = regexp.MustCompile(`^\s*$`)
 
@@ -56,6 +56,7 @@ func ParseRequest(c net.Conn) (req *Request, err error) {
 func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, err error) {
 	req = &Request{}
 	firstLine, err := b.ReadString('\n')
+	firstLine = strings.TrimSpace(firstLine)
 	if err != nil {
 		err = errors.New("bad request: " + err.Error())
 		return

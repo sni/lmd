@@ -152,6 +152,7 @@ func NewStatusTable() (t *Table) {
 	t.AddColumn("connections", DynamicUpdate, IntCol)
 	t.AddColumn("connections_rate", DynamicUpdate, FloatCol)
 	t.AddColumn("enable_event_handlers", DynamicUpdate, IntCol)
+	t.AddColumn("enable_flap_detection", DynamicUpdate, IntCol)
 	t.AddColumn("enable_notifications", DynamicUpdate, IntCol)
 	t.AddColumn("execute_host_checks", DynamicUpdate, IntCol)
 	t.AddColumn("execute_service_checks", DynamicUpdate, IntCol)
@@ -429,3 +430,5 @@ func NewDowntimesTable() (t *Table) {
 	//t.AddRefColumn("services", "service", "description", StringCol)
 	return
 }
+
+// TODO: implement log table as passthrough
