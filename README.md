@@ -21,7 +21,12 @@ Installation
     %> go get github.com/sni/lampd
 ```
 
-Copy lampd.ini.example to lampd.ini and change to your needs. Then run lampd
+Copy lampd.ini.example to lampd.ini and change to your needs. Then run lampd.
+You can specify the path to your config file with `--config`.
+
+```
+    lampd --config=/etc/lampd/lampd.ini
+```
 
 Additional Livestatus Header
 ----------------------------
@@ -83,7 +88,6 @@ Some things are still not complete
 
     - Remove old sockets on exit
     - Stats Querys
-    - Adding more tables and columns
     - Implement "GET backends" with status and some statistics
     - send all columns if no column is specified
 

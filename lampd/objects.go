@@ -127,53 +127,305 @@ func InitObjects() (err error) {
 
 	Objects.Tables = make(map[string]*Table)
 	Objects.Tables["status"] = NewStatusTable()
+	Objects.Tables["timeperiods"] = NewTimeperiodsTable()
 	Objects.Tables["contacts"] = NewContactsTable()
+	Objects.Tables["contactgroups"] = NewContactgroupsTable()
+	Objects.Tables["commands"] = NewCommandsTable()
 	Objects.Tables["hosts"] = NewHostsTable()
+	Objects.Tables["hostgroups"] = NewHostgroupsTable()
 	Objects.Tables["services"] = NewServicesTable()
-	// TODO: add more tables
+	Objects.Tables["servicegroups"] = NewServicegroupsTable()
+	Objects.Tables["comments"] = NewCommentsTable()
+	Objects.Tables["downtimes"] = NewDowntimesTable()
 	return
 }
 
 // add state table definitions
 func NewStatusTable() (t *Table) {
 	t = &Table{Name: "status"}
+	t.AddColumn("accept_passive_host_checks", DynamicUpdate, IntCol)
+	t.AddColumn("accept_passive_service_checks", DynamicUpdate, IntCol)
+	t.AddColumn("cached_log_messages", DynamicUpdate, IntCol)
+	t.AddColumn("check_external_commands", DynamicUpdate, IntCol)
+	t.AddColumn("check_host_freshness", DynamicUpdate, IntCol)
+	t.AddColumn("check_service_freshness", DynamicUpdate, IntCol)
+	t.AddColumn("connections", DynamicUpdate, IntCol)
+	t.AddColumn("connections_rate", DynamicUpdate, FloatCol)
+	t.AddColumn("enable_event_handlers", DynamicUpdate, IntCol)
+	t.AddColumn("enable_notifications", DynamicUpdate, IntCol)
+	t.AddColumn("execute_host_checks", DynamicUpdate, IntCol)
+	t.AddColumn("execute_service_checks", DynamicUpdate, IntCol)
+	t.AddColumn("host_checks", DynamicUpdate, IntCol)
+	t.AddColumn("host_checks_rate", DynamicUpdate, FloatCol)
+	t.AddColumn("interval_length", StaticUpdate, IntCol)
+	t.AddColumn("last_command_check", DynamicUpdate, IntCol)
+	t.AddColumn("last_log_rotation", DynamicUpdate, IntCol)
+	t.AddColumn("livestatus_version", StaticUpdate, StringCol)
+	t.AddColumn("log_messages", DynamicUpdate, IntCol)
+	t.AddColumn("nagios_pid", StaticUpdate, IntCol)
+	t.AddColumn("neb_callbacks", DynamicUpdate, IntCol)
+	t.AddColumn("neb_callbacks_rate", DynamicUpdate, FloatCol)
+	t.AddColumn("obsess_over_hosts", DynamicUpdate, IntCol)
+	t.AddColumn("obsess_over_services", DynamicUpdate, IntCol)
+	t.AddColumn("process_performance_data", DynamicUpdate, IntCol)
 	t.AddColumn("program_start", DynamicUpdate, IntCol)
 	t.AddColumn("program_version", StaticUpdate, StringCol)
 	t.AddColumn("requests", DynamicUpdate, FloatCol)
+	t.AddColumn("requests_rate", DynamicUpdate, FloatCol)
+	t.AddColumn("service_checks", DynamicUpdate, IntCol)
+	t.AddColumn("service_checks_rate", DynamicUpdate, FloatCol)
+
+	return
+}
+
+// add timeperiods table definitions
+func NewTimeperiodsTable() (t *Table) {
+	t = &Table{Name: "timeperiods"}
+	t.AddColumn("alias", StaticUpdate, StringCol)
+	t.AddColumn("name", StaticUpdate, StringCol)
+	t.AddColumn("in", DynamicUpdate, IntCol)
 	return
 }
 
 // add contacts table definitions
 func NewContactsTable() (t *Table) {
 	t = &Table{Name: "contacts"}
-	t.AddColumn("name", StaticUpdate, StringCol)
 	t.AddColumn("alias", StaticUpdate, StringCol)
+	t.AddColumn("can_submit_commands", StaticUpdate, IntCol)
+	t.AddColumn("custom_variable_names", StaticUpdate, StringListCol)
+	t.AddColumn("custom_variable_values", StaticUpdate, StringListCol)
 	t.AddColumn("email", StaticUpdate, StringCol)
+	t.AddColumn("host_notification_period", StaticUpdate, StringCol)
+	t.AddColumn("host_notifications_enabled", StaticUpdate, IntCol)
+	t.AddColumn("name", StaticUpdate, StringCol)
+	t.AddColumn("service_notification_period", StaticUpdate, StringCol)
+	t.AddColumn("service_notifications_enabled", StaticUpdate, IntCol)
+	return
+}
+
+// add contactgroupstable definitions
+func NewContactgroupsTable() (t *Table) {
+	t = &Table{Name: "timeperiods"}
+	t.AddColumn("alias", StaticUpdate, StringCol)
+	t.AddColumn("members", StaticUpdate, StringListCol)
+	t.AddColumn("name", StaticUpdate, StringCol)
+	return
+}
+
+// add commands definitions
+func NewCommandsTable() (t *Table) {
+	t = &Table{Name: "commands"}
+	t.AddColumn("name", StaticUpdate, StringCol)
+	t.AddColumn("line", StaticUpdate, StringCol)
 	return
 }
 
 // add hosts table definitions
 func NewHostsTable() (t *Table) {
 	t = &Table{Name: "hosts"}
-	t.AddColumn("name", StaticUpdate, StringCol)
-	t.AddColumn("alias", StaticUpdate, StringCol)
-	t.AddColumn("state", DynamicUpdate, IntCol)
+	t.AddColumn("accept_passive_checks", DynamicUpdate, IntCol)
 	t.AddColumn("acknowledged", DynamicUpdate, IntCol)
-	t.AddColumn("latency", DynamicUpdate, FloatCol)
-	t.AddColumn("current_attempt", DynamicUpdate, IntCol)
-	t.AddColumn("max_check_attempts", DynamicUpdate, IntCol)
+	t.AddColumn("action_url", StaticUpdate, StringCol)
+	t.AddColumn("action_url_expanded", StaticUpdate, StringCol)
+	t.AddColumn("active_checks_enabled", DynamicUpdate, IntCol)
+	t.AddColumn("address", StaticUpdate, StringCol)
+	t.AddColumn("alias", StaticUpdate, StringCol)
+	t.AddColumn("check_command", StaticUpdate, StringCol)
+	t.AddColumn("check_freshness", DynamicUpdate, IntCol)
+	t.AddColumn("check_interval", StaticUpdate, IntCol)
+	t.AddColumn("check_options", DynamicUpdate, IntCol)
+	t.AddColumn("check_period", StaticUpdate, StringCol)
+	t.AddColumn("check_type", DynamicUpdate, IntCol)
+	t.AddColumn("checks_enabled", DynamicUpdate, IntCol)
+	t.AddColumn("childs", StaticUpdate, StringListCol)
 	t.AddColumn("contacts", StaticUpdate, StringListCol)
+	t.AddColumn("current_attempt", DynamicUpdate, IntCol)
+	t.AddColumn("current_notification_number", DynamicUpdate, IntCol)
+	t.AddColumn("custom_variable_names", StaticUpdate, StringListCol)
+	t.AddColumn("custom_variable_values", StaticUpdate, StringListCol)
+	t.AddColumn("display_name", StaticUpdate, StringCol)
+	t.AddColumn("event_handler_enabled", DynamicUpdate, IntCol)
+	t.AddColumn("execution_time", DynamicUpdate, FloatCol)
+	t.AddColumn("first_notification_delay", StaticUpdate, IntCol)
+	t.AddColumn("flap_detection_enabled", DynamicUpdate, IntCol)
+	t.AddColumn("groups", StaticUpdate, StringListCol)
+	t.AddColumn("hard_state", DynamicUpdate, IntCol)
+	t.AddColumn("has_been_checked", DynamicUpdate, IntCol)
+	t.AddColumn("high_flap_threshold", StaticUpdate, IntCol)
+	t.AddColumn("icon_image", StaticUpdate, StringCol)
+	t.AddColumn("icon_image_alt", StaticUpdate, StringCol)
+	t.AddColumn("icon_image_expanded", StaticUpdate, StringCol)
+	t.AddColumn("in_check_period", DynamicUpdate, IntCol)
+	t.AddColumn("in_notification_period", DynamicUpdate, IntCol)
+	t.AddColumn("is_executing", DynamicUpdate, IntCol)
+	t.AddColumn("is_flapping", DynamicUpdate, IntCol)
+	t.AddColumn("last_check", DynamicUpdate, IntCol)
+	t.AddColumn("last_hard_state", DynamicUpdate, IntCol)
+	t.AddColumn("last_hard_state_change", DynamicUpdate, IntCol)
+	t.AddColumn("last_notification", DynamicUpdate, IntCol)
+	t.AddColumn("last_state", DynamicUpdate, IntCol)
+	t.AddColumn("last_state_change", DynamicUpdate, IntCol)
+	t.AddColumn("latency", DynamicUpdate, FloatCol)
+	t.AddColumn("long_plugin_output", DynamicUpdate, StringCol)
+	t.AddColumn("low_flap_threshold", StaticUpdate, IntCol)
+	t.AddColumn("max_check_attempts", StaticUpdate, IntCol)
+	t.AddColumn("modified_attributes", DynamicUpdate, IntCol)
+	t.AddColumn("modified_attributes_list", DynamicUpdate, StringListCol)
+	t.AddColumn("name", StaticUpdate, StringCol)
+	t.AddColumn("next_check", DynamicUpdate, IntCol)
+	t.AddColumn("next_notification", DynamicUpdate, IntCol)
+	t.AddColumn("notes", StaticUpdate, StringCol)
+	t.AddColumn("notes_expanded", StaticUpdate, StringCol)
+	t.AddColumn("notes_url", StaticUpdate, StringCol)
+	t.AddColumn("notes_url_expanded", StaticUpdate, StringCol)
+	t.AddColumn("notification_interval", StaticUpdate, IntCol)
+	t.AddColumn("notification_period", StaticUpdate, StringCol)
+	t.AddColumn("notifications_enabled", DynamicUpdate, IntCol)
+	t.AddColumn("obsess_over_host", DynamicUpdate, IntCol)
+	t.AddColumn("parents", StaticUpdate, StringListCol)
+	t.AddColumn("percent_state_change", DynamicUpdate, FloatCol)
+	t.AddColumn("perf_data", DynamicUpdate, StringCol)
+	t.AddColumn("plugin_output", DynamicUpdate, StringCol)
+	t.AddColumn("process_performance_data", DynamicUpdate, IntCol)
+	t.AddColumn("retry_interval", StaticUpdate, IntCol)
+	t.AddColumn("scheduled_downtime_depth", DynamicUpdate, IntCol)
+	t.AddColumn("state", DynamicUpdate, IntCol)
+	t.AddColumn("state_type", DynamicUpdate, IntCol)
+	return
+}
+
+// add hostgroups definitions
+func NewHostgroupsTable() (t *Table) {
+	t = &Table{Name: "hostgroups"}
+	t.AddColumn("action_url", StaticUpdate, StringCol)
+	t.AddColumn("alias", StaticUpdate, StringCol)
+	t.AddColumn("members", StaticUpdate, StringListCol)
+	t.AddColumn("name", StaticUpdate, StringCol)
+	t.AddColumn("notes", StaticUpdate, StringCol)
+	t.AddColumn("notes_url", StaticUpdate, StringCol)
 	return
 }
 
 // add services table definitions
 func NewServicesTable() (t *Table) {
 	t = &Table{Name: "services"}
-	t.AddColumn("description", StaticUpdate, StringCol)
-	t.AddColumn("state", DynamicUpdate, IntCol)
+	t.AddColumn("accept_passive_checks", DynamicUpdate, IntCol)
+	t.AddColumn("acknowledged", DynamicUpdate, IntCol)
+	t.AddColumn("acknowledgement_type", DynamicUpdate, IntCol)
+	t.AddColumn("action_url", StaticUpdate, StringCol)
+	t.AddColumn("action_url_expanded", StaticUpdate, StringCol)
+	t.AddColumn("active_checks_enabled", DynamicUpdate, IntCol)
+	t.AddColumn("check_command", StaticUpdate, StringCol)
+	t.AddColumn("check_interval", StaticUpdate, IntCol)
+	t.AddColumn("check_options", DynamicUpdate, IntCol)
+	t.AddColumn("check_period", StaticUpdate, StringCol)
+	t.AddColumn("check_type", DynamicUpdate, IntCol)
+	t.AddColumn("checks_enabled", DynamicUpdate, IntCol)
 	t.AddColumn("contacts", StaticUpdate, StringListCol)
+	t.AddColumn("current_attempt", DynamicUpdate, IntCol)
+	t.AddColumn("current_notification_number", DynamicUpdate, IntCol)
+	t.AddColumn("custom_variable_names", StaticUpdate, StringListCol)
+	t.AddColumn("custom_variable_values", StaticUpdate, StringListCol)
+	t.AddColumn("description", StaticUpdate, StringCol)
+	t.AddColumn("display_name", StaticUpdate, StringCol)
+	t.AddColumn("event_handler", StaticUpdate, StringCol)
+	t.AddColumn("event_handler_enabled", DynamicUpdate, IntCol)
+	t.AddColumn("execution_time", DynamicUpdate, FloatCol)
+	t.AddColumn("first_notification_delay", DynamicUpdate, IntCol)
+	t.AddColumn("flap_detection_enabled", DynamicUpdate, IntCol)
+	t.AddColumn("groups", StaticUpdate, StringListCol)
+	t.AddColumn("has_been_checked", DynamicUpdate, IntCol)
+	t.AddColumn("high_flap_threshold", StaticUpdate, IntCol)
+	t.AddColumn("icon_image", StaticUpdate, StringCol)
+	t.AddColumn("icon_image_alt", StaticUpdate, StringCol)
+	t.AddColumn("icon_image_expanded", StaticUpdate, StringCol)
+	t.AddColumn("in_check_period", DynamicUpdate, IntCol)
+	t.AddColumn("in_notification_period", DynamicUpdate, IntCol)
+	t.AddColumn("initial_state", StaticUpdate, IntCol)
+	t.AddColumn("is_executing", DynamicUpdate, IntCol)
+	t.AddColumn("is_flapping", DynamicUpdate, IntCol)
+	t.AddColumn("last_check", DynamicUpdate, IntCol)
+	t.AddColumn("last_hard_state", DynamicUpdate, IntCol)
+	t.AddColumn("last_hard_state_change", DynamicUpdate, IntCol)
+	t.AddColumn("last_notification", DynamicUpdate, IntCol)
+	t.AddColumn("last_state", DynamicUpdate, IntCol)
 	t.AddColumn("latency", DynamicUpdate, FloatCol)
+	t.AddColumn("long_plugin_output", DynamicUpdate, StringCol)
+	t.AddColumn("low_flap_threshold", DynamicUpdate, IntCol)
+	t.AddColumn("max_check_attempts", StaticUpdate, IntCol)
+	t.AddColumn("modified_attributes", DynamicUpdate, IntCol)
+	t.AddColumn("modified_attributes_list", DynamicUpdate, StringListCol)
+	t.AddColumn("next_check", DynamicUpdate, IntCol)
+	t.AddColumn("next_notification", DynamicUpdate, IntCol)
+	t.AddColumn("notes", StaticUpdate, StringCol)
+	t.AddColumn("notes_expanded", StaticUpdate, StringCol)
+	t.AddColumn("notes_url", StaticUpdate, StringCol)
+	t.AddColumn("notes_url_expanded", StaticUpdate, StringCol)
+	t.AddColumn("notification_interval", StaticUpdate, IntCol)
+	t.AddColumn("notification_period", StaticUpdate, StringCol)
+	t.AddColumn("notifications_enabled", DynamicUpdate, IntCol)
+	t.AddColumn("obsess_over_service", DynamicUpdate, IntCol)
+	t.AddColumn("percent_state_change", DynamicUpdate, FloatCol)
+	t.AddColumn("perf_data", DynamicUpdate, StringCol)
+	t.AddColumn("plugin_output", DynamicUpdate, StringCol)
+	t.AddColumn("process_performance_data", DynamicUpdate, IntCol)
+	t.AddColumn("retry_interval", StaticUpdate, IntCol)
+	t.AddColumn("scheduled_downtime_depth", DynamicUpdate, IntCol)
+	t.AddColumn("state", DynamicUpdate, IntCol)
+	t.AddColumn("state_type", DynamicUpdate, IntCol)
 
 	t.AddRefColumn("hosts", "host", "name", StringCol)
+	return
+}
+
+// add hostgroups definitions
+func NewServicegroupsTable() (t *Table) {
+	t = &Table{Name: "servicegroups"}
+	t.AddColumn("action_url", StaticUpdate, StringCol)
+	t.AddColumn("alias", StaticUpdate, StringCol)
+	t.AddColumn("members", StaticUpdate, StringListCol)
+	t.AddColumn("name", StaticUpdate, StringCol)
+	t.AddColumn("notes", StaticUpdate, StringCol)
+	t.AddColumn("notes_url", StaticUpdate, StringCol)
+	return
+}
+
+// add comments definitions
+func NewCommentsTable() (t *Table) {
+	t = &Table{Name: "comments"}
+	t.AddColumn("author", StaticUpdate, StringCol)
+	t.AddColumn("comment", StaticUpdate, StringCol)
+	t.AddColumn("entry_time", StaticUpdate, IntCol)
+	t.AddColumn("entry_type", StaticUpdate, IntCol)
+	t.AddColumn("expires", StaticUpdate, IntCol)
+	t.AddColumn("id", StaticUpdate, IntCol)
+	t.AddColumn("is_service", StaticUpdate, IntCol)
+	t.AddColumn("persistent", StaticUpdate, IntCol)
+	t.AddColumn("source", StaticUpdate, IntCol)
+	t.AddColumn("type", StaticUpdate, IntCol)
+
+	t.AddRefColumn("hosts", "host", "name", StringCol)
+	// TODO: implement
+	//t.AddRefColumn("services", "service", "description", StringCol)
+	return
+}
+
+// add downtimes definitions
+func NewDowntimesTable() (t *Table) {
+	t = &Table{Name: "downtimes"}
+	t.AddColumn("author", StaticUpdate, StringCol)
+	t.AddColumn("comment", StaticUpdate, StringCol)
+	t.AddColumn("duration", StaticUpdate, IntCol)
+	t.AddColumn("end_time", StaticUpdate, IntCol)
+	t.AddColumn("entry_time", StaticUpdate, IntCol)
+	t.AddColumn("fixed", StaticUpdate, IntCol)
+	t.AddColumn("id", StaticUpdate, IntCol)
+	t.AddColumn("is_service", StaticUpdate, IntCol)
+	t.AddColumn("triggered_by", StaticUpdate, IntCol)
+	t.AddColumn("type", StaticUpdate, IntCol)
+
+	t.AddRefColumn("hosts", "host", "name", StringCol)
+	// TODO: implement
+	//t.AddRefColumn("services", "service", "description", StringCol)
 	return
 }
