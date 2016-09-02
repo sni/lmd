@@ -67,9 +67,9 @@ func (p *Peer) UpdateLoop() (err error) {
 		if err != nil {
 			duration := time.Since(t1)
 			p.ErrorCount++
-			if p.Status["LastError"] == "" || p.Status["LastError"] == "connecting..." || p.ErrorCount%100 == 0 {
+			if p.Status["LastError"] == "" || p.Status["LastError"] == "connecting..." {
 				log.Errorf("[%s] fetching initial objects failed after %s: %s", p.Name, duration.String(), err.Error())
-			} else {
+			} else if p.ErrorCount%100 == 0 {
 				log.Infof("[%s] fetching initial objects still failing after %s: %s", p.Name, duration.String(), err.Error())
 			}
 			p.Status["LastError"] = err.Error()
