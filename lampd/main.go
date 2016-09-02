@@ -62,6 +62,10 @@ func mainLoop() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGHUP)
 
+	if _, err := os.Stat(flagConfigFile); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: could not load configuration from %s: %s\nuse --help to see all options.\n", flagConfigFile, err)
+		os.Exit(3)
+	}
 	if _, err := toml.DecodeFile(flagConfigFile, &GlobalConfig); err != nil {
 		panic(err)
 	}
@@ -87,7 +91,7 @@ func mainLoop() {
 		p := NewPeer(&c)
 		_, Exists := DataStore[c.Id]
 		if Exists {
-			log.Panicf("Duplicate id in connection list: %s", c.Id)
+			log.Fatalf("Duplicate id in connection list: %s", c.Id)
 		}
 		DataStore[c.Id] = *p
 		p.Start()
