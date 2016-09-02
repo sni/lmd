@@ -2,3 +2,5 @@ lampd/lampd
 lampd.ini
 lampd.log
 *.swp
+lampd/cover.out
+lampd/coverage.html

@@ -14,11 +14,11 @@ deps:
 	go get github.com/kdar/factorlog
 	go get github.com/mgutz/ansi
 	go get golang.org/x/tools/cmd/goimports
-	if [ $(shell grep -rc Dump lampd/*.go | grep -v :0 | grep -v lampd/dump.go | wc -l) -ne 0 ]; then \
+	if [ $(shell grep -rc Dump $(LAMPDDIR)/*.go | grep -v :0 | grep -v $(LAMPDDIR)/dump.go | wc -l) -ne 0 ]; then \
 		go get github.com/davecgh/go-spew/spew; \
-		sed -i lampd/dump.go -e "s/\/\/ +build.*/\/\/ build with debug functions/"; \
+		sed -i $(LAMPDDIR)/dump.go -e "s/\/\/ +build.*/\/\/ build with debug functions/"; \
 	else \
-		sed -i lampd/dump.go -e "s/\/\/ build.*/\/\/ +build ignore/"; \
+		sed -i $(LAMPDDIR)/dump.go -e "s/\/\/ build.*/\/\/ +build ignore/"; \
 	fi
 
 build: deps fmt
@@ -27,8 +27,14 @@ build: deps fmt
 test: deps fmt
 	cd $(LAMPDDIR) && go test -v $(COLORIZE_TEST)
 
+testcover: deps fmt
+	cd $(LAMPDDIR) && go test -v -coverprofile=cover.out $(COLORIZE_TEST)
+	cd $(LAMPDDIR) && go tool cover -func=cover.out
+	cd $(LAMPDDIR) && go tool cover -html=cover.out -o coverage.html
+
 clean:
 	rm -f $(LAMPDDIR)/lampd
+	rm -f $(LAMPDDIR)/cover.out
 
 fmt:
 	cd $(LAMPDDIR) && goimports -w .
