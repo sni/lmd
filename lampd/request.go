@@ -129,7 +129,7 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 		err = ParseStats(value, line, req.Table, &req.Stats)
 		return
 	case "statsand":
-		err = ParseFilterOp(header, value, line, &req.Stats)
+		err = ParseFilterOp("and", value, line, &req.Stats)
 		return
 	case "sort":
 		tmp := strings.SplitN(value, " ", 2)

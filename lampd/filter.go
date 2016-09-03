@@ -213,13 +213,13 @@ func ParseFilterOp(header string, value string, line *string, stack *[]Filter) (
 	}
 	// remove x entrys from stack and combine them to a new group
 	groupedStack, remainingStack := (*stack)[stackLen-num:], (*stack)[:stackLen-num]
-	*stack = remainingStack
 	op := Or
 	if header == "and" {
 		op = And
 	}
 	stackedFilter := Filter{Filter: groupedStack, GroupOperator: op, Value: nil}
 	*stack = []Filter{}
+	*stack = append(*stack, remainingStack...)
 	*stack = append(*stack, stackedFilter)
 	return
 }
@@ -258,7 +258,6 @@ func matchFilter(table *Table, refs *map[string][][]interface{}, inputRowLen int
 		return matchNumberFilter(&filter, valueA, valueB)
 	case FloatCol:
 		valueA := value.(float64)
-		Dump(filter)
 		valueB := filter.Value.(float64)
 		return matchNumberFilter(&filter, valueA, valueB)
 	case StringListCol:
