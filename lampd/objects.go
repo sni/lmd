@@ -422,15 +422,14 @@ func NewCommentsTable() (t *Table) {
 	t.AddColumn("entry_time", StaticUpdate, IntCol)
 	t.AddColumn("entry_type", StaticUpdate, IntCol)
 	t.AddColumn("expires", StaticUpdate, IntCol)
+	t.AddColumn("expire_time", StaticUpdate, IntCol)
 	t.AddColumn("id", StaticUpdate, IntCol)
 	t.AddColumn("is_service", StaticUpdate, IntCol)
 	t.AddColumn("persistent", StaticUpdate, IntCol)
 	t.AddColumn("source", StaticUpdate, IntCol)
 	t.AddColumn("type", StaticUpdate, IntCol)
-
-	t.AddRefColumn("hosts", "host", "name", StringCol)
-	// TODO: implement
-	//t.AddRefColumn("services", "service", "description", StringCol)
+	t.AddColumn("host_name", StaticUpdate, StringCol)
+	t.AddColumn("service_description", StaticUpdate, StringCol)
 	return
 }
 
@@ -445,12 +444,12 @@ func NewDowntimesTable() (t *Table) {
 	t.AddColumn("fixed", StaticUpdate, IntCol)
 	t.AddColumn("id", StaticUpdate, IntCol)
 	t.AddColumn("is_service", StaticUpdate, IntCol)
+	t.AddColumn("start_time", StaticUpdate, IntCol)
 	t.AddColumn("triggered_by", StaticUpdate, IntCol)
 	t.AddColumn("type", StaticUpdate, IntCol)
 
-	t.AddRefColumn("hosts", "host", "name", StringCol)
-	// TODO: implement
-	//t.AddRefColumn("services", "service", "description", StringCol)
+	t.AddColumn("host_name", StaticUpdate, StringCol)
+	t.AddColumn("service_description", StaticUpdate, StringCol)
 	return
 }
 

@@ -89,6 +89,11 @@ func (p *Peer) UpdateLoop() (err error) {
 		duration := time.Since(t1)
 		log.Infof("[%s] objects created in: %s", p.Name, duration.String())
 
+		// TODO: implement timer loop which refreshes completly every full minute including timeperiods
+		// timer is one second and should check the shutdown channel in between
+		// also implement idle_interval update (maybe one minute) and the normal update interval
+		// refresh hosts / services every few seconds but only update the ones having a last_check date greater
+		// last update or is_executing flag
 		for {
 			time.Sleep(time.Duration(GlobalConfig.Updateinterval) * time.Second)
 			t1 := time.Now()
