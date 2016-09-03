@@ -23,6 +23,12 @@ func queryServer(c net.Conn) error {
 			return SendResponse(c, &Response{Code: 400, Request: req, Error: err})
 		}
 
+		if req.Command != "" {
+			// commands do not send anything back
+			err := SendPeerCommands(req)
+			return err
+		}
+
 		response, err := BuildResponse(req)
 		if err != nil {
 			return SendResponse(c, &Response{Code: 400, Request: req, Error: err})
@@ -33,6 +39,26 @@ func queryServer(c net.Conn) error {
 		log.Infof("incoming %s request from %s to %s finished in %s", req.Table, remote, c.LocalAddr().String(), duration.String())
 		return err
 	}
+}
+
+func SendPeerCommands(req *Request) (err error) {
+	backendsMap, numBackendsReq, err := ExpandRequestBackends(req)
+	if err != nil {
+		return
+	}
+	for _, p := range DataStore {
+		if numBackendsReq > 0 {
+			_, Ok := backendsMap[p.Id]
+			if !Ok {
+				continue
+			}
+		}
+		go func() {
+			p.Command(&req.Command)
+			// TODO: schedule update
+		}()
+	}
+	return
 }
 
 func localListener(listen string) {

@@ -88,7 +88,6 @@ Some things are still not complete
 
     - Remove old sockets on exit
     - Implement "GET backends" with status and some statistics
-    - commands handling
     - logs handling
 
 

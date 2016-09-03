@@ -12,6 +12,7 @@ import (
 
 type Request struct {
 	Table             string
+	Command           string
 	Columns           []string
 	Filter            []Filter
 	Stats             []Filter
@@ -47,6 +48,7 @@ const (
 )
 
 var ReRequestAction = regexp.MustCompile(`^GET ([a-z]+)$`)
+var ReRequestCommand = regexp.MustCompile(`^COMMAND (\[\d+\].*)$`)
 var ReRequestHeader = regexp.MustCompile(`^(\w+):\s*(.*)$`)
 var ReRequestEmpty = regexp.MustCompile(`^\s*$`)
 
@@ -63,18 +65,24 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, err error) {
 		err = errors.New("bad request: " + err.Error())
 		return
 	}
+	// check for commands
 	log.Debugf("request: %s", firstLine)
-	matched := ReRequestAction.FindStringSubmatch(firstLine)
-	if len(matched) != 2 {
-		err = errors.New("bad request in " + firstLine)
-		return
-	}
+	matched := ReRequestCommand.FindStringSubmatch(firstLine)
+	if len(matched) == 2 {
+		req.Command = matched[0]
+	} else {
+		matched = ReRequestAction.FindStringSubmatch(firstLine)
+		if len(matched) != 2 {
+			err = errors.New("bad request in " + firstLine)
+			return
+		}
 
-	req.Table = matched[1]
-	_, ok := Objects.Tables[req.Table]
-	if !ok {
-		err = errors.New("bad request: table " + req.Table + " does not exist")
-		return
+		req.Table = matched[1]
+		_, ok := Objects.Tables[req.Table]
+		if !ok {
+			err = errors.New("bad request: table " + req.Table + " does not exist")
+			return
+		}
 	}
 
 	for {

@@ -140,14 +140,14 @@ func (p *Peer) Query(table *Table, columns *[]string) (result [][]interface{}, e
 	conn.SetDeadline(time.Now().Add(time.Duration(GlobalConfig.NetTimeout) * time.Second))
 
 	query := fmt.Sprintf("GET %s\nOutputFormat: json\nResponseHeader: fixed16\nColumns: %s\n\n", table.Name, strings.Join(*columns, " "))
-	log.Debugf("[%s] send to: %s", p.Name, p.Source)
+	log.Tracef("[%s] send to: %s", p.Name, p.Source)
 	log.Debugf("[%s] query: %s", p.Name, query)
 	fmt.Fprintf(conn, "%s", query)
 
 	var buf bytes.Buffer
 	io.Copy(&buf, conn)
 
-	log.Debugf("[%s] result: %s", p.Name, string(buf.Bytes()))
+	log.Tracef("[%s] result: %s", p.Name, string(buf.Bytes()))
 
 	resBytes := buf.Bytes()
 	if len(resBytes) < 16 {
@@ -174,6 +174,26 @@ func (p *Peer) Query(table *Table, columns *[]string) (result [][]interface{}, e
 		log.Errorf("[%s] json error:", p.Name, err.Error())
 		return
 	}
+
+	return
+}
+
+// send command query to remote livestatus and returns unmarshaled result
+func (p *Peer) Command(command *string) (err error) {
+	connType := "unix"
+	if strings.Contains(p.Source, ":") {
+		connType = "tcp"
+	}
+	conn, err := net.DialTimeout(connType, p.Source, time.Duration(GlobalConfig.NetTimeout)*time.Second)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	conn.SetDeadline(time.Now().Add(time.Duration(GlobalConfig.NetTimeout) * time.Second))
+
+	log.Debugf("[%s] send to: %s", p.Name, p.Source)
+	log.Debugf("[%s] command: %s", p.Name, *command)
+	fmt.Fprintf(conn, "%s\n", *command)
 
 	return
 }

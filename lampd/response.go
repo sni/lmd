@@ -91,17 +91,9 @@ func BuildResponse(req *Request) (res *Response, err error) {
 	res.Columns = columns
 	numPerRow := len(indexes)
 
-	backendsMap := make(map[string]string)
-	numBackendsReq := len(req.Backends)
-	if numBackendsReq > 0 {
-		for _, b := range req.Backends {
-			_, Ok := DataStore[b]
-			if !Ok {
-				err = errors.New("bad request: backend " + b + " does not exist")
-				return
-			}
-			backendsMap[b] = b
-		}
+	backendsMap, numBackendsReq, err := ExpandRequestBackends(req)
+	if err != nil {
+		return
 	}
 
 	for _, p := range DataStore {
@@ -114,10 +106,24 @@ func BuildResponse(req *Request) (res *Response, err error) {
 		BuildResponseDataForPeer(res, req, &p, numPerRow, &indexes)
 	}
 	if res.Result == nil {
-		// TODO: should not happen on stats requests
 		res.Result = make([][]interface{}, 0)
 	}
 	BuildResponsePostProcessing(res)
+	return
+}
+
+func ExpandRequestBackends(req *Request) (backendsMap map[string]string, numBackendsReq int, err error) {
+	numBackendsReq = len(req.Backends)
+	if numBackendsReq > 0 {
+		for _, b := range req.Backends {
+			_, Ok := DataStore[b]
+			if !Ok {
+				err = errors.New("bad request: backend " + b + " does not exist")
+				return
+			}
+			backendsMap[b] = b
+		}
+	}
 	return
 }
 
@@ -345,10 +351,6 @@ func SendResponse(c net.Conn, res *Response) (err error) {
 		if err != nil {
 			log.Errorf("json error: %s", err.Error())
 		}
-		// TODO: remove pretty json or make extra header for it
-		//var out bytes.Buffer
-		//json.Indent(&out, resBytes, "", "  ")
-		//resBytes = out.Bytes()
 	}
 	if res.Error != nil {
 		log.Warnf("client error: %s", res.Error.Error())

@@ -1,16 +1,19 @@
 # Listen for incoming livestatus requests here
 # TCP or unix sockets are allowed. Multiple entrys
-# are also valid 
+# are also valid
 Listen          = ["127.0.0.1:3333", "/tmp/live.sock"]
 
 # daemon will log to stdout if no logfile is set
-¤LogFile         = "lampd.log"
+#LogFile         = "lampd.log"
 
-# May be Error, Warn, Info or Debug
+# May be Error, Warn, Info, Debug and Trace
 LogLevel        = "Info"
 
-# Refresh remote sites every x seconds 
+# Refresh remote sites every x seconds
 UpdateInterval  = 10
+
+# Connection timeout for remote tcp connections
+NetTimeout  = 30
 
 # use tcp connections
 [[Connections]]
