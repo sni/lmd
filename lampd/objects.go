@@ -237,6 +237,7 @@ func NewContactsTable() (t *Table) {
 	t.AddColumn("host_notification_period", StaticUpdate, StringCol)
 	t.AddColumn("host_notifications_enabled", StaticUpdate, IntCol)
 	t.AddColumn("name", StaticUpdate, StringCol)
+	t.AddColumn("pager", StaticUpdate, StringCol)
 	t.AddColumn("service_notification_period", StaticUpdate, StringCol)
 	t.AddColumn("service_notifications_enabled", StaticUpdate, IntCol)
 
@@ -284,6 +285,7 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("checks_enabled", DynamicUpdate, IntCol)
 	t.AddColumn("childs", StaticUpdate, StringListCol)
 	t.AddColumn("contacts", StaticUpdate, StringListCol)
+	t.AddColumn("contact_groups", StaticUpdate, StringListCol)
 	t.AddColumn("comments", DynamicUpdate, IntListCol)
 	t.AddColumn("current_attempt", DynamicUpdate, IntCol)
 	t.AddColumn("current_notification_number", DynamicUpdate, IntCol)
@@ -383,6 +385,7 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("check_type", DynamicUpdate, IntCol)
 	t.AddColumn("checks_enabled", DynamicUpdate, IntCol)
 	t.AddColumn("contacts", StaticUpdate, StringListCol)
+	t.AddColumn("contact_groups", StaticUpdate, StringListCol)
 	t.AddColumn("comments", DynamicUpdate, IntListCol)
 	t.AddColumn("current_attempt", DynamicUpdate, IntCol)
 	t.AddColumn("current_notification_number", DynamicUpdate, IntCol)
