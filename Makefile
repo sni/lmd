@@ -24,6 +24,9 @@ deps:
 build: deps fmt
 	cd $(LAMPDDIR) && go build -ldflags "-X main.Build=$(shell git rev-parse --short HEAD)"
 
+debugbuild: deps fmt
+	cd $(LAMPDDIR) && go build -race -ldflags "-X main.Build=$(shell git rev-parse --short HEAD)"
+
 test: deps fmt
 	cd $(LAMPDDIR) && go test -v $(COLORIZE_TEST)
 
