@@ -22,9 +22,24 @@ type Response struct {
 	Columns     []Column
 }
 
-const (
-	PEER_KEY_INDEX = -1
-)
+type VirtKeyMapTupel struct {
+	Index int
+	Key   string
+	Type  ColumnType
+}
+
+var VirtKeyMap = map[string]VirtKeyMapTupel{
+	"peer_key":            {Index: -1, Key: "PeerKey", Type: StringCol},
+	"peer_name":           {Index: -2, Key: "PeerName", Type: StringCol},
+	"peer_addr":           {Index: -3, Key: "PeerAddr", Type: StringCol},
+	"peer_status":         {Index: -4, Key: "PeerStatus", Type: IntCol},
+	"peer_bytes_send":     {Index: -5, Key: "BytesSend", Type: IntCol},
+	"peer_bytes_received": {Index: -6, Key: "BytesReceived", Type: IntCol},
+	"peer_queries":        {Index: -7, Key: "Querys", Type: IntCol},
+	"peer_last_error":     {Index: -8, Key: "LastError", Type: StringCol},
+	"peer_last_online":    {Index: -9, Key: "LastOnline", Type: TimeCol},
+	"peer_last_update":    {Index: -10, Key: "LastUpdate", Type: TimeCol},
+}
 
 // result sorter
 func (res Response) Len() int {
@@ -192,7 +207,7 @@ func BuildResponseIndexes(req *Request, table *Table) (indexes []int, columns []
 	if len(req.Columns) == 0 && len(req.Stats) == 0 {
 		req.SendColumnsHeader = true
 		for _, col := range table.Columns {
-			if col.Update == StaticUpdate || col.Update == DynamicUpdate {
+			if col.Update == StaticUpdate || col.Update == DynamicUpdate || col.Type == VirtCol {
 				req.Columns = append(req.Columns, col.Name)
 			}
 		}
@@ -200,15 +215,15 @@ func BuildResponseIndexes(req *Request, table *Table) (indexes []int, columns []
 	// build array of requested columns as Column objects list
 	for j, col := range req.Columns {
 		col = strings.ToLower(col)
-		if col == "peer_key" {
-			indexes = append(indexes, PEER_KEY_INDEX)
-			columns = append(columns, Column{Name: col, Type: StringCol, Index: j})
-			continue
-		}
 		i, Ok := table.ColumnsIndex[col]
 		if !Ok {
 			err = errors.New("bad request: table " + req.Table + " has no column " + col)
 			return
+		}
+		if table.Columns[i].Type == VirtCol {
+			indexes = append(indexes, VirtKeyMap[col].Index)
+			columns = append(columns, Column{Name: col, Type: VirtKeyMap[col].Type, Index: j})
+			continue
 		}
 		indexes = append(indexes, i)
 		columns = append(columns, Column{Name: col, Type: table.Columns[i].Type, Index: j})
@@ -304,8 +319,20 @@ func BuildResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow
 		// build result row
 		resRow := make([]interface{}, numPerRow)
 		for k, i := range *(indexes) {
-			if i == PEER_KEY_INDEX {
-				resRow[k] = peer.Id
+			if i < 0 {
+				switch res.Columns[k].Type {
+				case IntCol:
+					fallthrough
+				case FloatCol:
+					fallthrough
+				case StringCol:
+					resRow[k] = peer.Status[VirtKeyMap[res.Columns[k].Name].Key]
+				case TimeCol:
+					resRow[k] = peer.Status[VirtKeyMap[res.Columns[k].Name].Key].(time.Time).Unix()
+					break
+				default:
+					log.Panicf("not implemented")
+				}
 			} else {
 				// check if this is a reference column
 				// reference columns come after the non-ref columns
@@ -340,14 +367,16 @@ func SendResponse(c net.Conn, res *Response) (err error) {
 		res.Result = result
 	}
 	if res.Result != nil {
-		if res.Request.OutputFormat == "" || res.Request.OutputFormat == "wrapped_json" {
+		if res.Request.OutputFormat == "wrapped_json" {
 			wrappedResult := make(map[string]interface{})
 			wrappedResult["data"] = res.Result
 			wrappedResult["total"] = res.ResultTotal
 			wrappedResult["failed"] = res.Failed
 			resBytes, err = json.Marshal(wrappedResult)
-		} else {
+		} else if res.Request.OutputFormat == "json" || res.Request.OutputFormat == "" {
 			resBytes, err = json.Marshal(res.Result)
+		} else {
+			log.Errorf("ouput format not supported: %s", res.Request.OutputFormat)
 		}
 		if err != nil {
 			log.Errorf("json error: %s", err.Error())

@@ -47,9 +47,14 @@ func NewPeer(config *Connection, waitGroup *sync.WaitGroup, shutdownChannel chan
 		waitGroup:       waitGroup,
 		shutdownChannel: shutdownChannel,
 	}
+	p.Status["PeerKey"] = p.Id
+	p.Status["PeerName"] = p.Name
+	p.Status["PeerAddr"] = p.Source
+	p.Status["PeerStatus"] = 2
 	p.Status["LastUpdate"] = time.Now()
 	p.Status["LastQuery"] = time.Now()
 	p.Status["LastError"] = "connecting..."
+	p.Status["LastOnline"] = &time.Time{}
 	p.Status["ProgramStart"] = 0
 	p.Status["BytesSend"] = 0
 	p.Status["BytesReceived"] = 0
@@ -118,12 +123,15 @@ func (p *Peer) InitAllTables() bool {
 				log.Infof("[%s] fetching initial objects still failing after %s: %s", p.Name, duration.String(), err.Error())
 			}
 			p.Status["LastError"] = err.Error()
+			p.Status["PeerStatus"] = 2
 			return false
 		}
 	}
 	if p.Status["LastError"] != "" && p.Status["LastError"] != "connecting..." {
 		log.Infof("[%s] site is back online", p.Name)
 	}
+	p.Status["PeerStatus"] = 0
+	p.Status["LastOnline"] = time.Now()
 	p.Status["LastError"] = ""
 	p.Status["ProgramStart"] = p.Tables["status"].Data[0][p.Tables["status"].Table.ColumnsIndex["program_start"]]
 	p.ErrorCount = 0
@@ -145,9 +153,11 @@ func (p *Peer) UpdateAllTables() bool {
 			duration := time.Since(t1)
 			// give site some time to recover
 			if p.ErrorCount >= 3 {
+				p.Status["PeerStatus"] = 2
 				log.Warnf("[%s] site went offline: %s", p.Name, err.Error())
 				return false
 			}
+			p.Status["PeerStatus"] = 1
 			log.Infof("[%s] updating objects failed (retry %d) after: %s: %s", p.Name, p.ErrorCount, duration.String(), err.Error())
 			return true
 		}
@@ -161,6 +171,8 @@ func (p *Peer) UpdateAllTables() bool {
 	if restartRequired {
 		return p.InitAllTables()
 	}
+	p.Status["PeerStatus"] = 0
+	p.Status["LastOnline"] = time.Now()
 	p.Status["LastError"] = ""
 	duration := time.Since(t1)
 	log.Infof("[%s] update complete in: %s", p.Name, duration.String())
@@ -187,13 +199,17 @@ func (p *Peer) UpdateDeltaTables() bool {
 		duration := time.Since(t1)
 		// give site some time to recover
 		if p.ErrorCount >= 3 {
+			p.Status["PeerStatus"] = 2
 			log.Warnf("[%s] site went offline: %s", p.Name, err.Error())
 			return false
 		}
+		p.Status["PeerStatus"] = 1
 		log.Infof("[%s] updating objects failed (retry %d) after: %s: %s", p.Name, p.ErrorCount, duration.String(), err.Error())
 		return true
 	}
 
+	p.Status["PeerStatus"] = 0
+	p.Status["LastOnline"] = time.Now()
 	p.Status["LastError"] = ""
 	duration := time.Since(t1)
 	log.Debugf("[%s] delta update complete in: %s", p.Name, duration.String())
@@ -326,10 +342,23 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	keys := []string{}
 	for _, col := range table.Columns {
-		if col.Update != RefUpdate && col.Update != RefNoUpdate {
+		if col.Update != RefUpdate && col.Update != RefNoUpdate && col.Type != VirtCol {
 			keys = append(keys, col.Name)
 		}
 	}
+	refs := make(map[string][][]interface{})
+	index := make(map[string][]interface{})
+
+	// complete virtiual table ends here
+	if len(keys) == 0 {
+		p.Lock.Lock()
+		p.Tables[table.Name] = DataTable{Table: table, Data: make([][]interface{}, 1), Refs: refs, Index: index}
+		p.Status["LastUpdate"] = time.Now()
+		p.Lock.Unlock()
+		return
+	}
+
+	// fetch remote objects
 	req := &Request{
 		Table:           table.Name,
 		Columns:         keys,
@@ -342,7 +371,6 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	}
 	// expand references, create a hash entry for each reference type, ex.: hosts
 	// and put an array containing the references (using the same index as the original row)
-	refs := make(map[string][][]interface{})
 	for _, refNum := range table.RefColCacheIndexes {
 		refCol := table.Columns[refNum]
 		fieldName := refCol.Name
@@ -353,7 +381,6 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 		}
 	}
 	// create host lookup indexes
-	index := make(map[string][]interface{})
 	if table.Name == "hosts" {
 		indexField := table.ColumnsIndex["name"]
 		for _, row := range res {
