@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
@@ -61,6 +63,11 @@ func main() {
 func mainLoop() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGHUP)
+	signal.Notify(c, syscall.SIGTERM)
+	signal.Notify(c, os.Interrupt)
+	shutdownChannel := make(chan bool)
+	waitGroupListener := &sync.WaitGroup{}
+	waitGroupPeers := &sync.WaitGroup{}
 
 	if _, err := os.Stat(flagConfigFile); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: could not load configuration from %s: %s\nuse --help to see all options.\n", flagConfigFile, err)
@@ -83,12 +90,12 @@ func mainLoop() {
 
 	// start local listeners
 	for _, listen := range GlobalConfig.Listen {
-		go localListener(listen)
+		go localListener(listen, waitGroupListener, shutdownChannel)
 	}
 
 	// start remote connections
 	for _, c := range GlobalConfig.Connections {
-		p := NewPeer(&c)
+		p := NewPeer(&c, waitGroupPeers, shutdownChannel)
 		_, Exists := DataStore[c.Id]
 		if Exists {
 			log.Fatalf("Duplicate id in connection list: %s", c.Id)
@@ -100,7 +107,48 @@ func mainLoop() {
 	fmt.Printf("%s - version %s (Build: %s) started\n", NAME, VERSION, Build)
 
 	// just wait till someone hits ctrl+c or we have to reload
-	for _ = range c {
-		log.Infof("Reloading Config...")
+	for sig := range c {
+		switch sig {
+		case syscall.SIGTERM:
+			log.Infof("got sigterm, quiting gracefully")
+			shutdownChannel <- true
+			close(shutdownChannel)
+			waitGroupListener.Wait()
+			waitGroupPeers.Wait()
+			os.Exit(0)
+			break
+		case os.Interrupt:
+			shutdownChannel <- true
+			close(shutdownChannel)
+			log.Infof("got sigint, quiting")
+			// wait one second which should be enough for the listeners
+			waitTimeout(waitGroupListener, time.Second)
+			os.Exit(1)
+			break
+		case syscall.SIGHUP:
+			log.Infof("got sighub, reloading configuration...")
+			shutdownChannel <- true
+			close(shutdownChannel)
+			waitGroupListener.Wait()
+			return
+		default:
+			log.Warnf("Signal not handled: %v", sig)
+		}
+	}
+}
+
+// waitTimeout waits for the waitgroup for the specified max timeout.
+// Returns true if waiting timed out.
+func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	select {
+	case <-c:
+		return false // completed normally
+	case <-time.After(timeout):
+		return true // timed out
 	}
 }

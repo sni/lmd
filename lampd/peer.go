@@ -23,26 +23,31 @@ type DataTable struct {
 }
 
 type Peer struct {
-	Name       string
-	Id         string
-	Source     string
-	Lock       sync.RWMutex
-	Tables     map[string]DataTable
-	Status     map[string]interface{}
-	ErrorCount int
+	Name            string
+	Id              string
+	Source          string
+	Lock            sync.RWMutex
+	Tables          map[string]DataTable
+	Status          map[string]interface{}
+	ErrorCount      int
+	waitGroup       *sync.WaitGroup
+	shutdownChannel chan bool
 }
 
 // send query to remote livestatus and returns unmarshaled result
-func NewPeer(config *Connection) *Peer {
+func NewPeer(config *Connection, waitGroup *sync.WaitGroup, shutdownChannel chan bool) *Peer {
 	p := Peer{
-		Name:       config.Name,
-		Id:         config.Id,
-		Source:     config.Source,
-		Tables:     make(map[string]DataTable),
-		Status:     make(map[string]interface{}),
-		ErrorCount: 0,
+		Name:            config.Name,
+		Id:              config.Id,
+		Source:          config.Source,
+		Tables:          make(map[string]DataTable),
+		Status:          make(map[string]interface{}),
+		ErrorCount:      0,
+		waitGroup:       waitGroup,
+		shutdownChannel: shutdownChannel,
 	}
-	p.Status["LastUpdate"] = 0
+	p.Status["LastUpdate"] = time.Now()
+	p.Status["LastQuery"] = time.Now()
 	p.Status["LastError"] = "connecting..."
 	p.Status["ProgramStart"] = 0
 	return &p
@@ -51,79 +56,103 @@ func NewPeer(config *Connection) *Peer {
 // create initial objects
 func (p *Peer) Start() (_, err error) {
 	go func() {
+		defer p.waitGroup.Done()
+		p.waitGroup.Add(1)
 		log.Infof("[%s] starting connection", p.Name)
-		for {
-			p.UpdateLoop()
-			time.Sleep(time.Duration(GlobalConfig.Updateinterval) * time.Second)
-		}
+		p.UpdateLoop()
 	}()
 
 	return
 }
 
-func (p *Peer) UpdateLoop() (err error) {
+func (p *Peer) UpdateLoop() {
 	for {
-		err = nil
-		t1 := time.Now()
-		for _, t := range Objects.Tables {
-			_, err = p.CreateObjectByType(t)
-			if err != nil {
-				duration := time.Since(t1)
-				p.ErrorCount++
-				if p.Status["LastError"] == "" || p.Status["LastError"] == "connecting..." {
-					log.Warnf("[%s] fetching initial objects failed after %s: %s", p.Name, duration.String(), err.Error())
-				} else {
-					log.Infof("[%s] fetching initial objects still failing after %s: %s", p.Name, duration.String(), err.Error())
-				}
-				p.Status["LastError"] = err.Error()
-				return
-			}
-		}
-		if p.Status["LastError"] != "" && p.Status["LastError"] != "connecting..." {
-			log.Infof("[%s] site is back online", p.Name)
-		}
-		p.Status["LastError"] = ""
-		p.Status["LastUpdate"] = time.Now()
-		p.Status["ProgramStart"] = p.Tables["status"].Data[0][p.Tables["status"].Table.ColumnsIndex["program_start"]]
-		p.ErrorCount = 0
-		duration := time.Since(t1)
-		log.Infof("[%s] objects created in: %s", p.Name, duration.String())
+		ok := p.InitAllTables()
 
 		// TODO: implement timer loop which refreshes completly every full minute including timeperiods
-		// timer is one second and should check the shutdown channel in between
 		// also implement idle_interval update (maybe one minute) and the normal update interval
 		// refresh hosts / services every few seconds but only update the ones having a last_check date greater
 		// last update or is_executing flag
+		c := time.Tick(5e8 * time.Nanosecond)
 		for {
-			time.Sleep(time.Duration(GlobalConfig.Updateinterval) * time.Second)
-			t1 := time.Now()
-			for _, t := range Objects.Tables {
-				_, err = p.UpdateObjectByType(t)
-				if err != nil {
-					p.ErrorCount++
-					if p.ErrorCount > 3 {
-						// give site some time to recover
-						log.Warnf("[%s] updating objects failed after: %s: %s", p.Name, duration.String(), err.Error())
+			select {
+			case <-p.shutdownChannel:
+				log.Infof("stopping peer %s", p.Name)
+				return
+			case <-c:
+				lastUpdate := p.Status["LastUpdate"].(time.Time)
+				if time.Now().Add(-1 * time.Duration(GlobalConfig.Updateinterval) * time.Second).After(lastUpdate) {
+					if !ok {
+						ok = p.InitAllTables()
 					} else {
-						log.Infof("[%s] updating objects failed after: %s: %s", p.Name, duration.String(), err.Error())
+						ok = p.UpdateAllTables()
 					}
-					p.Status["LastError"] = err.Error()
-					break
 				}
-			}
-			if p.Status["ProgramStart"] != p.Tables["status"].Data[0][p.Tables["status"].Table.ColumnsIndex["program_start"]] {
-				log.Infof("[%s] site has been restarted, recreating objects", p.Name)
 				break
 			}
-			if err != nil && p.ErrorCount > 3 {
-				break
-			}
-			p.Status["LastUpdate"] = time.Now()
-			p.Status["LastError"] = ""
-			duration := time.Since(t1)
-			log.Infof("[%s] update complete in: %s", p.Name, duration.String())
 		}
 	}
+}
+
+func (p *Peer) InitAllTables() bool {
+	var err error
+	p.Status["LastUpdate"] = time.Now()
+	t1 := time.Now()
+	for _, t := range Objects.Tables {
+		_, err = p.CreateObjectByType(t)
+		if err != nil {
+			duration := time.Since(t1)
+			p.ErrorCount++
+			if p.Status["LastError"] == "" || p.Status["LastError"] == "connecting..." {
+				log.Warnf("[%s] site is offline: %s", p.Name, err.Error())
+			} else {
+				log.Infof("[%s] fetching initial objects still failing after %s: %s", p.Name, duration.String(), err.Error())
+			}
+			p.Status["LastError"] = err.Error()
+			return false
+		}
+	}
+	if p.Status["LastError"] != "" && p.Status["LastError"] != "connecting..." {
+		log.Infof("[%s] site is back online", p.Name)
+	}
+	p.Status["LastError"] = ""
+	p.Status["ProgramStart"] = p.Tables["status"].Data[0][p.Tables["status"].Table.ColumnsIndex["program_start"]]
+	p.ErrorCount = 0
+	duration := time.Since(t1)
+	log.Infof("[%s] objects created in: %s", p.Name, duration.String())
+	return true
+}
+
+func (p *Peer) UpdateAllTables() bool {
+	t1 := time.Now()
+	var err error
+	p.Status["LastUpdate"] = time.Now()
+	for _, t := range Objects.Tables {
+		_, err = p.UpdateObjectByType(t)
+		if err != nil {
+			p.Status["LastError"] = err.Error()
+			p.ErrorCount++
+			duration := time.Since(t1)
+			// give site some time to recover
+			if p.ErrorCount >= 3 {
+				log.Warnf("[%s] site went offline: %s", p.Name, err.Error())
+				return false
+			}
+			log.Infof("[%s] updating objects failed (retry %d) after: %s: %s", p.Name, p.ErrorCount, duration.String(), err.Error())
+			return true
+		}
+	}
+	if p.Status["ProgramStart"] != p.Tables["status"].Data[0][p.Tables["status"].Table.ColumnsIndex["program_start"]] {
+		log.Infof("[%s] site has been restarted, recreating objects", p.Name)
+		return p.InitAllTables()
+	}
+	if err != nil && p.ErrorCount > 3 {
+		return false
+	}
+	p.Status["LastError"] = ""
+	duration := time.Since(t1)
+	log.Infof("[%s] update complete in: %s", p.Name, duration.String())
+	return true
 }
 
 // send query to remote livestatus and returns unmarshaled result

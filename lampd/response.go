@@ -236,6 +236,7 @@ func BuildResponseIndexes(req *Request, table *Table) (indexes []int, columns []
 func BuildResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow int, indexes *[]int) (err error) {
 	peer.Lock.RLock()
 	defer peer.Lock.RUnlock()
+	peer.Status["LastQuery"] = time.Now()
 	if peer.Status["LastError"] != "" {
 		res.Failed[peer.Id] = fmt.Sprintf("%v", peer.Status["LastError"])
 		return

@@ -86,9 +86,9 @@ TODO
 
 Some things are still not complete
 
-    - Remove old sockets on exit
     - Implement "GET backends" with status and some statistics
     - logs handling
+    - Implement Wait Header
 
 
 Ideas

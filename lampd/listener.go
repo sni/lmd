@@ -4,6 +4,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -26,6 +27,8 @@ func queryServer(c net.Conn) error {
 		if req.Command != "" {
 			// commands do not send anything back
 			err := SendPeerCommands(req)
+			duration := time.Since(t1)
+			log.Infof("incoming command request from %s to %s finished in %s", remote, c.LocalAddr().String(), duration.String())
 			return err
 		}
 
@@ -53,21 +56,24 @@ func SendPeerCommands(req *Request) (err error) {
 				continue
 			}
 		}
+		p.Status["LastQuery"] = time.Now()
 		go func() {
 			p.Command(&req.Command)
-			// TODO: schedule update
+			// schedule immediate update
+			p.Status["LastUpdate"] = time.Now().Add(-1 * time.Duration(60) * time.Second)
 		}()
 	}
 	return
 }
 
-func localListener(listen string) {
+func localListener(listen string, waitGroup *sync.WaitGroup, shutdownChannel chan bool) {
+	defer waitGroup.Done()
+	waitGroup.Add(1)
 	connType := "unix"
 	if strings.Contains(listen, ":") {
 		connType = "tcp"
 	} else {
 		// remove socket on exit
-		// TODO: check if it works
 		defer func() {
 			os.Remove(listen)
 		}()
@@ -78,9 +84,26 @@ func localListener(listen string) {
 		return
 	}
 	log.Infof("listening for incoming querys on %s %s", connType, listen)
+	defer l.Close()
 
 	for {
+		if l, ok := l.(*net.TCPListener); ok {
+			l.SetDeadline(time.Now().Add(5e8)) // set timeout to 0.5 seconds
+		}
+		if l, ok := l.(*net.UnixListener); ok {
+			l.SetDeadline(time.Now().Add(5e8))
+		}
+
+		select {
+		case <-shutdownChannel:
+			log.Infof("stopping listening on %s", listen)
+			return
+		default:
+		}
 		fd, err := l.Accept()
+		if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
+			continue
+		}
 		if err != nil {
 			log.Errorf("accept error", err.Error())
 			return
