@@ -199,7 +199,7 @@ func ParseStats(value string, line *string, table string, stack *[]Filter) (err 
 		return
 	}
 	startWith := float64(0)
-	op := Counter
+	var op StatsType
 	switch strings.ToLower(tmp[0]) {
 	case "avg":
 		op = Average
@@ -215,7 +215,10 @@ func ParseStats(value string, line *string, table string, stack *[]Filter) (err 
 		op = Sum
 		break
 	default:
-		return ParseFilter(value, line, table, stack)
+		ParseFilter(value, line, table, stack)
+		// set last one to counter
+		(*stack)[len(*stack)-1].StatsType = Counter
+		return
 	}
 
 	i, Ok := Objects.Tables[table].ColumnsIndex[tmp[1]]

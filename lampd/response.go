@@ -176,7 +176,7 @@ func BuildResponsePostProcessing(res *Response) {
 		for i, s := range res.Request.Stats {
 			switch s.StatsType {
 			case Counter:
-				res.Result[0][i] = s.StatsCount
+				res.Result[0][i] = s.Stats
 				break
 			case Min:
 				res.Result[0][i] = s.Stats
@@ -193,6 +193,9 @@ func BuildResponsePostProcessing(res *Response) {
 				} else {
 					res.Result[0][i] = 0
 				}
+				break
+			default:
+				log.Panicf("not implemented")
 				break
 			}
 		}
