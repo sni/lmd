@@ -340,6 +340,9 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 
 // create initial objects
 func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
+	if table.Name == "log" {
+		return
+	}
 	keys := []string{}
 	for _, col := range table.Columns {
 		if col.Update != RefUpdate && col.Update != RefNoUpdate && col.Type != VirtCol {
@@ -406,6 +409,9 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 // assuming we get the objects always in the same order, we can just iterate over the index and update the fields
 func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error) {
 	if len(table.DynamicColCacheNames) == 0 {
+		return
+	}
+	if table.Name == "log" {
 		return
 	}
 	req := &Request{

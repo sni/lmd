@@ -118,12 +118,10 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 		break
 	case "~~":
 		op = RegexNoCaseMatch
-		tmp[2] = "(?i)" + tmp[2]
 		isRegex = true
 		break
 	case "!~~":
 		op = RegexNoCaseMatchNot
-		tmp[2] = "(?i)" + tmp[2]
 		isRegex = true
 		break
 	case "!=":
@@ -181,7 +179,11 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 	}
 	if isRegex {
 		var rerr error
-		filtervalue, rerr = regexp.Compile(tmp[2])
+		val := tmp[2]
+		if op == RegexNoCaseMatchNot || op == RegexNoCaseMatch {
+			val = strings.ToLower(val)
+		}
+		filtervalue, rerr = regexp.CompilePOSIX(val)
 		if rerr != nil {
 			err = errors.New("bad request: invalid regular expression: " + rerr.Error() + " in filter " + *line)
 			return
@@ -368,11 +370,11 @@ func matchStringFilter(filter *Filter, value *interface{}) bool {
 			return false
 		}
 	case RegexNoCaseMatch:
-		if (filter.Value.(*regexp.Regexp)).MatchString((*value).(string)) {
+		if (filter.Value.(*regexp.Regexp)).MatchString(strings.ToLower((*value).(string))) {
 			return true
 		}
 	case RegexNoCaseMatchNot:
-		if (filter.Value.(*regexp.Regexp)).MatchString((*value).(string)) {
+		if (filter.Value.(*regexp.Regexp)).MatchString(strings.ToLower((*value).(string))) {
 			return false
 		}
 	case Less:

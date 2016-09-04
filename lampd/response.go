@@ -118,7 +118,16 @@ func BuildResponse(req *Request) (res *Response, err error) {
 				continue
 			}
 		}
-		BuildResponseDataForPeer(res, req, &p, numPerRow, &indexes)
+		if req.Table == "log" {
+			var result [][]interface{}
+			result, err = p.Query(req)
+			if err != nil {
+				return
+			}
+			res.Result = result
+		} else {
+			BuildLocalResponseDataForPeer(res, req, &p, numPerRow, &indexes)
+		}
 	}
 	if res.Result == nil {
 		res.Result = make([][]interface{}, 0)
@@ -251,7 +260,7 @@ func BuildResponseIndexes(req *Request, table *Table) (indexes []int, columns []
 	return
 }
 
-func BuildResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow int, indexes *[]int) (err error) {
+func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow int, indexes *[]int) (err error) {
 	peer.Lock.RLock()
 	defer peer.Lock.RUnlock()
 	peer.Status["LastQuery"] = time.Now()

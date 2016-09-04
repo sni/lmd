@@ -141,6 +141,7 @@ func InitObjects() (err error) {
 	Objects.Tables["servicegroups"] = NewServicegroupsTable()
 	Objects.Tables["comments"] = NewCommentsTable()
 	Objects.Tables["downtimes"] = NewDowntimesTable()
+	Objects.Tables["log"] = NewLogTable()
 	return
 }
 
@@ -504,4 +505,23 @@ func NewDowntimesTable() (t *Table) {
 	return
 }
 
-// TODO: implement log table as passthrough
+// add log table definitions
+func NewLogTable() (t *Table) {
+	t = &Table{Name: "log"}
+
+	t.AddColumn("attempt", StaticUpdate, IntCol)
+	t.AddColumn("class", StaticUpdate, IntCol)
+	t.AddColumn("contact_name", StaticUpdate, StringCol)
+	t.AddColumn("host_name", StaticUpdate, StringCol)
+	t.AddColumn("lineno", StaticUpdate, IntCol)
+	t.AddColumn("message", StaticUpdate, StringCol)
+	t.AddColumn("options", StaticUpdate, StringCol)
+	t.AddColumn("plugin_output", StaticUpdate, StringCol)
+	t.AddColumn("service_description", StaticUpdate, StringCol)
+	t.AddColumn("state", StaticUpdate, IntCol)
+	t.AddColumn("state_type", StaticUpdate, StringCol)
+	t.AddColumn("time", StaticUpdate, IntCol)
+	t.AddColumn("type", StaticUpdate, StringCol)
+
+	return
+}

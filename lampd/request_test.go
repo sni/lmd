@@ -24,6 +24,8 @@ func TestRequestHeader(t *testing.T) {
 		"GET hosts\nLimit: 25\nOffset: 5\n\n",
 		"GET hosts\nSort: name asc\nSort: state desc\n\n",
 		"GET hosts\nStats: state = 1\nStats: avg latency\nStats: state = 3\nStats: state != 1\nStatsAnd: 2\n\n",
+		"GET hosts\nColumns: name\nFilter: name ~~ test\n\n",
+		"GET hosts\nColumns: name\nFilter: name !~~ test\n\n",
 	}
 	for _, str := range testRequestStrings {
 		buf := bufio.NewReader(bytes.NewBufferString(str))

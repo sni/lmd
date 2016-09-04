@@ -115,7 +115,6 @@ TODO
 
 Some things are still not complete
 
-    - logs handling
     - Implement Wait Header
     - Implement Idle Interval Updates
     - Implement custom macro filtering
@@ -130,3 +129,4 @@ Some ideas may or may not be implemented in the future
     - Cluster the daemon itself to spread out the load, only one last reduce
       would be required to combine the result from all cluster partners
     - Add transparent and half-transparent mode which just handles the map/reduce without cache
+    - Cache last 24h of logfiles to speed up most logfile requests
