@@ -28,7 +28,7 @@ debugbuild: deps fmt
 	cd $(LAMPDDIR) && go build -race -ldflags "-X main.Build=$(shell git rev-parse --short HEAD)"
 
 test: deps fmt
-	cd $(LAMPDDIR) && go test -v $(COLORIZE_TEST)
+	cd $(LAMPDDIR) && go test -race -v $(COLORIZE_TEST)
 
 testcover: deps fmt
 	cd $(LAMPDDIR) && go test -v -coverprofile=cover.out $(COLORIZE_TEST)
