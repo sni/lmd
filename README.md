@@ -28,6 +28,35 @@ You can specify the path to your config file with `--config`.
     lampd --config=/etc/lampd/lampd.ini
 ```
 
+Configuration
+=============
+
+There are several different connection types.
+
+### TCP Livestatus  ###
+
+Remote livestatus connections via tcp can be defined as:
+
+```
+    [[Connections]]
+    name   = "Monitoring Site A"
+    id     = "id1"
+    source = "192.168.33.10:6557"
+```
+
+
+### Unix Socket Livestatus  ###
+
+Local unix sockets livestatus connections can be defined as:
+
+```
+    [[Connections]]
+    name   = "Monitoring Site A"
+    id     = "id1"
+    source = "/var/tmp/nagios/live.sock"
+```
+
+
 Additional Livestatus Header
 ----------------------------
 
@@ -86,10 +115,10 @@ TODO
 
 Some things are still not complete
 
-    - Implement "GET backends" with status and some statistics
     - logs handling
     - Implement Wait Header
     - Implement Idle Interval Updates
+    - Implement custom macro filtering
 
 
 Ideas
