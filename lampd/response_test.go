@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	InitLogging(&Config{LogLevel: "Off"})
+	InitLogging(&Config{LogLevel: "Error", LogFile: "stderr"})
 	InitObjects()
 }
 

@@ -20,6 +20,7 @@ type DataTable struct {
 	Table *Table
 	Data  [][]interface{}
 	Refs  map[string][][]interface{}
+	Index map[string][]interface{}
 }
 
 type Peer struct {
@@ -50,6 +51,9 @@ func NewPeer(config *Connection, waitGroup *sync.WaitGroup, shutdownChannel chan
 	p.Status["LastQuery"] = time.Now()
 	p.Status["LastError"] = "connecting..."
 	p.Status["ProgramStart"] = 0
+	p.Status["BytesSend"] = 0
+	p.Status["BytesReceived"] = 0
+	p.Status["Querys"] = 0
 	return &p
 }
 
@@ -68,11 +72,9 @@ func (p *Peer) Start() (_, err error) {
 func (p *Peer) UpdateLoop() {
 	for {
 		ok := p.InitAllTables()
+		lastFullUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
 
-		// TODO: implement timer loop which refreshes completly every full minute including timeperiods
-		// also implement idle_interval update (maybe one minute) and the normal update interval
-		// refresh hosts / services every few seconds but only update the ones having a last_check date greater
-		// last update or is_executing flag
+		// TODO: implement idle_interval update (maybe one minute) and the normal update interval
 		c := time.Tick(5e8 * time.Nanosecond)
 		for {
 			select {
@@ -81,11 +83,18 @@ func (p *Peer) UpdateLoop() {
 				return
 			case <-c:
 				lastUpdate := p.Status["LastUpdate"].(time.Time)
+				currentMinute, _ := strconv.Atoi(time.Now().Format("4"))
 				if time.Now().Add(-1 * time.Duration(GlobalConfig.Updateinterval) * time.Second).After(lastUpdate) {
 					if !ok {
 						ok = p.InitAllTables()
+						lastFullUpdateMinute = currentMinute
 					} else {
-						ok = p.UpdateAllTables()
+						if lastFullUpdateMinute != currentMinute {
+							ok = p.UpdateAllTables()
+						} else {
+							ok = p.UpdateDeltaTables()
+						}
+						lastFullUpdateMinute = currentMinute
 					}
 				}
 				break
@@ -127,8 +136,9 @@ func (p *Peer) UpdateAllTables() bool {
 	t1 := time.Now()
 	var err error
 	p.Status["LastUpdate"] = time.Now()
+	restartRequired := false
 	for _, t := range Objects.Tables {
-		_, err = p.UpdateObjectByType(t)
+		restartRequired, err = p.UpdateObjectByType(t)
 		if err != nil {
 			p.Status["LastError"] = err.Error()
 			p.ErrorCount++
@@ -141,13 +151,15 @@ func (p *Peer) UpdateAllTables() bool {
 			log.Infof("[%s] updating objects failed (retry %d) after: %s: %s", p.Name, p.ErrorCount, duration.String(), err.Error())
 			return true
 		}
-	}
-	if p.Status["ProgramStart"] != p.Tables["status"].Data[0][p.Tables["status"].Table.ColumnsIndex["program_start"]] {
-		log.Infof("[%s] site has been restarted, recreating objects", p.Name)
-		return p.InitAllTables()
+		if restartRequired {
+			break
+		}
 	}
 	if err != nil && p.ErrorCount > 3 {
 		return false
+	}
+	if restartRequired {
+		return p.InitAllTables()
 	}
 	p.Status["LastError"] = ""
 	duration := time.Since(t1)
@@ -155,8 +167,100 @@ func (p *Peer) UpdateAllTables() bool {
 	return true
 }
 
+func (p *Peer) UpdateDeltaTables() bool {
+	t1 := time.Now()
+	p.Status["LastUpdate"] = time.Now()
+
+	restartRequired, err := p.UpdateObjectByType(Objects.Tables["status"])
+	if restartRequired {
+		return p.InitAllTables()
+	}
+	if err == nil {
+		err = p.UpdateDeltaTableHosts()
+	}
+	if err == nil {
+		err = p.UpdateDeltaTableServices()
+	}
+	if err != nil {
+		p.Status["LastError"] = err.Error()
+		p.ErrorCount++
+		duration := time.Since(t1)
+		// give site some time to recover
+		if p.ErrorCount >= 3 {
+			log.Warnf("[%s] site went offline: %s", p.Name, err.Error())
+			return false
+		}
+		log.Infof("[%s] updating objects failed (retry %d) after: %s: %s", p.Name, p.ErrorCount, duration.String(), err.Error())
+		return true
+	}
+
+	p.Status["LastError"] = ""
+	duration := time.Since(t1)
+	log.Debugf("[%s] delta update complete in: %s", p.Name, duration.String())
+	return true
+}
+
+func (p *Peer) UpdateDeltaTableHosts() (err error) {
+	// update changed hosts
+	table := Objects.Tables["hosts"]
+	keys := append(table.DynamicColCacheNames, "name")
+	req := &Request{
+		Table:           table.Name,
+		Columns:         keys,
+		ResponseFixed16: true,
+		OutputFormat:    "json",
+		FilterStr:       fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", p.Status["LastUpdate"].(time.Time).Unix()),
+	}
+	res, err := p.Query(req)
+	if err != nil {
+		return
+	}
+	p.Lock.Lock()
+	nameindex := p.Tables[table.Name].Index
+	fieldIndex := len(keys) - 1
+	for _, resRow := range res {
+		dataRow := nameindex[resRow[fieldIndex].(string)]
+		for j, k := range table.DynamicColCacheIndexes {
+			dataRow[k] = resRow[j]
+		}
+	}
+	p.Lock.Unlock()
+	log.Debugf("[%s] updated %d hosts", p.Name, len(res))
+	return
+}
+
+func (p *Peer) UpdateDeltaTableServices() (err error) {
+	// update changed services
+	table := Objects.Tables["services"]
+	keys := append(table.DynamicColCacheNames, []string{"host_name", "description"}...)
+	req := &Request{
+		Table:           table.Name,
+		Columns:         keys,
+		ResponseFixed16: true,
+		OutputFormat:    "json",
+		FilterStr:       fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", p.Status["LastUpdate"].(time.Time).Unix()),
+	}
+	res, err := p.Query(req)
+	if err != nil {
+		return
+	}
+	p.Lock.Lock()
+	nameindex := p.Tables[table.Name].Index
+	fieldIndex1 := len(keys) - 2
+	fieldIndex2 := len(keys) - 1
+	for _, resRow := range res {
+		dataRow := nameindex[resRow[fieldIndex1].(string)+";"+resRow[fieldIndex2].(string)]
+		for j, k := range table.DynamicColCacheIndexes {
+			dataRow[k] = resRow[j]
+		}
+	}
+	p.Lock.Unlock()
+	log.Debugf("[%s] updated %d services", p.Name, len(res))
+	return
+}
+
 // send query to remote livestatus and returns unmarshaled result
-func (p *Peer) Query(table *Table, columns *[]string) (result [][]interface{}, err error) {
+func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 	connType := "unix"
 	if strings.Contains(p.Source, ":") {
 		connType = "tcp"
@@ -168,10 +272,19 @@ func (p *Peer) Query(table *Table, columns *[]string) (result [][]interface{}, e
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(time.Duration(GlobalConfig.NetTimeout) * time.Second))
 
-	query := fmt.Sprintf("GET %s\nOutputFormat: json\nResponseHeader: fixed16\nColumns: %s\n\n", table.Name, strings.Join(*columns, " "))
+	query := fmt.Sprintf(req.String())
 	log.Tracef("[%s] send to: %s", p.Name, p.Source)
-	log.Debugf("[%s] query: %s", p.Name, query)
+	log.Tracef("[%s] query: %s", p.Name, query)
+
+	p.Status["Querys"] = p.Status["Querys"].(int) + 1
+	p.Status["BytesSend"] = p.Status["BytesSend"].(int) + len(query)
+
 	fmt.Fprintf(conn, "%s", query)
+
+	// commands do not send anything back
+	if req.Command != "" {
+		return
+	}
 
 	var buf bytes.Buffer
 	io.Copy(&buf, conn)
@@ -185,6 +298,8 @@ func (p *Peer) Query(table *Table, columns *[]string) (result [][]interface{}, e
 	}
 	header := resBytes[0:15]
 	resBytes = resBytes[16:]
+
+	p.Status["BytesReceived"] = p.Status["BytesReceived"].(int) + len(resBytes)
 
 	matched := ReResponseHeader.FindStringSubmatch(string(header))
 	if len(matched) != 3 {
@@ -207,26 +322,6 @@ func (p *Peer) Query(table *Table, columns *[]string) (result [][]interface{}, e
 	return
 }
 
-// send command query to remote livestatus and returns unmarshaled result
-func (p *Peer) Command(command *string) (err error) {
-	connType := "unix"
-	if strings.Contains(p.Source, ":") {
-		connType = "tcp"
-	}
-	conn, err := net.DialTimeout(connType, p.Source, time.Duration(GlobalConfig.NetTimeout)*time.Second)
-	if err != nil {
-		return
-	}
-	defer conn.Close()
-	conn.SetDeadline(time.Now().Add(time.Duration(GlobalConfig.NetTimeout) * time.Second))
-
-	log.Debugf("[%s] send to: %s", p.Name, p.Source)
-	log.Debugf("[%s] command: %s", p.Name, *command)
-	fmt.Fprintf(conn, "%s\n", *command)
-
-	return
-}
-
 // create initial objects
 func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	keys := []string{}
@@ -235,7 +330,13 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 			keys = append(keys, col.Name)
 		}
 	}
-	res, err := p.Query(table, &keys)
+	req := &Request{
+		Table:           table.Name,
+		Columns:         keys,
+		ResponseFixed16: true,
+		OutputFormat:    "json",
+	}
+	res, err := p.Query(req)
 	if err != nil {
 		return
 	}
@@ -245,18 +346,30 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	for _, refNum := range table.RefColCacheIndexes {
 		refCol := table.Columns[refNum]
 		fieldName := refCol.Name
-		fieldIndex := refCol.RefColIndex
 		refs[fieldName] = make([][]interface{}, len(res))
-		RefByName := make(map[string][]interface{})
-		for _, rowRef := range p.Tables[fieldName].Data {
-			RefByName[rowRef[fieldIndex].(string)] = rowRef
-		}
+		RefByName := p.Tables[fieldName].Index
 		for i, row := range res {
 			refs[fieldName][i] = RefByName[row[refCol.RefIndex].(string)]
 		}
 	}
+	// create host lookup indexes
+	index := make(map[string][]interface{})
+	if table.Name == "hosts" {
+		indexField := table.ColumnsIndex["name"]
+		for _, row := range res {
+			index[row[indexField].(string)] = row
+		}
+	}
+	// create service lookup indexes
+	if table.Name == "services" {
+		indexField1 := table.ColumnsIndex["host_name"]
+		indexField2 := table.ColumnsIndex["description"]
+		for _, row := range res {
+			index[row[indexField1].(string)+";"+row[indexField2].(string)] = row
+		}
+	}
 	p.Lock.Lock()
-	p.Tables[table.Name] = DataTable{Table: table, Data: res, Refs: refs}
+	p.Tables[table.Name] = DataTable{Table: table, Data: res, Refs: refs, Index: index}
 	p.Status["LastUpdate"] = time.Now()
 	p.Lock.Unlock()
 	return
@@ -264,11 +377,17 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 
 // update objects
 // assuming we get the objects always in the same order, we can just iterate over the index and update the fields
-func (p *Peer) UpdateObjectByType(table *Table) (_, err error) {
+func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error) {
 	if len(table.DynamicColCacheNames) == 0 {
 		return
 	}
-	res, err := p.Query(table, &table.DynamicColCacheNames)
+	req := &Request{
+		Table:           table.Name,
+		Columns:         table.DynamicColCacheNames,
+		ResponseFixed16: true,
+		OutputFormat:    "json",
+	}
+	res, err := p.Query(req)
 	if err != nil {
 		return
 	}
@@ -280,5 +399,13 @@ func (p *Peer) UpdateObjectByType(table *Table) (_, err error) {
 		}
 	}
 	p.Lock.Unlock()
+
+	if table.Name == "status" {
+		if p.Status["ProgramStart"] != data[0][table.ColumnsIndex["program_start"]] {
+			log.Infof("[%s] site has been restarted, recreating objects", p.Name)
+			restartRequired = true
+			return
+		}
+	}
 	return
 }

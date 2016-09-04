@@ -58,7 +58,10 @@ func SendPeerCommands(req *Request) (err error) {
 		}
 		p.Status["LastQuery"] = time.Now()
 		go func() {
-			p.Command(&req.Command)
+			commandRequest := &Request{
+				Command: req.Command,
+			}
+			p.Query(commandRequest)
 			// schedule immediate update
 			p.Status["LastUpdate"] = time.Now().Add(-1 * time.Duration(60) * time.Second)
 		}()
@@ -74,6 +77,10 @@ func localListener(listen string, waitGroup *sync.WaitGroup, shutdownChannel cha
 		connType = "tcp"
 	} else {
 		// remove socket on exit
+		if _, err := os.Stat(listen); err == nil {
+			log.Warnf("removing stale socket: %s", listen)
+			os.Remove(listen)
+		}
 		defer func() {
 			os.Remove(listen)
 		}()

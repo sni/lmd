@@ -10,7 +10,9 @@ Listen          = ["127.0.0.1:3333", "/tmp/live.sock"]
 LogLevel        = "Info"
 
 # Refresh remote sites every x seconds
-UpdateInterval  = 10
+# fast updates are ok, only changed hosts and services get fetched
+# and once a minute everything is updated
+UpdateInterval  = 3
 
 # Connection timeout for remote tcp connections
 NetTimeout  = 30

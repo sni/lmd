@@ -40,6 +40,7 @@ var DataStore map[string]Peer
 var GlobalConfig Config
 var flagVerbose bool
 var flagVeryVerbose bool
+var flagTraceVerbose bool
 var flagConfigFile string
 var flagVersion bool
 
@@ -49,6 +50,7 @@ func main() {
 	flag.BoolVar(&flagVerbose, "v", false, "enable verbose output")
 	flag.BoolVar(&flagVerbose, "verbose", false, "enable verbose output")
 	flag.BoolVar(&flagVeryVerbose, "vv", false, "enable very verbose output")
+	flag.BoolVar(&flagTraceVerbose, "vvv", false, "enable trace output")
 	flag.BoolVar(&flagVersion, "version", false, "print version and exit")
 	flag.Parse()
 	if flagVersion {
@@ -81,6 +83,9 @@ func mainLoop() {
 	}
 	if flagVeryVerbose {
 		GlobalConfig.LogLevel = "Debug"
+	}
+	if flagTraceVerbose {
+		GlobalConfig.LogLevel = "Trace"
 	}
 	InitLogging(&GlobalConfig)
 

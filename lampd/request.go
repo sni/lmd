@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"regexp"
@@ -15,6 +16,7 @@ type Request struct {
 	Command           string
 	Columns           []string
 	Filter            []Filter
+	FilterStr         string
 	Stats             []Filter
 	Limit             int
 	Offset            int
@@ -55,6 +57,105 @@ var ReRequestEmpty = regexp.MustCompile(`^\s*$`)
 func ParseRequest(c net.Conn) (req *Request, err error) {
 	b := bufio.NewReader(c)
 	return ParseRequestFromBuffer(b)
+}
+
+func OperatorString(op Operator) string {
+	switch op {
+	case Equal:
+		return ("=")
+	case Unequal:
+		return ("!=")
+	case EqualNocase:
+		return ("=~")
+	case UnequalNocase:
+		return ("!=~")
+	case RegexMatch:
+		return ("~")
+	case RegexMatchNot:
+		return ("!~")
+	case RegexNoCaseMatch:
+		return ("~~")
+	case RegexNoCaseMatchNot:
+		return ("!~~")
+	case Less:
+		return ("<")
+	case LessThan:
+		return ("<=")
+	case Greater:
+		return (">")
+	case GreaterThan:
+		return (">=")
+	case GroupContainsNot:
+		return ("!>=")
+	}
+	log.Panicf("not implemented")
+	return ""
+}
+
+func StatsTypeString(op StatsType) string {
+	switch op {
+	case Average:
+		return ("avg")
+	case Sum:
+		return ("sum")
+	case Min:
+		return ("min")
+	case Max:
+		return ("Max")
+	}
+	log.Panicf("not implemented")
+	return ""
+}
+
+func (req *Request) String() (str string) {
+	// Commands are easy passthrough
+	if req.Command != "" {
+		str = req.Command
+		return
+	}
+	str = "GET " + req.Table + "\n"
+	if req.ResponseFixed16 {
+		str += "ResponseHeader: fixed16\n"
+	}
+	if req.OutputFormat != "" {
+		str += "OutputFormat: " + req.OutputFormat + "\n"
+	}
+	if len(req.Columns) > 0 {
+		str += "Columns: " + strings.Join(req.Columns, " ") + "\n"
+	}
+	if len(req.Backends) > 0 {
+		str += "Backends: " + strings.Join(req.Backends, " ") + "\n"
+	}
+	if req.Limit > 0 {
+		str += fmt.Sprintf("Limit: %d\n", req.Limit)
+	}
+	if req.Offset > 0 {
+		str += fmt.Sprintf("Offset: %d\n", req.Offset)
+	}
+	if len(req.Sort) > 0 {
+		for _, s := range req.Sort {
+			direction := "asc"
+			if s.Direction == Desc {
+				direction = "desc"
+			}
+			str += fmt.Sprintf("Sort: %s %s\n", s.Name, direction)
+		}
+	}
+	if len(req.Filter) > 0 {
+		for _, f := range req.Filter {
+			str += f.String("")
+		}
+	}
+	if req.FilterStr != "" {
+		str += req.FilterStr
+	}
+	if len(req.Stats) > 0 {
+		for _, s := range req.Stats {
+			str += s.String("Stats")
+		}
+	}
+	str += "\n"
+	return
 }
 
 func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, err error) {

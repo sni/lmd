@@ -89,6 +89,7 @@ Some things are still not complete
     - Implement "GET backends" with status and some statistics
     - logs handling
     - Implement Wait Header
+    - Implement Idle Interval Updates
 
 
 Ideas

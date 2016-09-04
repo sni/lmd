@@ -7,8 +7,34 @@ import (
 )
 
 func init() {
-	InitLogging(&Config{LogLevel: "Off"})
+	InitLogging(&Config{LogLevel: "Error", LogFile: "stderr"})
 	InitObjects()
+}
+
+func TestRequestHeader(t *testing.T) {
+	testRequestStrings := []string{
+		"GET hosts\n\n",
+		"GET hosts\nColumns: name state\n\n",
+		"GET hosts\nColumns: name state\nFilter: state != 1\n\n",
+		"GET hosts\nOutputFormat: wrapped_json\n\n",
+		"GET hosts\nResponseHeader: fixed16\n\n",
+		"GET hosts\nColumns: name state\nFilter: state != 1\nFilter: is_executing = 1\nOr: 2\n\n",
+		"GET hosts\nColumns: name state\nFilter: state != 1\nFilter: is_executing = 1\nAnd: 2\nFilter: state = 1\nOr: 2\nFilter: name = test\n\n",
+		"GET hosts\nBackends: a b cde\n\n",
+		"GET hosts\nLimit: 25\nOffset: 5\n\n",
+		"GET hosts\nSort: name asc\nSort: state desc\n\n",
+		"GET hosts\nStats: state = 1\nStats: avg latency\nStats: state = 3\nStats: state != 1\nStatsAnd: 2\n\n",
+	}
+	for _, str := range testRequestStrings {
+		buf := bufio.NewReader(bytes.NewBufferString(str))
+		req, err := ParseRequestFromBuffer(buf)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = assertEq(str, req.String()); err != nil {
+			t.Fatal(err)
+		}
+	}
 }
 
 func TestRequestHeaderTable(t *testing.T) {

@@ -22,6 +22,9 @@ func InitLogging(conf *Config) {
 	if conf.LogFile == "" {
 		logFormatter = factorlog.NewStdFormatter(logColors + logFormat + logColorReset)
 		targetWriter = os.Stdout
+	} else if strings.ToLower(conf.LogFile) == "stderr" {
+		logFormatter = factorlog.NewStdFormatter(logColors + logFormat + logColorReset)
+		targetWriter = os.Stderr
 	} else {
 		logFormatter = factorlog.NewStdFormatter(logFormat)
 		if _, err = os.Stat(conf.LogFile); err != nil {

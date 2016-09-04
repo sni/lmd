@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -11,11 +12,12 @@ import (
 type StatsType int
 
 const (
-	Counter StatsType = iota
-	Sum               // sum
-	Average           // avg
-	Min               // min
-	Max               // max
+	UnknownStatsType StatsType = iota
+	Counter
+	Sum     // sum
+	Average // avg
+	Min     // min
+	Max     // max
 )
 
 type Filter struct {
@@ -59,6 +61,34 @@ const (
 	// Groups
 	GroupContainsNot // !>=
 )
+
+func (f *Filter) String(prefix string) (str string) {
+	if len(f.Filter) > 0 {
+		for _, sub := range f.Filter {
+			str += sub.String(prefix)
+		}
+		if f.GroupOperator == And {
+			str += fmt.Sprintf("%sAnd: %d\n", prefix, len(f.Filter))
+		} else {
+			str += fmt.Sprintf("%sOr: %d\n", prefix, len(f.Filter))
+		}
+	} else {
+		if f.StatsType != UnknownStatsType {
+			if f.StatsType == Counter {
+				str = fmt.Sprintf("Stats: %s %s %v\n", f.Column.Name, OperatorString(f.Operator), f.Value)
+			} else {
+				str = fmt.Sprintf("Stats: %s %s\n", StatsTypeString(f.StatsType), f.Column.Name)
+			}
+		} else {
+			if prefix == "" {
+				str = fmt.Sprintf("Filter: %s %s %v\n", f.Column.Name, OperatorString(f.Operator), f.Value)
+			} else {
+				str = fmt.Sprintf("%s: %s %s %v\n", prefix, f.Column.Name, OperatorString(f.Operator), f.Value)
+			}
+		}
+	}
+	return
+}
 
 func ParseFilter(value string, line *string, table string, stack *[]Filter) (err error) {
 	tmp := strings.SplitN(value, " ", 3)
@@ -165,7 +195,7 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 func ParseStats(value string, line *string, table string, stack *[]Filter) (err error) {
 	tmp := strings.SplitN(value, " ", 3)
 	if len(tmp) < 2 {
-		err = errors.New("bad request: stats header, must be Stats: <field> <operator> <value> OR Stats: <avg|min|max> <field>")
+		err = errors.New("bad request: stats header, must be Stats: <field> <operator> <value> OR Stats: <sum|avg|min|max> <field>")
 		return
 	}
 	startWith := float64(0)
