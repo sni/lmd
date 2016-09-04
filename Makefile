@@ -35,6 +35,7 @@ testcover: deps fmt
 clean:
 	rm -f $(LAMPDDIR)/lampd
 	rm -f $(LAMPDDIR)/cover.out
+	rm -f $(LAMPDDIR)/coverage.html
 
 fmt:
 	cd $(LAMPDDIR) && goimports -w .
