@@ -261,9 +261,11 @@ func BuildResponseIndexes(req *Request, table *Table) (indexes []int, columns []
 }
 
 func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow int, indexes *[]int) (err error) {
+	peer.Lock.Lock()
+	peer.Status["LastQuery"] = time.Now()
+	peer.Lock.Unlock()
 	peer.Lock.RLock()
 	defer peer.Lock.RUnlock()
-	peer.Status["LastQuery"] = time.Now()
 	if peer.Status["LastError"] != "" {
 		res.Failed[peer.Id] = fmt.Sprintf("%v", peer.Status["LastError"])
 		return

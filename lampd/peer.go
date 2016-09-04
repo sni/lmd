@@ -27,7 +27,7 @@ type Peer struct {
 	Name            string
 	Id              string
 	Source          string
-	Lock            sync.RWMutex
+	Lock            *sync.RWMutex
 	Tables          map[string]DataTable
 	Status          map[string]interface{}
 	ErrorCount      int
@@ -46,6 +46,7 @@ func NewPeer(config *Connection, waitGroup *sync.WaitGroup, shutdownChannel chan
 		ErrorCount:      0,
 		waitGroup:       waitGroup,
 		shutdownChannel: shutdownChannel,
+		Lock:            new(sync.RWMutex),
 	}
 	p.Status["PeerKey"] = p.Id
 	p.Status["PeerName"] = p.Name
@@ -87,7 +88,9 @@ func (p *Peer) UpdateLoop() {
 				log.Infof("stopping peer %s", p.Name)
 				return
 			case <-c:
+				p.Lock.RLock()
 				lastUpdate := p.Status["LastUpdate"].(time.Time)
+				p.Lock.RUnlock()
 				currentMinute, _ := strconv.Atoi(time.Now().Format("4"))
 				if time.Now().Add(-1 * time.Duration(GlobalConfig.Updateinterval) * time.Second).After(lastUpdate) {
 					if !ok {
@@ -181,7 +184,9 @@ func (p *Peer) UpdateAllTables() bool {
 
 func (p *Peer) UpdateDeltaTables() bool {
 	t1 := time.Now()
+	p.Lock.Lock()
 	p.Status["LastUpdate"] = time.Now()
+	p.Lock.Unlock()
 
 	restartRequired, err := p.UpdateObjectByType(Objects.Tables["status"])
 	if restartRequired {
