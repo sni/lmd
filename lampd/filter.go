@@ -254,11 +254,11 @@ func ParseFilterOp(header string, value string, line *string, stack *[]Filter) (
 	return
 }
 
-func matchFilter(table *Table, refs *map[string][][]interface{}, inputRowLen int, filter Filter, row *[]interface{}, rowNum int) bool {
+func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, inputRowLen int, filter Filter, row *[]interface{}, rowNum int) bool {
 	// recursive group filter
 	if len(filter.Filter) > 0 {
 		for _, f := range filter.Filter {
-			subresult := matchFilter(table, refs, inputRowLen, f, row, rowNum)
+			subresult := peer.matchFilter(table, refs, inputRowLen, f, row, rowNum)
 			if subresult == false && filter.GroupOperator == And {
 				return false
 			}
@@ -275,13 +275,19 @@ func matchFilter(table *Table, refs *map[string][][]interface{}, inputRowLen int
 	}
 
 	// normal field filter
-	value := getRowValue(filter.Column.Index, row, rowNum, table, refs, inputRowLen)
+	value := peer.getRowValue(filter.Column.Index, row, rowNum, table, refs, inputRowLen)
 	if value == nil {
 		return false
 	}
-	switch filter.Column.Type {
+	colType := filter.Column.Type
+	if colType == VirtCol {
+		colType = VirtKeyMap[filter.Column.Name].Type
+	}
+	switch colType {
 	case StringCol:
 		return matchStringFilter(&filter, &value)
+	case TimeCol:
+		fallthrough
 	case IntCol:
 		valueA := value.(float64)
 		valueB := float64(filter.Value.(int))

@@ -222,7 +222,7 @@ func BuildResponseIndexes(req *Request, table *Table) (indexes []int, columns []
 		}
 		if table.Columns[i].Type == VirtCol {
 			indexes = append(indexes, VirtKeyMap[col].Index)
-			columns = append(columns, Column{Name: col, Type: VirtKeyMap[col].Type, Index: j})
+			columns = append(columns, Column{Name: col, Type: VirtKeyMap[col].Type, Index: j, RefIndex: i})
 			continue
 		}
 		indexes = append(indexes, i)
@@ -270,7 +270,7 @@ func BuildResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow
 		// does our filter match?
 		filterMatched := true
 		for _, f := range res.Request.Filter {
-			if !matchFilter(table, &refs, inputRowLen, f, &row, j) {
+			if !peer.matchFilter(table, &refs, inputRowLen, f, &row, j) {
 				filterMatched = false
 				break
 			}
@@ -282,8 +282,8 @@ func BuildResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow
 		// count stats
 		if statsLen > 0 {
 			for i, s := range res.Request.Stats {
-				if s.StatsType != Counter || matchFilter(table, &refs, inputRowLen, s, &row, j) {
-					val := getRowValue(s.Column.Index, &row, j, table, &refs, inputRowLen)
+				if s.StatsType != Counter || peer.matchFilter(table, &refs, inputRowLen, s, &row, j) {
+					val := peer.getRowValue(s.Column.Index, &row, j, table, &refs, inputRowLen)
 					switch s.StatsType {
 					case Counter:
 						s.Stats++
@@ -320,19 +320,7 @@ func BuildResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow
 		resRow := make([]interface{}, numPerRow)
 		for k, i := range *(indexes) {
 			if i < 0 {
-				switch res.Columns[k].Type {
-				case IntCol:
-					fallthrough
-				case FloatCol:
-					fallthrough
-				case StringCol:
-					resRow[k] = peer.Status[VirtKeyMap[res.Columns[k].Name].Key]
-				case TimeCol:
-					resRow[k] = peer.Status[VirtKeyMap[res.Columns[k].Name].Key].(time.Time).Unix()
-					break
-				default:
-					log.Panicf("not implemented")
-				}
+				resRow[k] = peer.getRowValue(res.Columns[k].RefIndex, &resRow, i, table, &refs, inputRowLen)
 			} else {
 				// check if this is a reference column
 				// reference columns come after the non-ref columns
@@ -405,9 +393,25 @@ func SendResponse(c net.Conn, res *Response) (err error) {
 	return
 }
 
-func getRowValue(index int, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}, inputRowLen int) interface{} {
+func (peer *Peer) getRowValue(index int, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}, inputRowLen int) interface{} {
 	if index >= inputRowLen {
-		refObj := (*refs)[table.Columns[table.Columns[index].RefIndex].Name][rowNum]
+		col := table.Columns[index]
+		if col.Type == VirtCol {
+			switch VirtKeyMap[col.Name].Type {
+			case IntCol:
+				fallthrough
+			case FloatCol:
+				fallthrough
+			case StringCol:
+				return peer.Status[VirtKeyMap[col.Name].Key]
+			case TimeCol:
+				return peer.Status[VirtKeyMap[col.Name].Key].(time.Time).Unix()
+				break
+			default:
+				log.Panicf("not implemented")
+			}
+		}
+		refObj := (*refs)[table.Columns[col.RefIndex].Name][rowNum]
 		if len(refObj) == 0 {
 			return nil
 		}
