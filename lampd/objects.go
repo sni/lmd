@@ -247,7 +247,7 @@ func NewContactsTable() (t *Table) {
 
 // add contactgroupstable definitions
 func NewContactgroupsTable() (t *Table) {
-	t = &Table{Name: "timeperiods"}
+	t = &Table{Name: "contacts"}
 	t.AddColumn("alias", StaticUpdate, StringCol)
 	t.AddColumn("members", StaticUpdate, StringListCol)
 	t.AddColumn("name", StaticUpdate, StringCol)

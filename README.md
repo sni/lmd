@@ -118,6 +118,7 @@ Some things are still not complete
     - Implement Wait Header
     - Implement Idle Interval Updates
     - Implement custom macro filtering
+    - Implement downtime / comment handling
 
 
 Ideas
