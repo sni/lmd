@@ -26,7 +26,7 @@ type DataTable struct {
 type Peer struct {
 	Name            string
 	Id              string
-	Source          string
+	Source          []string
 	Lock            *sync.RWMutex
 	Tables          map[string]DataTable
 	Status          map[string]interface{}
@@ -50,7 +50,8 @@ func NewPeer(config *Connection, waitGroup *sync.WaitGroup, shutdownChannel chan
 	}
 	p.Status["PeerKey"] = p.Id
 	p.Status["PeerName"] = p.Name
-	p.Status["PeerAddr"] = p.Source
+	p.Status["CurPeerAddrNum"] = 0
+	p.Status["PeerAddr"] = p.Source[p.Status["CurPeerAddrNum"].(int)]
 	p.Status["PeerStatus"] = 2
 	p.Status["LastUpdate"] = time.Now()
 	p.Status["LastQuery"] = time.Now()
@@ -285,18 +286,41 @@ func (p *Peer) UpdateDeltaTableServices() (err error) {
 // send query to remote livestatus and returns unmarshaled result
 func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 	connType := "unix"
-	if strings.Contains(p.Source, ":") {
+	if strings.Contains(p.Status["PeerAddr"].(string), ":") {
 		connType = "tcp"
 	}
-	conn, err := net.DialTimeout(connType, p.Source, time.Duration(GlobalConfig.NetTimeout)*time.Second)
+	conn, err := net.DialTimeout(connType, p.Status["PeerAddr"].(string), time.Duration(GlobalConfig.NetTimeout)*time.Second)
 	if err != nil {
+		// try next node if there are multiple
+		sourcesNum := len(p.Source)
+		if sourcesNum == 1 {
+			return
+		}
+		log.Debugf("[%s] site failed: %s", p.Name, err)
+		curNum := p.Status["CurPeerAddrNum"].(int)
+		nextNum := curNum + 1
+		if nextNum >= sourcesNum {
+			nextNum = 0
+		}
+		p.Status["CurPeerAddrNum"] = nextNum
+		p.Status["PeerAddr"] = p.Source[nextNum]
+		log.Debugf("[%s] trying next one: %s", p.Name, p.Status["PeerAddr"])
+		if curNum != nextNum {
+			result, err = p.Query(req)
+			if err == nil {
+				log.Infof("[%s] active source changed to %s", p.Name, p.Status["PeerAddr"])
+			} else {
+				log.Debugf("[%s] backup source failed as well: %s: %s", p.Name, p.Status["PeerAddr"], err)
+			}
+			return
+		}
 		return
 	}
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(time.Duration(GlobalConfig.NetTimeout) * time.Second))
 
 	query := fmt.Sprintf(req.String())
-	log.Tracef("[%s] send to: %s", p.Name, p.Source)
+	log.Tracef("[%s] send to: %s", p.Name, p.Status["PeerAddr"].(string))
 	log.Tracef("[%s] query: %s", p.Name, query)
 
 	p.Status["Querys"] = p.Status["Querys"].(int) + 1

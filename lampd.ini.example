@@ -21,12 +21,18 @@ NetTimeout  = 30
 [[Connections]]
 name   = "Monitoring Site A"
 id     = "id1"
-source = "192.168.33.10:6557"
+source = ["192.168.33.10:6557"]
+
+# use tcp connections with multiple sources for clusters
+[[Connections]]
+name   = "Monitoring Site A"
+id     = "id1"
+source = ["192.168.33.10:6557", "192.168.33.20:6557"]
 
 # or local unix sockets as remote sites
 [[Connections]]
 name   = "Local Site"
 id     = "id2"
-source = "/var/tmp/nagios/run/live.sock"
+source = ["/var/tmp/nagios/run/live.sock"]
 
 # add more connections as you like...

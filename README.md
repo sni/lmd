@@ -45,9 +45,13 @@ Remote livestatus connections via tcp can be defined as:
     [[Connections]]
     name   = "Monitoring Site A"
     id     = "id1"
-    source = "192.168.33.10:6557"
+    source = ["192.168.33.10:6557"]
 ```
 
+If the source is a cluster, you can specify multiple addresses like
+```
+    source = ["192.168.33.10:6557", "192.168.33.20:6557"]
+```
 
 ### Unix Socket Livestatus  ###
 
@@ -57,7 +61,7 @@ Local unix sockets livestatus connections can be defined as:
     [[Connections]]
     name   = "Monitoring Site A"
     id     = "id1"
-    source = "/var/tmp/nagios/live.sock"
+    source = ["/var/tmp/nagios/live.sock"]
 ```
 
 
@@ -129,7 +133,6 @@ Ideas
 
 Some ideas may or may not be implemented in the future
 
-    - Support clustered backends by specifing multiple sources for a connection
     - Cluster the daemon itself to spread out the load, only one last reduce
       would be required to combine the result from all cluster partners
     - Add transparent and half-transparent mode which just handles the map/reduce without cache

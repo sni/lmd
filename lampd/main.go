@@ -23,7 +23,7 @@ const (
 type Connection struct {
 	Name   string
 	Id     string
-	Source string
+	Source []string
 }
 
 type Config struct {
