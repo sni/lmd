@@ -183,7 +183,7 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 		if op == RegexNoCaseMatchNot || op == RegexNoCaseMatch {
 			val = strings.ToLower(val)
 		}
-		filtervalue, rerr = regexp.CompilePOSIX(val)
+		filtervalue, rerr = regexp.Compile(val)
 		if rerr != nil {
 			err = errors.New("bad request: invalid regular expression: " + rerr.Error() + " in filter " + *line)
 			return
@@ -282,6 +282,7 @@ func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, in
 	// normal field filter
 	value := peer.getRowValue(filter.Column.Index, row, rowNum, table, refs, inputRowLen)
 	if value == nil {
+		panic("shouldn happen")
 		return false
 	}
 	colType := filter.Column.Type
