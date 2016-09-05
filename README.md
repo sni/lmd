@@ -1,8 +1,6 @@
 LAMPD - Livestatus Acceleration Multi Proxy Daemon
 ==================================================
 
-**EXPERIMENT - this is just an experiment so far, which means the repository is subject to rebases, force pushes, etc...**
-
 [![Build Status](https://travis-ci.org/sni/lampd.svg?branch=master)](https://travis-ci.org/sni/lampd)
 
 Fetches livestatus data from multiple sources and provides itself a livestatus
@@ -10,6 +8,10 @@ api for those sources which makes livestatus querys a lot faster than requesting
 them directly from the remote sources.
 
 Map / reduce included to combine response from multiple sources.
+
+So basically this is a "Livestatus In / Livestatus Out" daemon. Its original purpose is to
+move the backend handling of the [Thruk Monitoring Gui](http://www.thruk.org) to a native
+compiled fast daemon, but it works for everything which requires livestatus.
 
 <img src="docs/Architecture.png" alt="Architecture" style="width: 600px;"/>
 
