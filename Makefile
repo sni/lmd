@@ -16,10 +16,11 @@ deps:
 	go get golang.org/x/tools/cmd/goimports
 	if [ $(shell grep -rc Dump $(LAMPDDIR)/*.go | grep -v :0 | grep -v $(LAMPDDIR)/dump.go | wc -l) -ne 0 ]; then \
 		go get github.com/davecgh/go-spew/spew; \
-		sed -i $(LAMPDDIR)/dump.go -e "s/\/\/ +build.*/\/\/ build with debug functions/"; \
+		sed -i.bak 's/\/\/ +build.*/\/\/ build with debug functions/' $(LAMPDDIR)/dump.go; \
 	else \
-		sed -i $(LAMPDDIR)/dump.go -e "s/\/\/ build.*/\/\/ +build ignore/"; \
+		sed -i.bak 's/\/\/ build.*/\/\/ +build ignore/' $(LAMPDDIR)/dump.go; \
 	fi
+	rm -f $(LAMPDDIR)/dump.go.bak
 
 build: deps fmt
 	cd $(LAMPDDIR) && go build -ldflags "-X main.Build=$(shell git rev-parse --short HEAD)"
