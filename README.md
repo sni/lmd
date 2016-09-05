@@ -15,6 +15,8 @@ compiled fast daemon, but it works for everything which requires livestatus.
 
 <img src="docs/Architecture.png" alt="Architecture" style="width: 600px;"/>
 
+Log table requests and commands are just passed through to the actual backends.
+
 
 Installation
 ============
