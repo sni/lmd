@@ -115,7 +115,8 @@ func (p *Peer) InitAllTables() bool {
 	var err error
 	p.Status["LastUpdate"] = time.Now()
 	t1 := time.Now()
-	for _, t := range Objects.Tables {
+	for _, n := range Objects.Order {
+		t := Objects.Tables[n]
 		_, err = p.CreateObjectByType(t)
 		if err != nil {
 			duration := time.Since(t1)
@@ -148,7 +149,8 @@ func (p *Peer) UpdateAllTables() bool {
 	var err error
 	p.Status["LastUpdate"] = time.Now()
 	restartRequired := false
-	for _, t := range Objects.Tables {
+	for _, n := range Objects.Order {
+		t := Objects.Tables[n]
 		restartRequired, err = p.UpdateObjectByType(t)
 		if err != nil {
 			p.Status["LastError"] = err.Error()
@@ -345,7 +347,8 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 
 // create initial objects
 func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
-	if table.Name == "log" {
+	// log table does not create objects
+	if table.PassthroughOnly {
 		return
 	}
 	keys := []string{}
@@ -386,6 +389,9 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 		RefByName := p.Tables[fieldName].Index
 		for i, row := range res {
 			refs[fieldName][i] = RefByName[row[refCol.RefIndex].(string)]
+			if RefByName[row[refCol.RefIndex].(string)] == nil {
+				panic("ref not found")
+			}
 		}
 	}
 	// create host lookup indexes
@@ -416,7 +422,8 @@ func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error
 	if len(table.DynamicColCacheNames) == 0 {
 		return
 	}
-	if table.Name == "log" {
+	// no updates for passthrough tables, ex.: log
+	if table.PassthroughOnly {
 		return
 	}
 	req := &Request{
@@ -446,4 +453,32 @@ func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error
 		}
 	}
 	return
+}
+
+func (peer *Peer) getRowValue(index int, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}, inputRowLen int) interface{} {
+	if index >= inputRowLen {
+		col := table.Columns[index]
+		if col.Type == VirtCol {
+			switch VirtKeyMap[col.Name].Type {
+			case IntCol:
+				fallthrough
+			case FloatCol:
+				fallthrough
+			case StringCol:
+				return peer.Status[VirtKeyMap[col.Name].Key]
+			case TimeCol:
+				return peer.Status[VirtKeyMap[col.Name].Key].(time.Time).Unix()
+				break
+			default:
+				log.Panicf("not implemented")
+			}
+		}
+		refObj := (*refs)[table.Columns[col.RefIndex].Name][rowNum]
+		if refObj == nil {
+			panic("should not happen, ref not found")
+			return nil
+		}
+		return refObj[table.Columns[index].RefColIndex]
+	}
+	return (*row)[index]
 }

@@ -2,6 +2,7 @@ package main
 
 type ObjectsType struct {
 	Tables map[string]*Table
+	Order  []string
 }
 
 var Objects *ObjectsType
@@ -17,6 +18,7 @@ type Table struct {
 	DynamicColCacheIndexes []int
 	RefColCacheNames       []string
 	RefColCacheIndexes     []int
+	PassthroughOnly        bool
 }
 
 type UpdateType int
@@ -129,19 +131,29 @@ func InitObjects() (err error) {
 	Objects = &ObjectsType{}
 
 	Objects.Tables = make(map[string]*Table)
-	Objects.Tables["backends"] = NewBackendsTable()
-	Objects.Tables["status"] = NewStatusTable()
-	Objects.Tables["timeperiods"] = NewTimeperiodsTable()
-	Objects.Tables["contacts"] = NewContactsTable()
-	Objects.Tables["contactgroups"] = NewContactgroupsTable()
-	Objects.Tables["commands"] = NewCommandsTable()
-	Objects.Tables["hosts"] = NewHostsTable()
-	Objects.Tables["hostgroups"] = NewHostgroupsTable()
-	Objects.Tables["services"] = NewServicesTable()
-	Objects.Tables["servicegroups"] = NewServicegroupsTable()
-	Objects.Tables["comments"] = NewCommentsTable()
-	Objects.Tables["downtimes"] = NewDowntimesTable()
-	Objects.Tables["log"] = NewLogTable()
+	Objects.AddTable("backends", NewBackendsTable())
+	Objects.AddTable("status", NewStatusTable())
+	Objects.AddTable("timeperiods", NewTimeperiodsTable())
+	Objects.AddTable("contacts", NewContactsTable())
+	Objects.AddTable("contactgroups", NewContactgroupsTable())
+	Objects.AddTable("commands", NewCommandsTable())
+	Objects.AddTable("hosts", NewHostsTable())
+	Objects.AddTable("hostgroups", NewHostgroupsTable())
+	Objects.AddTable("services", NewServicesTable())
+	Objects.AddTable("servicegroups", NewServicegroupsTable())
+	Objects.AddTable("comments", NewCommentsTable())
+	Objects.AddTable("downtimes", NewDowntimesTable())
+	Objects.AddTable("log", NewLogTable())
+	return
+}
+
+func (o *ObjectsType) AddTable(name string, table *Table) {
+	_, exists := o.Tables[name]
+	if exists {
+		log.Panicf("table %s has been added twice", name)
+	}
+	o.Tables[name] = table
+	o.Order = append(o.Order, name)
 	return
 }
 
@@ -247,7 +259,7 @@ func NewContactsTable() (t *Table) {
 
 // add contactgroupstable definitions
 func NewContactgroupsTable() (t *Table) {
-	t = &Table{Name: "contacts"}
+	t = &Table{Name: "contactgroups"}
 	t.AddColumn("alias", StaticUpdate, StringCol)
 	t.AddColumn("members", StaticUpdate, StringListCol)
 	t.AddColumn("name", StaticUpdate, StringCol)
@@ -511,6 +523,7 @@ func NewDowntimesTable() (t *Table) {
 // add log table definitions
 func NewLogTable() (t *Table) {
 	t = &Table{Name: "log"}
+	t.PassthroughOnly = true
 
 	t.AddColumn("attempt", StaticUpdate, IntCol)
 	t.AddColumn("class", StaticUpdate, IntCol)

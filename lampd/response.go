@@ -118,7 +118,10 @@ func BuildResponse(req *Request) (res *Response, err error) {
 				continue
 			}
 		}
-		if req.Table == "log" {
+		// passthrough requests to the log table
+		// TODO: consider caching the last 24h
+		// TODO: reduce result and remove wrapped_json header etc...
+		if table.PassthroughOnly {
 			var result [][]interface{}
 			result, err = p.Query(req)
 			if err != nil {
@@ -334,7 +337,8 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 		resRow := make([]interface{}, numPerRow)
 		for k, i := range *(indexes) {
 			if i < 0 {
-				resRow[k] = peer.getRowValue(res.Columns[k].RefIndex, &resRow, i, table, &refs, inputRowLen)
+				// virtual columns
+				resRow[k] = peer.getRowValue(res.Columns[k].RefIndex, &row, j, table, &refs, inputRowLen)
 			} else {
 				// check if this is a reference column
 				// reference columns come after the non-ref columns
@@ -405,31 +409,4 @@ func SendResponse(c net.Conn, res *Response) (err error) {
 	}
 	_, err = c.Write([]byte("\n"))
 	return
-}
-
-func (peer *Peer) getRowValue(index int, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}, inputRowLen int) interface{} {
-	if index >= inputRowLen {
-		col := table.Columns[index]
-		if col.Type == VirtCol {
-			switch VirtKeyMap[col.Name].Type {
-			case IntCol:
-				fallthrough
-			case FloatCol:
-				fallthrough
-			case StringCol:
-				return peer.Status[VirtKeyMap[col.Name].Key]
-			case TimeCol:
-				return peer.Status[VirtKeyMap[col.Name].Key].(time.Time).Unix()
-				break
-			default:
-				log.Panicf("not implemented")
-			}
-		}
-		refObj := (*refs)[table.Columns[col.RefIndex].Name][rowNum]
-		if len(refObj) == 0 {
-			return nil
-		}
-		return refObj[table.Columns[index].RefColIndex]
-	}
-	return (*row)[index]
 }
