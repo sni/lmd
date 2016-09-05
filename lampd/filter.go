@@ -25,6 +25,7 @@ type Filter struct {
 	Column   Column
 	Operator Operator
 	Value    interface{}
+	Regexp   *regexp.Regexp
 
 	// or a group of filters
 	Filter        []Filter
@@ -177,19 +178,20 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 	default:
 		filtervalue = tmp[2]
 	}
+	var regex *regexp.Regexp
 	if isRegex {
 		var rerr error
 		val := tmp[2]
 		if op == RegexNoCaseMatchNot || op == RegexNoCaseMatch {
 			val = strings.ToLower(val)
 		}
-		filtervalue, rerr = regexp.Compile(val)
+		regex, rerr = regexp.Compile(val)
 		if rerr != nil {
 			err = errors.New("bad request: invalid regular expression: " + rerr.Error() + " in filter " + *line)
 			return
 		}
 	}
-	filter := Filter{Operator: op, Value: filtervalue, Column: col}
+	filter := Filter{Operator: op, Value: filtervalue, Column: col, Regexp: regex}
 	*stack = append(*stack, filter)
 	return
 }
@@ -363,19 +365,19 @@ func matchStringFilter(filter *Filter, value *interface{}) bool {
 			return true
 		}
 	case RegexMatch:
-		if (filter.Value.(*regexp.Regexp)).MatchString((*value).(string)) {
+		if filter.Regexp.MatchString((*value).(string)) {
 			return true
 		}
 	case RegexMatchNot:
-		if (filter.Value.(*regexp.Regexp)).MatchString((*value).(string)) {
+		if filter.Regexp.MatchString((*value).(string)) {
 			return false
 		}
 	case RegexNoCaseMatch:
-		if (filter.Value.(*regexp.Regexp)).MatchString(strings.ToLower((*value).(string))) {
+		if filter.Regexp.MatchString(strings.ToLower((*value).(string))) {
 			return true
 		}
 	case RegexNoCaseMatchNot:
-		if (filter.Value.(*regexp.Regexp)).MatchString(strings.ToLower((*value).(string))) {
+		if filter.Regexp.MatchString(strings.ToLower((*value).(string))) {
 			return false
 		}
 	case Less:
