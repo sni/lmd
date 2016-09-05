@@ -374,18 +374,31 @@ func SendResponse(c net.Conn, res *Response) (err error) {
 	}
 	if res.Result != nil {
 		if res.Request.OutputFormat == "wrapped_json" {
-			wrappedResult := make(map[string]interface{})
-			wrappedResult["data"] = res.Result
-			wrappedResult["total"] = res.ResultTotal
-			wrappedResult["failed"] = res.Failed
-			resBytes, err = json.Marshal(wrappedResult)
-		} else if res.Request.OutputFormat == "json" || res.Request.OutputFormat == "" {
-			resBytes, err = json.Marshal(res.Result)
-		} else {
-			log.Errorf("ouput format not supported: %s", res.Request.OutputFormat)
+			resBytes = append(resBytes, []byte("{data:[")...)
 		}
-		if err != nil {
-			log.Errorf("json error: %s", err.Error())
+		// append result row by row
+		if res.Request.OutputFormat == "wrapped_json" || res.Request.OutputFormat == "json" || res.Request.OutputFormat == "" {
+			last := len(res.Result) - 1
+			for i, row := range res.Result {
+				rowBytes, jerr := json.Marshal(row)
+				if jerr != nil {
+					log.Errorf("json error: %s in row: %v", jerr.Error(), row)
+					err = jerr
+					return
+				}
+				resBytes = append(resBytes, rowBytes...)
+				if i == last {
+					resBytes = append(resBytes, []byte("]")...)
+				} else {
+					resBytes = append(resBytes, []byte(",\n")...)
+				}
+			}
+		}
+		if res.Request.OutputFormat == "wrapped_json" {
+			resBytes = append(resBytes, []byte("\n,failed:")...)
+			failBytes, _ := json.Marshal(res.Failed)
+			resBytes = append(resBytes, failBytes...)
+			resBytes = append(resBytes, []byte(fmt.Sprintf("\n,total:%d}", res.ResultTotal))...)
 		}
 	}
 	if res.Error != nil {
@@ -393,19 +406,21 @@ func SendResponse(c net.Conn, res *Response) (err error) {
 		resBytes = []byte(res.Error.Error())
 	}
 
+	size := len(resBytes) + 1
 	if res.Request.ResponseFixed16 {
-		size := len(resBytes) + 1
 		log.Debugf("write: %s", fmt.Sprintf("%d %11d", res.Code, size))
 		_, err = c.Write([]byte(fmt.Sprintf("%d %11d\n", res.Code, size)))
 		if err != nil {
-			log.Errorf("write error: %s", err.Error())
+			log.Warnf("write error: %s", err.Error())
 		}
 	}
-	// TODO: send array line by line to avoid to long lines
 	log.Debugf("write: %s", resBytes)
-	_, err = c.Write(resBytes)
+	written, err := c.Write(resBytes)
 	if err != nil {
-		log.Errorf("write error: %s", err.Error())
+		log.Warnf("write error: %s", err.Error())
+	}
+	if written != size-1 {
+		log.Warnf("write error: written %d, size: %d", written, size)
 	}
 	_, err = c.Write([]byte("\n"))
 	return
