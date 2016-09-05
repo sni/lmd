@@ -2,8 +2,6 @@
 
 package main
 
-// TODO: do not include in package
-
 import (
 	"github.com/davecgh/go-spew/spew"
 )
