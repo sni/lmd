@@ -11,5 +11,6 @@ import (
 func Dump(v interface{}) {
 	spew.Config.Indent = "\t"
 	spew.Config.MaxDepth = 20
+	spew.Config.DisableMethods = true
 	spew.Dump(v)
 }
