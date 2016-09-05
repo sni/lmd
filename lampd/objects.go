@@ -42,6 +42,7 @@ const (
 	FloatCol
 	RefCol
 	TimeCol
+	CustomVarCol
 	VirtCol
 )
 
@@ -243,6 +244,7 @@ func NewContactsTable() (t *Table) {
 	t = &Table{Name: "contacts"}
 	t.AddColumn("alias", StaticUpdate, StringCol)
 	t.AddColumn("can_submit_commands", StaticUpdate, IntCol)
+	t.AddColumn("custom_variables", StaticUpdate, CustomVarCol)
 	t.AddColumn("custom_variable_names", StaticUpdate, StringListCol)
 	t.AddColumn("custom_variable_values", StaticUpdate, StringListCol)
 	t.AddColumn("email", StaticUpdate, StringCol)
@@ -301,6 +303,7 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("comments", DynamicUpdate, IntListCol)
 	t.AddColumn("current_attempt", DynamicUpdate, IntCol)
 	t.AddColumn("current_notification_number", DynamicUpdate, IntCol)
+	t.AddColumn("custom_variables", StaticUpdate, CustomVarCol)
 	t.AddColumn("custom_variable_names", StaticUpdate, StringListCol)
 	t.AddColumn("custom_variable_values", StaticUpdate, StringListCol)
 	t.AddColumn("display_name", StaticUpdate, StringCol)
@@ -401,6 +404,7 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("comments", DynamicUpdate, IntListCol)
 	t.AddColumn("current_attempt", DynamicUpdate, IntCol)
 	t.AddColumn("current_notification_number", DynamicUpdate, IntCol)
+	t.AddColumn("custom_variables", StaticUpdate, CustomVarCol)
 	t.AddColumn("custom_variable_names", StaticUpdate, StringListCol)
 	t.AddColumn("custom_variable_values", StaticUpdate, StringListCol)
 	t.AddColumn("description", StaticUpdate, StringCol)

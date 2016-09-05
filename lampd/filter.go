@@ -22,10 +22,11 @@ const (
 
 type Filter struct {
 	// filter can either be a single filter
-	Column   Column
-	Operator Operator
-	Value    interface{}
-	Regexp   *regexp.Regexp
+	Column    Column
+	Operator  Operator
+	Value     interface{}
+	Regexp    *regexp.Regexp
+	CustomTag string
 
 	// or a group of filters
 	Filter        []Filter
@@ -74,17 +75,21 @@ func (f *Filter) String(prefix string) (str string) {
 			str += fmt.Sprintf("%sOr: %d\n", prefix, len(f.Filter))
 		}
 	} else {
+		value := f.Value
+		if f.Column.Type == CustomVarCol {
+			value = f.CustomTag + " " + f.Value.(string)
+		}
 		if f.StatsType != UnknownStatsType {
 			if f.StatsType == Counter {
-				str = fmt.Sprintf("Stats: %s %s %v\n", f.Column.Name, OperatorString(f.Operator), f.Value)
+				str = fmt.Sprintf("Stats: %s %s %v\n", f.Column.Name, OperatorString(f.Operator), value)
 			} else {
 				str = fmt.Sprintf("Stats: %s %s\n", StatsTypeString(f.StatsType), f.Column.Name)
 			}
 		} else {
 			if prefix == "" {
-				str = fmt.Sprintf("Filter: %s %s %v\n", f.Column.Name, OperatorString(f.Operator), f.Value)
+				str = fmt.Sprintf("Filter: %s %s %v\n", f.Column.Name, OperatorString(f.Operator), value)
 			} else {
-				str = fmt.Sprintf("%s: %s %s %v\n", prefix, f.Column.Name, OperatorString(f.Operator), f.Value)
+				str = fmt.Sprintf("%s: %s %s %v\n", prefix, f.Column.Name, OperatorString(f.Operator), value)
 			}
 		}
 	}
@@ -157,6 +162,7 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 		return
 	}
 	var filtervalue interface{}
+	var filtertagname string
 	col := Objects.Tables[table].Columns[i]
 	switch col.Type {
 	case IntCol:
@@ -175,13 +181,21 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 			return
 		}
 		break
+	case CustomVarCol:
+		vars := strings.SplitN(tmp[2], " ", 2)
+		if len(vars) < 2 {
+			err = errors.New("bad request: custom variable filter must have form \"Filter: custom_variables <variable> <op> <value>\" in " + *line)
+			return
+		}
+		filtertagname = vars[0]
+		filtervalue = vars[1]
 	default:
 		filtervalue = tmp[2]
 	}
 	var regex *regexp.Regexp
 	if isRegex {
 		var rerr error
-		val := tmp[2]
+		val := filtervalue.(string)
 		if op == RegexNoCaseMatchNot || op == RegexNoCaseMatch {
 			val = strings.ToLower(val)
 		}
@@ -191,7 +205,7 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 			return
 		}
 	}
-	filter := Filter{Operator: op, Value: filtervalue, Column: col, Regexp: regex}
+	filter := Filter{Operator: op, Value: filtervalue, Column: col, Regexp: regex, CustomTag: filtertagname}
 	*stack = append(*stack, filter)
 	return
 }
@@ -294,6 +308,8 @@ func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, in
 	switch colType {
 	case StringCol:
 		return matchStringFilter(&filter, &value)
+	case CustomVarCol:
+		return matchCustomVarFilter(&filter, &value)
 	case TimeCol:
 		fallthrough
 	case IntCol:
@@ -347,57 +363,61 @@ func matchNumberFilter(filter *Filter, valueA float64, valueB float64) bool {
 }
 
 func matchStringFilter(filter *Filter, value *interface{}) bool {
-	switch filter.Operator {
+	return matchStringValueOperator(filter.Operator, value, &filter.Value, filter.Regexp)
+}
+
+func matchStringValueOperator(op Operator, valueA *interface{}, valueB *interface{}, regex *regexp.Regexp) bool {
+	switch op {
 	case Equal:
-		if (*value).(string) == filter.Value.(string) {
+		if (*valueA).(string) == (*valueB).(string) {
 			return true
 		}
 	case Unequal:
-		if (*value).(string) != filter.Value.(string) {
+		if (*valueA).(string) != (*valueB).(string) {
 			return true
 		}
 	case EqualNocase:
-		if strings.ToLower((*value).(string)) == strings.ToLower(filter.Value.(string)) {
+		if strings.ToLower((*valueA).(string)) == strings.ToLower((*valueB).(string)) {
 			return true
 		}
 	case UnequalNocase:
-		if strings.ToLower((*value).(string)) != strings.ToLower(filter.Value.(string)) {
+		if strings.ToLower((*valueA).(string)) != strings.ToLower((*valueB).(string)) {
 			return true
 		}
 	case RegexMatch:
-		if filter.Regexp.MatchString((*value).(string)) {
+		if (*regex).MatchString((*valueA).(string)) {
 			return true
 		}
 	case RegexMatchNot:
-		if filter.Regexp.MatchString((*value).(string)) {
+		if (*regex).MatchString((*valueA).(string)) {
 			return false
 		}
 	case RegexNoCaseMatch:
-		if filter.Regexp.MatchString(strings.ToLower((*value).(string))) {
+		if (*regex).MatchString(strings.ToLower((*valueA).(string))) {
 			return true
 		}
 	case RegexNoCaseMatchNot:
-		if filter.Regexp.MatchString(strings.ToLower((*value).(string))) {
+		if (*regex).MatchString(strings.ToLower((*valueA).(string))) {
 			return false
 		}
 	case Less:
-		if (*value).(string) < filter.Value.(string) {
+		if (*valueA).(string) < (*valueB).(string) {
 			return true
 		}
 	case LessThan:
-		if (*value).(string) <= filter.Value.(string) {
+		if (*valueA).(string) <= (*valueB).(string) {
 			return true
 		}
 	case Greater:
-		if (*value).(string) > filter.Value.(string) {
+		if (*valueA).(string) > (*valueB).(string) {
 			return true
 		}
 	case GreaterThan:
-		if (*value).(string) >= filter.Value.(string) {
+		if (*valueA).(string) >= (*valueB).(string) {
 			return true
 		}
 	default:
-		log.Errorf("not implemented op: %v", filter.Operator)
+		log.Errorf("not implemented op: %v", op)
 		return false
 	}
 	return false
@@ -436,4 +456,13 @@ func matchStringListFilter(filter *Filter, value *interface{}) bool {
 		return false
 	}
 	return false
+}
+
+func matchCustomVarFilter(filter *Filter, value *interface{}) bool {
+	custommap := (*value).(map[string]interface{})
+	val, ok := custommap[filter.CustomTag]
+	if !ok {
+		val = ""
+	}
+	return matchStringValueOperator(filter.Operator, &val, &filter.Value, filter.Regexp)
 }
