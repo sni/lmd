@@ -56,17 +56,17 @@ func SendPeerCommands(req *Request) (err error) {
 				continue
 			}
 		}
-		go func() {
+		go func(peer *Peer) {
 			commandRequest := &Request{
 				Command: req.Command,
 			}
-			p.Lock.Lock()
-			p.Status["LastQuery"] = time.Now()
-			p.Query(commandRequest)
+			peer.Lock.Lock()
+			peer.Status["LastQuery"] = time.Now()
+			peer.Query(commandRequest)
 			// schedule immediate update
-			p.Status["LastUpdate"] = time.Now().Add(-1 * time.Duration(60) * time.Second)
-			p.Lock.Unlock()
-		}()
+			peer.Status["LastUpdate"] = time.Now().Add(-1 * time.Duration(60) * time.Second)
+			peer.Lock.Unlock()
+		}(&p)
 	}
 	return
 }
@@ -114,7 +114,7 @@ func localListener(listen string, waitGroup *sync.WaitGroup, shutdownChannel cha
 			continue
 		}
 		if err != nil {
-			log.Errorf("accept error", err.Error())
+			log.Errorf("accept error: %s", err.Error())
 			return
 		}
 

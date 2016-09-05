@@ -299,7 +299,6 @@ func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, in
 	value := peer.getRowValue(filter.Column.Index, row, rowNum, table, refs, inputRowLen)
 	if value == nil {
 		panic("shouldn happen")
-		return false
 	}
 	colType := filter.Column.Type
 	if colType == VirtCol {
@@ -322,10 +321,8 @@ func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, in
 		return matchNumberFilter(&filter, valueA, valueB)
 	case StringListCol:
 		return matchStringListFilter(&filter, &value)
-	default:
-		log.Errorf("not implemented type: %v", filter.Column.Type)
-		return false
 	}
+	log.Errorf("not implemented type: %v", filter.Column.Type)
 	return false
 }
 
@@ -451,10 +448,8 @@ func matchStringListFilter(filter *Filter, value *interface{}) bool {
 			}
 		}
 		return true
-	default:
-		log.Errorf("not implemented op: %v", filter.Operator)
-		return false
 	}
+	log.Errorf("not implemented op: %v", filter.Operator)
 	return false
 }
 

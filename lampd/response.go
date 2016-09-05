@@ -58,30 +58,21 @@ func (res Response) Less(i, j int) bool {
 			}
 			if sort.Direction == Asc {
 				return res.Result[i][sort.Index].(float64) < res.Result[j][sort.Index].(float64)
-			} else {
-				return res.Result[i][sort.Index].(float64) > res.Result[j][sort.Index].(float64)
 			}
-			break
+			return res.Result[i][sort.Index].(float64) > res.Result[j][sort.Index].(float64)
 		case StringCol:
 			if res.Result[i][sort.Index].(string) == res.Result[j][sort.Index].(string) {
 				continue
 			}
 			if sort.Direction == Asc {
 				return res.Result[i][sort.Index].(string) < res.Result[j][sort.Index].(string)
-			} else {
-				return res.Result[i][sort.Index].(string) > res.Result[j][sort.Index].(string)
 			}
-			break
+			return res.Result[i][sort.Index].(string) > res.Result[j][sort.Index].(string)
 		case StringListCol:
 			// not implemented
 			return sort.Direction == Asc
-		default:
-			panic(fmt.Sprintf("sorting not implemented for type %d", Type))
 		}
-		if sort.Direction == Asc {
-			return false
-		}
-		return true
+		panic(fmt.Sprintf("sorting not implemented for type %d", Type))
 	}
 	return true
 }

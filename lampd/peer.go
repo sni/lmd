@@ -362,7 +362,7 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 	err = json.Unmarshal(resBytes, &result)
 	if err != nil {
 		log.Errorf("[%s] json string: %s", p.Name, string(buf.Bytes()))
-		log.Errorf("[%s] json error:", p.Name, err.Error())
+		log.Errorf("[%s] json error: %s", p.Name, err.Error())
 		return
 	}
 
@@ -492,7 +492,6 @@ func (peer *Peer) getRowValue(index int, row *[]interface{}, rowNum int, table *
 				return peer.Status[VirtKeyMap[col.Name].Key]
 			case TimeCol:
 				return peer.Status[VirtKeyMap[col.Name].Key].(time.Time).Unix()
-				break
 			default:
 				log.Panicf("not implemented")
 			}
@@ -500,7 +499,6 @@ func (peer *Peer) getRowValue(index int, row *[]interface{}, rowNum int, table *
 		refObj := (*refs)[table.Columns[col.RefIndex].Name][rowNum]
 		if refObj == nil {
 			panic("should not happen, ref not found")
-			return nil
 		}
 		return refObj[table.Columns[index].RefColIndex]
 	}

@@ -34,7 +34,7 @@ func InitLogging(conf *Config) {
 		}
 	}
 	if err != nil {
-		panic(fmt.Sprintf("failed to initialize logger", err.Error()))
+		panic(fmt.Sprintf("failed to initialize logger: %s", err.Error()))
 	}
 	log = factorlog.New(targetWriter, logFormatter)
 	var LogLevel = "Warn"
