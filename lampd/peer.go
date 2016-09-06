@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -339,27 +340,40 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 	log.Tracef("[%s] result: %s", p.Name, string(buf.Bytes()))
 
 	resBytes := buf.Bytes()
-	if len(resBytes) < 16 {
-		err = errors.New("uncomplete response header: " + string(resBytes))
-		return
+	if req.ResponseFixed16 {
+		if len(resBytes) < 16 {
+			err = errors.New("uncomplete response header: " + string(resBytes))
+			return
+		}
+		header := resBytes[0:15]
+		resBytes = resBytes[16:]
+
+		matched := ReResponseHeader.FindStringSubmatch(string(header))
+		if len(matched) != 3 {
+			log.Errorf("[%s] uncomplete response header: %s", p.Name, string(header))
+			return
+		}
+		resCode, _ := strconv.Atoi(matched[1])
+
+		if resCode != 200 {
+			log.Errorf("[%s] bad response: %s", p.Name, string(resBytes))
+			return
+		}
 	}
-	header := resBytes[0:15]
-	resBytes = resBytes[16:]
 
 	p.Status["BytesReceived"] = p.Status["BytesReceived"].(int) + len(resBytes)
 
-	matched := ReResponseHeader.FindStringSubmatch(string(header))
-	if len(matched) != 3 {
-		log.Errorf("[%s] uncomplete response header: %s", p.Name, string(header))
-		return
+	if req.OutputFormat == "wrapped_json" {
+		wrapped_result := make(map[string]json.RawMessage)
+		err = json.Unmarshal(resBytes, &wrapped_result)
+		if err != nil {
+			return
+		}
+		err = json.Unmarshal(wrapped_result["data"], &result)
+	} else {
+		err = json.Unmarshal(resBytes, &result)
 	}
-	resCode, _ := strconv.Atoi(matched[1])
 
-	if resCode != 200 {
-		log.Errorf("[%s] bad response: %s", p.Name, string(resBytes))
-		return
-	}
-	err = json.Unmarshal(resBytes, &result)
 	if err != nil {
 		log.Errorf("[%s] json string: %s", p.Name, string(buf.Bytes()))
 		log.Errorf("[%s] json error: %s", p.Name, err.Error())
@@ -367,6 +381,15 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 	}
 
 	return
+}
+
+func (p *Peer) QueryString(str string) ([][]interface{}, error) {
+	req, err := ParseRequestFromBuffer(bufio.NewReader(bytes.NewBufferString(str)))
+	if err != nil {
+		return nil, err
+	}
+	res, err := p.Query(req)
+	return res, err
 }
 
 // create initial objects
