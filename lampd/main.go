@@ -87,7 +87,15 @@ func mainLoop() {
 	if flagTraceVerbose {
 		GlobalConfig.LogLevel = "Trace"
 	}
+	setDefaults(&GlobalConfig)
 	InitLogging(&GlobalConfig)
+
+	if len(GlobalConfig.Listen) == 0 {
+		log.Fatalf("no listeners defined")
+	}
+	if len(GlobalConfig.Connections) == 0 {
+		log.Fatalf("no connections defined")
+	}
 
 	// Set the backends to be used.
 	DataStore = make(map[string]Peer)
@@ -155,5 +163,14 @@ func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 		return false // completed normally
 	case <-time.After(timeout):
 		return true // timed out
+	}
+}
+
+func setDefaults(conf *Config) {
+	if conf.NetTimeout <= 0 {
+		conf.NetTimeout = 30
+	}
+	if conf.Updateinterval <= 0 {
+		conf.Updateinterval = 2
 	}
 }
