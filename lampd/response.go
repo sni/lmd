@@ -366,7 +366,10 @@ func SendResponse(c net.Conn, res *Response) (err error) {
 	}
 	if res.Result != nil {
 		if res.Request.OutputFormat == "wrapped_json" {
-			resBytes = append(resBytes, []byte("{data:[")...)
+			resBytes = append(resBytes, []byte("{\"data\":[")...)
+		}
+		if res.Request.OutputFormat == "json" || res.Request.OutputFormat == "" {
+			resBytes = append(resBytes, []byte("[")...)
 		}
 		// append result row by row
 		if res.Request.OutputFormat == "wrapped_json" || res.Request.OutputFormat == "json" || res.Request.OutputFormat == "" {
@@ -387,10 +390,10 @@ func SendResponse(c net.Conn, res *Response) (err error) {
 			}
 		}
 		if res.Request.OutputFormat == "wrapped_json" {
-			resBytes = append(resBytes, []byte("\n,failed:")...)
+			resBytes = append(resBytes, []byte("\n,\"failed\":")...)
 			failBytes, _ := json.Marshal(res.Failed)
 			resBytes = append(resBytes, failBytes...)
-			resBytes = append(resBytes, []byte(fmt.Sprintf("\n,total:%d}", res.ResultTotal))...)
+			resBytes = append(resBytes, []byte(fmt.Sprintf("\n,\"total\":%d}", res.ResultTotal))...)
 		}
 	}
 	if res.Error != nil {
