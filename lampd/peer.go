@@ -56,7 +56,7 @@ func NewPeer(config *Connection, waitGroup *sync.WaitGroup, shutdownChannel chan
 	p.Status["LastUpdate"] = time.Now()
 	p.Status["LastQuery"] = time.Now()
 	p.Status["LastError"] = "connecting..."
-	p.Status["LastOnline"] = &time.Time{}
+	p.Status["LastOnline"] = time.Time{}
 	p.Status["ProgramStart"] = 0
 	p.Status["BytesSend"] = 0
 	p.Status["BytesReceived"] = 0

@@ -260,7 +260,8 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 	peer.Lock.Unlock()
 	peer.Lock.RLock()
 	defer peer.Lock.RUnlock()
-	if peer.Status["LastError"] != "" {
+
+	if peer.Status["State"] == "2" && req.Table != "backends" {
 		res.Failed[peer.Id] = fmt.Sprintf("%v", peer.Status["LastError"])
 		return
 	}
@@ -329,7 +330,7 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 		for k, i := range *(indexes) {
 			if i < 0 {
 				// virtual columns
-				resRow[k] = peer.getRowValue(res.Columns[k].RefIndex, &row, j, table, &refs, inputRowLen)
+				resRow[k] = peer.getRowValue(res.Columns[k].RefIndex, &row, j, table, nil, inputRowLen)
 			} else {
 				// check if this is a reference column
 				// reference columns come after the non-ref columns

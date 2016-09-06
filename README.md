@@ -126,6 +126,7 @@ Some things are still not complete
     - Implement Wait Header
     - Implement Idle Interval Updates
     - Implement downtime / comment handling
+    - Implement accept/sending multiple commands in one connection
 
 
 Ideas

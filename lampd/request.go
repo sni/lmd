@@ -162,7 +162,7 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, err error) {
 	req = &Request{SendColumnsHeader: false}
 	firstLine, err := b.ReadString('\n')
 	firstLine = strings.TrimSpace(firstLine)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		err = errors.New("bad request: " + err.Error())
 		return
 	}
