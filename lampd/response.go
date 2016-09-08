@@ -229,6 +229,7 @@ func BuildResponseIndexes(req *Request, table *Table) (indexes []int, columns []
 		if table.Columns[i].Type == VirtCol {
 			indexes = append(indexes, VirtKeyMap[col].Index)
 			columns = append(columns, Column{Name: col, Type: VirtKeyMap[col].Type, Index: j, RefIndex: i})
+			requestColumnsMap[col] = j
 			continue
 		}
 		indexes = append(indexes, i)
@@ -298,21 +299,32 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 						s.Stats++
 						break
 					case Average:
-						value := val.(float64)
-						s.Stats += value
-						break
+						fallthrough
 					case Sum:
-						value := val.(float64)
-						s.Stats += value
+						if v, ok := val.(float64); ok {
+							s.Stats += v
+						} else {
+							s.Stats += float64(val.(int))
+						}
 						break
 					case Min:
-						value := val.(float64)
+						var value float64
+						if v, ok := val.(float64); ok {
+							value = v
+						} else {
+							value = float64(val.(int))
+						}
 						if s.Stats > value || s.Stats == -1 {
 							s.Stats = value
 						}
 						break
 					case Max:
-						value := val.(float64)
+						var value float64
+						if v, ok := val.(float64); ok {
+							value = v
+						} else {
+							value = float64(val.(int))
+						}
 						if s.Stats < value {
 							s.Stats = value
 						}
@@ -364,7 +376,10 @@ func SendResponse(c net.Conn, res *Response) (err error) {
 		result = append(result, res.Result...)
 		res.Result = result
 	}
-	if res.Result != nil {
+	if res.Error != nil {
+		log.Warnf("client error: %s", res.Error.Error())
+		resBytes = []byte(res.Error.Error())
+	} else if res.Result != nil {
 		if res.Request.OutputFormat == "wrapped_json" {
 			resBytes = append(resBytes, []byte("{\"data\":[")...)
 		}
@@ -373,7 +388,6 @@ func SendResponse(c net.Conn, res *Response) (err error) {
 		}
 		// append result row by row
 		if res.Request.OutputFormat == "wrapped_json" || res.Request.OutputFormat == "json" || res.Request.OutputFormat == "" {
-			last := len(res.Result) - 1
 			for i, row := range res.Result {
 				rowBytes, jerr := json.Marshal(row)
 				if jerr != nil {
@@ -381,13 +395,12 @@ func SendResponse(c net.Conn, res *Response) (err error) {
 					err = jerr
 					return
 				}
-				resBytes = append(resBytes, rowBytes...)
-				if i == last {
-					resBytes = append(resBytes, []byte("]")...)
-				} else {
+				if i > 0 {
 					resBytes = append(resBytes, []byte(",\n")...)
 				}
+				resBytes = append(resBytes, rowBytes...)
 			}
+			resBytes = append(resBytes, []byte("]")...)
 		}
 		if res.Request.OutputFormat == "wrapped_json" {
 			resBytes = append(resBytes, []byte("\n,\"failed\":")...)
@@ -395,10 +408,6 @@ func SendResponse(c net.Conn, res *Response) (err error) {
 			resBytes = append(resBytes, failBytes...)
 			resBytes = append(resBytes, []byte(fmt.Sprintf("\n,\"total\":%d}", res.ResultTotal))...)
 		}
-	}
-	if res.Error != nil {
-		log.Warnf("client error: %s", res.Error.Error())
-		resBytes = []byte(res.Error.Error())
 	}
 
 	size := len(resBytes) + 1
