@@ -94,6 +94,24 @@ func TestMainFunc(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// wait till backend is available
+	retries := 0
+	for {
+		res, err := peer.QueryString("GET backends\nColumns: peer_status\n\n")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res[0][0].(float64) == 0 {
+			break
+		}
+		// recheck every 100ms
+		time.Sleep(100 * time.Millisecond)
+		retries++
+		if retries > 1000 {
+			t.Fatal("backend never came online")
+		}
+	}
+
 	// send querys
 	res, err = peer.QueryString("COMMAND [123456] TEST\n\n")
 	if err != nil {

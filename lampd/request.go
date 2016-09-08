@@ -110,7 +110,7 @@ func StatsTypeString(op StatsType) string {
 func (req *Request) String() (str string) {
 	// Commands are easy passthrough
 	if req.Command != "" {
-		str = req.Command
+		str = req.Command + "\n\n"
 		return
 	}
 	str = "GET " + req.Table + "\n"
