@@ -164,7 +164,12 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 	var filtervalue interface{}
 	var filtertagname string
 	col := Objects.Tables[table].Columns[i]
-	switch col.Type {
+
+	colType := col.Type
+	if colType == VirtCol {
+		colType = VirtKeyMap[col.Name].Type
+	}
+	switch colType {
 	case IntCol:
 		var cerr error
 		filtervalue, cerr = strconv.Atoi(tmp[2])
@@ -312,7 +317,7 @@ func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, in
 	case TimeCol:
 		fallthrough
 	case IntCol:
-		valueA := value.(float64)
+		valueA := float64(value.(int))
 		valueB := float64(filter.Value.(int))
 		return matchNumberFilter(&filter, valueA, valueB)
 	case FloatCol:
