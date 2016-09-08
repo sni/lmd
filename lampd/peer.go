@@ -115,7 +115,9 @@ func (p *Peer) UpdateLoop() {
 
 func (p *Peer) InitAllTables() bool {
 	var err error
+	p.Lock.Lock()
 	p.Status["LastUpdate"] = time.Now()
+	p.Lock.Unlock()
 	t1 := time.Now()
 	for _, n := range Objects.Order {
 		t := Objects.Tables[n]
@@ -133,6 +135,14 @@ func (p *Peer) InitAllTables() bool {
 			return false
 		}
 	}
+	p.Lock.Lock()
+	if len(p.Tables["status"].Data) == 0 {
+		p.Status["PeerStatus"] = 2
+		p.Status["LastError"] = "peered partner not ready yet"
+		p.ErrorCount++
+		p.Lock.Unlock()
+		return false
+	}
 	if p.Status["LastError"] != "" && p.Status["LastError"] != "connecting..." {
 		log.Infof("[%s] site is back online", p.Name)
 	}
@@ -140,6 +150,7 @@ func (p *Peer) InitAllTables() bool {
 	p.Status["LastOnline"] = time.Now()
 	p.Status["LastError"] = ""
 	p.Status["ProgramStart"] = p.Tables["status"].Data[0][p.Tables["status"].Table.ColumnsIndex["program_start"]]
+	p.Lock.Unlock()
 	p.ErrorCount = 0
 	duration := time.Since(t1)
 	log.Infof("[%s] objects created in: %s", p.Name, duration.String())
@@ -286,11 +297,14 @@ func (p *Peer) UpdateDeltaTableServices() (err error) {
 
 // send query to remote livestatus and returns unmarshaled result
 func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
+	p.Lock.RLock()
+	peerAddr := p.Status["PeerAddr"].(string)
+	p.Lock.RUnlock()
 	connType := "unix"
-	if strings.Contains(p.Status["PeerAddr"].(string), ":") {
+	if strings.Contains(peerAddr, ":") {
 		connType = "tcp"
 	}
-	conn, err := net.DialTimeout(connType, p.Status["PeerAddr"].(string), time.Duration(GlobalConfig.NetTimeout)*time.Second)
+	conn, err := net.DialTimeout(connType, peerAddr, time.Duration(GlobalConfig.NetTimeout)*time.Second)
 	if err != nil {
 		// try next node if there are multiple
 		sourcesNum := len(p.Source)
@@ -298,6 +312,7 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 			return
 		}
 		log.Debugf("[%s] site failed: %s", p.Name, err)
+		p.Lock.Lock()
 		curNum := p.Status["CurPeerAddrNum"].(int)
 		nextNum := curNum + 1
 		if nextNum >= sourcesNum {
@@ -305,15 +320,16 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 		}
 		p.Status["CurPeerAddrNum"] = nextNum
 		p.Status["PeerAddr"] = p.Source[nextNum]
-		log.Debugf("[%s] trying next one: %s", p.Name, p.Status["PeerAddr"])
+		peerAddr = p.Status["PeerAddr"].(string)
+		log.Debugf("[%s] trying next one: %s", p.Name, peerAddr)
+		p.Lock.Unlock()
 		if curNum != nextNum {
 			result, err = p.Query(req)
 			if err == nil {
-				log.Infof("[%s] active source changed to %s", p.Name, p.Status["PeerAddr"])
+				log.Infof("[%s] active source changed to %s", p.Name, peerAddr)
 			} else {
-				log.Debugf("[%s] backup source failed as well: %s: %s", p.Name, p.Status["PeerAddr"], err)
+				log.Debugf("[%s] backup source failed as well: %s: %s", p.Name, peerAddr, err)
 			}
-			return
 		}
 		return
 	}
@@ -321,17 +337,19 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 	conn.SetDeadline(time.Now().Add(time.Duration(GlobalConfig.NetTimeout) * time.Second))
 
 	query := fmt.Sprintf(req.String())
-	log.Tracef("[%s] send to: %s", p.Name, p.Status["PeerAddr"].(string))
+	log.Tracef("[%s] send to: %s", p.Name, peerAddr)
 	log.Tracef("[%s] query: %s", p.Name, query)
 
+	p.Lock.Lock()
 	p.Status["Querys"] = p.Status["Querys"].(int) + 1
 	p.Status["BytesSend"] = p.Status["BytesSend"].(int) + len(query)
+	p.Lock.Unlock()
 
 	fmt.Fprintf(conn, "%s", query)
 
 	// commands do not send anything back
 	if req.Command != "" {
-		return
+		return nil, err
 	}
 
 	var buf bytes.Buffer
@@ -361,7 +379,9 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 		}
 	}
 
+	p.Lock.Lock()
 	p.Status["BytesReceived"] = p.Status["BytesReceived"].(int) + len(resBytes)
+	p.Lock.Unlock()
 
 	if req.OutputFormat == "wrapped_json" {
 		wrapped_result := make(map[string]json.RawMessage)
