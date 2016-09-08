@@ -28,6 +28,7 @@ func TestRequestHeader(t *testing.T) {
 		"GET hosts\nColumns: name\nFilter: name ~~ Test\n\n",
 		"GET hosts\nColumns: name\nFilter: name !~~ test\n\n",
 		"GET hosts\nColumns: name\nFilter: custom_variables ~~ TAGS test\n\n",
+		"GET hosts\nColumns: name\nFilter: name != \n\n",
 	}
 	for _, str := range testRequestStrings {
 		buf := bufio.NewReader(bytes.NewBufferString(str))

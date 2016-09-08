@@ -123,6 +123,7 @@ func (p *Peer) InitAllTables() bool {
 		t := Objects.Tables[n]
 		_, err = p.CreateObjectByType(t)
 		if err != nil {
+			log.Errorf("[%s] query error: %s", p.Name, err.Error())
 			duration := time.Since(t1)
 			p.ErrorCount++
 			if p.Status["LastError"] == "" || p.Status["LastError"] == "connecting..." {
@@ -166,6 +167,7 @@ func (p *Peer) UpdateAllTables() bool {
 		t := Objects.Tables[n]
 		restartRequired, err = p.UpdateObjectByType(t)
 		if err != nil {
+			log.Errorf("[%s] query error: %s", p.Name, err.Error())
 			p.Status["LastError"] = err.Error()
 			p.ErrorCount++
 			duration := time.Since(t1)
@@ -214,6 +216,7 @@ func (p *Peer) UpdateDeltaTables() bool {
 		err = p.UpdateDeltaTableServices()
 	}
 	if err != nil {
+		log.Errorf("[%s] query error: %s", p.Name, err.Error())
 		p.Status["LastError"] = err.Error()
 		p.ErrorCount++
 		duration := time.Since(t1)
@@ -360,22 +363,28 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 	resBytes := buf.Bytes()
 	if req.ResponseFixed16 {
 		if len(resBytes) < 16 {
-			err = errors.New("uncomplete response header: " + string(resBytes))
-			return
+			err = errors.New(fmt.Sprintf("uncomplete response header: " + string(resBytes)))
+			return nil, err
 		}
 		header := resBytes[0:15]
 		resBytes = resBytes[16:]
 
 		matched := ReResponseHeader.FindStringSubmatch(string(header))
 		if len(matched) != 3 {
-			log.Errorf("[%s] uncomplete response header: %s", p.Name, string(header))
-			return
+			err = errors.New(fmt.Sprintf("[%s] uncomplete response header: %s", p.Name, string(header)))
+			return nil, err
 		}
 		resCode, _ := strconv.Atoi(matched[1])
+		expSize, _ := strconv.Atoi(matched[2])
 
 		if resCode != 200 {
-			log.Errorf("[%s] bad response: %s", p.Name, string(resBytes))
-			return
+			err = errors.New(fmt.Sprintf("[%s] bad response: %s", p.Name, string(resBytes)))
+			return nil, err
+		}
+		resSize := len(resBytes)
+		if expSize != resSize {
+			err = errors.New(fmt.Sprintf("[%s] bad response size, expected %d, got %d", p.Name, expSize, resSize))
+			return nil, err
 		}
 	}
 

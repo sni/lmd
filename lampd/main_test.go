@@ -2,7 +2,6 @@ package main
 
 import (
 	"io/ioutil"
-	"net"
 	"os"
 	"sync"
 	"testing"
@@ -27,38 +26,18 @@ func TestMainFunc(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	go func() {
-		l, err := net.Listen("tcp", "127.0.0.1:50050")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer l.Close()
-		for {
-			conn, err := l.Accept()
-			if err != nil {
-				return
-			}
-
-			_, err = ParseRequest(conn)
-			//req, err := ParseRequest(conn)
-			if err != nil {
-				log.Errorf("err: %v", err)
-				t.Fatal(err)
-				continue
-			}
-		}
-	}()
+	StartMockLivestatusSource("127.0.0.1:50050")
 
 	go func() {
 		os.Args[1] = "-config=test.ini"
 		main()
 	}()
 
-	time.Sleep(time.Duration(1) * time.Second)
 	toml.DecodeFile("test.ini", &GlobalConfig)
 	shutdownChannel := make(chan bool)
 	waitGroup := &sync.WaitGroup{}
-	peer := NewPeer(&Connection{Source: []string{"127.0.0.1:50051"}, Name: "Test", Id: "id0"}, waitGroup, shutdownChannel)
+	peer := NewPeer(&Connection{Source: []string{"doesnotexist", "127.0.0.1:50051"}, Name: "Test", Id: "id0"}, waitGroup, shutdownChannel)
+	peer.Start()
 
 	res, err := peer.QueryString("GET backends\n\n")
 	if err = assertEq("peer_key", res[0][0]); err != nil {
@@ -77,6 +56,12 @@ func TestMainFunc(t *testing.T) {
 		"GET backends\nResponseHeader: fixed16\nFilter: peer_key = id1\n\n",
 		"GET backends\nResponseHeader: fixed16\nFilter: peer_key ~~ id1\n\n",
 		"GET backends\nResponseHeader: fixed16\nFilter: peer_key =~ id1\n\n",
+		"GET backends\nResponseHeader: fixed16\nFilter: peer_key !=\n\n",
+		"GET backends\nResponseHeader: fixed16\nFilter: peer_key != id2\n\n",
+		"GET backends\nResponseHeader: fixed16\nFilter: peer_key !=~ id2\n\n",
+		"GET backends\nResponseHeader: fixed16\nSort: peer_key asc\n\n",
+		"GET backends\nResponseHeader: fixed16\nSort: peer_key desc\n\n",
+		"GET backends\nResponseHeader: fixed16\nSort: peer_bytes_send asc\nSort: peer_bytes_received desc\n\n",
 	}
 	for _, str := range testRequestStrings {
 		res, err := peer.QueryString(str)
@@ -90,6 +75,34 @@ func TestMainFunc(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+
+	// sort querys
+	res, err = peer.QueryString("GET backends\nColumns: peer_key peer_bytes_send peer_bytes_received\nSort: peer_bytes_send asc\nSort: peer_bytes_received desc\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("id1", res[0][0]); err != nil {
+		t.Fatal(err)
+	}
+
+	// stats querys
+	res, err = peer.QueryString("GET backends\nStats: peer_bytes_send > 0\nStats: avg peer_bytes_send\nStats: sum peer_bytes_send\nStats: min peer_bytes_send\nStats: max peer_bytes_send\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(1.0, res[0][0]); err != nil {
+		t.Fatal(err)
+	}
+
+	// send querys
+	res, err = peer.QueryString("COMMAND [123456] TEST\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	shutdownChannel <- true
+	close(shutdownChannel)
+	waitTimeout(waitGroup, time.Second)
 
 	os.Remove("test.ini")
 	os.Remove("test.sock")
