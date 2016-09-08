@@ -83,7 +83,7 @@ func (p *Peer) UpdateLoop() {
 		lastFullUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
 
 		// TODO: implement idle_interval update (maybe one minute) and the normal update interval
-		c := time.Tick(5e8 * time.Nanosecond)
+		c := time.Tick(500 * time.Millisecond)
 		for {
 			select {
 			case <-p.shutdownChannel:
