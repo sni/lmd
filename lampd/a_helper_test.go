@@ -4,8 +4,24 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"os"
 	"reflect"
+	"regexp"
+	"sync"
+	"time"
+
+	"github.com/BurntSushi/toml"
 )
+
+const testConfig = `
+Loglevel = "Error"
+Listen = ["test.sock"]
+
+[[Connections]]
+name = "Test"
+id   = "id1"
+source = ["mock.sock"]
+`
 
 func assertEq(exp, got interface{}) error {
 	if !reflect.DeepEqual(exp, got) {
@@ -14,10 +30,22 @@ func assertEq(exp, got interface{}) error {
 	return nil
 }
 
+func assertLike(exp string, got string) error {
+	regex, err := regexp.Compile(exp)
+	if err != nil {
+		panic(err.Error())
+	}
+	if !regex.MatchString(got) {
+		return fmt.Errorf("\nWanted \n%#v\nGot\n%#v", exp, got)
+	}
+	return nil
+}
+
 func StartMockLivestatusSource(address string) {
 	startedChannel := make(chan bool)
 	go func() {
-		l, err := net.Listen("tcp", "127.0.0.1:50050")
+		os.Remove("mock.sock")
+		l, err := net.Listen("unix", "mock.sock")
 		if err != nil {
 			panic(err.Error())
 		}
@@ -44,4 +72,64 @@ func StartMockLivestatusSource(address string) {
 	}()
 	<-startedChannel
 	return
+}
+
+var shutdownChannel chan bool
+var waitGroup *sync.WaitGroup
+var mainStarted bool = false
+
+func SetupMainLoop() {
+	err := ioutil.WriteFile("test.ini", []byte(testConfig), 0644)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	StartMockLivestatusSource("127.0.0.1:50050")
+
+	go func() {
+		if mainStarted {
+			mainLoop()
+		} else {
+			os.Args[1] = "-config=test.ini"
+			main()
+		}
+	}()
+
+	toml.DecodeFile("test.ini", &GlobalConfig)
+	mainStarted = true
+}
+
+func SetupTestPeer() (peer *Peer) {
+	SetupMainLoop()
+
+	shutdownChannel = make(chan bool)
+	waitGroup = &sync.WaitGroup{}
+	peer = NewPeer(&Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", Id: "id0"}, waitGroup, shutdownChannel)
+	peer.Start()
+
+	// wait till backend is available
+	retries := 0
+	for {
+		res, err := peer.QueryString("GET backends\nColumns: status last_error\nResponseHeader: fixed16\n\n")
+		if err == nil && len(res) > 0 && len(res[0]) > 0 && res[0][0].(float64) == 0 {
+			break
+		}
+		// recheck every 100ms
+		time.Sleep(100 * time.Millisecond)
+		retries++
+		if retries > 1000 {
+			panic("backend never came online")
+		}
+	}
+
+	return
+}
+
+func StopTestPeer() {
+	shutdownChannel <- true
+	close(shutdownChannel)
+	waitTimeout(waitGroup, time.Second)
+	os.Remove("test.ini")
+	os.Remove("test.sock")
+	os.Remove("mock.sock")
 }
