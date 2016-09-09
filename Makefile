@@ -31,6 +31,9 @@ debugbuild: deps fmt
 test: deps fmt
 	cd $(LAMPDDIR) && go test -v $(COLORIZE_TEST)
 
+benchmark: deps fmt
+	cd $(LAMPDDIR) && go test -v -bench . -benchmem $(COLORIZE_TEST)
+
 racetest: deps fmt
 	cd $(LAMPDDIR) && go test -race -v $(COLORIZE_TEST)
 
