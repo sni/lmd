@@ -36,6 +36,15 @@ type Peer struct {
 	shutdownChannel chan bool
 }
 
+type PeerStatus int
+
+const (
+	PeerStatusUp PeerStatus = iota
+	PeerStatusWarning
+	PeerStatusDown
+	PeerStatusPending
+)
+
 // send query to remote livestatus and returns unmarshaled result
 func NewPeer(config *Connection, waitGroup *sync.WaitGroup, shutdownChannel chan bool) *Peer {
 	p := Peer{
@@ -53,7 +62,7 @@ func NewPeer(config *Connection, waitGroup *sync.WaitGroup, shutdownChannel chan
 	p.Status["PeerName"] = p.Name
 	p.Status["CurPeerAddrNum"] = 0
 	p.Status["PeerAddr"] = p.Source[p.Status["CurPeerAddrNum"].(int)]
-	p.Status["PeerStatus"] = 2
+	p.Status["PeerStatus"] = PeerStatusPending
 	p.Status["LastUpdate"] = time.Now()
 	p.Status["LastQuery"] = time.Now()
 	p.Status["LastError"] = "connecting..."
@@ -123,37 +132,21 @@ func (p *Peer) InitAllTables() bool {
 		t := Objects.Tables[n]
 		_, err = p.CreateObjectByType(t)
 		if err != nil {
-			log.Errorf("[%s] query error: %s", p.Name, err.Error())
-			duration := time.Since(t1)
-			p.ErrorCount++
-			if p.Status["LastError"] == "" || p.Status["LastError"] == "connecting..." {
-				log.Warnf("[%s] site is offline: %s", p.Name, err.Error())
-			} else {
-				log.Infof("[%s] fetching initial objects still failing after %s: %s", p.Name, duration.String(), err.Error())
-			}
-			p.Status["LastError"] = err.Error()
-			p.Status["PeerStatus"] = 2
 			return false
 		}
 	}
 	p.Lock.Lock()
+	// this may happen if we query another lampd daemon which has no backends ready yet
 	if len(p.Tables["status"].Data) == 0 {
-		p.Status["PeerStatus"] = 2
+		p.Status["PeerStatus"] = PeerStatusWarning
 		p.Status["LastError"] = "peered partner not ready yet"
-		p.ErrorCount++
 		p.Lock.Unlock()
 		return false
 	}
-	if p.Status["LastError"] != "" && p.Status["LastError"] != "connecting..." {
-		log.Infof("[%s] site is back online", p.Name)
-	}
-	p.Status["PeerStatus"] = 0
-	p.Status["LastOnline"] = time.Now()
-	p.Status["LastError"] = ""
 	p.Status["ProgramStart"] = p.Tables["status"].Data[0][p.Tables["status"].Table.ColumnsIndex["program_start"]]
-	p.Lock.Unlock()
-	p.ErrorCount = 0
 	duration := time.Since(t1)
+	p.Status["ReponseTime"] = duration.Seconds()
+	p.Lock.Unlock()
 	log.Infof("[%s] objects created in: %s", p.Name, duration.String())
 	return true
 }
@@ -161,25 +154,12 @@ func (p *Peer) InitAllTables() bool {
 func (p *Peer) UpdateAllTables() bool {
 	t1 := time.Now()
 	var err error
-	p.Status["LastUpdate"] = time.Now()
 	restartRequired := false
 	for _, n := range Objects.Order {
 		t := Objects.Tables[n]
 		restartRequired, err = p.UpdateObjectByType(t)
 		if err != nil {
-			log.Errorf("[%s] query error: %s", p.Name, err.Error())
-			p.Status["LastError"] = err.Error()
-			p.ErrorCount++
-			duration := time.Since(t1)
-			// give site some time to recover
-			if p.ErrorCount >= 3 {
-				p.Status["PeerStatus"] = 2
-				log.Warnf("[%s] site went offline: %s", p.Name, err.Error())
-				return false
-			}
-			p.Status["PeerStatus"] = 1
-			log.Infof("[%s] updating objects failed (retry %d) after: %s: %s", p.Name, p.ErrorCount, duration.String(), err.Error())
-			return true
+			return false
 		}
 		if restartRequired {
 			break
@@ -191,19 +171,17 @@ func (p *Peer) UpdateAllTables() bool {
 	if restartRequired {
 		return p.InitAllTables()
 	}
-	p.Status["PeerStatus"] = 0
-	p.Status["LastOnline"] = time.Now()
-	p.Status["LastError"] = ""
 	duration := time.Since(t1)
+	p.Lock.Lock()
+	p.Status["ReponseTime"] = duration.Seconds()
+	p.Status["LastUpdate"] = time.Now()
+	p.Lock.Unlock()
 	log.Infof("[%s] update complete in: %s", p.Name, duration.String())
 	return true
 }
 
 func (p *Peer) UpdateDeltaTables() bool {
 	t1 := time.Now()
-	p.Lock.Lock()
-	p.Status["LastUpdate"] = time.Now()
-	p.Lock.Unlock()
 
 	restartRequired, err := p.UpdateObjectByType(Objects.Tables["status"])
 	if restartRequired {
@@ -215,27 +193,17 @@ func (p *Peer) UpdateDeltaTables() bool {
 	if err == nil {
 		err = p.UpdateDeltaTableServices()
 	}
-	if err != nil {
-		log.Errorf("[%s] query error: %s", p.Name, err.Error())
-		p.Status["LastError"] = err.Error()
-		p.ErrorCount++
-		duration := time.Since(t1)
-		// give site some time to recover
-		if p.ErrorCount >= 3 {
-			p.Status["PeerStatus"] = 2
-			log.Warnf("[%s] site went offline: %s", p.Name, err.Error())
-			return false
-		}
-		p.Status["PeerStatus"] = 1
-		log.Infof("[%s] updating objects failed (retry %d) after: %s: %s", p.Name, p.ErrorCount, duration.String(), err.Error())
-		return true
-	}
 
-	p.Status["PeerStatus"] = 0
-	p.Status["LastOnline"] = time.Now()
-	p.Status["LastError"] = ""
 	duration := time.Since(t1)
+	if err != nil {
+		log.Infof("[%s] updating objects failed after: %s: %s", p.Name, duration.String(), err.Error())
+		return false
+	}
 	log.Debugf("[%s] delta update complete in: %s", p.Name, duration.String())
+	p.Lock.Lock()
+	p.Status["LastUpdate"] = time.Now()
+	p.Status["ReponseTime"] = duration.Seconds()
+	p.Lock.Unlock()
 	return true
 }
 
@@ -300,47 +268,14 @@ func (p *Peer) UpdateDeltaTableServices() (err error) {
 
 // send query to remote livestatus and returns unmarshaled result
 func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
-	p.Lock.RLock()
-	peerAddr := p.Status["PeerAddr"].(string)
-	p.Lock.RUnlock()
-	connType := "unix"
-	if strings.Contains(peerAddr, ":") {
-		connType = "tcp"
-	}
-	conn, err := net.DialTimeout(connType, peerAddr, time.Duration(GlobalConfig.NetTimeout)*time.Second)
+	conn, err := p.GetConnection()
 	if err != nil {
-		// try next node if there are multiple
-		sourcesNum := len(p.Source)
-		if sourcesNum == 1 {
-			return
-		}
-		log.Debugf("[%s] site failed: %s", p.Name, err)
-		p.Lock.Lock()
-		curNum := p.Status["CurPeerAddrNum"].(int)
-		nextNum := curNum + 1
-		if nextNum >= sourcesNum {
-			nextNum = 0
-		}
-		p.Status["CurPeerAddrNum"] = nextNum
-		p.Status["PeerAddr"] = p.Source[nextNum]
-		peerAddr = p.Status["PeerAddr"].(string)
-		log.Debugf("[%s] trying next one: %s", p.Name, peerAddr)
-		p.Lock.Unlock()
-		if curNum != nextNum {
-			result, err = p.Query(req)
-			if err == nil {
-				log.Infof("[%s] active source changed to %s", p.Name, peerAddr)
-			} else {
-				log.Debugf("[%s] backup source failed as well: %s: %s", p.Name, peerAddr, err)
-			}
-		}
-		return
+		return nil, err
 	}
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(time.Duration(GlobalConfig.NetTimeout) * time.Second))
 
 	query := fmt.Sprintf(req.String())
-	log.Tracef("[%s] send to: %s", p.Name, peerAddr)
 	log.Tracef("[%s] query: %s", p.Name, query)
 
 	p.Lock.Lock()
@@ -362,30 +297,11 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 
 	resBytes := buf.Bytes()
 	if req.ResponseFixed16 {
-		if len(resBytes) < 16 {
-			err = errors.New(fmt.Sprintf("uncomplete response header: " + string(resBytes)))
+		err = p.CheckResponseHeader(&resBytes)
+		if err != nil {
 			return nil, err
 		}
-		header := resBytes[0:15]
 		resBytes = resBytes[16:]
-
-		matched := ReResponseHeader.FindStringSubmatch(string(header))
-		if len(matched) != 3 {
-			err = errors.New(fmt.Sprintf("[%s] uncomplete response header: %s", p.Name, string(header)))
-			return nil, err
-		}
-		resCode, _ := strconv.Atoi(matched[1])
-		expSize, _ := strconv.Atoi(matched[2])
-
-		if resCode != 200 {
-			err = errors.New(fmt.Sprintf("[%s] bad response: %s", p.Name, string(resBytes)))
-			return nil, err
-		}
-		resSize := len(resBytes)
-		if expSize != resSize {
-			err = errors.New(fmt.Sprintf("[%s] bad response size, expected %d, got %d", p.Name, expSize, resSize))
-			return nil, err
-		}
 	}
 
 	p.Lock.Lock()
@@ -393,20 +309,28 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 	p.Lock.Unlock()
 
 	if req.OutputFormat == "wrapped_json" {
+		if string(resBytes[0]) != "{" {
+			err = errors.New(strings.TrimSpace(string(resBytes)))
+			return nil, err
+		}
 		wrapped_result := make(map[string]json.RawMessage)
 		err = json.Unmarshal(resBytes, &wrapped_result)
 		if err != nil {
-			return
+			return nil, err
 		}
 		err = json.Unmarshal(wrapped_result["data"], &result)
 	} else {
+		if string(resBytes[0]) != "[" {
+			err = errors.New(strings.TrimSpace(string(resBytes)))
+			return nil, err
+		}
 		err = json.Unmarshal(resBytes, &result)
 	}
 
 	if err != nil {
 		log.Errorf("[%s] json string: %s", p.Name, string(buf.Bytes()))
 		log.Errorf("[%s] json error: %s", p.Name, err.Error())
-		return
+		return nil, err
 	}
 
 	return
@@ -417,8 +341,104 @@ func (p *Peer) QueryString(str string) ([][]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	res, err := p.Query(req)
-	return res, err
+	return p.Query(req)
+}
+
+func (p *Peer) CheckResponseHeader(resBytes *[]byte) (err error) {
+	resSize := len(*resBytes)
+	if resSize < 16 {
+		err = errors.New(fmt.Sprintf("uncomplete response header: " + string(*resBytes)))
+		return
+	}
+	header := (*resBytes)[0:15]
+	resSize = resSize - 16
+
+	matched := ReResponseHeader.FindStringSubmatch(string(header))
+	if len(matched) != 3 {
+		err = errors.New(fmt.Sprintf("[%s] uncomplete response header: %s", p.Name, string(header)))
+		return
+	}
+	resCode, _ := strconv.Atoi(matched[1])
+	expSize, _ := strconv.Atoi(matched[2])
+
+	if resCode != 200 {
+		err = errors.New(fmt.Sprintf("[%s] bad response: %s", p.Name, string(*resBytes)))
+		return
+	}
+	if expSize != resSize {
+		err = errors.New(fmt.Sprintf("[%s] bad response size, expected %d, got %d", p.Name, expSize, resSize))
+		return
+	}
+	return
+}
+
+func (p *Peer) GetConnection() (conn net.Conn, err error) {
+	numSources := len(p.Source)
+
+	for x := 0; x < numSources; x++ {
+		p.Lock.RLock()
+		peerAddr := p.Status["PeerAddr"].(string)
+		p.Lock.RUnlock()
+		connType := "unix"
+		if strings.Contains(peerAddr, ":") {
+			connType = "tcp"
+		}
+		conn, err = net.DialTimeout(connType, peerAddr, time.Duration(GlobalConfig.NetTimeout)*time.Second)
+		// connection succesful
+		if err == nil {
+			if x > 0 {
+				log.Infof("[%s] active source changed to %s", p.Name, peerAddr)
+			}
+			// Reset errors
+			p.Lock.Lock()
+			if p.Status["PeerStatus"].(PeerStatus) == PeerStatusDown {
+				log.Infof("[%s] site is back online", p.Name)
+			}
+			p.Status["LastError"] = ""
+			p.Status["LastOnline"] = time.Now()
+			p.ErrorCount = 0
+			p.Status["PeerStatus"] = PeerStatusUp
+			p.Lock.Unlock()
+			return
+		}
+
+		// connection error
+		log.Debugf("[%s] connection error %s: %s", peerAddr, p.Name, err)
+
+		p.Lock.Lock()
+		p.Status["LastError"] = err.Error()
+		p.ErrorCount++
+
+		if numSources == 1 {
+			break
+		}
+
+		// try next node if there are multiple
+		curNum := p.Status["CurPeerAddrNum"].(int)
+		nextNum := curNum
+		nextNum++
+		if nextNum >= numSources {
+			nextNum = 0
+		}
+		p.Status["CurPeerAddrNum"] = nextNum
+		p.Status["PeerAddr"] = p.Source[nextNum]
+		peerAddr = p.Status["PeerAddr"].(string)
+
+		if p.Status["PeerStatus"].(PeerStatus) == PeerStatusUp {
+			p.Status["PeerStatus"] = PeerStatusWarning
+		}
+		p.Lock.Unlock()
+
+		log.Debugf("[%s] trying next one: %s", p.Name, peerAddr)
+	}
+
+	p.Lock.Lock()
+	if p.Status["PeerStatus"].(PeerStatus) != PeerStatusDown {
+		log.Warnf("[%s] site went offline: %s", p.Name, err.Error())
+	}
+	p.Status["PeerStatus"] = PeerStatusDown
+	p.Lock.Unlock()
+	return nil, err
 }
 
 // create initial objects
