@@ -174,7 +174,11 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, err error) {
 	} else {
 		matched = ReRequestAction.FindStringSubmatch(firstLine)
 		if len(matched) != 2 {
-			err = errors.New("bad request in " + firstLine)
+			if len(firstLine) == 0 {
+				err = errors.New("bad request: empty request")
+			} else {
+				err = errors.New("bad request in " + firstLine)
+			}
 			return
 		}
 
