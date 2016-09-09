@@ -14,7 +14,7 @@ import (
 )
 
 const testConfig = `
-Loglevel = "Error"
+Loglevel = "Panic"
 Listen = ["test.sock"]
 
 [[Connections]]

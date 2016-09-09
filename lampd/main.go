@@ -44,6 +44,8 @@ var flagTraceVerbose bool
 var flagConfigFile string
 var flagVersion bool
 
+var once sync.Once
+
 func main() {
 	flag.StringVar(&flagConfigFile, "c", "lampd.ini", "set location for config file")
 	flag.StringVar(&flagConfigFile, "config", "lampd.ini", "set location for config file")
@@ -117,7 +119,7 @@ func mainLoop() {
 		p.Start()
 	}
 
-	fmt.Printf("%s - version %s (Build: %s) started\n", NAME, VERSION, Build)
+	once.Do(PrintVersion)
 
 	// just wait till someone hits ctrl+c or we have to reload
 	for sig := range c {
@@ -173,4 +175,8 @@ func setDefaults(conf *Config) {
 	if conf.Updateinterval <= 0 {
 		conf.Updateinterval = 2
 	}
+}
+
+func PrintVersion() {
+	fmt.Printf("%s - version %s (Build: %s) started\n", NAME, VERSION, Build)
 }
