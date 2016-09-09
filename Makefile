@@ -14,6 +14,7 @@ deps:
 	go get github.com/kdar/factorlog
 	go get github.com/mgutz/ansi
 	go get golang.org/x/tools/cmd/goimports
+	go get github.com/prometheus/client_golang/prometheus
 	if [ $(shell grep -rc Dump $(LAMPDDIR)/*.go | grep -v :0 | grep -v $(LAMPDDIR)/dump.go | wc -l) -ne 0 ]; then \
 		go get github.com/davecgh/go-spew/spew; \
 		sed -i.bak 's/\/\/ +build.*/\/\/ build with debug functions/' $(LAMPDDIR)/dump.go; \

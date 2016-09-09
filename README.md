@@ -1,11 +1,16 @@
-LAMPD - Livestatus Acceleration Multi Proxy Daemon
-==================================================
+LMD - Livestatus Multitool Daemon
+=================================
 
-[![Build Status](https://travis-ci.org/sni/lampd.svg?branch=master)](https://travis-ci.org/sni/lampd)
+[![Build Status](https://travis-ci.org/sni/lmd.svg?branch=master)](https://travis-ci.org/sni/lmd)
 
-Fetches livestatus data from multiple sources and provides itself a livestatus
-api for those sources which makes livestatus querys a lot faster than requesting
-them directly from the remote sources.
+What is this
+============
+
+LMD fetches livestatus data from multiple sources and provides:
+
+     - A livestatus api for those sources which makes livestatus querys a lot
+       faster than requesting them directly from the remote sources.
+     - A Prometheus exporter for livestatus based metrics for Nagios, Icinga, Shinken and Naemon
 
 Map / reduce included to combine response from multiple sources.
 

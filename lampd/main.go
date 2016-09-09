@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -10,6 +12,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // compile passing -ldflags "-X main.Build <build sha1>"
@@ -27,12 +30,13 @@ type Connection struct {
 }
 
 type Config struct {
-	Listen         []string
-	Updateinterval int
-	Connections    []Connection
-	LogFile        string
-	LogLevel       string
-	NetTimeout     int
+	Listen           []string
+	Updateinterval   int
+	Connections      []Connection
+	LogFile          string
+	LogLevel         string
+	NetTimeout       int
+	ListenPrometheus string
 }
 
 var DataStore map[string]Peer
@@ -59,6 +63,9 @@ func main() {
 		fmt.Printf("%s - version %s (Build: %s)\n", NAME, VERSION, Build)
 		os.Exit(2)
 	}
+
+	http.Handle("/metrics", prometheus.Handler())
+
 	for {
 		mainLoop()
 	}
@@ -77,6 +84,7 @@ func mainLoop() {
 		fmt.Fprintf(os.Stderr, "ERROR: could not load configuration from %s: %s\nuse --help to see all options.\n", flagConfigFile, err)
 		os.Exit(3)
 	}
+	GlobalConfig = Config{}
 	if _, err := toml.DecodeFile(flagConfigFile, &GlobalConfig); err != nil {
 		panic(err)
 	}
@@ -92,9 +100,6 @@ func mainLoop() {
 	setDefaults(&GlobalConfig)
 	InitLogging(&GlobalConfig)
 
-	if len(GlobalConfig.Listen) == 0 {
-		log.Fatalf("no listeners defined")
-	}
 	if len(GlobalConfig.Connections) == 0 {
 		log.Fatalf("no connections defined")
 	}
@@ -102,6 +107,19 @@ func mainLoop() {
 	// Set the backends to be used.
 	DataStore = make(map[string]Peer)
 	InitObjects()
+
+	var prometheusListener net.Listener
+	if GlobalConfig.ListenPrometheus != "" {
+		var err error
+		prometheusListener, err = net.Listen("tcp", GlobalConfig.ListenPrometheus)
+		go func() {
+			if err != nil {
+				log.Fatalf("starting prometheus exporter failed: %s", err)
+			}
+			http.Serve(prometheusListener, nil)
+		}()
+		log.Infof("serving prometheus metrics at %s/metrics", GlobalConfig.ListenPrometheus)
+	}
 
 	// start local listeners
 	for _, listen := range GlobalConfig.Listen {
@@ -128,6 +146,9 @@ func mainLoop() {
 			log.Infof("got sigterm, quiting gracefully")
 			shutdownChannel <- true
 			close(shutdownChannel)
+			if prometheusListener != nil {
+				prometheusListener.Close()
+			}
 			waitGroupListener.Wait()
 			waitGroupPeers.Wait()
 			os.Exit(0)
@@ -135,6 +156,9 @@ func mainLoop() {
 		case os.Interrupt:
 			shutdownChannel <- true
 			close(shutdownChannel)
+			if prometheusListener != nil {
+				prometheusListener.Close()
+			}
 			log.Infof("got sigint, quiting")
 			// wait one second which should be enough for the listeners
 			waitTimeout(waitGroupListener, time.Second)
@@ -144,6 +168,9 @@ func mainLoop() {
 			log.Infof("got sighub, reloading configuration...")
 			shutdownChannel <- true
 			close(shutdownChannel)
+			if prometheusListener != nil {
+				prometheusListener.Close()
+			}
 			waitGroupListener.Wait()
 			return
 		default:

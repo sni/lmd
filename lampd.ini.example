@@ -9,6 +9,9 @@ Listen          = ["127.0.0.1:3333", "/tmp/live.sock"]
 # May be Error, Warn, Info, Debug and Trace
 LogLevel        = "Info"
 
+# Uncomment to export runtime statistics in prometheus format
+#ListenPrometheus = "127.0.0.1:8080"
+
 # Refresh remote sites every x seconds
 # fast updates are ok, only changed hosts and services get fetched
 # and once a minute everything is updated
