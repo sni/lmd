@@ -92,7 +92,7 @@ func BuildResponse(req *Request) (res *Response, err error) {
 
 	table, _ := Objects.Tables[req.Table]
 
-	indexes, columns, err := BuildResponseIndexes(req, table)
+	indexes, columns, err := BuildResponseIndexes(req, &table)
 	if err != nil {
 		return
 	}

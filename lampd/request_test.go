@@ -79,7 +79,7 @@ func TestRequestHeaderSort(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: latency state name\nSort: name desc\nSort: state asc\n"))
 	req, _ := ParseRequestFromBuffer(buf)
 	table, _ := Objects.Tables[req.Table]
-	BuildResponseIndexes(req, table)
+	BuildResponseIndexes(req, &table)
 	if err := assertEq(SortField{Name: "name", Direction: Desc, Index: 2}, *req.Sort[0]); err != nil {
 		t.Fatal(err)
 	}

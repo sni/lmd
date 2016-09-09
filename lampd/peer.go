@@ -130,7 +130,7 @@ func (p *Peer) InitAllTables() bool {
 	t1 := time.Now()
 	for _, n := range Objects.Order {
 		t := Objects.Tables[n]
-		_, err = p.CreateObjectByType(t)
+		_, err = p.CreateObjectByType(&t)
 		if err != nil {
 			return false
 		}
@@ -514,7 +514,7 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 
 // update objects
 // assuming we get the objects always in the same order, we can just iterate over the index and update the fields
-func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error) {
+func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error) {
 	if len(table.DynamicColCacheNames) == 0 {
 		return
 	}

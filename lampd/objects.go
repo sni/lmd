@@ -1,7 +1,7 @@
 package main
 
 type ObjectsType struct {
-	Tables map[string]*Table
+	Tables map[string]Table
 	Order  []string
 }
 
@@ -131,7 +131,7 @@ func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, Type Column
 func InitObjects() (err error) {
 	Objects = &ObjectsType{}
 
-	Objects.Tables = make(map[string]*Table)
+	Objects.Tables = make(map[string]Table)
 	Objects.AddTable("backends", NewBackendsTable())
 	Objects.AddTable("status", NewStatusTable())
 	Objects.AddTable("timeperiods", NewTimeperiodsTable())
@@ -153,7 +153,7 @@ func (o *ObjectsType) AddTable(name string, table *Table) {
 	if exists {
 		log.Panicf("table %s has been added twice", name)
 	}
-	o.Tables[name] = table
+	o.Tables[name] = *table
 	o.Order = append(o.Order, name)
 	return
 }
