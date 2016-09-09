@@ -317,7 +317,12 @@ func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, in
 	case TimeCol:
 		fallthrough
 	case IntCol:
-		valueA := float64(value.(int))
+		var valueA float64
+		if v, ok := value.(int); ok {
+			valueA = float64(v)
+		} else {
+			valueA = float64(v)
+		}
 		valueB := float64(filter.Value.(int))
 		return matchNumberFilter(&filter, valueA, valueB)
 	case FloatCol:
