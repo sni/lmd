@@ -162,15 +162,17 @@ func (o *ObjectsType) AddTable(name string, table *Table) {
 func NewBackendsTable() (t *Table) {
 	t = &Table{Name: "backends"}
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol)
-	t.AddColumn("peer_name", RefNoUpdate, VirtCol)
-	t.AddColumn("peer_addr", RefNoUpdate, VirtCol)
-	t.AddColumn("peer_status", RefNoUpdate, VirtCol)
-	t.AddColumn("peer_bytes_send", RefNoUpdate, VirtCol)
-	t.AddColumn("peer_bytes_received", RefNoUpdate, VirtCol)
-	t.AddColumn("peer_queries", RefNoUpdate, VirtCol)
-	t.AddColumn("peer_last_error", RefNoUpdate, VirtCol)
-	t.AddColumn("peer_last_update", RefNoUpdate, VirtCol)
-	t.AddColumn("peer_last_online", RefNoUpdate, VirtCol)
+	t.AddColumn("key", RefNoUpdate, VirtCol)
+	t.AddColumn("name", RefNoUpdate, VirtCol)
+	t.AddColumn("addr", RefNoUpdate, VirtCol)
+	t.AddColumn("status", RefNoUpdate, VirtCol)
+	t.AddColumn("bytes_send", RefNoUpdate, VirtCol)
+	t.AddColumn("bytes_received", RefNoUpdate, VirtCol)
+	t.AddColumn("queries", RefNoUpdate, VirtCol)
+	t.AddColumn("last_error", RefNoUpdate, VirtCol)
+	t.AddColumn("last_update", RefNoUpdate, VirtCol)
+	t.AddColumn("last_online", RefNoUpdate, VirtCol)
+	t.AddColumn("response_time", RefNoUpdate, VirtCol)
 
 	return
 }

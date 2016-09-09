@@ -29,16 +29,18 @@ type VirtKeyMapTupel struct {
 }
 
 var VirtKeyMap = map[string]VirtKeyMapTupel{
-	"peer_key":            {Index: -1, Key: "PeerKey", Type: StringCol},
-	"peer_name":           {Index: -2, Key: "PeerName", Type: StringCol},
-	"peer_addr":           {Index: -3, Key: "PeerAddr", Type: StringCol},
-	"peer_status":         {Index: -4, Key: "PeerStatus", Type: IntCol},
-	"peer_bytes_send":     {Index: -5, Key: "BytesSend", Type: IntCol},
-	"peer_bytes_received": {Index: -6, Key: "BytesReceived", Type: IntCol},
-	"peer_queries":        {Index: -7, Key: "Querys", Type: IntCol},
-	"peer_last_error":     {Index: -8, Key: "LastError", Type: StringCol},
-	"peer_last_online":    {Index: -9, Key: "LastOnline", Type: TimeCol},
-	"peer_last_update":    {Index: -10, Key: "LastUpdate", Type: TimeCol},
+	"peer_key":       {Index: -1, Key: "PeerKey", Type: StringCol},
+	"key":            {Index: -2, Key: "PeerKey", Type: StringCol},
+	"name":           {Index: -3, Key: "PeerName", Type: StringCol},
+	"addr":           {Index: -4, Key: "PeerAddr", Type: StringCol},
+	"status":         {Index: -5, Key: "PeerStatus", Type: IntCol},
+	"bytes_send":     {Index: -6, Key: "BytesSend", Type: IntCol},
+	"bytes_received": {Index: -7, Key: "BytesReceived", Type: IntCol},
+	"queries":        {Index: -8, Key: "Querys", Type: IntCol},
+	"last_error":     {Index: -9, Key: "LastError", Type: StringCol},
+	"last_online":    {Index: -10, Key: "LastOnline", Type: TimeCol},
+	"last_update":    {Index: -11, Key: "LastUpdate", Type: TimeCol},
+	"response_time":  {Index: -12, Key: "ReponseTime", Type: FloatCol},
 }
 
 // result sorter
@@ -221,8 +223,8 @@ func BuildResponseIndexes(req *Request, table *Table) (indexes []int, columns []
 	// build array of requested columns as Column objects list
 	for j, col := range req.Columns {
 		col = strings.ToLower(col)
-		i, Ok := table.ColumnsIndex[col]
-		if !Ok {
+		i, ok := table.ColumnsIndex[col]
+		if !ok {
 			err = errors.New("bad request: table " + req.Table + " has no column " + col)
 			return
 		}
@@ -348,10 +350,6 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 				// reference columns come after the non-ref columns
 				if i >= inputRowLen {
 					refObj := refs[table.Columns[table.Columns[i].RefIndex].Name][j]
-					if len(refObj) == 0 {
-						res.Failed[peer.Id] = "peer not ready yet"
-						return
-					}
 					resRow[k] = refObj[table.Columns[i].RefColIndex]
 				} else {
 					resRow[k] = row[i]
