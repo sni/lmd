@@ -55,6 +55,15 @@ type Column struct {
 	Update      UpdateType
 }
 
+func (t *Table) GetInitialKeys() (keys []string) {
+	for _, col := range t.Columns {
+		if col.Update != RefUpdate && col.Update != RefNoUpdate && col.Type != VirtCol {
+			keys = append(keys, col.Name)
+		}
+	}
+	return
+}
+
 func (t *Table) AddColumnObject(col *Column) int {
 	Index := t.MaxIndex
 	t.MaxIndex++

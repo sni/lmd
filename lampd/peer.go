@@ -45,6 +45,37 @@ const (
 	PeerStatusPending
 )
 
+type PeerErrorType int
+
+const (
+	ConnectionError PeerErrorType = iota
+	RequestError
+	ResponseError
+)
+
+type PeerError struct {
+	msg  string
+	kind PeerErrorType
+}
+
+func (e *PeerError) Error() string       { return e.msg }
+func (e *PeerError) Type() PeerErrorType { return e.kind }
+
+func (d *DataTable) AddItem(row *[]interface{}) {
+	d.Data = append(d.Data, *row)
+	return
+}
+
+func (d *DataTable) RemoveItem(row []interface{}) {
+	for i, r := range d.Data {
+		if fmt.Sprintf("%p", r) == fmt.Sprintf("%p", row) {
+			d.Data = append(d.Data[:i], d.Data[i+1:]...)
+			return
+		}
+	}
+	panic("element not found")
+}
+
 // send query to remote livestatus and returns unmarshaled result
 func NewPeer(config *Connection, waitGroup *sync.WaitGroup, shutdownChannel chan bool) *Peer {
 	p := Peer{
@@ -71,6 +102,7 @@ func NewPeer(config *Connection, waitGroup *sync.WaitGroup, shutdownChannel chan
 	p.Status["BytesSend"] = 0
 	p.Status["BytesReceived"] = 0
 	p.Status["Querys"] = 0
+	p.Status["ReponseTime"] = 0
 	return &p
 }
 
@@ -148,6 +180,20 @@ func (p *Peer) InitAllTables() bool {
 	p.Status["ReponseTime"] = duration.Seconds()
 	p.Lock.Unlock()
 	log.Infof("[%s] objects created in: %s", p.Name, duration.String())
+
+	if p.Status["PeerStatus"].(PeerStatus) != PeerStatusUp {
+		// Reset errors
+		p.Lock.Lock()
+		if p.Status["PeerStatus"].(PeerStatus) == PeerStatusDown {
+			log.Infof("[%s] site is back online", p.Name)
+		}
+		p.Status["LastError"] = ""
+		p.Status["LastOnline"] = time.Now()
+		p.ErrorCount = 0
+		p.Status["PeerStatus"] = PeerStatusUp
+		p.Lock.Unlock()
+	}
+
 	return true
 }
 
@@ -165,7 +211,7 @@ func (p *Peer) UpdateAllTables() bool {
 			break
 		}
 	}
-	if err != nil && p.ErrorCount > 3 {
+	if err != nil {
 		return false
 	}
 	if restartRequired {
@@ -192,6 +238,12 @@ func (p *Peer) UpdateDeltaTables() bool {
 	}
 	if err == nil {
 		err = p.UpdateDeltaTableServices()
+	}
+	if err == nil {
+		err = p.UpdateDeltaCommentsOrDowntimes("comments")
+	}
+	if err == nil {
+		err = p.UpdateDeltaCommentsOrDowntimes("downtimes")
 	}
 
 	duration := time.Since(t1)
@@ -266,8 +318,79 @@ func (p *Peer) UpdateDeltaTableServices() (err error) {
 	return
 }
 
+func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
+	// add new comments / downtimes
+	table := Objects.Tables[name]
+	req := &Request{
+		Table:           table.Name,
+		Columns:         []string{"id"},
+		ResponseFixed16: true,
+		OutputFormat:    "json",
+	}
+	res, err := p.Query(req)
+	if err != nil {
+		return
+	}
+	p.Lock.Lock()
+	idIndex := p.Tables[table.Name].Index
+	fieldIndex := 0
+	missingIds := []string{}
+	resIndex := make(map[string]bool)
+	for _, resRow := range res {
+		id := fmt.Sprintf("%v", resRow[fieldIndex])
+		_, ok := idIndex[id]
+		if !ok {
+			log.Debugf("adding %s with id %s", name, id)
+			missingIds = append(missingIds, id)
+		}
+		resIndex[id] = true
+	}
+
+	// remove old comments / downtimes
+	data := p.Tables[table.Name]
+	for id, _ := range idIndex {
+		_, ok := resIndex[id]
+		if !ok {
+			log.Debugf("removing %s with id %s", name, id)
+			tmp := idIndex[id]
+			data.RemoveItem(tmp)
+			delete(idIndex, id)
+		}
+	}
+	p.Tables[table.Name] = data
+	p.Lock.Unlock()
+
+	if len(missingIds) > 0 {
+		keys := table.GetInitialKeys()
+		keys = append([]string{"id"}, keys...)
+		req := &Request{
+			Table:           table.Name,
+			Columns:         keys,
+			ResponseFixed16: true,
+			OutputFormat:    "json",
+			FilterStr:       fmt.Sprintf("Filter: id = %s\nOr: %d\n", strings.Join(missingIds, "\nFilter: id = "), len(missingIds)),
+		}
+		res, err = p.Query(req)
+		if err != nil {
+			return
+		}
+		p.Lock.Lock()
+		data := p.Tables[table.Name]
+		for _, resRow := range res {
+			id := fmt.Sprintf("%v", resRow[fieldIndex])
+			idIndex[id] = resRow
+			data.AddItem(&resRow)
+		}
+		p.Tables[table.Name] = data
+		p.Lock.Unlock()
+	}
+
+	log.Debugf("[%s] updated %s", p.Name, name)
+	return
+}
+
 // send query to remote livestatus and returns unmarshaled result
-func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
+func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 	conn, err := p.GetConnection()
 	if err != nil {
 		return nil, err
@@ -299,7 +422,7 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 	if req.ResponseFixed16 {
 		err = p.CheckResponseHeader(&resBytes)
 		if err != nil {
-			return nil, err
+			return nil, &PeerError{msg: err.Error(), kind: ResponseError}
 		}
 		resBytes = resBytes[16:]
 	}
@@ -311,18 +434,18 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 	if req.OutputFormat == "wrapped_json" {
 		if string(resBytes[0]) != "{" {
 			err = errors.New(strings.TrimSpace(string(resBytes)))
-			return nil, err
+			return nil, &PeerError{msg: err.Error(), kind: ResponseError}
 		}
 		wrapped_result := make(map[string]json.RawMessage)
 		err = json.Unmarshal(resBytes, &wrapped_result)
 		if err != nil {
-			return nil, err
+			return nil, &PeerError{msg: err.Error(), kind: ResponseError}
 		}
 		err = json.Unmarshal(wrapped_result["data"], &result)
 	} else {
 		if string(resBytes[0]) != "[" {
 			err = errors.New(strings.TrimSpace(string(resBytes)))
-			return nil, err
+			return nil, &PeerError{msg: err.Error(), kind: ResponseError}
 		}
 		err = json.Unmarshal(resBytes, &result)
 	}
@@ -330,9 +453,25 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 	if err != nil {
 		log.Errorf("[%s] json string: %s", p.Name, string(buf.Bytes()))
 		log.Errorf("[%s] json error: %s", p.Name, err.Error())
-		return nil, err
+		return nil, &PeerError{msg: err.Error(), kind: ResponseError}
 	}
 
+	return
+}
+
+// call query and log all errors except connection errors which are logged in GetConnection
+func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
+	result, err = p.query(req)
+	if err != nil {
+		if cerr, ok := err.(*PeerError); ok {
+			if cerr.Type() != ConnectionError {
+				log.Errorf("[%s] site error: %s", p.Name, cerr.Error())
+			}
+		} else {
+			log.Errorf("[%s] site error: %s", p.Name, cerr.Error())
+		}
+		p.setNextAddrFromErr(err)
+	}
 	return
 }
 
@@ -389,47 +528,12 @@ func (p *Peer) GetConnection() (conn net.Conn, err error) {
 			if x > 0 {
 				log.Infof("[%s] active source changed to %s", p.Name, peerAddr)
 			}
-			// Reset errors
-			p.Lock.Lock()
-			if p.Status["PeerStatus"].(PeerStatus) == PeerStatusDown {
-				log.Infof("[%s] site is back online", p.Name)
-			}
-			p.Status["LastError"] = ""
-			p.Status["LastOnline"] = time.Now()
-			p.ErrorCount = 0
-			p.Status["PeerStatus"] = PeerStatusUp
-			p.Lock.Unlock()
 			return
 		}
 
 		// connection error
 		log.Debugf("[%s] connection error %s: %s", peerAddr, p.Name, err)
-
-		p.Lock.Lock()
-		p.Status["LastError"] = err.Error()
-		p.ErrorCount++
-
-		if numSources == 1 {
-			break
-		}
-
-		// try next node if there are multiple
-		curNum := p.Status["CurPeerAddrNum"].(int)
-		nextNum := curNum
-		nextNum++
-		if nextNum >= numSources {
-			nextNum = 0
-		}
-		p.Status["CurPeerAddrNum"] = nextNum
-		p.Status["PeerAddr"] = p.Source[nextNum]
-		peerAddr = p.Status["PeerAddr"].(string)
-
-		if p.Status["PeerStatus"].(PeerStatus) == PeerStatusUp {
-			p.Status["PeerStatus"] = PeerStatusWarning
-		}
-		p.Lock.Unlock()
-
-		log.Debugf("[%s] trying next one: %s", p.Name, peerAddr)
+		p.setNextAddrFromErr(err)
 	}
 
 	p.Lock.Lock()
@@ -438,7 +542,41 @@ func (p *Peer) GetConnection() (conn net.Conn, err error) {
 	}
 	p.Status["PeerStatus"] = PeerStatusDown
 	p.Lock.Unlock()
-	return nil, err
+	return nil, &PeerError{msg: err.Error(), kind: ConnectionError}
+}
+
+func (p *Peer) setNextAddrFromErr(err error) {
+	p.Lock.Lock()
+	p.Status["LastError"] = err.Error()
+	p.ErrorCount++
+
+	numSources := len(p.Source)
+	if numSources == 1 {
+		p.Lock.Unlock()
+		return
+	}
+
+	// try next node if there are multiple
+	curNum := p.Status["CurPeerAddrNum"].(int)
+	nextNum := curNum
+	nextNum++
+	if nextNum >= numSources {
+		nextNum = 0
+	}
+	p.Status["CurPeerAddrNum"] = nextNum
+	p.Status["PeerAddr"] = p.Source[nextNum]
+	peerAddr := p.Status["PeerAddr"].(string)
+
+	if p.Status["PeerStatus"].(PeerStatus) == PeerStatusUp {
+		p.Status["PeerStatus"] = PeerStatusWarning
+	}
+	if p.ErrorCount > numSources*2 {
+		p.Status["PeerStatus"] = PeerStatusDown
+	}
+	p.Lock.Unlock()
+
+	log.Debugf("[%s] trying next one: %s", p.Name, peerAddr)
+	return
 }
 
 // create initial objects
@@ -447,16 +585,11 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	if table.PassthroughOnly {
 		return
 	}
-	keys := []string{}
-	for _, col := range table.Columns {
-		if col.Update != RefUpdate && col.Update != RefNoUpdate && col.Type != VirtCol {
-			keys = append(keys, col.Name)
-		}
-	}
+	keys := table.GetInitialKeys()
 	refs := make(map[string][][]interface{})
 	index := make(map[string][]interface{})
 
-	// complete virtiual table ends here
+	// complete virtual table ends here
 	if len(keys) == 0 {
 		p.Lock.Lock()
 		p.Tables[table.Name] = DataTable{Table: table, Data: make([][]interface{}, 1), Refs: refs, Index: index}
@@ -503,6 +636,20 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 		indexField2 := table.ColumnsIndex["description"]
 		for _, row := range res {
 			index[row[indexField1].(string)+";"+row[indexField2].(string)] = row
+		}
+	}
+	// create comment id lookup indexes
+	if table.Name == "comments" {
+		indexField := table.ColumnsIndex["id"]
+		for _, row := range res {
+			index[fmt.Sprintf("%v", row[indexField])] = row
+		}
+	}
+	// create downtime id lookup indexes
+	if table.Name == "downtimes" {
+		indexField := table.ColumnsIndex["id"]
+		for _, row := range res {
+			index[fmt.Sprintf("%v", row[indexField])] = row
 		}
 	}
 	p.Lock.Lock()

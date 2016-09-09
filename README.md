@@ -133,6 +133,9 @@ Some things are still not complete
     - Implement downtime / comment handling
     - Implement accept/sending multiple commands in one connection
     - Check backend capabilities on first request
+    - Preserve backend order in response
+    - optimize delta updates, check max id and len of comments/downtimes and only continue if that differs
+    - fix custom_variables in icinga 2
 
 
 Ideas

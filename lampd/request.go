@@ -197,11 +197,11 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, err error) {
 			return
 		}
 		line = strings.TrimSpace(line)
-		log.Debugf("request: %s", line)
 		if ReRequestEmpty.MatchString(line) {
 			break
 		}
 
+		log.Debugf("request: %s", line)
 		perr := ParseRequestHeaderLine(req, &line)
 		if perr != nil {
 			err = perr
