@@ -177,7 +177,7 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, err error) {
 			if len(firstLine) == 0 {
 				err = errors.New("bad request: empty request")
 			} else {
-				err = errors.New("bad request in " + firstLine)
+				err = errors.New("bad request: " + firstLine)
 			}
 			return
 		}
@@ -223,7 +223,7 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, err error) {
 func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 	matched := ReRequestHeader.FindStringSubmatch(*line)
 	if len(matched) != 3 {
-		err = errors.New("bad request in " + *line)
+		err = errors.New("bad request header: " + *line)
 		return
 	}
 	header := strings.ToLower(matched[1])
@@ -307,11 +307,11 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 			req.OutputFormat = value
 			break
 		default:
-			err = errors.New("unrecognized outputformat, only json and wrapped_json is supported")
+			err = errors.New("bad request: unrecognized outputformat, only json and wrapped_json is supported")
 			return
 		}
 	default:
-		err = errors.New("unrecognized header " + *line)
+		err = errors.New("bad request: unrecognized header " + *line)
 		return
 	}
 	return

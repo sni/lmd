@@ -117,3 +117,14 @@ func TestRequestHeaderFilter3(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestRequestListFilter(t *testing.T) {
+	peer := SetupTestPeer()
+
+	res, _ := peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
+	if err := assertEq("gearman", res[0][0]); err != nil {
+		t.Fatal(err)
+	}
+
+	StopTestPeer()
+}
