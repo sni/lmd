@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -108,18 +107,7 @@ func mainLoop() {
 	DataStore = make(map[string]Peer)
 	InitObjects()
 
-	var prometheusListener net.Listener
-	if GlobalConfig.ListenPrometheus != "" {
-		var err error
-		prometheusListener, err = net.Listen("tcp", GlobalConfig.ListenPrometheus)
-		go func() {
-			if err != nil {
-				log.Fatalf("starting prometheus exporter failed: %s", err)
-			}
-			http.Serve(prometheusListener, nil)
-		}()
-		log.Infof("serving prometheus metrics at %s/metrics", GlobalConfig.ListenPrometheus)
-	}
+	prometheusListener := InitPrometheus()
 
 	// start local listeners
 	for _, listen := range GlobalConfig.Listen {

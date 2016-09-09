@@ -136,6 +136,7 @@ Some things are still not complete
     - Preserve backend order in response
     - optimize delta updates, check max id and len of comments/downtimes and only continue if that differs
     - fix custom_variables in icinga 2
+    - add metrics for peer data
 
 
 Ideas

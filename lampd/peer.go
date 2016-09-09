@@ -193,6 +193,8 @@ func (p *Peer) InitAllTables() bool {
 		p.Status["PeerStatus"] = PeerStatusUp
 		p.Lock.Unlock()
 	}
+	promPeerUpdates.WithLabelValues(p.Name).Inc()
+	promPeerUpdateDuration.WithLabelValues(p.Name).Set(duration.Seconds())
 
 	return true
 }
@@ -223,6 +225,8 @@ func (p *Peer) UpdateAllTables() bool {
 	p.Status["LastUpdate"] = time.Now()
 	p.Lock.Unlock()
 	log.Infof("[%s] update complete in: %s", p.Name, duration.String())
+	promPeerUpdates.WithLabelValues(p.Name).Inc()
+	promPeerUpdateDuration.WithLabelValues(p.Name).Set(duration.Seconds())
 	return true
 }
 
@@ -256,6 +260,8 @@ func (p *Peer) UpdateDeltaTables() bool {
 	p.Status["LastUpdate"] = time.Now()
 	p.Status["ReponseTime"] = duration.Seconds()
 	p.Lock.Unlock()
+	promPeerUpdates.WithLabelValues(p.Name).Inc()
+	promPeerUpdateDuration.WithLabelValues(p.Name).Set(duration.Seconds())
 	return true
 }
 
@@ -404,6 +410,7 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 	p.Lock.Lock()
 	p.Status["Querys"] = p.Status["Querys"].(int) + 1
 	p.Status["BytesSend"] = p.Status["BytesSend"].(int) + len(query)
+	promPeerBytesSend.WithLabelValues(p.Name).Set(float64(p.Status["BytesSend"].(int)))
 	p.Lock.Unlock()
 
 	fmt.Fprintf(conn, "%s", query)
@@ -429,6 +436,7 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 
 	p.Lock.Lock()
 	p.Status["BytesReceived"] = p.Status["BytesReceived"].(int) + len(resBytes)
+	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(p.Status["BytesReceived"].(int)))
 	p.Lock.Unlock()
 
 	if req.OutputFormat == "wrapped_json" {
@@ -525,12 +533,14 @@ func (p *Peer) GetConnection() (conn net.Conn, err error) {
 		conn, err = net.DialTimeout(connType, peerAddr, time.Duration(GlobalConfig.NetTimeout)*time.Second)
 		// connection succesful
 		if err == nil {
+			promPeerConnections.WithLabelValues(p.Name).Inc()
 			if x > 0 {
 				log.Infof("[%s] active source changed to %s", p.Name, peerAddr)
 			}
 			return
 		}
 
+		promPeerFailedConnections.WithLabelValues(p.Name).Inc()
 		// connection error
 		log.Debugf("[%s] connection error %s: %s", peerAddr, p.Name, err)
 		p.setNextAddrFromErr(err)
