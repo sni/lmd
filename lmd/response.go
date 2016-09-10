@@ -49,30 +49,30 @@ func (res Response) Len() int {
 }
 
 func (res Response) Less(i, j int) bool {
-	for _, sort := range res.Request.Sort {
-		Type := res.Columns[sort.Index].Type
+	for _, s := range res.Request.Sort {
+		Type := res.Columns[s.Index].Type
 		switch Type {
 		case IntCol:
 			fallthrough
 		case FloatCol:
-			if res.Result[i][sort.Index].(float64) == res.Result[j][sort.Index].(float64) {
+			if res.Result[i][s.Index].(float64) == res.Result[j][s.Index].(float64) {
 				continue
 			}
-			if sort.Direction == Asc {
-				return res.Result[i][sort.Index].(float64) < res.Result[j][sort.Index].(float64)
+			if s.Direction == Asc {
+				return res.Result[i][s.Index].(float64) < res.Result[j][s.Index].(float64)
 			}
-			return res.Result[i][sort.Index].(float64) > res.Result[j][sort.Index].(float64)
+			return res.Result[i][s.Index].(float64) > res.Result[j][s.Index].(float64)
 		case StringCol:
-			if res.Result[i][sort.Index].(string) == res.Result[j][sort.Index].(string) {
+			if res.Result[i][s.Index].(string) == res.Result[j][s.Index].(string) {
 				continue
 			}
-			if sort.Direction == Asc {
-				return res.Result[i][sort.Index].(string) < res.Result[j][sort.Index].(string)
+			if s.Direction == Asc {
+				return res.Result[i][s.Index].(string) < res.Result[j][s.Index].(string)
 			}
-			return res.Result[i][sort.Index].(string) > res.Result[j][sort.Index].(string)
+			return res.Result[i][s.Index].(string) > res.Result[j][s.Index].(string)
 		case StringListCol:
 			// not implemented
-			return sort.Direction == Asc
+			return s.Direction == Asc
 		}
 		panic(fmt.Sprintf("sorting not implemented for type %d", Type))
 	}
@@ -84,6 +84,7 @@ func (res Response) Swap(i, j int) {
 }
 
 func BuildResponse(req *Request) (res *Response, err error) {
+	log.Tracef("BuildResponse")
 	res = &Response{
 		Code:    200,
 		Failed:  make(map[string]string),
@@ -123,6 +124,7 @@ func BuildResponse(req *Request) (res *Response, err error) {
 			res.Result = result
 		} else {
 			BuildLocalResponseDataForPeer(res, req, &p, numPerRow, &indexes)
+			log.Tracef("BuildLocalResponseDataForPeer done: %s", p.Name)
 		}
 	}
 	if res.Result == nil {
@@ -148,6 +150,7 @@ func ExpandRequestBackends(req *Request) (backendsMap map[string]string, numBack
 }
 
 func BuildResponsePostProcessing(res *Response) {
+	log.Tracef("BuildResponsePostProcessing")
 	// sort our result
 	if len(res.Request.Sort) > 0 {
 		t1 := time.Now()
@@ -209,6 +212,7 @@ func BuildResponsePostProcessing(res *Response) {
 }
 
 func BuildResponseIndexes(req *Request, table *Table) (indexes []int, columns []Column, err error) {
+	log.Tracef("BuildResponseIndexes")
 	requestColumnsMap := make(map[string]int)
 	// if no column header was given, return all columns
 	// but only if this is no stats query
@@ -240,24 +244,31 @@ func BuildResponseIndexes(req *Request, table *Table) (indexes []int, columns []
 	}
 
 	// check wether our sort columns do exist in the output
-	for _, sort := range req.Sort {
-		_, Ok := table.ColumnsIndex[sort.Name]
+	for _, s := range req.Sort {
+		_, Ok := table.ColumnsIndex[s.Name]
 		if !Ok {
-			err = errors.New("bad request: table " + req.Table + " has no column " + sort.Name + " to sort")
+			err = errors.New("bad request: table " + req.Table + " has no column " + s.Name + " to sort")
 			return
 		}
-		i, Ok := requestColumnsMap[sort.Name]
+		i, Ok := requestColumnsMap[s.Name]
 		if !Ok {
-			err = errors.New("bad request: sort column " + sort.Name + " not in result set")
+			err = errors.New("bad request: sort column " + s.Name + " not in result set")
 			return
 		}
-		sort.Index = i
+		s.Index = i
 	}
 
 	return
 }
 
-func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow int, indexes *[]int) (err error) {
+func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow int, indexes *[]int) {
+	log.Tracef("BuildLocalResponseDataForPeer: %s", peer.Name)
+	/*
+		if MywaitLock(peer.Lock, 5) {
+			log.Errorf("panic: %s", peer.Name)
+			panic("timeout")
+		}
+	*/
 	peer.Lock.Lock()
 	peer.Status["LastQuery"] = time.Now()
 	peer.Lock.Unlock()
@@ -424,6 +435,8 @@ func SendResponse(c net.Conn, res *Response) (err error) {
 	if written != size-1 {
 		log.Warnf("write error: written %d, size: %d", written, size)
 	}
+	localAddr := c.LocalAddr().String()
+	promFrontendBytesSend.WithLabelValues(localAddr).Add(float64(len(resBytes)))
 	_, err = c.Write([]byte("\n"))
 	return
 }

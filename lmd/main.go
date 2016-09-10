@@ -79,6 +79,9 @@ func mainLoop() {
 	waitGroupListener := &sync.WaitGroup{}
 	waitGroupPeers := &sync.WaitGroup{}
 
+	if flagConfigFile == "" {
+		flagConfigFile = "lmd.ini"
+	}
 	if _, err := os.Stat(flagConfigFile); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: could not load configuration from %s: %s\nuse --help to see all options.\n", flagConfigFile, err)
 		os.Exit(3)

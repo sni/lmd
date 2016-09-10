@@ -9,13 +9,15 @@ import (
 )
 
 func queryServer(c net.Conn) error {
+	localAddr := c.LocalAddr().String()
 	for {
 		t1 := time.Now()
 		remote := c.RemoteAddr().String()
 		if remote == "" {
 			remote = "unknown"
 		}
-		log.Debugf("incoming request from: %s to %s", remote, c.LocalAddr().String())
+		promFrontendConnections.WithLabelValues(localAddr).Inc()
+		log.Debugf("incoming request from: %s to %s", remote, localAddr)
 		c.SetDeadline(time.Now().Add(time.Duration(5) * time.Second))
 		defer c.Close()
 
@@ -62,8 +64,10 @@ func SendPeerCommands(req *Request) (err error) {
 			}
 			peer.Lock.Lock()
 			peer.Status["LastQuery"] = time.Now()
+			peer.Lock.Unlock()
 			peer.Query(commandRequest)
 			// schedule immediate update
+			peer.Lock.Lock()
 			peer.Status["LastUpdate"] = time.Now().Add(-1 * time.Duration(60) * time.Second)
 			peer.Lock.Unlock()
 		}(&p)

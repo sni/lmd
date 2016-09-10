@@ -112,6 +112,8 @@ func (p *Peer) Start() (_, err error) {
 		defer p.waitGroup.Done()
 		p.waitGroup.Add(1)
 		log.Infof("[%s] starting connection", p.Name)
+		// TODO: check if locking each peer to a os thread changes anything
+		//runtime.LockOSThread()
 		p.UpdateLoop()
 	}()
 
@@ -484,7 +486,7 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 }
 
 func (p *Peer) QueryString(str string) ([][]interface{}, error) {
-	req, err := ParseRequestFromBuffer(bufio.NewReader(bytes.NewBufferString(str)))
+	req, _, err := ParseRequestFromBuffer(bufio.NewReader(bytes.NewBufferString(str)))
 	if err != nil {
 		return nil, err
 	}
@@ -557,12 +559,12 @@ func (p *Peer) GetConnection() (conn net.Conn, err error) {
 
 func (p *Peer) setNextAddrFromErr(err error) {
 	p.Lock.Lock()
+	defer p.Lock.Unlock()
 	p.Status["LastError"] = err.Error()
 	p.ErrorCount++
 
 	numSources := len(p.Source)
 	if numSources == 1 {
-		p.Lock.Unlock()
 		return
 	}
 
@@ -583,7 +585,6 @@ func (p *Peer) setNextAddrFromErr(err error) {
 	if p.ErrorCount > numSources*2 {
 		p.Status["PeerStatus"] = PeerStatusDown
 	}
-	p.Lock.Unlock()
 
 	log.Debugf("[%s] trying next one: %s", p.Name, peerAddr)
 	return

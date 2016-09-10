@@ -8,6 +8,28 @@ import (
 )
 
 var (
+	promFrontendConnections = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "frontend_connections",
+			Help: "Frontend Connection Counter",
+		},
+		[]string{"listen"},
+	)
+	promFrontendBytesSend = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "frontend_send_bytes",
+			Help: "Bytes Send to Frontend Clients",
+		},
+		[]string{"listen"},
+	)
+	promFrontendBytesReceived = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "frontend_received_bytes",
+			Help: "Bytes Received from Frontend Clients",
+		},
+		[]string{"listen"},
+	)
+
 	promPeerConnections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "lmd",
@@ -76,6 +98,9 @@ func InitPrometheus() (prometheusListener net.Listener) {
 		}()
 		log.Infof("serving prometheus metrics at %s/metrics", GlobalConfig.ListenPrometheus)
 	}
+	prometheus.Register(promFrontendConnections)
+	prometheus.Register(promFrontendBytesSend)
+	prometheus.Register(promFrontendBytesReceived)
 	prometheus.Register(promPeerConnections)
 	prometheus.Register(promPeerFailedConnections)
 	prometheus.Register(promPeerBytesSend)

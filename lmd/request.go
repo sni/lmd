@@ -56,7 +56,10 @@ var ReRequestEmpty = regexp.MustCompile(`^\s*$`)
 
 func ParseRequest(c net.Conn) (req *Request, err error) {
 	b := bufio.NewReader(c)
-	return ParseRequestFromBuffer(b)
+	localAddr := c.LocalAddr().String()
+	req, size, err := ParseRequestFromBuffer(b)
+	promFrontendBytesReceived.WithLabelValues(localAddr).Add(float64(size))
+	return
 }
 
 func OperatorString(op Operator) string {
@@ -158,14 +161,15 @@ func (req *Request) String() (str string) {
 	return
 }
 
-func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, err error) {
+func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, size int, err error) {
 	req = &Request{SendColumnsHeader: false}
 	firstLine, err := b.ReadString('\n')
-	firstLine = strings.TrimSpace(firstLine)
 	if err != nil && err != io.EOF {
 		err = errors.New("bad request: " + err.Error())
 		return
 	}
+	size += len(firstLine)
+	firstLine = strings.TrimSpace(firstLine)
 	// check for commands
 	log.Debugf("request: %s", firstLine)
 	matched := ReRequestCommand.FindStringSubmatch(firstLine)
@@ -196,6 +200,7 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, err error) {
 			err = berr
 			return
 		}
+		size += len(line)
 		line = strings.TrimSpace(line)
 		if ReRequestEmpty.MatchString(line) {
 			break
