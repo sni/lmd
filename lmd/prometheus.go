@@ -10,42 +10,54 @@ import (
 var (
 	promPeerConnections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "peer_backend_connections",
+			Namespace: "lmd",
+			Subsystem: "peer",
+			Name: "backend_connections",
 			Help: "Peer Backend Connection Counter",
 		},
 		[]string{"peer"},
 	)
 	promPeerFailedConnections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "peer_backend_failed_connections",
+			Namespace: "lmd",
+			Subsystem: "peer",
+			Name: "backend_failed_connections",
 			Help: "Peer Backend Failed Connection Counter",
 		},
 		[]string{"peer"},
 	)
 	promPeerBytesSend = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "peer_send_bytes",
-			Help: "Peer Bytes Send to Backend Sites",
+			Namespace: "lmd",
+			Subsystem: "peer",
+			Name: "sent_bytes",
+			Help: "Peer Bytes Sent to Backend Sites",
 		},
 		[]string{"peer"},
 	)
 	promPeerBytesReceived = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "peer_received_bytes",
+			Namespace: "lmd",
+			Subsystem: "peer",
+			Name: "received_bytes",
 			Help: "Peer Bytes Received from Backend Sites",
 		},
 		[]string{"peer"},
 	)
 	promPeerUpdates = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "peer_updates",
+			Namespace: "lmd",
+			Subsystem: "peer",
+			Name: "updates",
 			Help: "Peer Update Counter",
 		},
 		[]string{"peer"},
 	)
 	promPeerUpdateDuration = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "peer_update_duration_seconds",
+			Namespace: "lmd",
+			Subsystem: "peer",
+			Name: "update_duration_seconds",
 			Help: "Peer Update Duration in Seconds",
 		},
 		[]string{"peer"},
