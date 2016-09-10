@@ -1,10 +1,10 @@
 # Listen for incoming livestatus requests here
 # TCP or unix sockets are allowed. Multiple entrys
 # are also valid
-Listen          = ["127.0.0.1:3333", "/tmp/live.sock"]
+Listen          = ["127.0.0.1:3333", "/tmp/lmd.sock"]
 
 # daemon will log to stdout if no logfile is set
-#LogFile         = "lampd.log"
+#LogFile         = "lmd.log"
 
 # May be Error, Warn, Info, Debug and Trace
 LogLevel        = "Info"

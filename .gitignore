@@ -1,6 +1,6 @@
-lampd/lampd
-lampd.ini
-lampd.log
+lmd/lmd
+lmd.ini
+lmd.log
 *.swp
-lampd/cover.out
-lampd/coverage.html
+lmd/cover.out
+lmd/coverage.html

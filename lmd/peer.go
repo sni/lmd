@@ -168,7 +168,7 @@ func (p *Peer) InitAllTables() bool {
 		}
 	}
 	p.Lock.Lock()
-	// this may happen if we query another lampd daemon which has no backends ready yet
+	// this may happen if we query another lmd daemon which has no backends ready yet
 	if len(p.Tables["status"].Data) == 0 {
 		p.Status["PeerStatus"] = PeerStatusWarning
 		p.Status["LastError"] = "peered partner not ready yet"

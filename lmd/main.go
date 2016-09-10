@@ -19,7 +19,7 @@ var Build string
 
 const (
 	VERSION = "0.1"
-	NAME    = "lampd"
+	NAME    = "lmd"
 )
 
 type Connection struct {
@@ -50,8 +50,8 @@ var flagVersion bool
 var once sync.Once
 
 func main() {
-	flag.StringVar(&flagConfigFile, "c", "lampd.ini", "set location for config file")
-	flag.StringVar(&flagConfigFile, "config", "lampd.ini", "set location for config file")
+	flag.StringVar(&flagConfigFile, "c", "lmd.ini", "set location for config file")
+	flag.StringVar(&flagConfigFile, "config", "lmd.ini", "set location for config file")
 	flag.BoolVar(&flagVerbose, "v", false, "enable verbose output")
 	flag.BoolVar(&flagVerbose, "verbose", false, "enable verbose output")
 	flag.BoolVar(&flagVeryVerbose, "vv", false, "enable very verbose output")

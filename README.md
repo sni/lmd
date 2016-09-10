@@ -8,13 +8,15 @@ What is this
 
 LMD fetches livestatus data from multiple sources and provides:
 
-     - A livestatus api for those sources which makes livestatus querys a lot
+     - A Livestatus api for those sources which makes livestatus querys a lot
        faster than requesting them directly from the remote sources.
+     - A enhanced livestatus api with more useful output formats and sorting
+     - Aggregated livestatus results for multiple backends
      - A Prometheus exporter for livestatus based metrics for Nagios, Icinga, Shinken and Naemon
 
 Map / reduce included to combine response from multiple sources.
 
-So basically this is a "Livestatus In / Livestatus Out" daemon. Its original purpose is to
+So basically this is a "Livestatus In / Livestatus Out" daemon. Its main purpose is to
 move the backend handling of the [Thruk Monitoring Gui](http://www.thruk.org) to a native
 compiled fast daemon, but it works for everything which requires livestatus.
 
@@ -27,14 +29,14 @@ Installation
 ============
 
 ```
-    %> go get github.com/sni/lampd
+    %> go get github.com/sni/lmd
 ```
 
-Copy lampd.ini.example to lampd.ini and change to your needs. Then run lampd.
+Copy lmd.ini.example to lmd.ini and change to your needs. Then run lmd.
 You can specify the path to your config file with `--config`.
 
 ```
-    lampd --config=/etc/lampd/lampd.ini
+    lmd --config=/etc/lmd/lmd.ini
 ```
 
 Configuration

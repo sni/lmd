@@ -1,6 +1,6 @@
 all: build
 
-LAMPDDIR=lampd
+LAMPDDIR=lmd
 
 INTERACTIVE:=$(shell [ -t 0 ] && echo 1)
 ifdef INTERACTIVE
@@ -44,7 +44,7 @@ covertest: deps fmt
 	cd $(LAMPDDIR) && go tool cover -html=cover.out -o coverage.html
 
 clean:
-	rm -f $(LAMPDDIR)/lampd
+	rm -f $(LAMPDDIR)/lmd
 	rm -f $(LAMPDDIR)/cover.out
 	rm -f $(LAMPDDIR)/coverage.html
 
