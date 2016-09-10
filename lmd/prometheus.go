@@ -10,22 +10,28 @@ import (
 var (
 	promFrontendConnections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "frontend_connections",
-			Help: "Frontend Connection Counter",
+			Namespace: "lmd",
+			Subsystem: "frontend",
+			Name:      "connections",
+			Help:      "Frontend Connection Counter",
 		},
 		[]string{"listen"},
 	)
 	promFrontendBytesSend = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "frontend_send_bytes",
-			Help: "Bytes Send to Frontend Clients",
+			Namespace: "lmd",
+			Subsystem: "frontend",
+			Name:      "send_bytes",
+			Help:      "Bytes Send to Frontend Clients",
 		},
 		[]string{"listen"},
 	)
 	promFrontendBytesReceived = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "frontend_received_bytes",
-			Help: "Bytes Received from Frontend Clients",
+			Namespace: "lmd",
+			Subsystem: "frontend",
+			Name:      "received_bytes",
+			Help:      "Bytes Received from Frontend Clients",
 		},
 		[]string{"listen"},
 	)
@@ -34,8 +40,8 @@ var (
 		prometheus.CounterOpts{
 			Namespace: "lmd",
 			Subsystem: "peer",
-			Name: "backend_connections",
-			Help: "Peer Backend Connection Counter",
+			Name:      "backend_connections",
+			Help:      "Peer Backend Connection Counter",
 		},
 		[]string{"peer"},
 	)
@@ -43,8 +49,8 @@ var (
 		prometheus.CounterOpts{
 			Namespace: "lmd",
 			Subsystem: "peer",
-			Name: "backend_failed_connections",
-			Help: "Peer Backend Failed Connection Counter",
+			Name:      "backend_failed_connections",
+			Help:      "Peer Backend Failed Connection Counter",
 		},
 		[]string{"peer"},
 	)
@@ -52,8 +58,8 @@ var (
 		prometheus.CounterOpts{
 			Namespace: "lmd",
 			Subsystem: "peer",
-			Name: "sent_bytes",
-			Help: "Peer Bytes Sent to Backend Sites",
+			Name:      "sent_bytes",
+			Help:      "Peer Bytes Sent to Backend Sites",
 		},
 		[]string{"peer"},
 	)
@@ -61,8 +67,8 @@ var (
 		prometheus.CounterOpts{
 			Namespace: "lmd",
 			Subsystem: "peer",
-			Name: "received_bytes",
-			Help: "Peer Bytes Received from Backend Sites",
+			Name:      "received_bytes",
+			Help:      "Peer Bytes Received from Backend Sites",
 		},
 		[]string{"peer"},
 	)
@@ -70,8 +76,8 @@ var (
 		prometheus.CounterOpts{
 			Namespace: "lmd",
 			Subsystem: "peer",
-			Name: "updates",
-			Help: "Peer Update Counter",
+			Name:      "updates",
+			Help:      "Peer Update Counter",
 		},
 		[]string{"peer"},
 	)
@@ -79,8 +85,8 @@ var (
 		prometheus.CounterOpts{
 			Namespace: "lmd",
 			Subsystem: "peer",
-			Name: "update_duration_seconds",
-			Help: "Peer Update Duration in Seconds",
+			Name:      "update_duration_seconds",
+			Help:      "Peer Update Duration in Seconds",
 		},
 		[]string{"peer"},
 	)
