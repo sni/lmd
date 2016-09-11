@@ -95,13 +95,13 @@ func SetupMainLoop() {
 		if mainStarted {
 			mainLoop()
 		} else {
+			mainStarted = true
 			os.Args[1] = "-config=test.ini"
 			main()
 		}
 	}()
 
 	toml.DecodeFile("test.ini", &GlobalConfig)
-	mainStarted = true
 }
 
 func SetupTestPeer() (peer *Peer) {
