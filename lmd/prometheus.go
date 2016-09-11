@@ -10,7 +10,7 @@ import (
 var (
 	promFrontendConnections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "lmd",
+			Namespace: NAME,
 			Subsystem: "frontend",
 			Name:      "connections",
 			Help:      "Frontend Connection Counter",
@@ -19,7 +19,7 @@ var (
 	)
 	promFrontendBytesSend = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "lmd",
+			Namespace: NAME,
 			Subsystem: "frontend",
 			Name:      "send_bytes",
 			Help:      "Bytes Send to Frontend Clients",
@@ -28,7 +28,7 @@ var (
 	)
 	promFrontendBytesReceived = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "lmd",
+			Namespace: NAME,
 			Subsystem: "frontend",
 			Name:      "received_bytes",
 			Help:      "Bytes Received from Frontend Clients",
@@ -38,7 +38,7 @@ var (
 
 	promPeerConnections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "lmd",
+			Namespace: NAME,
 			Subsystem: "peer",
 			Name:      "backend_connections",
 			Help:      "Peer Backend Connection Counter",
@@ -47,7 +47,7 @@ var (
 	)
 	promPeerFailedConnections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "lmd",
+			Namespace: NAME,
 			Subsystem: "peer",
 			Name:      "backend_failed_connections",
 			Help:      "Peer Backend Failed Connection Counter",
@@ -56,7 +56,7 @@ var (
 	)
 	promPeerBytesSend = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "lmd",
+			Namespace: NAME,
 			Subsystem: "peer",
 			Name:      "sent_bytes",
 			Help:      "Peer Bytes Sent to Backend Sites",
@@ -65,7 +65,7 @@ var (
 	)
 	promPeerBytesReceived = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "lmd",
+			Namespace: NAME,
 			Subsystem: "peer",
 			Name:      "received_bytes",
 			Help:      "Peer Bytes Received from Backend Sites",
@@ -74,7 +74,7 @@ var (
 	)
 	promPeerUpdates = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "lmd",
+			Namespace: NAME,
 			Subsystem: "peer",
 			Name:      "updates",
 			Help:      "Peer Update Counter",
@@ -83,7 +83,7 @@ var (
 	)
 	promPeerUpdateDuration = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "lmd",
+			Namespace: NAME,
 			Subsystem: "peer",
 			Name:      "update_duration_seconds",
 			Help:      "Peer Update Duration in Seconds",
