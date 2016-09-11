@@ -135,7 +135,6 @@ Some things are still not complete
 - optimize delta updates, check max id and len of comments/downtimes and only continue if that differs
 - add metrics for peer data, host, services, etc...
 - add pid file
-- add stats sum/min/max query test
 - Implement sending multiple commands in one connection
 
 

@@ -199,6 +199,27 @@ func TestResponseErrorsFunc(t *testing.T) {
 	StopTestPeer()
 }
 
+func TestRequestStats(t *testing.T) {
+	peer := SetupTestPeer()
+
+	res, err := peer.QueryString("GET hosts\nStats: sum latency\nStats: avg latency\nStats: min has_been_checked\nStats: max execution_time\n")
+
+	if err = assertEq(6.8264913559332, res[0][0]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(0.142218569915275, res[0][1]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(float64(1), res[0][2]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(4.031151, res[0][3]); err != nil {
+		t.Error(err)
+	}
+
+	StopTestPeer()
+}
+
 func BenchmarkRequestsFilter(b *testing.B) {
 	peer := SetupTestPeer()
 
