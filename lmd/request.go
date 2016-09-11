@@ -62,6 +62,27 @@ func ParseRequest(c net.Conn) (req *Request, err error) {
 	return
 }
 
+func ParseRequests(c net.Conn) (reqs []*Request, err error) {
+	b := bufio.NewReader(c)
+	localAddr := c.LocalAddr().String()
+	for {
+		req, size, err := ParseRequestFromBuffer(b)
+		promFrontendBytesReceived.WithLabelValues(localAddr).Add(float64(size))
+		if err != nil {
+			return nil, err
+		}
+		if req == nil {
+			break
+		}
+		reqs = append(reqs, req)
+		// only multiple commands are allowed
+		if req.Command == "" {
+			break
+		}
+	}
+	return
+}
+
 func OperatorString(op Operator) string {
 	switch op {
 	case Equal:
@@ -179,7 +200,7 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, size int, err error)
 		matched = ReRequestAction.FindStringSubmatch(firstLine)
 		if len(matched) != 2 {
 			if len(firstLine) == 0 {
-				err = errors.New("bad request: empty request")
+				return nil, size, nil
 			} else {
 				err = errors.New("bad request: " + firstLine)
 			}
@@ -222,6 +243,7 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, size int, err error)
 		return
 	}
 
+	err = nil
 	return
 }
 

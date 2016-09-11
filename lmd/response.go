@@ -138,6 +138,7 @@ func BuildResponse(req *Request) (res *Response, err error) {
 func ExpandRequestBackends(req *Request) (backendsMap map[string]string, numBackendsReq int, err error) {
 	numBackendsReq = len(req.Backends)
 	if numBackendsReq > 0 {
+		backendsMap = make(map[string]string)
 		for _, b := range req.Backends {
 			_, Ok := DataStore[b]
 			if !Ok {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net"
 	"os"
 	"strings"
@@ -21,27 +22,38 @@ func queryServer(c net.Conn) error {
 		c.SetDeadline(time.Now().Add(time.Duration(5) * time.Second))
 		defer c.Close()
 
-		req, err := ParseRequest(c)
+		reqs, err := ParseRequests(c)
 		if err != nil {
-			return SendResponse(c, &Response{Code: 400, Request: req, Error: err})
+			return SendResponse(c, &Response{Code: 400, Request: &Request{}, Error: err})
+		}
+		if len(reqs) == 0 {
+			err = errors.New("bad request: empty request")
+			return SendResponse(c, &Response{Code: 400, Request: &Request{}, Error: err})
+		}
+		for _, req := range reqs {
+			if req.Command != "" {
+				// commands do not send anything back
+				err = SendPeerCommands(req)
+				duration := time.Since(t1)
+				log.Infof("incoming command request from %s to %s finished in %s", remote, c.LocalAddr().String(), duration.String())
+				if err != nil {
+					break
+				}
+			} else {
+				response, err := BuildResponse(req)
+				if err != nil {
+					return SendResponse(c, &Response{Code: 400, Request: req, Error: err})
+				}
+
+				err = SendResponse(c, response)
+				duration := time.Since(t1)
+				log.Infof("incoming %s request from %s to %s finished in %s", req.Table, remote, c.LocalAddr().String(), duration.String())
+				if err != nil {
+					break
+				}
+			}
 		}
 
-		if req.Command != "" {
-			// commands do not send anything back
-			err := SendPeerCommands(req)
-			duration := time.Since(t1)
-			log.Infof("incoming command request from %s to %s finished in %s", remote, c.LocalAddr().String(), duration.String())
-			return err
-		}
-
-		response, err := BuildResponse(req)
-		if err != nil {
-			return SendResponse(c, &Response{Code: 400, Request: req, Error: err})
-		}
-
-		err = SendResponse(c, response)
-		duration := time.Since(t1)
-		log.Infof("incoming %s request from %s to %s finished in %s", req.Table, remote, c.LocalAddr().String(), duration.String())
 		return err
 	}
 }

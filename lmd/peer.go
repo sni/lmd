@@ -490,6 +490,10 @@ func (p *Peer) QueryString(str string) ([][]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+	if req == nil {
+		err = errors.New("bad request: empty request")
+		return nil, err
+	}
 	return p.Query(req)
 }
 

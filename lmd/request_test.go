@@ -129,6 +129,36 @@ func TestRequestListFilter(t *testing.T) {
 	StopTestPeer()
 }
 
+func TestRequestHeaderMultipleCommands(t *testing.T) {
+	buf := bufio.NewReader(bytes.NewBufferString(`COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web1;1473627610
+Backends: id2
+
+COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web2;1473627610`))
+	req, size, err := ParseRequestFromBuffer(buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := assertEq(size, 83); err != nil {
+		t.Fatal(err)
+	}
+	if err := assertEq(req.Command, "COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web1;1473627610"); err != nil {
+		t.Fatal(err)
+	}
+	if err := assertEq(req.Backends[0], "id2"); err != nil {
+		t.Fatal(err)
+	}
+	req, size, err = ParseRequestFromBuffer(buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := assertEq(size, 67); err != nil {
+		t.Fatal(err)
+	}
+	if err := assertEq(req.Command, "COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web2;1473627610"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 type ErrorRequest struct {
 	Request string
 	Error   string
