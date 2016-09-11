@@ -41,7 +41,7 @@ func assertLike(exp string, got string) error {
 	return nil
 }
 
-func StartMockLivestatusSource(address string) {
+func StartMockLivestatusSource() {
 	startedChannel := make(chan bool)
 	go func() {
 		os.Remove("mock.sock")
@@ -84,7 +84,7 @@ func SetupMainLoop() {
 		panic(err.Error())
 	}
 
-	StartMockLivestatusSource("127.0.0.1:50050")
+	StartMockLivestatusSource()
 
 	go func() {
 		if mainStarted {
