@@ -62,6 +62,11 @@ func StartMockLivestatusSource() {
 				panic(err.Error())
 			}
 
+			if req.Command != "" {
+				conn.Close()
+				return
+			}
+
 			dat, err := ioutil.ReadFile("../t/data/" + req.Table + ".json")
 			if err != nil {
 				panic("could not read file: " + err.Error())
