@@ -266,12 +266,6 @@ func BuildResponseIndexes(req *Request, table *Table) (indexes []int, columns []
 
 func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow int, indexes *[]int) {
 	log.Tracef("BuildLocalResponseDataForPeer: %s", peer.Name)
-	/*
-		if MywaitLock(peer.Lock, 5) {
-			log.Errorf("panic: %s", peer.Name)
-			panic("timeout")
-		}
-	*/
 	peer.Lock.Lock()
 	peer.Status["LastQuery"] = time.Now()
 	peer.Lock.Unlock()
@@ -367,6 +361,19 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 					resRow[k] = refObj[table.Columns[i].RefColIndex]
 				} else {
 					resRow[k] = row[i]
+				}
+			}
+			// fill null values with something useful
+			if resRow[k] == nil {
+				switch table.Columns[i].Type {
+				case IntListCol:
+					fallthrough
+				case StringListCol:
+					resRow[k] = make([]interface{}, 0)
+					break
+				default:
+					resRow[k] = ""
+					break
 				}
 			}
 		}
