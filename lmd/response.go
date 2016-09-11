@@ -206,6 +206,9 @@ func BuildResponsePostProcessing(res *Response) {
 				log.Panicf("not implemented")
 				break
 			}
+			if s.StatsCount == 0 {
+				res.Result[0][i] = 0
+			}
 		}
 	}
 	return
