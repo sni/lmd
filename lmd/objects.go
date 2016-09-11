@@ -255,9 +255,6 @@ func NewContactsTable() (t *Table) {
 	t = &Table{Name: "contacts"}
 	t.AddColumn("alias", StaticUpdate, StringCol)
 	t.AddColumn("can_submit_commands", StaticUpdate, IntCol)
-	t.AddColumn("custom_variables", StaticUpdate, CustomVarCol)
-	t.AddColumn("custom_variable_names", StaticUpdate, StringListCol)
-	t.AddColumn("custom_variable_values", StaticUpdate, StringListCol)
 	t.AddColumn("email", StaticUpdate, StringCol)
 	t.AddColumn("host_notification_period", StaticUpdate, StringCol)
 	t.AddColumn("host_notifications_enabled", StaticUpdate, IntCol)
