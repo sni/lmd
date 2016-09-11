@@ -39,6 +39,7 @@ type Config struct {
 }
 
 var DataStore map[string]Peer
+var DataStoreOrder []string
 
 var GlobalConfig Config
 var flagVerbose bool
@@ -123,6 +124,7 @@ func mainLoop() {
 		}
 		DataStore[c.Id] = *p
 		p.Start()
+		DataStoreOrder = append(DataStoreOrder, c.Id)
 	}
 
 	once.Do(PrintVersion)

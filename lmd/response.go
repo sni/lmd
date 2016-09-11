@@ -105,7 +105,8 @@ func BuildResponse(req *Request) (res *Response, err error) {
 		return
 	}
 
-	for _, p := range DataStore {
+	for _, id := range DataStoreOrder {
+		p := DataStore[id]
 		if numBackendsReq > 0 {
 			_, Ok := backendsMap[p.Id]
 			if !Ok {
