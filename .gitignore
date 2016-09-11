@@ -4,3 +4,5 @@ lmd.log
 *.swp
 lmd/cover.out
 lmd/coverage.html
+.idea/
+lmd.iml
