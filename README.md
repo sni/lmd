@@ -6,18 +6,16 @@ LMD - Livestatus Multitool Daemon
 What is this
 ============
 
-LMD fetches livestatus data from multiple sources and provides:
+LMD fetches Livestatus data from one or multiple sources and provides:
 
-     - A Livestatus api for those sources which makes livestatus querys a lot
-       faster than requesting them directly from the remote sources.
-     - A enhanced livestatus api with more useful output formats and sorting
-     - Aggregated livestatus results for multiple backends
-     - A Prometheus exporter for livestatus based metrics for Nagios, Icinga, Shinken and Naemon
-
-Map / reduce included to combine response from multiple sources.
+- A Livestatus api for those sources
+- A cache which makes livestatus querys a lot faster than requesting them directly from the remote sources.
+- A enhanced livestatus api with more useful output formats and sorting
+- Aggregated livestatus results for multiple backends
+- A Prometheus exporter for livestatus based metrics for Nagios, Icinga, Shinken and Naemon
 
 So basically this is a "Livestatus In / Livestatus Out" daemon. Its main purpose is to
-move the backend handling of the [Thruk Monitoring Gui](http://www.thruk.org) to a native
+provide the backend handling of the [Thruk Monitoring Gui](http://www.thruk.org) to a native
 compiled fast daemon, but it works for everything which requires livestatus.
 
 <img src="docs/Architecture.png" alt="Architecture" style="width: 600px;"/>
@@ -42,6 +40,7 @@ You can specify the path to your config file with `--config`.
 Configuration
 =============
 
+The configuration is explained in the `lmd.ini.example` in detail.
 There are several different connection types.
 
 ### TCP Livestatus  ###
@@ -130,16 +129,15 @@ TODO
 
 Some things are still not complete
 
-    - Implement Wait Header
-    - Implement Idle Interval Updates
-    - Implement downtime / comment handling
-    - Implement accept/sending multiple commands in one connection
-    - Check backend capabilities on first request
-    - Preserve backend order in response
-    - optimize delta updates, check max id and len of comments/downtimes and only continue if that differs
-    - add metrics for peer data, host, services, etc...
-    - add pid file
-    - add stats sum/min/max query test
+- Implement Wait Header
+- Implement Idle Interval Updates
+- Implement accept/sending multiple commands in one connection
+- Check backend capabilities on first request
+- Preserve backend order in response
+- optimize delta updates, check max id and len of comments/downtimes and only continue if that differs
+- add metrics for peer data, host, services, etc...
+- add pid file
+- add stats sum/min/max query test
 
 
 Ideas
@@ -147,7 +145,7 @@ Ideas
 
 Some ideas may or may not be implemented in the future
 
-    - Cluster the daemon itself to spread out the load, only one last reduce
-      would be required to combine the result from all cluster partners
-    - Add transparent and half-transparent mode which just handles the map/reduce without cache
-    - Cache last 24h of logfiles to speed up most logfile requests
+- Cluster the daemon itself to spread out the load, only one last reduce
+  would be required to combine the result from all cluster partners
+- Add transparent and half-transparent mode which just handles the map/reduce without cache
+- Cache last 24h of logfiles to speed up most logfile requests
