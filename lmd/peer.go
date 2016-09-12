@@ -644,6 +644,7 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 		for _, row := range res {
 			index[row[indexField].(string)] = row
 		}
+		promHostCount.WithLabelValues(p.Name).Set(float64(len(res)))
 	}
 	// create service lookup indexes
 	if table.Name == "services" {
@@ -652,6 +653,7 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 		for _, row := range res {
 			index[row[indexField1].(string)+";"+row[indexField2].(string)] = row
 		}
+		promServiceCount.WithLabelValues(p.Name).Set(float64(len(res)))
 	}
 	// create comment id lookup indexes
 	if table.Name == "comments" {
