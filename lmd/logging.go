@@ -27,11 +27,7 @@ func InitLogging(conf *Config) {
 		targetWriter = os.Stderr
 	} else {
 		logFormatter = factorlog.NewStdFormatter(logFormat)
-		if _, err = os.Stat(conf.LogFile); err != nil {
-			targetWriter, err = os.Create(conf.LogFile)
-		} else {
-			targetWriter, err = os.Open(conf.LogFile)
-		}
+		targetWriter, err = os.OpenFile(conf.LogFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 	}
 	if err != nil {
 		panic(fmt.Sprintf("failed to initialize logger: %s", err.Error()))
