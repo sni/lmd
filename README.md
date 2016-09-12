@@ -135,6 +135,7 @@ Some things are still not complete
 - optimize delta updates, check max id and len of comments/downtimes and only continue if that differs
 - add metrics for peer data, host, services, etc...
 - Implement sending multiple commands in one connection
+- write huge logfile requests directly into a file
 
 
 Ideas

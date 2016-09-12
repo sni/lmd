@@ -61,7 +61,7 @@ var flagVeryVerbose bool
 var flagTraceVerbose bool
 var flagConfigFile configFiles
 var flagVersion bool
-var flagDaemonMode bool
+var flagLogFile string
 var flagPidfile string
 
 var once sync.Once
@@ -70,7 +70,7 @@ func main() {
 	flag.Var(&flagConfigFile, "c", "set location for config file, can be specified multiple times")
 	flag.Var(&flagConfigFile, "config", "set location for config file, can be specified multiple times")
 	flag.StringVar(&flagPidfile, "pidfile", "", "set path to pidfile")
-	flag.BoolVar(&flagDaemonMode, "d", false, "start in daemon mode")
+	flag.StringVar(&flagLogFile, "logfile", "", "override logfile from the configuration file")
 	flag.BoolVar(&flagVerbose, "v", false, "enable verbose output")
 	flag.BoolVar(&flagVerbose, "verbose", false, "enable verbose output")
 	flag.BoolVar(&flagVeryVerbose, "vv", false, "enable very verbose output")
@@ -106,15 +106,6 @@ func main() {
 
 	// check for config errors
 	GlobalConfig = ReadConfig(flagConfigFile)
-
-	// daemonize
-	if flagDaemonMode {
-		if GlobalConfig.LogFile == "" {
-			fmt.Fprintf(os.Stderr, "ERROR: daemon mode requires a logfile set.\n")
-			os.Exit(2)
-		}
-		daemon(false, true)
-	}
 
 	// write pidfile
 	if flagPidfile != "" {
@@ -269,39 +260,8 @@ func ReadConfig(files []string) (conf Config) {
 			panic(err)
 		}
 	}
+	if flagLogFile != "" {
+		conf.LogFile = flagLogFile
+	}
 	return
-}
-
-func daemon(chdir bool, close bool) bool {
-	ret, _, err := syscall.Syscall(syscall.SYS_FORK, 0, 0, 0)
-	if err != 0 {
-		fmt.Fprintf(os.Stderr, "ERROR: forking into daemon mode failed: %s\n", err.Error())
-		os.Exit(3)
-	}
-	switch ret {
-	case 0:
-		break
-	default:
-		PrintVersion()
-		os.Exit(0)
-	}
-
-	if _, err := syscall.Setsid(); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: setsid failed: %s\n", err.Error())
-		os.Exit(3)
-	}
-	if chdir {
-		os.Chdir("/")
-	}
-
-	if close {
-		fd, e := syscall.Open("/dev/null", os.O_RDWR, 0)
-		if e == nil {
-			syscall.Dup2(fd, int(os.Stdin.Fd()))
-			syscall.Dup2(fd, int(os.Stdout.Fd()))
-			syscall.Dup2(fd, int(os.Stderr.Fd()))
-		}
-	}
-
-	return true
 }
