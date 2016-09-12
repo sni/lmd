@@ -3,9 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -58,12 +61,16 @@ var flagVeryVerbose bool
 var flagTraceVerbose bool
 var flagConfigFile configFiles
 var flagVersion bool
+var flagDaemonMode bool
+var flagPidfile string
 
 var once sync.Once
 
 func main() {
 	flag.Var(&flagConfigFile, "c", "set location for config file, can be specified multiple times")
 	flag.Var(&flagConfigFile, "config", "set location for config file, can be specified multiple times")
+	flag.StringVar(&flagPidfile, "pidfile", "", "set path to pidfile")
+	flag.BoolVar(&flagDaemonMode, "d", false, "start in daemon mode")
 	flag.BoolVar(&flagVerbose, "v", false, "enable verbose output")
 	flag.BoolVar(&flagVerbose, "verbose", false, "enable verbose output")
 	flag.BoolVar(&flagVeryVerbose, "vv", false, "enable very verbose output")
@@ -73,6 +80,49 @@ func main() {
 	if flagVersion {
 		fmt.Printf("%s - version %s (Build: %s)\n", NAME, VERSION, Build)
 		os.Exit(2)
+	}
+
+	if len(flagConfigFile) == 0 {
+		fmt.Printf("ERROR: no config files specified.\nSee --help for all options.\n")
+		os.Exit(2)
+	}
+
+	if flagPidfile != "" {
+		if _, err := os.Stat(flagPidfile); err == nil {
+			dat, err := ioutil.ReadFile(flagPidfile)
+			pid, err := strconv.ParseInt(strings.TrimSpace(string(dat)), 10, 64)
+			process, err := os.FindProcess(int(pid))
+			if err == nil {
+				err = process.Signal(syscall.Signal(0))
+				if err == nil {
+					fmt.Fprintf(os.Stderr, "ERROR: pidfile '%s' does already exist (and process %d is still running)\n", flagPidfile, pid)
+					os.Exit(2)
+				}
+			}
+			fmt.Fprintf(os.Stderr, "WARNING: removing stale pidfile '%s'\n", flagPidfile)
+			os.Remove(flagPidfile)
+		}
+	}
+
+	// check for config errors
+	GlobalConfig = ReadConfig(flagConfigFile)
+
+	// daemonize
+	if flagDaemonMode {
+		if GlobalConfig.LogFile == "" {
+			fmt.Fprintf(os.Stderr, "ERROR: daemon mode requires a logfile set.\n")
+			os.Exit(2)
+		}
+		daemon(false, true)
+	}
+
+	// write pidfile
+	if flagPidfile != "" {
+		err := ioutil.WriteFile(flagPidfile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0640)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: could not write pidfile '%s': %s\n", flagPidfile, err.Error())
+			os.Exit(2)
+		}
 	}
 
 	http.Handle("/metrics", prometheus.Handler())
@@ -91,16 +141,8 @@ func mainLoop() {
 	waitGroupListener := &sync.WaitGroup{}
 	waitGroupPeers := &sync.WaitGroup{}
 
-	GlobalConfig = Config{}
-	for _, configFile := range flagConfigFile {
-		if _, err := os.Stat(configFile); err != nil {
-			fmt.Fprintf(os.Stderr, "ERROR: could not load configuration from %s: %s\nuse --help to see all options.\n", configFile, err)
-			os.Exit(3)
-		}
-		if _, err := toml.DecodeFile(configFile, &GlobalConfig); err != nil {
-			panic(err)
-		}
-	}
+	GlobalConfig = ReadConfig(flagConfigFile)
+
 	if flagVerbose {
 		GlobalConfig.LogLevel = "Info"
 	}
@@ -154,6 +196,9 @@ func mainLoop() {
 			}
 			waitGroupListener.Wait()
 			waitGroupPeers.Wait()
+			if flagPidfile != "" {
+				os.Remove(flagPidfile)
+			}
 			os.Exit(0)
 			break
 		case os.Interrupt:
@@ -165,6 +210,9 @@ func mainLoop() {
 			log.Infof("got sigint, quiting")
 			// wait one second which should be enough for the listeners
 			waitTimeout(waitGroupListener, time.Second)
+			if flagPidfile != "" {
+				os.Remove(flagPidfile)
+			}
 			os.Exit(1)
 			break
 		case syscall.SIGHUP:
@@ -209,4 +257,51 @@ func setDefaults(conf *Config) {
 
 func PrintVersion() {
 	fmt.Printf("%s - version %s (Build: %s) started with config %s\n", NAME, VERSION, Build, flagConfigFile)
+}
+
+func ReadConfig(files []string) (conf Config) {
+	for _, configFile := range files {
+		if _, err := os.Stat(configFile); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: could not load configuration from %s: %s\nuse --help to see all options.\n", configFile, err.Error())
+			os.Exit(3)
+		}
+		if _, err := toml.DecodeFile(configFile, &conf); err != nil {
+			panic(err)
+		}
+	}
+	return
+}
+
+func daemon(chdir bool, close bool) bool {
+	ret, _, err := syscall.Syscall(syscall.SYS_FORK, 0, 0, 0)
+	if err != 0 {
+		fmt.Fprintf(os.Stderr, "ERROR: forking into daemon mode failed: %s\n", err.Error())
+		os.Exit(3)
+	}
+	switch ret {
+	case 0:
+		break
+	default:
+		PrintVersion()
+		os.Exit(0)
+	}
+
+	if _, err := syscall.Setsid(); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: setsid failed: %s\n", err.Error())
+		os.Exit(3)
+	}
+	if chdir {
+		os.Chdir("/")
+	}
+
+	if close {
+		fd, e := syscall.Open("/dev/null", os.O_RDWR, 0)
+		if e == nil {
+			syscall.Dup2(fd, int(os.Stdin.Fd()))
+			syscall.Dup2(fd, int(os.Stdout.Fd()))
+			syscall.Dup2(fd, int(os.Stderr.Fd()))
+		}
+	}
+
+	return true
 }

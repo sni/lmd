@@ -134,7 +134,6 @@ Some things are still not complete
 - Check backend capabilities on first request
 - optimize delta updates, check max id and len of comments/downtimes and only continue if that differs
 - add metrics for peer data, host, services, etc...
-- add pid file
 - Implement sending multiple commands in one connection
 
 
