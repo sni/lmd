@@ -274,7 +274,7 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 	peer.Lock.RLock()
 	defer peer.Lock.RUnlock()
 
-	if peer.Status["State"] == "2" && req.Table != "backends" {
+	if peer.Status["PeerStatus"].(PeerStatus) == PeerStatusDown && req.Table != "backends" {
 		res.Failed[peer.Id] = fmt.Sprintf("%v", peer.Status["LastError"])
 		return
 	}
