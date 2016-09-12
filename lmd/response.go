@@ -55,13 +55,15 @@ func (res Response) Less(i, j int) bool {
 		case IntCol:
 			fallthrough
 		case FloatCol:
-			if res.Result[i][s.Index].(float64) == res.Result[j][s.Index].(float64) {
+			valueA := NumberToFloat(res.Result[i][s.Index])
+			valueB := NumberToFloat(res.Result[j][s.Index])
+			if valueA == valueB {
 				continue
 			}
 			if s.Direction == Asc {
-				return res.Result[i][s.Index].(float64) < res.Result[j][s.Index].(float64)
+				return valueA < valueB
 			}
-			return res.Result[i][s.Index].(float64) > res.Result[j][s.Index].(float64)
+			return valueA > valueB
 		case StringCol:
 			if res.Result[i][s.Index].(string) == res.Result[j][s.Index].(string) {
 				continue
@@ -105,6 +107,10 @@ func BuildResponse(req *Request) (res *Response, err error) {
 		return
 	}
 
+	if table.PassthroughOnly {
+		res.Result = make([][]interface{}, 0)
+	}
+
 	for _, id := range DataStoreOrder {
 		p := DataStore[id]
 		if numBackendsReq > 0 {
@@ -118,11 +124,18 @@ func BuildResponse(req *Request) (res *Response, err error) {
 		// TODO: reduce result and remove wrapped_json header etc...
 		if table.PassthroughOnly {
 			var result [][]interface{}
-			result, err = p.Query(req)
+			passthroughRequest := &Request{
+				Table:        req.Table,
+				Filter:       req.Filter,
+				Stats:        req.Stats,
+				Columns:      req.Columns,
+				OutputFormat: "json",
+			}
+			result, err = p.Query(passthroughRequest)
 			if err != nil {
 				return
 			}
-			res.Result = result
+			res.Result = append(res.Result, result...)
 		} else {
 			BuildLocalResponseDataForPeer(res, req, &p, numPerRow, &indexes)
 			log.Tracef("BuildLocalResponseDataForPeer done: %s", p.Name)
