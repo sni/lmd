@@ -41,18 +41,29 @@ type Config struct {
 var DataStore map[string]Peer
 var DataStoreOrder []string
 
+type configFiles []string
+
+func (c *configFiles) String() string {
+	return fmt.Sprintf("%s", *c)
+}
+
+func (c *configFiles) Set(value string) error {
+	*c = append(*c, value)
+	return nil
+}
+
 var GlobalConfig Config
 var flagVerbose bool
 var flagVeryVerbose bool
 var flagTraceVerbose bool
-var flagConfigFile string
+var flagConfigFile configFiles
 var flagVersion bool
 
 var once sync.Once
 
 func main() {
-	flag.StringVar(&flagConfigFile, "c", "lmd.ini", "set location for config file")
-	flag.StringVar(&flagConfigFile, "config", "lmd.ini", "set location for config file")
+	flag.Var(&flagConfigFile, "c", "set location for config file, can be specified multiple times")
+	flag.Var(&flagConfigFile, "config", "set location for config file, can be specified multiple times")
 	flag.BoolVar(&flagVerbose, "v", false, "enable verbose output")
 	flag.BoolVar(&flagVerbose, "verbose", false, "enable verbose output")
 	flag.BoolVar(&flagVeryVerbose, "vv", false, "enable very verbose output")
@@ -80,13 +91,15 @@ func mainLoop() {
 	waitGroupListener := &sync.WaitGroup{}
 	waitGroupPeers := &sync.WaitGroup{}
 
-	if _, err := os.Stat(flagConfigFile); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: could not load configuration from %s: %s\nuse --help to see all options.\n", flagConfigFile, err)
-		os.Exit(3)
-	}
 	GlobalConfig = Config{}
-	if _, err := toml.DecodeFile(flagConfigFile, &GlobalConfig); err != nil {
-		panic(err)
+	for _, configFile := range flagConfigFile {
+		if _, err := os.Stat(configFile); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: could not load configuration from %s: %s\nuse --help to see all options.\n", configFile, err)
+			os.Exit(3)
+		}
+		if _, err := toml.DecodeFile(configFile, &GlobalConfig); err != nil {
+			panic(err)
+		}
 	}
 	if flagVerbose {
 		GlobalConfig.LogLevel = "Info"
