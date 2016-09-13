@@ -225,6 +225,8 @@ func (p *Peer) UpdateAllTables() bool {
 	p.Lock.Lock()
 	p.Status["ReponseTime"] = duration.Seconds()
 	p.Status["LastUpdate"] = time.Now()
+	p.Status["PeerStatus"] = PeerStatusUp
+	p.Status["LastError"] = ""
 	p.Lock.Unlock()
 	log.Infof("[%s] update complete in: %s", p.Name, duration.String())
 	promPeerUpdates.WithLabelValues(p.Name).Inc()
