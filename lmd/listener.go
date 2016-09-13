@@ -70,7 +70,7 @@ func SendPeerCommands(req *Request) (err error) {
 				continue
 			}
 		}
-		go func(peer *Peer) {
+		go func(peer Peer) {
 			commandRequest := &Request{
 				Command: req.Command,
 			}
@@ -82,7 +82,7 @@ func SendPeerCommands(req *Request) (err error) {
 			peer.Lock.Lock()
 			peer.Status["LastUpdate"] = time.Now().Add(-1 * time.Duration(60) * time.Second)
 			peer.Lock.Unlock()
-		}(&p)
+		}(p)
 	}
 	return
 }
