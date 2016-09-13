@@ -207,7 +207,7 @@ func mainLoop() {
 			os.Exit(1)
 			break
 		case syscall.SIGHUP:
-			log.Infof("got sighub, reloading configuration...")
+			log.Infof("got sighup, reloading configuration...")
 			shutdownChannel <- true
 			close(shutdownChannel)
 			if prometheusListener != nil {

@@ -735,15 +735,42 @@ func (peer *Peer) getRowValue(index int, row *[]interface{}, rowNum int, table *
 	if index >= inputRowLen {
 		col := table.Columns[index]
 		if col.Type == VirtCol {
+			value, ok := peer.Status[VirtKeyMap[col.Name].Key]
+			if !ok {
+				switch col.Name {
+				case "last_state_change_order":
+					// return last_state_change or program_start
+					last_state_change := NumberToFloat((*row)[table.ColumnsIndex["last_state_change"]])
+					if last_state_change == 0 {
+						value = peer.Status["ProgramStart"]
+					} else {
+						value = last_state_change
+					}
+					break
+				case "state_order":
+					// return 4 instead of 2, which makes critical come first
+					// this way we can use this column to sort by state
+					state := NumberToFloat((*row)[table.ColumnsIndex["state"]])
+					if state == 2 {
+						value = 4
+					} else {
+						value = state
+					}
+					break
+				default:
+					log.Panicf("cannot handle virtual column: %s", col.Name)
+					break
+				}
+			}
 			switch VirtKeyMap[col.Name].Type {
 			case IntCol:
 				fallthrough
 			case FloatCol:
 				fallthrough
 			case StringCol:
-				return peer.Status[VirtKeyMap[col.Name].Key]
+				return value
 			case TimeCol:
-				return peer.Status[VirtKeyMap[col.Name].Key].(time.Time).Unix()
+				return value.(time.Time).Unix()
 			default:
 				log.Panicf("not implemented")
 			}

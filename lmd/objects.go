@@ -171,6 +171,7 @@ func (o *ObjectsType) AddTable(name string, table *Table) {
 func NewBackendsTable() (t *Table) {
 	t = &Table{Name: "backends"}
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol)
+	t.AddColumn("peer_name", RefNoUpdate, VirtCol)
 	t.AddColumn("key", RefNoUpdate, VirtCol)
 	t.AddColumn("name", RefNoUpdate, VirtCol)
 	t.AddColumn("addr", RefNoUpdate, VirtCol)
@@ -247,6 +248,7 @@ func NewTimeperiodsTable() (t *Table) {
 	t.AddColumn("in", DynamicUpdate, IntCol)
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol)
+	t.AddColumn("peer_name", RefNoUpdate, VirtCol)
 	return
 }
 
@@ -264,6 +266,7 @@ func NewContactsTable() (t *Table) {
 	t.AddColumn("service_notifications_enabled", StaticUpdate, IntCol)
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol)
+	t.AddColumn("peer_name", RefNoUpdate, VirtCol)
 	return
 }
 
@@ -275,6 +278,7 @@ func NewContactgroupsTable() (t *Table) {
 	t.AddColumn("name", StaticUpdate, StringCol)
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol)
+	t.AddColumn("peer_name", RefNoUpdate, VirtCol)
 	return
 }
 
@@ -285,6 +289,7 @@ func NewCommandsTable() (t *Table) {
 	t.AddColumn("line", StaticUpdate, StringCol)
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol)
+	t.AddColumn("peer_name", RefNoUpdate, VirtCol)
 	return
 }
 
@@ -375,6 +380,8 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("state_type", DynamicUpdate, IntCol)
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol)
+	t.AddColumn("peer_name", RefNoUpdate, VirtCol)
+	t.AddColumn("last_state_change_order", RefNoUpdate, VirtCol)
 	return
 }
 
@@ -389,6 +396,7 @@ func NewHostgroupsTable() (t *Table) {
 	t.AddColumn("notes_url", StaticUpdate, StringCol)
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol)
+	t.AddColumn("peer_name", RefNoUpdate, VirtCol)
 	return
 }
 
@@ -472,6 +480,9 @@ func NewServicesTable() (t *Table) {
 	t.AddRefColumn("hosts", "host", "name", StringCol)
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol)
+	t.AddColumn("peer_name", RefNoUpdate, VirtCol)
+	t.AddColumn("last_state_change_order", RefNoUpdate, VirtCol)
+	t.AddColumn("state_order", RefNoUpdate, VirtCol)
 	return
 }
 
@@ -486,6 +497,7 @@ func NewServicegroupsTable() (t *Table) {
 	t.AddColumn("notes_url", StaticUpdate, StringCol)
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol)
+	t.AddColumn("peer_name", RefNoUpdate, VirtCol)
 	return
 }
 
@@ -507,6 +519,7 @@ func NewCommentsTable() (t *Table) {
 	t.AddColumn("service_description", StaticUpdate, StringCol)
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol)
+	t.AddColumn("peer_name", RefNoUpdate, VirtCol)
 	return
 }
 
@@ -529,6 +542,7 @@ func NewDowntimesTable() (t *Table) {
 	t.AddColumn("service_description", StaticUpdate, StringCol)
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol)
+	t.AddColumn("peer_name", RefNoUpdate, VirtCol)
 	return
 }
 
@@ -552,5 +566,6 @@ func NewLogTable() (t *Table) {
 	t.AddColumn("type", StaticUpdate, StringCol)
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol)
+	t.AddColumn("peer_name", RefNoUpdate, VirtCol)
 	return
 }

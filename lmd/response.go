@@ -29,18 +29,21 @@ type VirtKeyMapTupel struct {
 }
 
 var VirtKeyMap = map[string]VirtKeyMapTupel{
-	"peer_key":       {Index: -1, Key: "PeerKey", Type: StringCol},
-	"key":            {Index: -2, Key: "PeerKey", Type: StringCol},
-	"name":           {Index: -3, Key: "PeerName", Type: StringCol},
-	"addr":           {Index: -4, Key: "PeerAddr", Type: StringCol},
-	"status":         {Index: -5, Key: "PeerStatus", Type: IntCol},
-	"bytes_send":     {Index: -6, Key: "BytesSend", Type: IntCol},
-	"bytes_received": {Index: -7, Key: "BytesReceived", Type: IntCol},
-	"queries":        {Index: -8, Key: "Querys", Type: IntCol},
-	"last_error":     {Index: -9, Key: "LastError", Type: StringCol},
-	"last_online":    {Index: -10, Key: "LastOnline", Type: TimeCol},
-	"last_update":    {Index: -11, Key: "LastUpdate", Type: TimeCol},
-	"response_time":  {Index: -12, Key: "ReponseTime", Type: FloatCol},
+	"peer_key":                {Index: -1, Key: "PeerKey", Type: StringCol},
+	"key":                     {Index: -1, Key: "PeerKey", Type: StringCol},
+	"peer_name":               {Index: -2, Key: "PeerName", Type: StringCol},
+	"name":                    {Index: -2, Key: "PeerName", Type: StringCol},
+	"addr":                    {Index: -4, Key: "PeerAddr", Type: StringCol},
+	"status":                  {Index: -5, Key: "PeerStatus", Type: IntCol},
+	"bytes_send":              {Index: -6, Key: "BytesSend", Type: IntCol},
+	"bytes_received":          {Index: -7, Key: "BytesReceived", Type: IntCol},
+	"queries":                 {Index: -8, Key: "Querys", Type: IntCol},
+	"last_error":              {Index: -9, Key: "LastError", Type: StringCol},
+	"last_online":             {Index: -10, Key: "LastOnline", Type: TimeCol},
+	"last_update":             {Index: -11, Key: "LastUpdate", Type: TimeCol},
+	"response_time":           {Index: -12, Key: "ReponseTime", Type: FloatCol},
+	"state_order":             {Index: -13, Key: "", Type: IntCol},
+	"last_state_change_order": {Index: -14, Key: "", Type: IntCol},
 }
 
 // result sorter
