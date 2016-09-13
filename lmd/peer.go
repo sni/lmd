@@ -295,6 +295,7 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 		}
 	}
 	p.Lock.Unlock()
+	promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(res)))
 	log.Debugf("[%s] updated %d hosts", p.Name, len(res))
 	return
 }
@@ -328,6 +329,7 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 		}
 	}
 	p.Lock.Unlock()
+	promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(res)))
 	log.Debugf("[%s] updated %d services", p.Name, len(res))
 	return
 }
@@ -711,12 +713,20 @@ func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error)
 	}
 	p.Lock.Unlock()
 
-	if table.Name == "status" {
+	switch table.Name {
+	case "hosts":
+		promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(res)))
+		break
+	case "services":
+		promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(res)))
+		break
+	case "stats":
 		if p.Status["ProgramStart"] != data[0][table.ColumnsIndex["program_start"]] {
 			log.Infof("[%s] site has been restarted, recreating objects", p.Name)
 			restartRequired = true
 			return
 		}
+		break
 	}
 	return
 }
