@@ -373,53 +373,55 @@ func matchStringFilter(filter *Filter, value *interface{}) bool {
 }
 
 func matchStringValueOperator(op Operator, valueA *interface{}, valueB *interface{}, regex *regexp.Regexp) bool {
+	strA := fmt.Sprintf("%v", *valueA)
+	strB := fmt.Sprintf("%v", *valueB)
 	switch op {
 	case Equal:
-		if (*valueA).(string) == (*valueB).(string) {
+		if strA == strB {
 			return true
 		}
 	case Unequal:
-		if (*valueA).(string) != (*valueB).(string) {
+		if strA != strB {
 			return true
 		}
 	case EqualNocase:
-		if strings.ToLower((*valueA).(string)) == strings.ToLower((*valueB).(string)) {
+		if strings.ToLower(strA) == strings.ToLower(strB) {
 			return true
 		}
 	case UnequalNocase:
-		if strings.ToLower((*valueA).(string)) != strings.ToLower((*valueB).(string)) {
+		if strings.ToLower(strA) != strings.ToLower(strB) {
 			return true
 		}
 	case RegexMatch:
-		if (*regex).MatchString((*valueA).(string)) {
+		if (*regex).MatchString(strA) {
 			return true
 		}
 	case RegexMatchNot:
-		if (*regex).MatchString((*valueA).(string)) {
+		if (*regex).MatchString(strA) {
 			return false
 		}
 	case RegexNoCaseMatch:
-		if (*regex).MatchString(strings.ToLower((*valueA).(string))) {
+		if (*regex).MatchString(strings.ToLower(strA)) {
 			return true
 		}
 	case RegexNoCaseMatchNot:
-		if (*regex).MatchString(strings.ToLower((*valueA).(string))) {
+		if (*regex).MatchString(strings.ToLower(strA)) {
 			return false
 		}
 	case Less:
-		if (*valueA).(string) < (*valueB).(string) {
+		if strA < strB {
 			return true
 		}
 	case LessThan:
-		if (*valueA).(string) <= (*valueB).(string) {
+		if strA <= strB {
 			return true
 		}
 	case Greater:
-		if (*valueA).(string) > (*valueB).(string) {
+		if strA > strB {
 			return true
 		}
 	case GreaterThan:
-		if (*valueA).(string) >= (*valueB).(string) {
+		if strA >= strB {
 			return true
 		}
 	default:
