@@ -25,6 +25,10 @@ type Request struct {
 	OutputFormat      string
 	Backends          []string
 	SendColumnsHeader bool
+	WaitTimeout       int
+	WaitTrigger       string
+	WaitCondition     []Filter
+	WaitObject        string
 }
 
 type SortDirection int
@@ -176,6 +180,20 @@ func (req *Request) String() (str string) {
 	if len(req.Stats) > 0 {
 		for _, s := range req.Stats {
 			str += s.String("Stats")
+		}
+	}
+	if req.WaitTrigger != "" {
+		str += fmt.Sprintf("WaitTrigger: %s\n", req.WaitTrigger)
+	}
+	if req.WaitObject != "" {
+		str += fmt.Sprintf("WaitObject: %s\n", req.WaitObject)
+	}
+	if req.WaitTimeout > 0 {
+		str += fmt.Sprintf("WaitTimeout: %d\n", req.WaitTimeout)
+	}
+	if len(req.WaitCondition) > 0 {
+		for _, f := range req.WaitCondition {
+			str += f.String("WaitCondition")
 		}
 	}
 	str += "\n"
@@ -337,6 +355,23 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 			err = errors.New("bad request: unrecognized outputformat, only json and wrapped_json is supported")
 			return
 		}
+	case "waittimeout":
+		timeout, cerr := strconv.Atoi(value)
+		if cerr != nil || timeout < 1 {
+			err = errors.New("bad request: waittimeout must be a positive number")
+			return
+		}
+		req.WaitTimeout = timeout
+		return
+	case "waittrigger":
+		req.WaitTrigger = value
+		return
+	case "waitobject":
+		req.WaitObject = value
+		return
+	case "waitcondition":
+		err = ParseFilter(value, line, req.Table, &req.WaitCondition)
+		return
 	default:
 		err = errors.New("bad request: unrecognized header " + *line)
 		return

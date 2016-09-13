@@ -306,14 +306,20 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 	log.Tracef("BuildLocalResponseDataForPeer: %s", peer.Name)
 	peer.Lock.Lock()
 	peer.Status["LastQuery"] = time.Now()
-	peer.Lock.Unlock()
-	peer.Lock.RLock()
-	defer peer.Lock.RUnlock()
-
 	if peer.Status["PeerStatus"].(PeerStatus) == PeerStatusDown && req.Table != "backends" {
 		res.Failed[peer.Id] = fmt.Sprintf("%v", peer.Status["LastError"])
+		peer.Lock.Unlock()
 		return
 	}
+	peer.Lock.Unlock()
+
+	// if a WaitTrigger is supplied, wait max ms till the condition is true
+	if req.WaitTrigger != "" {
+		peer.waitCondition(req)
+	}
+
+	peer.Lock.RLock()
+	defer peer.Lock.RUnlock()
 
 	table := peer.Tables[req.Table].Table
 	data := peer.Tables[req.Table].Data

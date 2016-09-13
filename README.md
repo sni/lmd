@@ -129,11 +129,10 @@ TODO
 
 Some things are still not complete
 
-- Implement Wait Header
 - Implement Idle Interval Updates
 - Check backend capabilities on first request
 - optimize delta updates, check max id and len of comments/downtimes and only continue if that differs
-- add metrics for peer data, host, services, etc...
+- add metrics: num updated hosts/services
 - Implement sending multiple commands in one connection
 - write huge logfile requests directly into a file
 

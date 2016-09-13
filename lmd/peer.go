@@ -240,10 +240,10 @@ func (p *Peer) UpdateDeltaTables() bool {
 		return p.InitAllTables()
 	}
 	if err == nil {
-		err = p.UpdateDeltaTableHosts()
+		err = p.UpdateDeltaTableHosts("")
 	}
 	if err == nil {
-		err = p.UpdateDeltaTableServices()
+		err = p.UpdateDeltaTableServices("")
 	}
 	if err == nil {
 		err = p.UpdateDeltaCommentsOrDowntimes("comments")
@@ -267,16 +267,19 @@ func (p *Peer) UpdateDeltaTables() bool {
 	return true
 }
 
-func (p *Peer) UpdateDeltaTableHosts() (err error) {
+func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	// update changed hosts
 	table := Objects.Tables["hosts"]
 	keys := append(table.DynamicColCacheNames, "name")
+	if filterStr == "" {
+		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", p.Status["LastUpdate"].(time.Time).Unix())
+	}
 	req := &Request{
 		Table:           table.Name,
 		Columns:         keys,
 		ResponseFixed16: true,
 		OutputFormat:    "json",
-		FilterStr:       fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", p.Status["LastUpdate"].(time.Time).Unix()),
+		FilterStr:       filterStr,
 	}
 	res, err := p.Query(req)
 	if err != nil {
@@ -296,16 +299,19 @@ func (p *Peer) UpdateDeltaTableHosts() (err error) {
 	return
 }
 
-func (p *Peer) UpdateDeltaTableServices() (err error) {
+func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	// update changed services
 	table := Objects.Tables["services"]
 	keys := append(table.DynamicColCacheNames, []string{"host_name", "description"}...)
+	if filterStr == "" {
+		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", p.Status["LastUpdate"].(time.Time).Unix())
+	}
 	req := &Request{
 		Table:           table.Name,
 		Columns:         keys,
 		ResponseFixed16: true,
 		OutputFormat:    "json",
-		FilterStr:       fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", p.Status["LastUpdate"].(time.Time).Unix()),
+		FilterStr:       filterStr,
 	}
 	res, err := p.Query(req)
 	if err != nil {
@@ -739,4 +745,52 @@ func (peer *Peer) getRowValue(index int, row *[]interface{}, rowNum int, table *
 		return refObj[table.Columns[index].RefColIndex]
 	}
 	return (*row)[index]
+}
+
+func (peer *Peer) waitCondition(req *Request) bool {
+	c := make(chan struct{})
+	go func() {
+		table := peer.Tables[req.Table].Table
+		refs := peer.Tables[req.Table].Refs
+		for {
+			select {
+			case <-c:
+				// canceled
+				return
+			default:
+			}
+			// get object to watch
+			var obj []interface{}
+			if req.Table == "hosts" || req.Table == "services" {
+				obj = peer.Tables[req.Table].Index[req.WaitObject]
+			} else {
+				log.Errorf("unsupported wait table: %s", req.Table)
+				close(c)
+				return
+			}
+			if peer.matchFilter(table, &refs, len(obj), req.WaitCondition[0], &obj, 0) {
+				close(c)
+				return
+			}
+			time.Sleep(time.Millisecond * 200)
+			if req.Table == "hosts" {
+				peer.UpdateDeltaTableHosts("Filter: name = " + req.WaitObject + "\n")
+			} else if req.Table == "services" {
+				tmp := strings.SplitN(req.WaitObject, ";", 2)
+				if len(tmp) < 2 {
+					log.Errorf("unsupported service wait object: %s", req.WaitObject)
+					close(c)
+					return
+				}
+				peer.UpdateDeltaTableServices("Filter: host_name = " + tmp[0] + "\nFilter: description = " + tmp[1])
+			}
+		}
+	}()
+	select {
+	case <-c:
+		return false // completed normally
+	case <-time.After(time.Duration(req.WaitTimeout) * time.Millisecond):
+		close(c)
+		return true // timed out
+	}
 }
