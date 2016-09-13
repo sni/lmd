@@ -370,7 +370,6 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 
 	if len(missingIds) > 0 {
 		keys := table.GetInitialKeys()
-		keys = append([]string{"id"}, keys...)
 		req := &Request{
 			Table:           table.Name,
 			Columns:         keys,
@@ -382,6 +381,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 		if err != nil {
 			return
 		}
+		fieldIndex = table.ColumnsIndex["id"]
 		p.Lock.Lock()
 		data := p.Tables[table.Name]
 		for _, resRow := range res {
@@ -404,7 +404,6 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 		return nil, err
 	}
 	defer conn.Close()
-	conn.SetDeadline(time.Now().Add(time.Duration(GlobalConfig.NetTimeout) * time.Second))
 
 	query := fmt.Sprintf(req.String())
 	log.Tracef("[%s] query: %s", p.Name, query)
@@ -415,6 +414,7 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 	promPeerBytesSend.WithLabelValues(p.Name).Set(float64(p.Status["BytesSend"].(int)))
 	p.Lock.Unlock()
 
+	conn.SetDeadline(time.Now().Add(time.Duration(GlobalConfig.NetTimeout) * time.Second))
 	fmt.Fprintf(conn, "%s", query)
 
 	// commands do not send anything back
