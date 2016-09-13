@@ -121,19 +121,42 @@ func BuildResponse(req *Request) (res *Response, err error) {
 		}
 		// passthrough requests to the log table
 		// TODO: consider caching the last 24h
-		// TODO: reduce result and remove wrapped_json header etc...
 		if table.PassthroughOnly {
 			var result [][]interface{}
+			// build columns list
+			backendColumns := []string{}
+			virtColumns := []Column{}
+			for _, col := range columns {
+				if col.RefIndex > 0 {
+					virtColumns = append(virtColumns, col)
+				} else {
+					backendColumns = append(backendColumns, col.Name)
+				}
+			}
 			passthroughRequest := &Request{
-				Table:        req.Table,
-				Filter:       req.Filter,
-				Stats:        req.Stats,
-				Columns:      req.Columns,
-				OutputFormat: "json",
+				Table:           req.Table,
+				Filter:          req.Filter,
+				Stats:           req.Stats,
+				Columns:         backendColumns,
+				Limit:           req.Limit,
+				OutputFormat:    "json",
+				ResponseFixed16: true,
 			}
 			result, err = p.Query(passthroughRequest)
 			if err != nil {
 				return
+			}
+			// insert virtual values
+			if len(virtColumns) > 0 {
+				for j, row := range result {
+					for _, col := range virtColumns {
+						i := col.Index
+						row = append(row, 0)
+						copy(row[i+1:], row[i:])
+						row[i] = p.getRowValue(col.RefIndex, &row, j, &table, nil, numPerRow)
+					}
+					result[j] = row
+				}
 			}
 			res.Result = append(res.Result, result...)
 		} else {

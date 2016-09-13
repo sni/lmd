@@ -551,5 +551,6 @@ func NewLogTable() (t *Table) {
 	t.AddColumn("time", StaticUpdate, IntCol)
 	t.AddColumn("type", StaticUpdate, StringCol)
 
+	t.AddColumn("peer_key", RefNoUpdate, VirtCol)
 	return
 }
