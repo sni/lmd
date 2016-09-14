@@ -36,6 +36,14 @@ var (
 		[]string{"listen"},
 	)
 
+	promPeerUpdateInterval = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: NAME,
+			Subsystem: "peer",
+			Name:      "update_interval",
+			Help:      "Peer Backend Update Interval",
+		},
+	)
 	promPeerConnections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: NAME,
@@ -144,6 +152,7 @@ func InitPrometheus() (prometheusListener net.Listener) {
 	prometheus.Register(promFrontendConnections)
 	prometheus.Register(promFrontendBytesSend)
 	prometheus.Register(promFrontendBytesReceived)
+	prometheus.Register(promPeerUpdateInterval)
 	prometheus.Register(promPeerConnections)
 	prometheus.Register(promPeerFailedConnections)
 	prometheus.Register(promPeerBytesSend)

@@ -263,5 +263,8 @@ func ReadConfig(files []string) (conf Config) {
 	if flagLogFile != "" {
 		conf.LogFile = flagLogFile
 	}
+
+	promPeerUpdateInterval.Set(float64(conf.Updateinterval))
+
 	return
 }
