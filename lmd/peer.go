@@ -808,6 +808,13 @@ func (peer *Peer) waitCondition(req *Request) bool {
 				return
 			}
 			if peer.matchFilter(table, &refs, len(obj), req.WaitCondition[0], &obj, 0) {
+				// trigger update for all, wait conditions are run against the last object
+				// but multiple commands may have been sent
+				if req.Table == "hosts" {
+					go peer.UpdateDeltaTableHosts("")
+				} else if req.Table == "services" {
+					go peer.UpdateDeltaTableServices("")
+				}
 				close(c)
 				return
 			}
@@ -821,7 +828,7 @@ func (peer *Peer) waitCondition(req *Request) bool {
 					close(c)
 					return
 				}
-				peer.UpdateDeltaTableServices("Filter: host_name = " + tmp[0] + "\nFilter: description = " + tmp[1])
+				peer.UpdateDeltaTableServices("Filter: host_name = " + tmp[0] + "\nFilter: description = " + tmp[1] + "\n")
 			}
 		}
 	}()

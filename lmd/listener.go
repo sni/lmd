@@ -19,7 +19,7 @@ func queryServer(c net.Conn) error {
 		}
 		promFrontendConnections.WithLabelValues(localAddr).Inc()
 		log.Debugf("incoming request from: %s to %s", remote, localAddr)
-		c.SetDeadline(time.Now().Add(time.Duration(5) * time.Second))
+		c.SetDeadline(time.Now().Add(time.Duration(10) * time.Second))
 		defer c.Close()
 
 		reqs, err := ParseRequests(c)
@@ -37,9 +37,15 @@ func queryServer(c net.Conn) error {
 				duration := time.Since(t1)
 				log.Infof("incoming command request from %s to %s finished in %s", remote, c.LocalAddr().String(), duration.String())
 				if err != nil {
-					break
+					return err
 				}
 			} else {
+				if req.WaitTrigger != "" {
+					c.SetDeadline(time.Now().Add(time.Duration(req.WaitTimeout+1000) * time.Millisecond))
+				}
+				if req.Table == "log" {
+					c.SetDeadline(time.Now().Add(time.Duration(60) * time.Second))
+				}
 				response, err := BuildResponse(req)
 				if err != nil {
 					return SendResponse(c, &Response{Code: 400, Request: req, Error: err})
@@ -49,7 +55,7 @@ func queryServer(c net.Conn) error {
 				duration := time.Since(t1)
 				log.Infof("incoming %s request from %s to %s finished in %s", req.Table, remote, c.LocalAddr().String(), duration.String())
 				if err != nil {
-					break
+					return err
 				}
 			}
 		}
@@ -65,8 +71,8 @@ func SendPeerCommands(req *Request) (err error) {
 	}
 	for _, p := range DataStore {
 		if numBackendsReq > 0 {
-			_, Ok := backendsMap[p.Id]
-			if !Ok {
+			_, ok := backendsMap[p.Id]
+			if !ok {
 				continue
 			}
 		}
