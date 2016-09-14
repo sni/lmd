@@ -26,9 +26,11 @@ const (
 )
 
 type Connection struct {
-	Name   string
-	Id     string
-	Source []string
+	Name       string
+	Id         string
+	Source     []string
+	Auth       string
+	RemoteName string
 }
 
 type Config struct {

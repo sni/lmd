@@ -3,11 +3,15 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
+	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -34,6 +38,7 @@ type Peer struct {
 	ErrorCount      int
 	waitGroup       *sync.WaitGroup
 	shutdownChannel chan bool
+	Config          *Connection
 }
 
 type PeerStatus int
@@ -42,6 +47,7 @@ const (
 	PeerStatusUp PeerStatus = iota
 	PeerStatusWarning
 	PeerStatusDown
+	_
 	PeerStatusPending
 )
 
@@ -56,6 +62,13 @@ const (
 type PeerError struct {
 	msg  string
 	kind PeerErrorType
+}
+
+type HttpResult struct {
+	Rc      int
+	Version string
+	Branch  string
+	Output  []interface{}
 }
 
 func (e *PeerError) Error() string       { return e.msg }
@@ -88,6 +101,7 @@ func NewPeer(config *Connection, waitGroup *sync.WaitGroup, shutdownChannel chan
 		waitGroup:       waitGroup,
 		shutdownChannel: shutdownChannel,
 		Lock:            new(sync.RWMutex),
+		Config:          config,
 	}
 	p.Status["PeerKey"] = p.Id
 	p.Status["PeerName"] = p.Name
@@ -409,11 +423,13 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 
 // send query to remote livestatus and returns unmarshaled result
 func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
-	conn, err := p.GetConnection()
+	conn, connType, err := p.GetConnection()
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	if conn != nil {
+		defer conn.Close()
+	}
 
 	query := fmt.Sprintf(req.String())
 	log.Tracef("[%s] query: %s", p.Name, query)
@@ -422,18 +438,29 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 	p.Status["Querys"] = p.Status["Querys"].(int) + 1
 	p.Status["BytesSend"] = p.Status["BytesSend"].(int) + len(query)
 	promPeerBytesSend.WithLabelValues(p.Name).Set(float64(p.Status["BytesSend"].(int)))
+	peerAddr := p.Status["PeerAddr"].(string)
 	p.Lock.Unlock()
 
-	conn.SetDeadline(time.Now().Add(time.Duration(GlobalConfig.NetTimeout) * time.Second))
-	fmt.Fprintf(conn, "%s", query)
-
-	// commands do not send anything back
-	if req.Command != "" {
-		return nil, err
-	}
-
 	var buf bytes.Buffer
-	io.Copy(&buf, conn)
+	if connType == "http" {
+		res, hErr := p.HttpQuery(peerAddr, query)
+		if hErr != nil {
+			return nil, hErr
+		}
+		// commands do not send anything back
+		if req.Command != "" {
+			return nil, err
+		}
+		buf = *(bytes.NewBuffer(res))
+	} else {
+		conn.SetDeadline(time.Now().Add(time.Duration(GlobalConfig.NetTimeout) * time.Second))
+		fmt.Fprintf(conn, "%s", query)
+		// commands do not send anything back
+		if req.Command != "" {
+			return nil, err
+		}
+		io.Copy(&buf, conn)
+	}
 
 	log.Tracef("[%s] result: %s", p.Name, string(buf.Bytes()))
 
@@ -483,13 +510,6 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 	result, err = p.query(req)
 	if err != nil {
-		if cerr, ok := err.(*PeerError); ok {
-			if cerr.Type() != ConnectionError {
-				log.Errorf("[%s] site error: %s", p.Name, cerr.Error())
-			}
-		} else {
-			log.Errorf("[%s] site error: %s", p.Name, cerr.Error())
-		}
 		p.setNextAddrFromErr(err)
 	}
 	return
@@ -535,52 +555,79 @@ func (p *Peer) CheckResponseHeader(resBytes *[]byte) (err error) {
 	return
 }
 
-func (p *Peer) GetConnection() (conn net.Conn, err error) {
+func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 	numSources := len(p.Source)
 
 	for x := 0; x < numSources; x++ {
 		p.Lock.RLock()
 		peerAddr := p.Status["PeerAddr"].(string)
 		p.Lock.RUnlock()
-		connType := "unix"
-		if strings.Contains(peerAddr, ":") {
+		connType = "unix"
+		if strings.HasPrefix(peerAddr, "http") {
+			connType = "http"
+		} else if strings.Contains(peerAddr, ":") {
 			connType = "tcp"
 		}
-		conn, err = net.DialTimeout(connType, peerAddr, time.Duration(GlobalConfig.NetTimeout)*time.Second)
-		// connection succesful
+		switch connType {
+		case "tcp":
+			fallthrough
+		case "unix":
+			conn, err = net.DialTimeout(connType, peerAddr, time.Duration(GlobalConfig.NetTimeout)*time.Second)
+			break
+		case "http":
+			// test at least basic tcp connect
+			url, uErr := url.Parse(peerAddr)
+			if uErr != nil {
+				err = uErr
+			}
+			host := url.Host
+			if !strings.Contains(host, ":") {
+				switch url.Scheme {
+				case "http":
+					host = host + ":80"
+					break
+				case "https":
+					host = host + ":443"
+					break
+				default:
+					err = &PeerError{msg: fmt.Sprintf("unknown scheme: %s", url.Scheme), kind: ConnectionError}
+					break
+				}
+			}
+			conn, err = net.DialTimeout("tcp", url.Host, time.Duration(GlobalConfig.NetTimeout)*time.Second)
+			if err == nil {
+				conn.Close()
+			}
+			conn = nil
+			break
+		}
+		// connection succesfull
 		if err == nil {
 			promPeerConnections.WithLabelValues(p.Name).Inc()
 			if x > 0 {
 				log.Infof("[%s] active source changed to %s", p.Name, peerAddr)
 			}
+			// TODO: check backend capabilities here
 			return
 		}
 
-		promPeerFailedConnections.WithLabelValues(p.Name).Inc()
 		// connection error
-		log.Debugf("[%s] connection error %s: %s", peerAddr, p.Name, err)
 		p.setNextAddrFromErr(err)
 	}
 
-	p.Lock.Lock()
-	if p.Status["PeerStatus"].(PeerStatus) != PeerStatusDown {
-		log.Warnf("[%s] site went offline: %s", p.Name, err.Error())
-	}
-	p.Status["PeerStatus"] = PeerStatusDown
-	p.Lock.Unlock()
-	return nil, &PeerError{msg: err.Error(), kind: ConnectionError}
+	return nil, "", &PeerError{msg: err.Error(), kind: ConnectionError}
 }
 
 func (p *Peer) setNextAddrFromErr(err error) {
+	promPeerFailedConnections.WithLabelValues(p.Name).Inc()
 	p.Lock.Lock()
+	peerAddr := p.Status["PeerAddr"].(string)
+	log.Debugf("[%s] connection error %s: %s", peerAddr, p.Name, err)
 	defer p.Lock.Unlock()
 	p.Status["LastError"] = err.Error()
 	p.ErrorCount++
 
 	numSources := len(p.Source)
-	if numSources == 1 {
-		return
-	}
 
 	// try next node if there are multiple
 	curNum := p.Status["CurPeerAddrNum"].(int)
@@ -591,16 +638,20 @@ func (p *Peer) setNextAddrFromErr(err error) {
 	}
 	p.Status["CurPeerAddrNum"] = nextNum
 	p.Status["PeerAddr"] = p.Source[nextNum]
-	peerAddr := p.Status["PeerAddr"].(string)
 
-	if p.Status["PeerStatus"].(PeerStatus) == PeerStatusUp {
+	if p.Status["PeerStatus"].(PeerStatus) == PeerStatusUp || p.Status["PeerStatus"].(PeerStatus) == PeerStatusPending {
 		p.Status["PeerStatus"] = PeerStatusWarning
 	}
 	if p.ErrorCount > numSources*2 {
+		if p.Status["PeerStatus"].(PeerStatus) != PeerStatusDown {
+			log.Warnf("[%s] site went offline: %s", p.Name, err.Error())
+		}
 		p.Status["PeerStatus"] = PeerStatusDown
 	}
 
-	log.Debugf("[%s] trying next one: %s", p.Name, peerAddr)
+	if numSources > 1 {
+		log.Debugf("[%s] trying next one: %s", p.Name, peerAddr)
+	}
 	return
 }
 
@@ -839,4 +890,54 @@ func (peer *Peer) waitCondition(req *Request) bool {
 		close(c)
 		return true // timed out
 	}
+}
+
+func (p *Peer) HttpQuery(peerAddr string, query string) (res []byte, err error) {
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	var netClient = &http.Client{
+		Timeout:   time.Second * 120,
+		Transport: tr,
+	}
+	options := make(map[string]interface{})
+	if p.Config.RemoteName != "" {
+		options["backends"] = []string{p.Config.RemoteName}
+	}
+	options["action"] = "raw"
+	options["sub"] = "_raw_query"
+	options["args"] = []string{query}
+	optionStr, _ := json.Marshal(options)
+	response, err := netClient.PostForm(peerAddr+"/thruk/cgi-bin/remote.cgi", url.Values{
+		"data": {fmt.Sprintf("{\"credential\": \"%s\", \"options\": %s}", p.Config.Auth, optionStr)},
+	})
+	if err != nil {
+		return
+	}
+	contents, hErr := ioutil.ReadAll(response.Body)
+	if hErr != nil {
+		err = hErr
+		return
+	}
+	var result HttpResult
+	err = json.Unmarshal(contents, &result)
+	if err != nil {
+		return
+	}
+	remoteError := ""
+	if len(result.Output) >= 4 {
+		if v, ok := result.Output[3].(string); ok {
+			remoteError = strings.TrimSpace(v)
+		}
+	}
+	if result.Rc != 0 || remoteError != "" {
+		err = &PeerError{msg: fmt.Sprintf("remote site returned rc: %d - %s", result.Rc, remoteError), kind: ResponseError}
+		return
+	}
+	if v, ok := result.Output[2].(string); ok {
+		res = []byte(v)
+	} else {
+		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %v", result), kind: ResponseError}
+	}
+	return
 }
