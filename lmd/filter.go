@@ -189,7 +189,7 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 	case CustomVarCol:
 		vars := strings.SplitN(tmp[2], " ", 2)
 		if len(vars) < 2 {
-			err = errors.New("bad request: custom variable filter must have form \"Filter: custom_variables <variable> <op> <value>\" in " + *line)
+			err = errors.New("bad request: custom variable filter must have form \"Filter: custom_variables <op> <variable> <value>\" in " + *line)
 			return
 		}
 		filtertagname = vars[0]
@@ -320,7 +320,7 @@ func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, in
 		fallthrough
 	case FloatCol:
 		valueA := NumberToFloat(value)
-		valueB := float64(filter.Value.(int))
+		valueB := NumberToFloat(filter.Value)
 		return matchNumberFilter(&filter, valueA, valueB)
 	case StringListCol:
 		return matchStringListFilter(&filter, &value)
