@@ -479,7 +479,7 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 	p.Lock.Unlock()
 
 	if req.OutputFormat == "wrapped_json" {
-		if string(resBytes[0]) != "{" {
+		if len(resBytes) == 0 || string(resBytes[0]) != "{" {
 			err = errors.New(strings.TrimSpace(string(resBytes)))
 			return nil, &PeerError{msg: err.Error(), kind: ResponseError}
 		}
@@ -490,7 +490,7 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 		}
 		err = json.Unmarshal(wrapped_result["data"], &result)
 	} else {
-		if string(resBytes[0]) != "[" {
+		if len(resBytes) == 0 || string(resBytes[0]) != "[" {
 			err = errors.New(strings.TrimSpace(string(resBytes)))
 			return nil, &PeerError{msg: err.Error(), kind: ResponseError}
 		}

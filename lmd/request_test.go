@@ -220,3 +220,14 @@ func TestRequestStats(t *testing.T) {
 
 	StopTestPeer()
 }
+
+func TestRequestStatsBroken(t *testing.T) {
+	peer := SetupTestPeer()
+
+	res, err := peer.QueryString("GET hosts\nStats: sum name\nStats: avg contacts\nStats: min plugin_output\n")
+	if err = assertEq(float64(0), res[0][0]); err != nil {
+		t.Error(err)
+	}
+
+	StopTestPeer()
+}

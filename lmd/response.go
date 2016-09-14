@@ -358,30 +358,16 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 					case Average:
 						fallthrough
 					case Sum:
-						if v, ok := val.(float64); ok {
-							s.Stats += v
-						} else {
-							s.Stats += float64(val.(int))
-						}
+						s.Stats += NumberToFloat(val)
 						break
 					case Min:
-						var value float64
-						if v, ok := val.(float64); ok {
-							value = v
-						} else {
-							value = float64(val.(int))
-						}
+						value := NumberToFloat(val)
 						if s.Stats > value || s.Stats == -1 {
 							s.Stats = value
 						}
 						break
 					case Max:
-						var value float64
-						if v, ok := val.(float64); ok {
-							value = v
-						} else {
-							value = float64(val.(int))
-						}
+						value := NumberToFloat(val)
 						if s.Stats < value {
 							s.Stats = value
 						}

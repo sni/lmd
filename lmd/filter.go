@@ -474,7 +474,9 @@ func matchCustomVarFilter(filter *Filter, value *interface{}) bool {
 }
 
 func NumberToFloat(in interface{}) (out float64) {
-	if v, ok := in.(int); ok {
+	if v, ok := in.(float64); ok {
+		out = v
+	} else if v, ok := in.(int); ok {
 		out = float64(v)
 	} else if v, ok := in.(bool); ok {
 		if v {
@@ -483,7 +485,7 @@ func NumberToFloat(in interface{}) (out float64) {
 			out = 0
 		}
 	} else {
-		out = in.(float64)
+		out = 0
 	}
 	return
 }
