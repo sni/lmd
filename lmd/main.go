@@ -21,7 +21,7 @@ import (
 var Build string
 
 const (
-	VERSION = "0.1"
+	VERSION = "0.01"
 	NAME    = "lmd"
 )
 
@@ -83,7 +83,7 @@ func main() {
 	}
 
 	if len(flagConfigFile) == 0 {
-		fmt.Printf("ERROR: no config files specified.\nSee --help for all options.\n")
+		fmt.Print("ERROR: no config files specified.\nSee --help for all options.\n")
 		os.Exit(2)
 	}
 
