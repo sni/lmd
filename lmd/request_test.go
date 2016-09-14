@@ -220,29 +220,3 @@ func TestRequestStats(t *testing.T) {
 
 	StopTestPeer()
 }
-
-func BenchmarkRequestsFilter(b *testing.B) {
-	peer := SetupTestPeer()
-
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
-		}
-	})
-
-	StopTestPeer()
-}
-
-func BenchmarkRequestsStats(b *testing.B) {
-	peer := SetupTestPeer()
-
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			peer.QueryString("GET hosts\nStats: name != \nStats: avg latency\nStats: sum latency")
-		}
-	})
-
-	StopTestPeer()
-}
