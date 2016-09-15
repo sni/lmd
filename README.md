@@ -27,7 +27,7 @@ Installation
 ============
 
 ```
-    %> go get github.com/sni/lmd
+    %> go install github.com/sni/lmd/lmd
 ```
 
 Copy lmd.ini.example to lmd.ini and change to your needs. Then run lmd.
