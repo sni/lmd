@@ -143,3 +143,4 @@ Some ideas may or may not be implemented in the future
   would be required to combine the result from all cluster partners
 - Add transparent and half-transparent mode which just handles the map/reduce without cache
 - Cache last 24h of logfiles to speed up most logfile requests
+- Add REST interface
