@@ -22,11 +22,12 @@ const (
 
 type Filter struct {
 	// filter can either be a single filter
-	Column    Column
-	Operator  Operator
-	Value     interface{}
-	Regexp    *regexp.Regexp
-	CustomTag string
+	Column     Column
+	Operator   Operator
+	StrValue   string
+	FloatValue float64
+	Regexp     *regexp.Regexp
+	CustomTag  string
 
 	// or a group of filters
 	Filter        []Filter
@@ -75,9 +76,33 @@ func (f *Filter) String(prefix string) (str string) {
 			str += fmt.Sprintf("%sOr: %d\n", prefix, len(f.Filter))
 		}
 	} else {
-		value := f.Value
-		if f.Column.Type == CustomVarCol {
-			value = f.CustomTag + " " + f.Value.(string)
+		var value string
+		colType := f.Column.Type
+		if colType == VirtCol {
+			colType = VirtKeyMap[f.Column.Name].Type
+		}
+		switch colType {
+		case CustomVarCol:
+			value = f.CustomTag + " " + f.StrValue
+			break
+		case TimeCol:
+			fallthrough
+		case IntListCol:
+			fallthrough
+		case IntCol:
+			value = fmt.Sprintf("%d", int(f.FloatValue))
+			break
+		case FloatCol:
+			value = fmt.Sprintf("%v", f.FloatValue)
+			break
+		case StringListCol:
+			fallthrough
+		case StringCol:
+			value = f.StrValue
+			break
+		default:
+			log.Panicf("not implemented column type: %v", f.Column.Type)
+			break
 		}
 		if f.StatsType != UnknownStatsType {
 			if f.StatsType == Counter {
@@ -161,30 +186,31 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 		err = errors.New("bad request: unrecognized column from filter: " + tmp[0] + " in " + *line)
 		return
 	}
-	var filtervalue interface{}
-	var filtertagname string
 	col := Objects.Tables[table].Columns[i]
+	filter := Filter{Operator: op, Column: col}
 
 	colType := col.Type
 	if colType == VirtCol {
 		colType = VirtKeyMap[col.Name].Type
 	}
 	switch colType {
+	case IntListCol:
+		fallthrough
 	case IntCol:
-		var cerr error
-		filtervalue, cerr = strconv.Atoi(tmp[2])
+		filtervalue, cerr := strconv.Atoi(tmp[2])
 		if cerr != nil {
 			err = errors.New("bad request: could not convert " + tmp[2] + " to integer from filter: " + *line)
 			return
 		}
+		filter.FloatValue = float64(filtervalue)
 		break
 	case FloatCol:
-		var cerr error
-		filtervalue, cerr = strconv.ParseFloat(tmp[2], 64)
+		filtervalue, cerr := strconv.ParseFloat(tmp[2], 64)
 		if cerr != nil {
 			err = errors.New("bad request: could not convert " + tmp[2] + " to float from filter: " + *line)
 			return
 		}
+		filter.FloatValue = filtervalue
 		break
 	case CustomVarCol:
 		vars := strings.SplitN(tmp[2], " ", 2)
@@ -192,25 +218,29 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 			err = errors.New("bad request: custom variable filter must have form \"Filter: custom_variables <op> <variable> <value>\" in " + *line)
 			return
 		}
-		filtertagname = vars[0]
-		filtervalue = vars[1]
+		filter.StrValue = vars[1]
+		filter.CustomTag = vars[0]
+		break
+	case StringListCol:
+		fallthrough
+	case StringCol:
+		filter.StrValue = tmp[2]
+		break
 	default:
-		filtervalue = tmp[2]
+		log.Panicf("not implemented type: %v", colType)
 	}
-	var regex *regexp.Regexp
 	if isRegex {
-		var rerr error
-		val := filtervalue.(string)
+		val := filter.StrValue
 		if op == RegexNoCaseMatchNot || op == RegexNoCaseMatch {
 			val = strings.ToLower(val)
 		}
-		regex, rerr = regexp.Compile(val)
+		regex, rerr := regexp.Compile(val)
 		if rerr != nil {
 			err = errors.New("bad request: invalid regular expression: " + rerr.Error() + " in filter " + *line)
 			return
 		}
+		filter.Regexp = regex
 	}
-	filter := Filter{Operator: op, Value: filtervalue, Column: col, Regexp: regex, CustomTag: filtertagname}
 	*stack = append(*stack, filter)
 	return
 }
@@ -273,7 +303,7 @@ func ParseFilterOp(header string, value string, line *string, stack *[]Filter) (
 	if header == "and" {
 		op = And
 	}
-	stackedFilter := Filter{Filter: groupedStack, GroupOperator: op, Value: nil}
+	stackedFilter := Filter{Filter: groupedStack, GroupOperator: op}
 	*stack = []Filter{}
 	*stack = append(*stack, remainingStack...)
 	*stack = append(*stack, stackedFilter)
@@ -320,7 +350,7 @@ func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, in
 		fallthrough
 	case FloatCol:
 		valueA := NumberToFloat(value)
-		valueB := NumberToFloat(filter.Value)
+		valueB := filter.FloatValue
 		return matchNumberFilter(&filter, valueA, valueB)
 	case StringListCol:
 		return matchStringListFilter(&filter, &value)
@@ -369,12 +399,12 @@ func matchNumberFilter(filter *Filter, valueA float64, valueB float64) bool {
 }
 
 func matchStringFilter(filter *Filter, value *interface{}) bool {
-	return matchStringValueOperator(filter.Operator, value, &filter.Value, filter.Regexp)
+	return matchStringValueOperator(filter.Operator, value, &filter.StrValue, filter.Regexp)
 }
 
-func matchStringValueOperator(op Operator, valueA *interface{}, valueB *interface{}, regex *regexp.Regexp) bool {
+func matchStringValueOperator(op Operator, valueA *interface{}, valueB *string, regex *regexp.Regexp) bool {
 	strA := fmt.Sprintf("%v", *valueA)
-	strB := fmt.Sprintf("%v", *valueB)
+	strB := *valueB
 	switch op {
 	case Equal:
 		if strA == strB {
@@ -436,25 +466,25 @@ func matchStringListFilter(filter *Filter, value *interface{}) bool {
 	listLen := list.Len()
 	switch filter.Operator {
 	case Equal:
-		if filter.Value.(string) == "" && listLen == 0 {
+		if filter.StrValue == "" && listLen == 0 {
 			return true
 		}
 		return false
 	case Unequal:
-		if filter.Value.(string) == "" && listLen != 0 {
+		if filter.StrValue == "" && listLen != 0 {
 			return true
 		}
 		return false
 	case GreaterThan:
 		for i := 0; i < listLen; i++ {
-			if filter.Value.(string) == list.Index(i).Interface().(string) {
+			if filter.StrValue == list.Index(i).Interface().(string) {
 				return true
 			}
 		}
 		return false
 	case GroupContainsNot:
 		for i := 0; i < listLen; i++ {
-			if filter.Value.(string) == list.Index(i).Interface().(string) {
+			if filter.StrValue == list.Index(i).Interface().(string) {
 				return false
 			}
 		}
@@ -470,7 +500,7 @@ func matchCustomVarFilter(filter *Filter, value *interface{}) bool {
 	if !ok {
 		val = ""
 	}
-	return matchStringValueOperator(filter.Operator, &val, &filter.Value, filter.Regexp)
+	return matchStringValueOperator(filter.Operator, &val, &filter.StrValue, filter.Regexp)
 }
 
 func NumberToFloat(in interface{}) (out float64) {

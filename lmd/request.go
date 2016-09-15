@@ -355,6 +355,7 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 			err = errors.New("bad request: unrecognized outputformat, only json and wrapped_json is supported")
 			return
 		}
+		return
 	case "waittimeout":
 		timeout, cerr := strconv.Atoi(value)
 		if cerr != nil || timeout < 1 {
@@ -376,5 +377,4 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 		err = errors.New("bad request: unrecognized header " + *line)
 		return
 	}
-	return
 }

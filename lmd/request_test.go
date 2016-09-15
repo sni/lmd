@@ -31,6 +31,9 @@ func TestRequestHeader(t *testing.T) {
 		"GET hosts\nColumns: name\nFilter: name != \n\n",
 		"COMMAND [123456] TEST\n\n",
 		"GET hosts\nColumns: name\nFilter: name = test\nWaitTrigger: all\nWaitObject: test\nWaitTimeout: 10000\nWaitCondition: last_check > 1473760401\n\n",
+		"GET hosts\nColumns: name\nFilter: latency != 1.23456789012345\n\n",
+		"GET hosts\nColumns: name comments\nFilter: comments >= 1\n\n",
+		"GET hosts\nColumns: name contact_groups\nFilter: contact_groups >= test\n\n",
 	}
 	for _, str := range testRequestStrings {
 		buf := bufio.NewReader(bytes.NewBufferString(str))
@@ -92,7 +95,7 @@ func TestRequestHeaderSort(t *testing.T) {
 func TestRequestHeaderFilter1(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: name != test\n"))
 	req, _, _ := ParseRequestFromBuffer(buf)
-	if err := assertEq([]Filter{Filter{Column: Column{Name: "name", Type: StringCol, Index: 56, RefIndex: 0, RefColIndex: 0, Update: StaticUpdate}, Operator: Unequal, Value: "test", Filter: []Filter(nil), GroupOperator: 0, Stats: 0, StatsCount: 0, StatsType: 0}}, req.Filter); err != nil {
+	if err := assertEq([]Filter{Filter{Column: Column{Name: "name", Type: StringCol, Index: 56, RefIndex: 0, RefColIndex: 0, Update: StaticUpdate}, Operator: Unequal, StrValue: "test", Filter: []Filter(nil), GroupOperator: 0, Stats: 0, StatsCount: 0, StatsType: 0}}, req.Filter); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -100,8 +103,8 @@ func TestRequestHeaderFilter1(t *testing.T) {
 func TestRequestHeaderFilter2(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces \n"))
 	req, _, _ := ParseRequestFromBuffer(buf)
-	expect := []Filter{Filter{Column: Column{Name: "state", Type: IntCol, Index: 80, RefIndex: 0, RefColIndex: 0, Update: DynamicUpdate}, Operator: Unequal, Value: 1, Filter: []Filter(nil), GroupOperator: 0},
-		Filter{Column: Column{Name: "name", Type: StringCol, Index: 56, RefIndex: 0, RefColIndex: 0, Update: StaticUpdate}, Operator: Equal, Value: "with spaces", Filter: []Filter(nil), GroupOperator: 0, Stats: 0, StatsCount: 0, StatsType: 0}}
+	expect := []Filter{Filter{Column: Column{Name: "state", Type: IntCol, Index: 80, RefIndex: 0, RefColIndex: 0, Update: DynamicUpdate}, Operator: Unequal, FloatValue: 1, Filter: []Filter(nil), GroupOperator: 0},
+		Filter{Column: Column{Name: "name", Type: StringCol, Index: 56, RefIndex: 0, RefColIndex: 0, Update: StaticUpdate}, Operator: Equal, StrValue: "with spaces", Filter: []Filter(nil), GroupOperator: 0, Stats: 0, StatsCount: 0, StatsType: 0}}
 	if err := assertEq(expect, req.Filter); err != nil {
 		t.Fatal(err)
 	}
@@ -110,9 +113,9 @@ func TestRequestHeaderFilter2(t *testing.T) {
 func TestRequestHeaderFilter3(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces\nOr: 2"))
 	req, _, _ := ParseRequestFromBuffer(buf)
-	expect := []Filter{Filter{Column: Column{Name: "", Type: 0, Index: 0, RefIndex: 0, RefColIndex: 0, Update: 0}, Operator: 0, Value: interface{}(nil),
-		Filter: []Filter{Filter{Column: Column{Name: "state", Type: 3, Index: 80, RefIndex: 0, RefColIndex: 0, Update: 2}, Operator: 2, Value: 1, Filter: []Filter(nil), GroupOperator: 0, Stats: 0, StatsCount: 0, StatsType: 0},
-			Filter{Column: Column{Name: "name", Type: 1, Index: 56, RefIndex: 0, RefColIndex: 0, Update: 1}, Operator: 1, Value: "with spaces", Filter: []Filter(nil), GroupOperator: 0, Stats: 0, StatsCount: 0, StatsType: 0}},
+	expect := []Filter{Filter{Column: Column{Name: "", Type: 0, Index: 0, RefIndex: 0, RefColIndex: 0, Update: 0}, Operator: 0,
+		Filter: []Filter{Filter{Column: Column{Name: "state", Type: 3, Index: 80, RefIndex: 0, RefColIndex: 0, Update: 2}, Operator: 2, FloatValue: 1, Filter: []Filter(nil), GroupOperator: 0, Stats: 0, StatsCount: 0, StatsType: 0},
+			Filter{Column: Column{Name: "name", Type: 1, Index: 56, RefIndex: 0, RefColIndex: 0, Update: 1}, Operator: 1, StrValue: "with spaces", Filter: []Filter(nil), GroupOperator: 0, Stats: 0, StatsCount: 0, StatsType: 0}},
 		GroupOperator: Or}}
 	if err := assertEq(expect, req.Filter); err != nil {
 		t.Fatal(err)
