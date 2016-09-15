@@ -2,6 +2,11 @@ package main
 
 import "testing"
 
+func init() {
+	InitLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
+	InitObjects()
+}
+
 func TestMainFunc(t *testing.T) {
 	peer := SetupTestPeer()
 
