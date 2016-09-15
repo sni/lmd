@@ -20,6 +20,7 @@ import (
 )
 
 var ReResponseHeader = regexp.MustCompile(`^(\d+)\s+(\d+)$`)
+var ReHttpTooOld = regexp.MustCompile(`Can.t locate object method`)
 
 type DataTable struct {
 	Table *Table
@@ -39,7 +40,7 @@ type Peer struct {
 	ErrorCount      int
 	waitGroup       *sync.WaitGroup
 	shutdownChannel chan bool
-	Config          *Connection
+	Config          Connection
 }
 
 type PeerStatus int
@@ -69,7 +70,7 @@ type HttpResult struct {
 	Rc      int
 	Version string
 	Branch  string
-	Output  []interface{}
+	Output  json.RawMessage
 }
 
 func (e *PeerError) Error() string       { return e.msg }
@@ -91,7 +92,7 @@ func (d *DataTable) RemoveItem(row []interface{}) {
 }
 
 // send query to remote livestatus and returns unmarshaled result
-func NewPeer(config *Connection, waitGroup *sync.WaitGroup, shutdownChannel chan bool) *Peer {
+func NewPeer(config Connection, waitGroup *sync.WaitGroup, shutdownChannel chan bool) *Peer {
 	p := Peer{
 		Name:            config.Name,
 		Id:              config.Id,
@@ -596,7 +597,7 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 					break
 				}
 			}
-			conn, err = net.DialTimeout("tcp", url.Host, time.Duration(GlobalConfig.NetTimeout)*time.Second)
+			conn, err = net.DialTimeout("tcp", host, time.Duration(GlobalConfig.NetTimeout)*time.Second)
 			if err == nil {
 				conn.Close()
 			}
@@ -900,6 +901,7 @@ func (peer *Peer) waitCondition(req *Request) bool {
 
 func (p *Peer) HttpQuery(peerAddr string, query string) (res []byte, err error) {
 	tr := &http.Transport{
+		// TODO: add config option
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	var netClient = &http.Client{
@@ -920,9 +922,17 @@ func (p *Peer) HttpQuery(peerAddr string, query string) (res []byte, err error) 
 	if err != nil {
 		return
 	}
+	if response.StatusCode != 200 {
+		err = &PeerError{msg: fmt.Sprintf("http request failed: %s", response.Status), kind: ResponseError}
+		return
+	}
 	contents, hErr := ioutil.ReadAll(response.Body)
 	if hErr != nil {
 		err = hErr
+		return
+	}
+	if len(contents) < 1 || contents[0] != '{' {
+		err = &PeerError{msg: fmt.Sprintf("site did not return a proper response: %s", contents), kind: ResponseError}
 		return
 	}
 	var result HttpResult
@@ -930,17 +940,30 @@ func (p *Peer) HttpQuery(peerAddr string, query string) (res []byte, err error) 
 	if err != nil {
 		return
 	}
-	remoteError := ""
-	if len(result.Output) >= 4 {
-		if v, ok := result.Output[3].(string); ok {
-			remoteError = strings.TrimSpace(v)
-		}
-	}
-	if result.Rc != 0 || remoteError != "" {
-		err = &PeerError{msg: fmt.Sprintf("remote site returned rc: %d - %s", result.Rc, remoteError), kind: ResponseError}
+	if result.Rc != 0 {
+		err = &PeerError{msg: fmt.Sprintf("remote site returned rc: %d - %s", result.Rc, result.Output), kind: ResponseError}
 		return
 	}
-	if v, ok := result.Output[2].(string); ok {
+
+	var output []interface{}
+	err = json.Unmarshal(result.Output, &output)
+	if err != nil {
+		return
+	}
+	remoteError := ""
+	if len(output) >= 4 {
+		if v, ok := output[3].(string); ok {
+			remoteError = strings.TrimSpace(v)
+			matched := ReHttpTooOld.FindStringSubmatch(remoteError)
+			if len(matched) > 0 {
+				err = &PeerError{msg: fmt.Sprintf("remote site too old: v%s - %s", result.Version, result.Branch), kind: ResponseError}
+			} else {
+				err = &PeerError{msg: fmt.Sprintf("remote site returned rc: %d - %s", result.Rc, remoteError), kind: ResponseError}
+			}
+			return
+		}
+	}
+	if v, ok := output[2].(string); ok {
 		res = []byte(v)
 	} else {
 		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %v", result), kind: ResponseError}

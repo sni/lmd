@@ -165,7 +165,7 @@ func mainLoop() {
 
 	// start remote connections
 	for _, c := range GlobalConfig.Connections {
-		p := NewPeer(&c, waitGroupPeers, shutdownChannel)
+		p := NewPeer(c, waitGroupPeers, shutdownChannel)
 		_, Exists := DataStore[c.Id]
 		if Exists {
 			log.Fatalf("Duplicate id in connection list: %s", c.Id)
