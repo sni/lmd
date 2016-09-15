@@ -18,7 +18,7 @@ So basically this is a "Livestatus In / Livestatus Out" daemon. Its main purpose
 provide the backend handling of the [Thruk Monitoring Gui](http://www.thruk.org) to a native
 compiled fast daemon, but it works for everything which requires livestatus.
 
-<img src="docs/Architecture.png" alt="Architecture" style="width: 600px;"/>
+<img src="docs/Architecture.svg" alt="Architecture" style="width: 600px;"/>
 
 Log table requests and commands are just passed through to the actual backends.
 
