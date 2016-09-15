@@ -21,7 +21,7 @@ import (
 var Build string
 
 const (
-	VERSION = "0.01"
+	VERSION = "0.0.1"
 	NAME    = "lmd"
 )
 
