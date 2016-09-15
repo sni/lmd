@@ -310,11 +310,11 @@ func ParseFilterOp(header string, value string, line *string, stack *[]Filter) (
 	return
 }
 
-func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, inputRowLen int, filter Filter, row *[]interface{}, rowNum int) bool {
+func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, inputRowLen int, filter *Filter, row *[]interface{}, rowNum int) bool {
 	// recursive group filter
 	if len(filter.Filter) > 0 {
 		for _, f := range filter.Filter {
-			subresult := peer.matchFilter(table, refs, inputRowLen, f, row, rowNum)
+			subresult := peer.matchFilter(table, refs, inputRowLen, &f, row, rowNum)
 			if subresult == false && filter.GroupOperator == And {
 				return false
 			}
@@ -341,9 +341,9 @@ func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, in
 	}
 	switch colType {
 	case StringCol:
-		return matchStringFilter(&filter, &value)
+		return matchStringFilter(filter, &value)
 	case CustomVarCol:
-		return matchCustomVarFilter(&filter, &value)
+		return matchCustomVarFilter(filter, &value)
 	case TimeCol:
 		fallthrough
 	case IntCol:
@@ -351,9 +351,9 @@ func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, in
 	case FloatCol:
 		valueA := NumberToFloat(value)
 		valueB := filter.FloatValue
-		return matchNumberFilter(&filter, valueA, valueB)
+		return matchNumberFilter(filter, valueA, valueB)
 	case StringListCol:
-		return matchStringListFilter(&filter, &value)
+		return matchStringListFilter(filter, &value)
 	}
 	log.Errorf("not implemented type: %v", filter.Column.Type)
 	return false

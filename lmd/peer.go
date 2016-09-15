@@ -858,7 +858,7 @@ func (peer *Peer) waitCondition(req *Request) bool {
 				close(c)
 				return
 			}
-			if peer.matchFilter(table, &refs, len(obj), req.WaitCondition[0], &obj, 0) {
+			if peer.matchFilter(table, &refs, len(obj), &req.WaitCondition[0], &obj, 0) {
 				// trigger update for all, wait conditions are run against the last object
 				// but multiple commands may have been sent
 				if req.Table == "hosts" {
