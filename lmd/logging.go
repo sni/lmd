@@ -32,14 +32,15 @@ func InitLogging(conf *Config) {
 	if err != nil {
 		panic(fmt.Sprintf("failed to initialize logger: %s", err.Error()))
 	}
-	log = factorlog.New(targetWriter, logFormatter)
 	var LogLevel = "Warn"
 	if conf.LogLevel != "" {
 		LogLevel = conf.LogLevel
 	}
+	logger := factorlog.New(targetWriter, logFormatter)
 	if strings.ToLower(LogLevel) == "off" {
-		log.SetMinMaxSeverity(factorlog.StringToSeverity("PANIC"), factorlog.StringToSeverity("PANIC"))
+		logger.SetMinMaxSeverity(factorlog.StringToSeverity("PANIC"), factorlog.StringToSeverity("PANIC"))
 	} else {
-		log.SetMinMaxSeverity(factorlog.StringToSeverity(strings.ToUpper(LogLevel)), factorlog.StringToSeverity("PANIC"))
+		logger.SetMinMaxSeverity(factorlog.StringToSeverity(strings.ToUpper(LogLevel)), factorlog.StringToSeverity("PANIC"))
 	}
+	log = logger
 }
