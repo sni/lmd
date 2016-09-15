@@ -35,13 +35,15 @@ type Connection struct {
 
 type Config struct {
 	Listen           []string
-	Updateinterval   int
+	Updateinterval   int64
 	Connections      []Connection
 	LogFile          string
 	LogLevel         string
 	NetTimeout       int
 	ListenPrometheus string
 	SkipSSLCheck     int
+	IdleTimeout      int64
+	IdleInterval     int64
 }
 
 var DataStore map[string]Peer
@@ -246,6 +248,12 @@ func setDefaults(conf *Config) {
 	}
 	if conf.Updateinterval <= 0 {
 		conf.Updateinterval = 2
+	}
+	if conf.IdleInterval <= 0 {
+		conf.IdleInterval = 600
+	}
+	if conf.IdleTimeout <= 0 {
+		conf.IdleTimeout = 120
 	}
 }
 

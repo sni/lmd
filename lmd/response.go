@@ -314,7 +314,16 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 		peer.PeerLock.Unlock()
 		return
 	}
-	peer.PeerLock.Unlock()
+	if peer.Status["Idling"].(bool) {
+		peer.Status["Idling"] = false
+		log.Infof("[%s] switched back to normal update interval", peer.Name)
+		peer.PeerLock.Unlock()
+		log.Debugf("[%s] spin up update", peer.Name)
+		peer.UpdateDeltaTables()
+		log.Debugf("[%s] spin up update done", peer.Name)
+	} else {
+		peer.PeerLock.Unlock()
+	}
 
 	// if a WaitTrigger is supplied, wait max ms till the condition is true
 	if req.WaitTrigger != "" {

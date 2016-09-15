@@ -120,6 +120,7 @@ func NewPeer(config Connection, waitGroup *sync.WaitGroup, shutdownChannel chan 
 	p.Status["BytesReceived"] = 0
 	p.Status["Querys"] = 0
 	p.Status["ReponseTime"] = 0
+	p.Status["Idling"] = false
 	return &p
 }
 
@@ -145,24 +146,49 @@ func (p *Peer) UpdateLoop() {
 		for {
 			select {
 			case <-p.shutdownChannel:
-				log.Infof("stopping peer %s", p.Name)
+				log.Debugf("[%s] stopping...", p.Name)
 				return
 			case <-c:
 				p.PeerLock.RLock()
-				lastUpdate := p.Status["LastUpdate"].(time.Time)
+				lastUpdate := p.Status["LastUpdate"].(time.Time).Unix()
+				lastQuery := p.Status["LastQuery"].(time.Time).Unix()
+				idling := p.Status["Idling"].(bool)
 				p.PeerLock.RUnlock()
+				now := time.Now().Unix()
+
+				if !idling && lastQuery < now-GlobalConfig.IdleTimeout {
+					log.Infof("[%s] switched to idle interval, last query: %s", p.Name, time.Unix(lastQuery, 0))
+					p.PeerLock.Lock()
+					p.Status["Idling"] = true
+					p.PeerLock.Unlock()
+					idling = true
+				}
+
 				currentMinute, _ := strconv.Atoi(time.Now().Format("4"))
-				if time.Now().Add(-1 * time.Duration(GlobalConfig.Updateinterval) * time.Second).After(lastUpdate) {
-					if !ok {
-						ok = p.InitAllTables()
-						lastFullUpdateMinute = currentMinute
-					} else {
-						if lastFullUpdateMinute != currentMinute {
-							ok = p.UpdateAllTables()
+				if idling {
+					// idle update interval
+					if now > lastUpdate+GlobalConfig.IdleInterval {
+						if !ok {
+							ok = p.InitAllTables()
+							lastFullUpdateMinute = currentMinute
 						} else {
 							ok = p.UpdateDeltaTables()
 						}
-						lastFullUpdateMinute = currentMinute
+					}
+				} else {
+					// normal update interval
+					if now > lastUpdate+GlobalConfig.Updateinterval {
+						if !ok {
+							ok = p.InitAllTables()
+							lastFullUpdateMinute = currentMinute
+						} else {
+							if lastFullUpdateMinute != currentMinute {
+								ok = p.UpdateAllTables()
+							} else {
+								ok = p.UpdateDeltaTables()
+							}
+							lastFullUpdateMinute = currentMinute
+						}
 					}
 				}
 				break
@@ -780,13 +806,14 @@ func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error)
 	case "services":
 		promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(res)))
 		break
-	case "stats":
+	case "status":
+		p.PeerLock.RLock()
 		if p.Status["ProgramStart"] != data[0][table.ColumnsIndex["program_start"]] {
 			log.Infof("[%s] site has been restarted, recreating objects", p.Name)
 			restartRequired = true
-			return
 		}
-		break
+		p.PeerLock.RUnlock()
+		return
 	}
 	return
 }

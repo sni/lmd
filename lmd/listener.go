@@ -82,6 +82,10 @@ func SendPeerCommands(req *Request) (err error) {
 			}
 			peer.PeerLock.Lock()
 			peer.Status["LastQuery"] = time.Now()
+			if peer.Status["Idling"].(bool) {
+				peer.Status["Idling"] = false
+				log.Infof("[%s] switched back to normal update interval", peer.Name)
+			}
 			peer.PeerLock.Unlock()
 			peer.Query(commandRequest)
 			// schedule immediate update

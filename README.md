@@ -129,10 +129,8 @@ TODO
 
 Some things are still not complete
 
-- Implement Idle Interval Updates
 - Check backend capabilities on first request
-- optimize delta updates, check max id and len of comments/downtimes and only continue if that differs
-- Implement sending multiple commands in one connection
+  - Add shinken specific columns
 - write huge logfile requests directly into a file
 
 

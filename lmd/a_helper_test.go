@@ -115,7 +115,7 @@ func SetupTestPeer() (peer *Peer) {
 
 	shutdownChannel = make(chan bool)
 	waitGroup = &sync.WaitGroup{}
-	peer = NewPeer(&Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", Id: "id0"}, waitGroup, shutdownChannel)
+	peer = NewPeer(Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", Id: "id0"}, waitGroup, shutdownChannel)
 	peer.Start()
 
 	// wait till backend is available

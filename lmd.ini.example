@@ -15,10 +15,17 @@ LogLevel        = "Info"
 # Refresh remote sites every x seconds
 # fast updates are ok, only changed hosts and services get fetched
 # and once a minute everything is updated
-UpdateInterval  = 3
+UpdateInterval = 3
+
+# After IdleTimeout seconds of no activity (incoming querys for this backend)
+# the slower update interval of IdleInterval seconds will be used.
+# Don't set the timeout to low, clients will have to wait for a "spin up"
+# query on the first access after idling.
+IdleTimeout = 120
+IdleInterval = 600
 
 # Connection timeout for remote tcp connections
-NetTimeout  = 30
+NetTimeout = 30
 
 # Skip ssl certificate verification on https remote backends.
 # Set to 1 to disabled any ssl verification checks.
