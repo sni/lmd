@@ -348,8 +348,11 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 
 		// count stats
 		if statsLen > 0 {
-			for i, s := range res.Request.Stats {
-				if s.StatsType != Counter || peer.matchFilter(table, &refs, inputRowLen, &s, &row, j) {
+			for i, _ := range res.Request.Stats {
+				s := &(res.Request.Stats[i])
+				// avg/sum/min/max are passed through, they dont have filter
+				// counter must match their filter
+				if s.StatsType != Counter || peer.matchFilter(table, &refs, inputRowLen, s, &row, j) {
 					val := peer.getRowValue(s.Column.Index, &row, j, table, &refs, inputRowLen)
 					switch s.StatsType {
 					case Counter:
@@ -374,7 +377,6 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 						break
 					}
 					s.StatsCount++
-					res.Request.Stats[i] = s
 				}
 			}
 			continue
