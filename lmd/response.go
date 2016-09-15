@@ -307,22 +307,22 @@ func BuildResponseIndexes(req *Request, table *Table) (indexes []int, columns []
 
 func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow int, indexes *[]int) {
 	log.Tracef("BuildLocalResponseDataForPeer: %s", peer.Name)
-	peer.Lock.Lock()
+	peer.PeerLock.Lock()
 	peer.Status["LastQuery"] = time.Now()
 	if peer.Status["PeerStatus"].(PeerStatus) == PeerStatusDown && req.Table != "backends" {
 		res.Failed[peer.Id] = fmt.Sprintf("%v", peer.Status["LastError"])
-		peer.Lock.Unlock()
+		peer.PeerLock.Unlock()
 		return
 	}
-	peer.Lock.Unlock()
+	peer.PeerLock.Unlock()
 
 	// if a WaitTrigger is supplied, wait max ms till the condition is true
 	if req.WaitTrigger != "" {
 		peer.waitCondition(req)
 	}
 
-	peer.Lock.RLock()
-	defer peer.Lock.RUnlock()
+	peer.DataLock.RLock()
+	defer peer.DataLock.RUnlock()
 
 	table := peer.Tables[req.Table].Table
 	data := peer.Tables[req.Table].Data

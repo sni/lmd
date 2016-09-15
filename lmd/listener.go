@@ -80,14 +80,14 @@ func SendPeerCommands(req *Request) (err error) {
 			commandRequest := &Request{
 				Command: req.Command,
 			}
-			peer.Lock.Lock()
+			peer.PeerLock.Lock()
 			peer.Status["LastQuery"] = time.Now()
-			peer.Lock.Unlock()
+			peer.PeerLock.Unlock()
 			peer.Query(commandRequest)
 			// schedule immediate update
-			peer.Lock.Lock()
+			peer.PeerLock.Lock()
 			peer.Status["LastUpdate"] = time.Now().Add(-1 * time.Duration(60) * time.Second)
-			peer.Lock.Unlock()
+			peer.PeerLock.Unlock()
 		}(p)
 	}
 	return

@@ -32,7 +32,8 @@ type Peer struct {
 	Name            string
 	Id              string
 	Source          []string
-	Lock            *sync.RWMutex
+	PeerLock        *sync.RWMutex
+	DataLock        *sync.RWMutex
 	Tables          map[string]DataTable
 	Status          map[string]interface{}
 	ErrorCount      int
@@ -100,7 +101,8 @@ func NewPeer(config *Connection, waitGroup *sync.WaitGroup, shutdownChannel chan
 		ErrorCount:      0,
 		waitGroup:       waitGroup,
 		shutdownChannel: shutdownChannel,
-		Lock:            new(sync.RWMutex),
+		PeerLock:        new(sync.RWMutex),
+		DataLock:        new(sync.RWMutex),
 		Config:          config,
 	}
 	p.Status["PeerKey"] = p.Id
@@ -126,8 +128,6 @@ func (p *Peer) Start() (_, err error) {
 		defer p.waitGroup.Done()
 		p.waitGroup.Add(1)
 		log.Infof("[%s] starting connection", p.Name)
-		// TODO: check if locking each peer to a os thread changes anything
-		//runtime.LockOSThread()
 		p.UpdateLoop()
 	}()
 
@@ -147,9 +147,9 @@ func (p *Peer) UpdateLoop() {
 				log.Infof("stopping peer %s", p.Name)
 				return
 			case <-c:
-				p.Lock.RLock()
+				p.PeerLock.RLock()
 				lastUpdate := p.Status["LastUpdate"].(time.Time)
-				p.Lock.RUnlock()
+				p.PeerLock.RUnlock()
 				currentMinute, _ := strconv.Atoi(time.Now().Format("4"))
 				if time.Now().Add(-1 * time.Duration(GlobalConfig.Updateinterval) * time.Second).After(lastUpdate) {
 					if !ok {
@@ -172,9 +172,9 @@ func (p *Peer) UpdateLoop() {
 
 func (p *Peer) InitAllTables() bool {
 	var err error
-	p.Lock.Lock()
+	p.PeerLock.Lock()
 	p.Status["LastUpdate"] = time.Now()
-	p.Lock.Unlock()
+	p.PeerLock.Unlock()
 	t1 := time.Now()
 	for _, n := range Objects.Order {
 		t := Objects.Tables[n]
@@ -183,23 +183,25 @@ func (p *Peer) InitAllTables() bool {
 			return false
 		}
 	}
-	p.Lock.Lock()
+	p.PeerLock.Lock()
 	// this may happen if we query another lmd daemon which has no backends ready yet
 	if len(p.Tables["status"].Data) == 0 {
 		p.Status["PeerStatus"] = PeerStatusWarning
 		p.Status["LastError"] = "peered partner not ready yet"
-		p.Lock.Unlock()
+		p.PeerLock.Unlock()
 		return false
 	}
+	p.DataLock.RLock()
 	p.Status["ProgramStart"] = p.Tables["status"].Data[0][p.Tables["status"].Table.ColumnsIndex["program_start"]]
+	p.DataLock.RUnlock()
 	duration := time.Since(t1)
 	p.Status["ReponseTime"] = duration.Seconds()
-	p.Lock.Unlock()
+	p.PeerLock.Unlock()
 	log.Infof("[%s] objects created in: %s", p.Name, duration.String())
 
 	if p.Status["PeerStatus"].(PeerStatus) != PeerStatusUp {
 		// Reset errors
-		p.Lock.Lock()
+		p.PeerLock.Lock()
 		if p.Status["PeerStatus"].(PeerStatus) == PeerStatusDown {
 			log.Infof("[%s] site is back online", p.Name)
 		}
@@ -207,7 +209,7 @@ func (p *Peer) InitAllTables() bool {
 		p.Status["LastOnline"] = time.Now()
 		p.ErrorCount = 0
 		p.Status["PeerStatus"] = PeerStatusUp
-		p.Lock.Unlock()
+		p.PeerLock.Unlock()
 	}
 	promPeerUpdates.WithLabelValues(p.Name).Inc()
 	promPeerUpdateDuration.WithLabelValues(p.Name).Set(duration.Seconds())
@@ -236,12 +238,12 @@ func (p *Peer) UpdateAllTables() bool {
 		return p.InitAllTables()
 	}
 	duration := time.Since(t1)
-	p.Lock.Lock()
+	p.PeerLock.Lock()
 	p.Status["ReponseTime"] = duration.Seconds()
 	p.Status["LastUpdate"] = time.Now()
 	p.Status["PeerStatus"] = PeerStatusUp
 	p.Status["LastError"] = ""
-	p.Lock.Unlock()
+	p.PeerLock.Unlock()
 	log.Infof("[%s] update complete in: %s", p.Name, duration.String())
 	promPeerUpdates.WithLabelValues(p.Name).Inc()
 	promPeerUpdateDuration.WithLabelValues(p.Name).Set(duration.Seconds())
@@ -274,10 +276,10 @@ func (p *Peer) UpdateDeltaTables() bool {
 		return false
 	}
 	log.Debugf("[%s] delta update complete in: %s", p.Name, duration.String())
-	p.Lock.Lock()
+	p.PeerLock.Lock()
 	p.Status["LastUpdate"] = time.Now()
 	p.Status["ReponseTime"] = duration.Seconds()
-	p.Lock.Unlock()
+	p.PeerLock.Unlock()
 	promPeerUpdates.WithLabelValues(p.Name).Inc()
 	promPeerUpdateDuration.WithLabelValues(p.Name).Set(duration.Seconds())
 	return true
@@ -301,7 +303,7 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	if err != nil {
 		return
 	}
-	p.Lock.Lock()
+	p.DataLock.Lock()
 	nameindex := p.Tables[table.Name].Index
 	fieldIndex := len(keys) - 1
 	for _, resRow := range res {
@@ -310,7 +312,7 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 			dataRow[k] = resRow[j]
 		}
 	}
-	p.Lock.Unlock()
+	p.DataLock.Unlock()
 	promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(res)))
 	log.Debugf("[%s] updated %d hosts", p.Name, len(res))
 	return
@@ -334,7 +336,7 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	if err != nil {
 		return
 	}
-	p.Lock.Lock()
+	p.DataLock.Lock()
 	nameindex := p.Tables[table.Name].Index
 	fieldIndex1 := len(keys) - 2
 	fieldIndex2 := len(keys) - 1
@@ -344,7 +346,7 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 			dataRow[k] = resRow[j]
 		}
 	}
-	p.Lock.Unlock()
+	p.DataLock.Unlock()
 	promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(res)))
 	log.Debugf("[%s] updated %d services", p.Name, len(res))
 	return
@@ -363,7 +365,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	if err != nil {
 		return
 	}
-	p.Lock.Lock()
+	p.DataLock.Lock()
 	idIndex := p.Tables[table.Name].Index
 	fieldIndex := 0
 	missingIds := []string{}
@@ -390,7 +392,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 		}
 	}
 	p.Tables[table.Name] = data
-	p.Lock.Unlock()
+	p.DataLock.Unlock()
 
 	if len(missingIds) > 0 {
 		keys := table.GetInitialKeys()
@@ -406,7 +408,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 			return
 		}
 		fieldIndex = table.ColumnsIndex["id"]
-		p.Lock.Lock()
+		p.DataLock.Lock()
 		data := p.Tables[table.Name]
 		for _, resRow := range res {
 			id := fmt.Sprintf("%v", resRow[fieldIndex])
@@ -414,7 +416,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 			data.AddItem(&resRow)
 		}
 		p.Tables[table.Name] = data
-		p.Lock.Unlock()
+		p.DataLock.Unlock()
 	}
 
 	log.Debugf("[%s] updated %s", p.Name, name)
@@ -434,12 +436,12 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 	query := fmt.Sprintf(req.String())
 	log.Tracef("[%s] query: %s", p.Name, query)
 
-	p.Lock.Lock()
+	p.PeerLock.Lock()
 	p.Status["Querys"] = p.Status["Querys"].(int) + 1
 	p.Status["BytesSend"] = p.Status["BytesSend"].(int) + len(query)
 	promPeerBytesSend.WithLabelValues(p.Name).Set(float64(p.Status["BytesSend"].(int)))
 	peerAddr := p.Status["PeerAddr"].(string)
-	p.Lock.Unlock()
+	p.PeerLock.Unlock()
 
 	var buf bytes.Buffer
 	if connType == "http" {
@@ -473,10 +475,10 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 		resBytes = resBytes[16:]
 	}
 
-	p.Lock.Lock()
+	p.PeerLock.Lock()
 	p.Status["BytesReceived"] = p.Status["BytesReceived"].(int) + len(resBytes)
 	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(p.Status["BytesReceived"].(int)))
-	p.Lock.Unlock()
+	p.PeerLock.Unlock()
 
 	if req.OutputFormat == "wrapped_json" {
 		if len(resBytes) == 0 || string(resBytes[0]) != "{" {
@@ -559,9 +561,9 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 	numSources := len(p.Source)
 
 	for x := 0; x < numSources; x++ {
-		p.Lock.RLock()
+		p.PeerLock.RLock()
 		peerAddr := p.Status["PeerAddr"].(string)
-		p.Lock.RUnlock()
+		p.PeerLock.RUnlock()
 		connType = "unix"
 		if strings.HasPrefix(peerAddr, "http") {
 			connType = "http"
@@ -620,10 +622,10 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 
 func (p *Peer) setNextAddrFromErr(err error) {
 	promPeerFailedConnections.WithLabelValues(p.Name).Inc()
-	p.Lock.Lock()
+	p.PeerLock.Lock()
 	peerAddr := p.Status["PeerAddr"].(string)
 	log.Debugf("[%s] connection error %s: %s", peerAddr, p.Name, err)
-	defer p.Lock.Unlock()
+	defer p.PeerLock.Unlock()
 	p.Status["LastError"] = err.Error()
 	p.ErrorCount++
 
@@ -667,10 +669,12 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 
 	// complete virtual table ends here
 	if len(keys) == 0 {
-		p.Lock.Lock()
+		p.DataLock.Lock()
 		p.Tables[table.Name] = DataTable{Table: table, Data: make([][]interface{}, 1), Refs: refs, Index: index}
+		p.DataLock.Unlock()
+		p.PeerLock.Lock()
 		p.Status["LastUpdate"] = time.Now()
-		p.Lock.Unlock()
+		p.PeerLock.Unlock()
 		return
 	}
 
@@ -730,10 +734,12 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 			index[fmt.Sprintf("%v", row[indexField])] = row
 		}
 	}
-	p.Lock.Lock()
+	p.DataLock.Lock()
 	p.Tables[table.Name] = DataTable{Table: table, Data: res, Refs: refs, Index: index}
+	p.DataLock.Unlock()
+	p.PeerLock.Lock()
 	p.Status["LastUpdate"] = time.Now()
-	p.Lock.Unlock()
+	p.PeerLock.Unlock()
 	return
 }
 
@@ -757,14 +763,14 @@ func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error)
 	if err != nil {
 		return
 	}
-	p.Lock.Lock()
+	p.DataLock.Lock()
 	data := p.Tables[table.Name].Data
 	for i, row := range res {
 		for j, k := range table.DynamicColCacheIndexes {
 			data[i][k] = row[j]
 		}
 	}
-	p.Lock.Unlock()
+	p.DataLock.Unlock()
 
 	switch table.Name {
 	case "hosts":
