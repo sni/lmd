@@ -900,9 +900,12 @@ func (peer *Peer) waitCondition(req *Request) bool {
 }
 
 func (p *Peer) HttpQuery(peerAddr string, query string) (res []byte, err error) {
+	insecure := false
+	if GlobalConfig.SkipSSLCheck == 1 {
+		insecure = true
+	}
 	tr := &http.Transport{
-		// TODO: add config option
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: insecure},
 	}
 	var netClient = &http.Client{
 		Timeout:   time.Second * 120,

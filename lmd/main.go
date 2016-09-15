@@ -41,6 +41,7 @@ type Config struct {
 	LogLevel         string
 	NetTimeout       int
 	ListenPrometheus string
+	SkipSSLCheck     int
 }
 
 var DataStore map[string]Peer
