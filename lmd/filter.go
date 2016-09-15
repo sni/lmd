@@ -332,9 +332,6 @@ func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, in
 
 	// normal field filter
 	value := peer.getRowValue(filter.Column.Index, row, rowNum, table, refs, inputRowLen)
-	if value == nil {
-		panic("shouldn happen")
-	}
 	colType := filter.Column.Type
 	if colType == VirtCol {
 		colType = VirtKeyMap[filter.Column.Name].Type
