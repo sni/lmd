@@ -683,6 +683,15 @@ func (p *Peer) setNextAddrFromErr(err error) {
 	if lastOnline < now-int64(GlobalConfig.StaleBackendTimeout) || (p.ErrorCount > numSources && lastOnline <= 0) {
 		if p.Status["PeerStatus"].(PeerStatus) != PeerStatusDown {
 			log.Warnf("[%s] site went offline: %s", p.Name, err.Error())
+			// clear existing data from memory
+			p.DataLock.Lock()
+			for name, _ := range p.Tables {
+				table := p.Tables[name]
+				table.Data = make([][]interface{}, 0)
+				table.Refs = make(map[string][][]interface{}, 0)
+				table.Index = make(map[string][]interface{}, 0)
+			}
+			p.DataLock.Unlock()
 		}
 		p.Status["PeerStatus"] = PeerStatusDown
 	}
@@ -968,6 +977,9 @@ func (p *Peer) HttpQuery(peerAddr string, query string) (res []byte, err error) 
 		return
 	}
 	if len(contents) < 1 || contents[0] != '{' {
+		if len(contents) > 50 {
+			contents = contents[:50]
+		}
 		err = &PeerError{msg: fmt.Sprintf("site did not return a proper response: %s", contents), kind: ResponseError}
 		return
 	}
