@@ -1,9 +1,11 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -70,6 +72,7 @@ var flagLogFile string
 var flagPidfile string
 
 var once sync.Once
+var netClient *http.Client
 
 func main() {
 	flag.Var(&flagConfigFile, "c", "set location for config file, can be specified multiple times")
@@ -160,6 +163,24 @@ func mainLoop() {
 	InitObjects()
 
 	prometheusListener := InitPrometheus()
+
+	// initialize http client
+	insecure := false
+	if GlobalConfig.SkipSSLCheck == 1 {
+		insecure = true
+	}
+	tr := &http.Transport{
+		Dial: (&net.Dialer{
+			Timeout:   10 * time.Second,
+			KeepAlive: 10 * time.Second,
+		}).Dial,
+		TLSHandshakeTimeout: 10 * time.Second,
+		TLSClientConfig:     &tls.Config{InsecureSkipVerify: insecure},
+	}
+	netClient = &http.Client{
+		Timeout:   time.Second * 30,
+		Transport: tr,
+	}
 
 	// start local listeners
 	for _, listen := range GlobalConfig.Listen {

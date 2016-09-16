@@ -3,14 +3,12 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
-	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -925,17 +923,6 @@ func (peer *Peer) waitCondition(req *Request) bool {
 }
 
 func (p *Peer) HttpQuery(peerAddr string, query string) (res []byte, err error) {
-	insecure := false
-	if GlobalConfig.SkipSSLCheck == 1 {
-		insecure = true
-	}
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: insecure},
-	}
-	var netClient = &http.Client{
-		Timeout:   time.Second * 120,
-		Transport: tr,
-	}
 	options := make(map[string]interface{})
 	if p.Config.RemoteName != "" {
 		options["backends"] = []string{p.Config.RemoteName}
@@ -952,9 +939,13 @@ func (p *Peer) HttpQuery(peerAddr string, query string) (res []byte, err error) 
 	}
 	if response.StatusCode != 200 {
 		err = &PeerError{msg: fmt.Sprintf("http request failed: %s", response.Status), kind: ResponseError}
+		io.Copy(ioutil.Discard, response.Body)
+		response.Body.Close()
 		return
 	}
 	contents, hErr := ioutil.ReadAll(response.Body)
+	io.Copy(ioutil.Discard, response.Body)
+	response.Body.Close()
 	if hErr != nil {
 		err = hErr
 		return
