@@ -218,3 +218,13 @@ ResponseHeader: fixed16`)
 
 	StopTestPeer()
 }
+
+func BenchmarkNumberToFloat(b *testing.B) {
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			NumberToFloat(123.1231123123)
+			NumberToFloat(1231123123)
+			NumberToFloat(true)
+		}
+	})
+}

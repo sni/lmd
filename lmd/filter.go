@@ -331,7 +331,12 @@ func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, in
 	}
 
 	// normal field filter
-	value := peer.getRowValue(filter.Column.Index, row, rowNum, table, refs, inputRowLen)
+	var value interface{}
+	if filter.Column.Index < inputRowLen {
+		value = (*row)[filter.Column.Index]
+	} else {
+		value = peer.getRowValue(filter.Column.Index, row, rowNum, table, refs, inputRowLen)
+	}
 	colType := filter.Column.Type
 	if colType == VirtCol {
 		colType = VirtKeyMap[filter.Column.Name].Type
@@ -346,9 +351,10 @@ func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, in
 	case IntCol:
 		fallthrough
 	case FloatCol:
-		valueA := NumberToFloat(value)
-		valueB := filter.FloatValue
-		return matchNumberFilter(filter, valueA, valueB)
+		if v, ok := value.(float64); ok {
+			return matchNumberFilter(filter, v, filter.FloatValue)
+		}
+		return matchNumberFilter(filter, NumberToFloat(value), filter.FloatValue)
 	case StringListCol:
 		return matchStringListFilter(filter, &value)
 	}
