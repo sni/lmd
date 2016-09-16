@@ -271,6 +271,7 @@ func (p *Peer) UpdateAllTables() bool {
 	p.Status["ReponseTime"] = duration.Seconds()
 	p.Status["LastUpdate"] = time.Now()
 	p.Status["LastFullUpdate"] = time.Now()
+	p.Status["LastOnline"] = time.Now()
 	p.Status["PeerStatus"] = PeerStatusUp
 	p.Status["LastError"] = ""
 	p.PeerLock.Unlock()
@@ -308,6 +309,7 @@ func (p *Peer) UpdateDeltaTables() bool {
 	log.Debugf("[%s] delta update complete in: %s", p.Name, duration.String())
 	p.PeerLock.Lock()
 	p.Status["LastUpdate"] = time.Now()
+	p.Status["LastOnline"] = time.Now()
 	p.Status["ReponseTime"] = duration.Seconds()
 	p.PeerLock.Unlock()
 	promPeerUpdates.WithLabelValues(p.Name).Inc()
@@ -675,7 +677,10 @@ func (p *Peer) setNextAddrFromErr(err error) {
 	if p.Status["PeerStatus"].(PeerStatus) == PeerStatusUp || p.Status["PeerStatus"].(PeerStatus) == PeerStatusPending {
 		p.Status["PeerStatus"] = PeerStatusWarning
 	}
-	if p.ErrorCount > numSources*2 {
+	now := time.Now().Unix()
+	lastOnline := p.Status["LastOnline"].(time.Time).Unix()
+	log.Debugf("[%s] last online: %s", p.Name, time.Unix(lastOnline, 0))
+	if lastOnline < now-int64(GlobalConfig.StaleBackendTimeout) || (p.ErrorCount > numSources && lastOnline <= 0) {
 		if p.Status["PeerStatus"].(PeerStatus) != PeerStatusDown {
 			log.Warnf("[%s] site went offline: %s", p.Name, err.Error())
 		}
@@ -861,7 +866,11 @@ func (peer *Peer) getRowValue(index int, row *[]interface{}, rowNum int, table *
 			case StringCol:
 				return value
 			case TimeCol:
-				return value.(time.Time).Unix()
+				val := value.(time.Time).Unix()
+				if val < 0 {
+					val = 0
+				}
+				return val
 			default:
 				log.Panicf("not implemented")
 			}
