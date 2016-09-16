@@ -427,7 +427,7 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 	return
 }
 
-func SendResponse(c net.Conn, res *Response) (err error) {
+func SendResponse(c net.Conn, res *Response) (size int, err error) {
 	resBytes := []byte{}
 	if res.Request.SendColumnsHeader {
 		var result ResultData = make([][]interface{}, 0)
@@ -473,7 +473,7 @@ func SendResponse(c net.Conn, res *Response) (err error) {
 		}
 	}
 
-	size := len(resBytes) + 1
+	size = len(resBytes) + 1
 	if res.Request.ResponseFixed16 {
 		log.Debugf("write: %s", fmt.Sprintf("%d %11d", res.Code, size))
 		_, err = c.Write([]byte(fmt.Sprintf("%d %11d\n", res.Code, size)))

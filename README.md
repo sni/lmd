@@ -133,6 +133,7 @@ Some things are still not complete
   - Add shinken specific columns
 - write huge logfile requests directly into a file
 - test ipv6 connections
+- make stale backend timeout configureable
 
 
 Ideas

@@ -24,11 +24,13 @@ func queryServer(c net.Conn) error {
 
 		reqs, err := ParseRequests(c)
 		if err != nil {
-			return SendResponse(c, &Response{Code: 400, Request: &Request{}, Error: err})
+			SendResponse(c, &Response{Code: 400, Request: &Request{}, Error: err})
+			return err
 		}
 		if len(reqs) == 0 {
 			err = errors.New("bad request: empty request")
-			return SendResponse(c, &Response{Code: 400, Request: &Request{}, Error: err})
+			SendResponse(c, &Response{Code: 400, Request: &Request{}, Error: err})
+			return err
 		}
 		for _, req := range reqs {
 			if req.Command != "" {
@@ -48,12 +50,13 @@ func queryServer(c net.Conn) error {
 				}
 				response, err := BuildResponse(req)
 				if err != nil {
-					return SendResponse(c, &Response{Code: 400, Request: req, Error: err})
+					SendResponse(c, &Response{Code: 400, Request: req, Error: err})
+					return err
 				}
 
-				err = SendResponse(c, response)
+				size, err := SendResponse(c, response)
 				duration := time.Since(t1)
-				log.Infof("incoming %s request from %s to %s finished in %s", req.Table, remote, c.LocalAddr().String(), duration.String())
+				log.Infof("incoming %s request from %s to %s finished in %s, size: %d kB", req.Table, remote, c.LocalAddr().String(), duration.String(), size/1024)
 				if err != nil {
 					return err
 				}

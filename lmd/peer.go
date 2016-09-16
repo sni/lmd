@@ -110,6 +110,7 @@ func NewPeer(config Connection, waitGroup *sync.WaitGroup, shutdownChannel chan 
 	p.Status["PeerAddr"] = p.Source[p.Status["CurPeerAddrNum"].(int)]
 	p.Status["PeerStatus"] = PeerStatusPending
 	p.Status["LastUpdate"] = time.Now()
+	p.Status["LastFullUpdate"] = time.Now()
 	p.Status["LastQuery"] = time.Now()
 	p.Status["LastError"] = "connecting..."
 	p.Status["LastOnline"] = time.Time{}
@@ -139,7 +140,6 @@ func (p *Peer) UpdateLoop() {
 		ok := p.InitAllTables()
 		lastFullUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
 
-		// TODO: implement idle_interval update (maybe one minute) and the normal update interval
 		c := time.Tick(500 * time.Millisecond)
 		for {
 			select {
@@ -150,6 +150,7 @@ func (p *Peer) UpdateLoop() {
 				p.PeerLock.RLock()
 				lastUpdate := p.Status["LastUpdate"].(time.Time).Unix()
 				lastQuery := p.Status["LastQuery"].(time.Time).Unix()
+				lastFullUpdate := p.Status["LastFullUpdate"].(time.Time).Unix()
 				idling := p.Status["Idling"].(bool)
 				p.PeerLock.RUnlock()
 				now := time.Now().Unix()
@@ -174,18 +175,20 @@ func (p *Peer) UpdateLoop() {
 						}
 					}
 				} else {
-					// normal update interval
-					if now > lastUpdate+GlobalConfig.Updateinterval {
+					// full update interval
+					if GlobalConfig.FullUpdateInterval > 0 && now > lastFullUpdate+GlobalConfig.FullUpdateInterval {
+					} else if now > lastUpdate+GlobalConfig.Updateinterval {
+						// normal update interval
 						if !ok {
 							ok = p.InitAllTables()
 							lastFullUpdateMinute = currentMinute
 						} else {
 							if lastFullUpdateMinute != currentMinute {
-								ok = p.UpdateAllTables()
-							} else {
-								ok = p.UpdateDeltaTables()
+								//ok = p.UpdateAllTables()
+								p.UpdateObjectByType(Objects.Tables["timeperiods"])
+								lastFullUpdateMinute = currentMinute
 							}
-							lastFullUpdateMinute = currentMinute
+							ok = p.UpdateDeltaTables()
 						}
 					}
 				}
@@ -199,6 +202,7 @@ func (p *Peer) InitAllTables() bool {
 	var err error
 	p.PeerLock.Lock()
 	p.Status["LastUpdate"] = time.Now()
+	p.Status["LastFullUpdate"] = time.Now()
 	p.PeerLock.Unlock()
 	t1 := time.Now()
 	for _, n := range Objects.Order {
@@ -266,6 +270,7 @@ func (p *Peer) UpdateAllTables() bool {
 	p.PeerLock.Lock()
 	p.Status["ReponseTime"] = duration.Seconds()
 	p.Status["LastUpdate"] = time.Now()
+	p.Status["LastFullUpdate"] = time.Now()
 	p.Status["PeerStatus"] = PeerStatusUp
 	p.Status["LastError"] = ""
 	p.PeerLock.Unlock()
@@ -502,6 +507,7 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 
 	p.PeerLock.Lock()
 	p.Status["BytesReceived"] = p.Status["BytesReceived"].(int) + len(resBytes)
+	log.Debugf("[%s] got %s answer: size: %d kB", p.Name, req.Table, len(resBytes)/1024)
 	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(p.Status["BytesReceived"].(int)))
 	p.PeerLock.Unlock()
 
@@ -697,9 +703,6 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 		p.DataLock.Lock()
 		p.Tables[table.Name] = DataTable{Table: table, Data: make([][]interface{}, 1), Refs: refs, Index: index}
 		p.DataLock.Unlock()
-		p.PeerLock.Lock()
-		p.Status["LastUpdate"] = time.Now()
-		p.PeerLock.Unlock()
 		return
 	}
 
@@ -764,6 +767,7 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	p.DataLock.Unlock()
 	p.PeerLock.Lock()
 	p.Status["LastUpdate"] = time.Now()
+	p.Status["LastFullUpdate"] = time.Now()
 	p.PeerLock.Unlock()
 	return
 }
