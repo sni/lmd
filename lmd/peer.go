@@ -605,13 +605,13 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 			break
 		case "http":
 			// test at least basic tcp connect
-			url, uErr := url.Parse(peerAddr)
+			uri, uErr := url.Parse(peerAddr)
 			if uErr != nil {
 				err = uErr
 			}
-			host := url.Host
+			host := uri.Host
 			if !strings.Contains(host, ":") {
-				switch url.Scheme {
+				switch uri.Scheme {
 				case "http":
 					host = host + ":80"
 					break
@@ -619,14 +619,12 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 					host = host + ":443"
 					break
 				default:
-					err = &PeerError{msg: fmt.Sprintf("unknown scheme: %s", url.Scheme), kind: ConnectionError}
+					err = &PeerError{msg: fmt.Sprintf("unknown scheme: %s", uri.Scheme), kind: ConnectionError}
 					break
 				}
 			}
 			conn, err = net.DialTimeout("tcp", host, time.Duration(GlobalConfig.NetTimeout)*time.Second)
-			if err == nil {
-				conn.Close()
-			}
+			conn.Close()
 			conn = nil
 			break
 		}

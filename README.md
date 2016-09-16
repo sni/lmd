@@ -132,6 +132,7 @@ Some things are still not complete
 - Check backend capabilities on first request
   - Add shinken specific columns
 - write huge logfile requests directly into a file
+- test ipv6 connections
 
 
 Ideas
