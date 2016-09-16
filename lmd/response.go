@@ -314,7 +314,7 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 		peer.PeerLock.Unlock()
 		return
 	}
-	if peer.Status["Idling"].(bool) {
+	if peer.Status["Idling"].(bool) && req.Table != "backends" {
 		peer.Status["Idling"] = false
 		log.Infof("[%s] switched back to normal update interval", peer.Name)
 		peer.PeerLock.Unlock()
