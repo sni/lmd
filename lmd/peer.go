@@ -622,7 +622,9 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 				}
 			}
 			conn, err = net.DialTimeout("tcp", host, time.Duration(GlobalConfig.NetTimeout)*time.Second)
-			conn.Close()
+			if conn != nil {
+				conn.Close()
+			}
 			conn = nil
 			break
 		}
@@ -818,7 +820,9 @@ func (peer *Peer) getRowValue(index int, row *[]interface{}, rowNum int, table *
 	if index >= inputRowLen {
 		col := table.Columns[index]
 		if col.Type == VirtCol {
+			peer.PeerLock.RLock()
 			value, ok := peer.Status[VirtKeyMap[col.Name].Key]
+			peer.PeerLock.RUnlock()
 			if !ok {
 				switch col.Name {
 				case "last_state_change_order":
