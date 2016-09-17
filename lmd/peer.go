@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/url"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,12 +20,22 @@ import (
 
 var ReResponseHeader = regexp.MustCompile(`^(\d+)\s+(\d+)$`)
 var ReHttpTooOld = regexp.MustCompile(`Can.t locate object method`)
+var ReShinkenVersion = regexp.MustCompile(`-shinken$`)
 
+type DataRow struct {
+	Index         int
+	StrData       []string
+	StrListData   [][]string
+	StrHashData   []map[string]string
+	FloatData     []float64
+	FloatListData [][]float64
+	InterfaceData []interface{}
+	Ref           map[string]*DataRow
+}
 type DataTable struct {
 	Table *Table
-	Data  [][]interface{}
-	Refs  map[string][][]interface{}
-	Index map[string][]interface{}
+	Data  []DataRow
+	Index map[string]*DataRow
 }
 
 type Peer struct {
@@ -39,6 +50,7 @@ type Peer struct {
 	waitGroup       *sync.WaitGroup
 	shutdownChannel chan bool
 	Config          Connection
+	Flags           OptionalFlags
 }
 
 type PeerStatus int
@@ -55,7 +67,6 @@ type PeerErrorType int
 
 const (
 	ConnectionError PeerErrorType = iota
-	RequestError
 	ResponseError
 )
 
@@ -74,15 +85,18 @@ type HttpResult struct {
 func (e *PeerError) Error() string       { return e.msg }
 func (e *PeerError) Type() PeerErrorType { return e.kind }
 
-func (d *DataTable) AddItem(row *[]interface{}) {
+func (d *DataTable) AddItem(row *DataRow) {
 	d.Data = append(d.Data, *row)
+	row.Index = d.Data[len(d.Data)-1].Index + 1
 	return
 }
 
-func (d *DataTable) RemoveItem(row []interface{}) {
+func (d *DataTable) RemoveItem(row *DataRow) {
 	for i, r := range d.Data {
-		if fmt.Sprintf("%p", r) == fmt.Sprintf("%p", row) {
+		if r.Index == row.Index {
 			d.Data = append(d.Data[:i], d.Data[i+1:]...)
+			// TODO: check
+			//delete(d.Index, fmt.Sprintf("%v", r.Index))
 			return
 		}
 	}
@@ -124,7 +138,7 @@ func NewPeer(config Connection, waitGroup *sync.WaitGroup, shutdownChannel chan 
 }
 
 // create initial objects
-func (p *Peer) Start() (_, err error) {
+func (p *Peer) Start() {
 	go func() {
 		defer p.waitGroup.Done()
 		p.waitGroup.Add(1)
@@ -221,7 +235,7 @@ func (p *Peer) InitAllTables() bool {
 		return false
 	}
 	p.DataLock.RLock()
-	p.Status["ProgramStart"] = p.Tables["status"].Data[0][p.Tables["status"].Table.ColumnsIndex["program_start"]]
+	p.Status["ProgramStart"] = p.Tables["status"].Data[0].FloatData[p.Tables["status"].Table.GetColumn("program_start").Index]
 	p.DataLock.RUnlock()
 	duration := time.Since(t1)
 	p.Status["ReponseTime"] = duration.Seconds()
@@ -320,7 +334,8 @@ func (p *Peer) UpdateDeltaTables() bool {
 func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	// update changed hosts
 	table := Objects.Tables["hosts"]
-	keys := append(table.DynamicColCacheNames, "name")
+	keys, columns := table.GetDynamicColumns(p.Flags)
+	keys = append(keys, "name")
 	if filterStr == "" {
 		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", p.Status["LastUpdate"].(time.Time).Unix())
 	}
@@ -339,10 +354,7 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	nameindex := p.Tables[table.Name].Index
 	fieldIndex := len(keys) - 1
 	for _, resRow := range res {
-		dataRow := nameindex[resRow[fieldIndex].(string)]
-		for j, k := range table.DynamicColCacheIndexes {
-			dataRow[k] = resRow[j]
-		}
+		nameindex[resRow[fieldIndex].(string)].UpdateDataRow(&resRow, &columns)
 	}
 	p.DataLock.Unlock()
 	promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(res)))
@@ -353,7 +365,8 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	// update changed services
 	table := Objects.Tables["services"]
-	keys := append(table.DynamicColCacheNames, []string{"host_name", "description"}...)
+	keys, columns := table.GetDynamicColumns(p.Flags)
+	keys = append(keys, []string{"host_name", "description"}...)
 	if filterStr == "" {
 		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", p.Status["LastUpdate"].(time.Time).Unix())
 	}
@@ -373,10 +386,7 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	fieldIndex1 := len(keys) - 2
 	fieldIndex2 := len(keys) - 1
 	for _, resRow := range res {
-		dataRow := nameindex[resRow[fieldIndex1].(string)+";"+resRow[fieldIndex2].(string)]
-		for j, k := range table.DynamicColCacheIndexes {
-			dataRow[k] = resRow[j]
-		}
+		nameindex[resRow[fieldIndex1].(string)+";"+resRow[fieldIndex2].(string)].UpdateDataRow(&resRow, &columns)
 	}
 	p.DataLock.Unlock()
 	promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(res)))
@@ -399,11 +409,10 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	}
 	p.DataLock.Lock()
 	idIndex := p.Tables[table.Name].Index
-	fieldIndex := 0
 	missingIds := []string{}
 	resIndex := make(map[string]bool)
 	for _, resRow := range res {
-		id := fmt.Sprintf("%v", resRow[fieldIndex])
+		id := fmt.Sprintf("%v", resRow[0])
 		_, ok := idIndex[id]
 		if !ok {
 			log.Debugf("adding %s with id %s", name, id)
@@ -414,7 +423,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 
 	// remove old comments / downtimes
 	data := p.Tables[table.Name]
-	for id, _ := range idIndex {
+	for id := range idIndex {
 		_, ok := resIndex[id]
 		if !ok {
 			log.Debugf("removing %s with id %s", name, id)
@@ -427,7 +436,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	p.DataLock.Unlock()
 
 	if len(missingIds) > 0 {
-		keys := table.GetInitialKeys()
+		keys, columns := table.GetInitialKeys(p.Flags)
 		req := &Request{
 			Table:           table.Name,
 			Columns:         keys,
@@ -439,13 +448,12 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 		if err != nil {
 			return
 		}
-		fieldIndex = table.ColumnsIndex["id"]
 		p.DataLock.Lock()
 		data := p.Tables[table.Name]
 		for _, resRow := range res {
-			id := fmt.Sprintf("%v", resRow[fieldIndex])
-			idIndex[id] = resRow
-			data.AddItem(&resRow)
+			datarow := table.NewDataRow(&resRow, &columns)
+			datarow.Index = data.Data[len(data.Data)-1].Index + 1
+			data.AddItem(&datarow)
 		}
 		p.Tables[table.Name] = data
 		p.DataLock.Unlock()
@@ -489,6 +497,14 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 	} else {
 		conn.SetDeadline(time.Now().Add(time.Duration(GlobalConfig.NetTimeout) * time.Second))
 		fmt.Fprintf(conn, "%s", query)
+		switch c := conn.(type) {
+		case *net.TCPConn:
+			c.CloseWrite()
+			break
+		case *net.UnixConn:
+			c.CloseWrite()
+			break
+		}
 		// commands do not send anything back
 		if req.Command != "" {
 			return nil, err
@@ -641,8 +657,8 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 			promPeerConnections.WithLabelValues(p.Name).Inc()
 			if x > 0 {
 				log.Infof("[%s] active source changed to %s", p.Name, peerAddr)
+				p.Flags = NoFlags
 			}
-			// TODO: check backend capabilities here
 			return
 		}
 
@@ -685,11 +701,10 @@ func (p *Peer) setNextAddrFromErr(err error) {
 			log.Warnf("[%s] site went offline: %s", p.Name, err.Error())
 			// clear existing data from memory
 			p.DataLock.Lock()
-			for name, _ := range p.Tables {
+			for name := range p.Tables {
 				table := p.Tables[name]
-				table.Data = make([][]interface{}, 0)
-				table.Refs = make(map[string][][]interface{}, 0)
-				table.Index = make(map[string][]interface{}, 0)
+				table.Data = make([]DataRow, 0)
+				table.Index = make(map[string]*DataRow, 0)
 			}
 			p.DataLock.Unlock()
 		}
@@ -708,14 +723,14 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	if table.PassthroughOnly {
 		return
 	}
-	keys := table.GetInitialKeys()
-	refs := make(map[string][][]interface{})
-	index := make(map[string][]interface{})
+
+	keys, columns := table.GetInitialKeys(p.Flags)
+	index := make(map[string]*DataRow, 0)
 
 	// complete virtual table ends here
 	if len(keys) == 0 {
 		p.DataLock.Lock()
-		p.Tables[table.Name] = DataTable{Table: table, Data: make([][]interface{}, 1), Refs: refs, Index: index}
+		p.Tables[table.Name] = DataTable{Table: table, Data: make([]DataRow, 1), Index: index}
 		p.DataLock.Unlock()
 		return
 	}
@@ -731,53 +746,70 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	if err != nil {
 		return
 	}
+
+	// create data rows from response
+	data := make([]DataRow, len(res), len(res))
+	for j, row := range res {
+		datarow := table.NewDataRow(&row, &columns)
+		datarow.Index = j
+
+		data[j] = datarow
+	}
+
 	// expand references, create a hash entry for each reference type, ex.: hosts
 	// and put an array containing the references (using the same index as the original row)
-	for _, refNum := range table.RefColCacheIndexes {
-		refCol := table.Columns[refNum]
-		fieldName := refCol.Name
-		refs[fieldName] = make([][]interface{}, len(res))
-		RefByName := p.Tables[fieldName].Index
-		for i, row := range res {
-			refs[fieldName][i] = RefByName[row[refCol.RefIndex].(string)]
-			if RefByName[row[refCol.RefIndex].(string)] == nil {
-				panic("ref not found")
+	for _, col := range table.Columns {
+		if col.Update == RefUpdate {
+			RefByName := p.Tables[col.Name].Index
+			for i, _ := range data {
+				row := &data[i]
+				if row.Ref == nil {
+					(*row).Ref = make(map[string]*DataRow)
+				}
+				(*row).Ref[col.Name] = RefByName[row.StrData[col.Index]]
+				if row.Ref[col.Name] == nil {
+					log.Panicf("did not find referenced %s by name %s", col.Name, row.StrData[col.Index])
+				}
 			}
 		}
 	}
+
 	// create host lookup indexes
 	if table.Name == "hosts" {
-		indexField := table.ColumnsIndex["name"]
-		for _, row := range res {
-			index[row[indexField].(string)] = row
+		col := table.GetColumn("name")
+		for i, row := range data {
+			index[row.StrData[col.Index]] = &data[i]
 		}
-		promHostCount.WithLabelValues(p.Name).Set(float64(len(res)))
+		promHostCount.WithLabelValues(p.Name).Set(float64(len(data)))
 	}
 	// create service lookup indexes
 	if table.Name == "services" {
-		indexField1 := table.ColumnsIndex["host_name"]
-		indexField2 := table.ColumnsIndex["description"]
-		for _, row := range res {
-			index[row[indexField1].(string)+";"+row[indexField2].(string)] = row
+		col1 := table.GetColumn("host_name")
+		col2 := table.GetColumn("description")
+		for i, row := range data {
+			index[row.StrData[col1.Index]+";"+row.StrData[col2.Index]] = &data[i]
 		}
-		promServiceCount.WithLabelValues(p.Name).Set(float64(len(res)))
+		promServiceCount.WithLabelValues(p.Name).Set(float64(len(data)))
 	}
-	// create comment id lookup indexes
-	if table.Name == "comments" {
-		indexField := table.ColumnsIndex["id"]
-		for _, row := range res {
-			index[fmt.Sprintf("%v", row[indexField])] = row
+	// create downtime / comment id lookup indexes
+	if table.Name == "comments" || table.Name == "downtimes" {
+		col := table.GetColumn("id")
+		for i, row := range data {
+			index[fmt.Sprintf("%v", row.FloatData[col.Index])] = &data[i]
 		}
 	}
-	// create downtime id lookup indexes
-	if table.Name == "downtimes" {
-		indexField := table.ColumnsIndex["id"]
-		for _, row := range res {
-			index[fmt.Sprintf("%v", row[indexField])] = row
+	// is this a shinken backend?
+	if table.Name == "status" && len(data) > 0 {
+		row := data[0]
+		matched := ReShinkenVersion.FindStringSubmatch(row.StrData[table.GetColumn("livestatus_version").Index])
+		if len(matched) > 0 {
+			p.PeerLock.Lock()
+			p.Flags |= ShinkenOnly
+			p.PeerLock.Unlock()
 		}
 	}
 	p.DataLock.Lock()
-	p.Tables[table.Name] = DataTable{Table: table, Data: res, Refs: refs, Index: index}
+	p.Tables[table.Name] = DataTable{Table: table, Data: data, Index: index}
 	p.DataLock.Unlock()
 	p.PeerLock.Lock()
 	p.Status["LastUpdate"] = time.Now()
@@ -786,19 +818,83 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	return
 }
 
-// update objects
-// assuming we get the objects always in the same order, we can just iterate over the index and update the fields
-func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error) {
-	if len(table.DynamicColCacheNames) == 0 {
-		return
+func (table *Table) NewDataRow(row *[]interface{}, columns *[]*Column) (datarow DataRow) {
+	datarow.StrData = make([]string, table.StrMaxIndex, table.StrMaxIndex)
+	datarow.StrListData = make([][]string, table.StrListMaxIndex, table.StrListMaxIndex)
+	datarow.FloatData = make([]float64, table.FloatMaxIndex, table.FloatMaxIndex)
+	datarow.FloatListData = make([][]float64, table.FloatListMaxIndex, table.FloatListMaxIndex)
+	datarow.StrHashData = make([]map[string]string, table.StrHashMaxIndex, table.StrHashMaxIndex)
+	datarow.InterfaceData = make([]interface{}, table.InterfaceMaxIndex, table.InterfaceMaxIndex)
+	datarow.UpdateDataRow(row, columns)
+	return
+}
+
+func (datarow *DataRow) UpdateDataRow(row *[]interface{}, columns *[]*Column) {
+	for i, col := range *columns {
+		switch col.Type {
+		case StringCol:
+			datarow.StrData[col.Index] = (*row)[i].(string)
+			break
+		case CustomVarCol:
+			list := make(map[string]string, len((*row)[i].(map[string]interface{})))
+			for k := range (*row)[i].(map[string]interface{}) {
+				list[k] = (*row)[i].(map[string]interface{})[k].(string)
+			}
+			datarow.StrHashData[col.Index] = list
+			break
+		case StringListCol:
+			len := reflect.ValueOf((*row)[i]).Len()
+			if len == 0 {
+				datarow.StrListData[col.Index] = []string{}
+				break
+			}
+			list := make([]string, len, len)
+			for k := range (*row)[i].([]interface{}) {
+				list[k] = (*row)[i].([]interface{})[k].(string)
+			}
+			datarow.StrListData[col.Index] = list
+			break
+		case IntCol:
+			datarow.FloatData[col.Index] = (*row)[i].(float64)
+			break
+		case FloatCol:
+			datarow.FloatData[col.Index] = (*row)[i].(float64)
+			break
+		case IntListCol:
+			len := reflect.ValueOf((*row)[i]).Len()
+			if len == 0 {
+				datarow.FloatListData[col.Index] = []float64{}
+				break
+			}
+			list := make([]float64, len, len)
+			for k := range (*row)[i].([]interface{}) {
+				list[k] = (*row)[i].([]interface{})[k].(float64)
+			}
+			datarow.FloatListData[col.Index] = list
+			break
+		case InterfaceCol:
+			datarow.InterfaceData[col.Index] = (*row)[i]
+			break
+		default:
+			log.Panicf("unsupported type: %#v", col)
+		}
 	}
+	return
+}
+
+// update objects
+func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error) {
 	// no updates for passthrough tables, ex.: log
 	if table.PassthroughOnly {
 		return
 	}
+	keys, columns := table.GetDynamicColumns(p.Flags)
+	if len(columns) == 0 {
+		return
+	}
 	req := &Request{
 		Table:           table.Name,
-		Columns:         table.DynamicColCacheNames,
+		Columns:         keys,
 		ResponseFixed16: true,
 		OutputFormat:    "json",
 	}
@@ -808,10 +904,8 @@ func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error)
 	}
 	p.DataLock.Lock()
 	data := p.Tables[table.Name].Data
-	for i, row := range res {
-		for j, k := range table.DynamicColCacheIndexes {
-			data[i][k] = row[j]
-		}
+	for i, resRow := range res {
+		data[i].UpdateDataRow(&resRow, &columns)
 	}
 	p.DataLock.Unlock()
 
@@ -824,7 +918,7 @@ func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error)
 		break
 	case "status":
 		p.PeerLock.RLock()
-		if p.Status["ProgramStart"] != data[0][table.ColumnsIndex["program_start"]] {
+		if p.Status["ProgramStart"] != data[0].FloatData[table.GetColumn("program_start").Index] {
 			log.Infof("[%s] site has been restarted, recreating objects", p.Name)
 			restartRequired = true
 		}
@@ -834,70 +928,89 @@ func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error)
 	return
 }
 
-func (peer *Peer) getRowValue(index int, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}, inputRowLen int) interface{} {
-	if index >= inputRowLen {
-		col := table.Columns[index]
-		if col.Type == VirtCol {
-			peer.PeerLock.RLock()
-			value, ok := peer.Status[VirtKeyMap[col.Name].Key]
-			peer.PeerLock.RUnlock()
-			if !ok {
-				switch col.Name {
-				case "last_state_change_order":
-					// return last_state_change or program_start
-					last_state_change := NumberToFloat((*row)[table.ColumnsIndex["last_state_change"]])
-					if last_state_change == 0 {
-						value = peer.Status["ProgramStart"]
-					} else {
-						value = last_state_change
-					}
-					break
-				case "state_order":
-					// return 4 instead of 2, which makes critical come first
-					// this way we can use this column to sort by state
-					state := NumberToFloat((*row)[table.ColumnsIndex["state"]])
-					if state == 2 {
-						value = 4
-					} else {
-						value = state
-					}
-					break
-				default:
-					log.Panicf("cannot handle virtual column: %s", col.Name)
-					break
-				}
-			}
-			switch VirtKeyMap[col.Name].Type {
-			case IntCol:
-				fallthrough
-			case FloatCol:
-				fallthrough
-			case StringCol:
-				return value
-			case TimeCol:
-				val := value.(time.Time).Unix()
-				if val < 0 {
-					val = 0
-				}
-				return val
-			default:
-				log.Panicf("not implemented")
-			}
-		}
-		refObj := (*refs)[table.Columns[col.RefIndex].Name][rowNum]
-		if refObj == nil {
-			panic("should not happen, ref not found")
-		}
-		return refObj[table.Columns[index].RefColIndex]
+func (peer *Peer) getRowValue(column *Column, row *DataRow, table *Table) interface{} {
+	if column.RefColumn != nil {
+		return (peer.getRowValue(column.RefColumn, row.Ref[table.Columns[column.RefIndex].Name], table))
 	}
-	return (*row)[index]
+	switch column.Type {
+	case StringCol:
+		return (*row).StrData[column.Index]
+	case StringListCol:
+		return (*row).StrListData[column.Index]
+	case CustomVarCol:
+		return (*row).StrHashData[column.Index]
+	case TimeCol:
+		fallthrough
+	case IntCol:
+		fallthrough
+	case FloatCol:
+		return (*row).FloatData[column.Index]
+	case VirtCol:
+		peer.PeerLock.RLock()
+		value, ok := peer.Status[VirtKeyMap[column.Name].Key]
+		peer.PeerLock.RUnlock()
+		if !ok {
+			switch column.Name {
+			case "last_state_change_order":
+				// return last_state_change or program_start
+				last_state_change := (*row).FloatData[table.GetColumn("last_state_change").Index]
+				if last_state_change == 0 {
+					value = peer.Status["ProgramStart"]
+				} else {
+					value = last_state_change
+				}
+				break
+			case "state_order":
+				// return 4 instead of 2, which makes critical come first
+				// this way we can use this column to sort by state
+				state := (*row).FloatData[table.GetColumn("state").Index]
+				if state == 2 {
+					value = 4
+				} else {
+					value = state
+				}
+				break
+			default:
+				log.Panicf("cannot handle virtual column: %s", column.Name)
+				break
+			}
+		}
+		return (value)
+	}
+	log.Panicf("unhandled type: %#v", column)
+	return nil
+}
+
+func (peer *Peer) getStrRowValue(column *Column, row *DataRow, table *Table) string {
+	if column.Type == VirtCol {
+		return peer.getRowValue(column, row, table).(string)
+	}
+	return (*row).StrData[column.Index]
+}
+
+func (peer *Peer) getStrListRowValue(column *Column, row *DataRow, table *Table) []string {
+	return (*row).StrListData[column.Index]
+}
+
+func (peer *Peer) getStrHashRowValue(column *Column, row *DataRow, table *Table) map[string]string {
+	return (*row).StrHashData[column.Index]
+}
+
+func (peer *Peer) getFloatRowValue(column *Column, row *DataRow, table *Table) float64 {
+	if column.Type == VirtCol {
+		return NumberToFloat(peer.getRowValue(column, row, table))
+	}
+	return (*row).FloatData[column.Index]
+}
+
+func (peer *Peer) getFloatListRowValue(column *Column, row *DataRow, table *Table) []float64 {
+	return (*row).FloatListData[column.Index]
 }
 
 func (peer *Peer) waitCondition(req *Request) bool {
 	c := make(chan struct{})
 	go func() {
 		table := peer.Tables[req.Table].Table
-		refs := peer.Tables[req.Table].Refs
 		for {
 			select {
 			case <-c:
@@ -906,7 +1019,7 @@ func (peer *Peer) waitCondition(req *Request) bool {
 			default:
 			}
 			// get object to watch
-			var obj []interface{}
+			var obj *DataRow
 			if req.Table == "hosts" || req.Table == "services" {
 				obj = peer.Tables[req.Table].Index[req.WaitObject]
 			} else {
@@ -914,7 +1027,7 @@ func (peer *Peer) waitCondition(req *Request) bool {
 				close(c)
 				return
 			}
-			if peer.matchFilter(table, &refs, len(obj), &req.WaitCondition[0], &obj, 0) {
+			if peer.matchFilter(table, &req.WaitCondition[0], obj) {
 				// trigger update for all, wait conditions are run against the last object
 				// but multiple commands may have been sent
 				if req.Table == "hosts" {

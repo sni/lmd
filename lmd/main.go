@@ -14,6 +14,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	_ "net/http/pprof"
+	"runtime"
 
 	"github.com/BurntSushi/toml"
 	"github.com/prometheus/client_golang/prometheus"
@@ -72,6 +74,7 @@ var flagConfigFile configFiles
 var flagVersion bool
 var flagLogFile string
 var flagPidfile string
+var flagProfile string
 
 var once sync.Once
 var netClient *http.Client
@@ -86,10 +89,18 @@ func main() {
 	flag.BoolVar(&flagVeryVerbose, "vv", false, "enable very verbose output")
 	flag.BoolVar(&flagTraceVerbose, "vvv", false, "enable trace output")
 	flag.BoolVar(&flagVersion, "version", false, "print version and exit")
+	flag.StringVar(&flagProfile, "profiler", ":6060", "start pprof profiler on this port")
 	flag.Parse()
 	if flagVersion {
 		fmt.Printf("%s - version %s (Build: %s)\n", NAME, VERSION, Build)
 		os.Exit(2)
+	}
+
+	if flagProfile != "" {
+		runtime.SetBlockProfileRate(10)
+		go func() {
+			http.ListenAndServe(flagProfile, http.DefaultServeMux)
+		}()
 	}
 
 	if len(flagConfigFile) == 0 {

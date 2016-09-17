@@ -123,7 +123,6 @@ func BuildResponse(req *Request) (res *Response, err error) {
 			}
 		}
 		// passthrough requests to the log table
-		// TODO: consider caching the last 24h
 		if table.PassthroughOnly {
 			var result [][]interface{}
 			// build columns list
@@ -151,15 +150,18 @@ func BuildResponse(req *Request) (res *Response, err error) {
 			}
 			// insert virtual values
 			if len(virtColumns) > 0 {
-				for j, row := range result {
-					for _, col := range virtColumns {
-						i := col.Index
-						row = append(row, 0)
-						copy(row[i+1:], row[i:])
-						row[i] = p.getRowValue(col.RefIndex, &row, j, &table, nil, numPerRow)
+				/*
+					TODO: implemented...
+					for j, row := range result {
+						for _, col := range virtColumns {
+							i := col.Index
+							row = append(row, 0)
+							copy(row[i+1:], row[i:])
+							row[i] = p.getRowValue(col.RefIndex, &row, j, &table, numPerRow)
+						}
+						result[j] = row
 					}
-					result[j] = row
-				}
+				*/
 			}
 			res.Result = append(res.Result, result...)
 		} else {
@@ -278,12 +280,12 @@ func BuildResponseIndexes(req *Request, table *Table) (indexes []int, columns []
 		}
 		if table.Columns[i].Type == VirtCol {
 			indexes = append(indexes, VirtKeyMap[col].Index)
-			columns = append(columns, Column{Name: col, Type: VirtKeyMap[col].Type, Index: j, RefIndex: i})
+			columns = append(columns, Column{Name: col, Type: VirtKeyMap[col].Type, Index: j, RefColumn: &table.Columns[i]})
 			requestColumnsMap[col] = j
 			continue
 		}
 		indexes = append(indexes, i)
-		columns = append(columns, Column{Name: col, Type: table.Columns[i].Type, Index: j})
+		columns = append(columns, Column{Name: col, Type: table.Columns[i].Type, Index: j, RefColumn: &table.Columns[i]})
 		requestColumnsMap[col] = j
 	}
 
@@ -335,18 +337,16 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 
 	table := peer.Tables[req.Table].Table
 	data := peer.Tables[req.Table].Data
-	refs := peer.Tables[req.Table].Refs
 
 	if len(data) == 0 {
 		return
 	}
-	inputRowLen := len(data[0])
 	statsLen := len(res.Request.Stats)
-	for j, row := range data {
+	for _, row := range data {
 		// does our filter match?
 		filterMatched := true
 		for _, f := range res.Request.Filter {
-			if !peer.matchFilter(table, &refs, inputRowLen, &f, &row, j) {
+			if !peer.matchFilter(table, &f, &row) {
 				filterMatched = false
 				break
 			}
@@ -357,12 +357,12 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 
 		// count stats
 		if statsLen > 0 {
-			for i, _ := range res.Request.Stats {
+			for i := range res.Request.Stats {
 				s := &(res.Request.Stats[i])
 				// avg/sum/min/max are passed through, they dont have filter
 				// counter must match their filter
-				if s.StatsType != Counter || peer.matchFilter(table, &refs, inputRowLen, s, &row, j) {
-					val := peer.getRowValue(s.Column.Index, &row, j, table, &refs, inputRowLen)
+				if s.StatsType != Counter || peer.matchFilter(table, s, &row) {
+					val := peer.getFloatRowValue(&s.Column, &row, table)
 					switch s.StatsType {
 					case Counter:
 						s.Stats++
@@ -370,16 +370,16 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 					case Average:
 						fallthrough
 					case Sum:
-						s.Stats += NumberToFloat(val)
+						s.Stats += val
 						break
 					case Min:
-						value := NumberToFloat(val)
+						value := val
 						if s.Stats > value || s.Stats == -1 {
 							s.Stats = value
 						}
 						break
 					case Max:
-						value := NumberToFloat(val)
+						value := val
 						if s.Stats < value {
 							s.Stats = value
 						}
@@ -394,19 +394,8 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 		// build result row
 		resRow := make([]interface{}, numPerRow)
 		for k, i := range *(indexes) {
-			if i < 0 {
-				// virtual columns
-				resRow[k] = peer.getRowValue(res.Columns[k].RefIndex, &row, j, table, nil, inputRowLen)
-			} else {
-				// check if this is a reference column
-				// reference columns come after the non-ref columns
-				if i >= inputRowLen {
-					refObj := refs[table.Columns[table.Columns[i].RefIndex].Name][j]
-					resRow[k] = refObj[table.Columns[i].RefColIndex]
-				} else {
-					resRow[k] = row[i]
-				}
-			}
+			resRow[k] = peer.getRowValue(res.Columns[k].RefColumn, &row, table)
+
 			// fill null values with something useful
 			if resRow[k] == nil {
 				switch table.Columns[i].Type {

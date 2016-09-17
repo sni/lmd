@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -310,11 +309,11 @@ func ParseFilterOp(header string, value string, line *string, stack *[]Filter) (
 	return
 }
 
-func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, inputRowLen int, filter *Filter, row *[]interface{}, rowNum int) bool {
+func (peer *Peer) matchFilter(table *Table, filter *Filter, row *DataRow) bool {
 	// recursive group filter
 	if len(filter.Filter) > 0 {
 		for _, f := range filter.Filter {
-			subresult := peer.matchFilter(table, refs, inputRowLen, &f, row, rowNum)
+			subresult := peer.matchFilter(table, &f, row)
 			if subresult == false && filter.GroupOperator == And {
 				return false
 			}
@@ -331,31 +330,26 @@ func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, in
 	}
 
 	// normal field filter
-	var value interface{}
-	if filter.Column.Index < inputRowLen {
-		value = (*row)[filter.Column.Index]
-	} else {
-		value = peer.getRowValue(filter.Column.Index, row, rowNum, table, refs, inputRowLen)
-	}
 	colType := filter.Column.Type
 	if colType == VirtCol {
 		colType = VirtKeyMap[filter.Column.Name].Type
 	}
 	switch colType {
 	case StringCol:
+		value := peer.getStrRowValue(&filter.Column, row, table)
 		return matchStringFilter(filter, &value)
 	case CustomVarCol:
+		value := peer.getStrHashRowValue(&filter.Column, row, table)
 		return matchCustomVarFilter(filter, &value)
 	case TimeCol:
 		fallthrough
 	case IntCol:
 		fallthrough
 	case FloatCol:
-		if v, ok := value.(float64); ok {
-			return matchNumberFilter(filter.Operator, v, filter.FloatValue)
-		}
-		return matchNumberFilter(filter.Operator, NumberToFloat(value), filter.FloatValue)
+		value := peer.getFloatRowValue(&filter.Column, row, table)
+		return matchNumberFilter(filter.Operator, value, filter.FloatValue)
 	case StringListCol:
+		value := peer.getStrListRowValue(&filter.Column, row, table)
 		return matchStringListFilter(filter, &value)
 	}
 	log.Errorf("not implemented type: %v", filter.Column.Type)
@@ -401,11 +395,11 @@ func matchNumberFilter(op Operator, valueA float64, valueB float64) bool {
 	return false
 }
 
-func matchStringFilter(filter *Filter, value *interface{}) bool {
+func matchStringFilter(filter *Filter, value *string) bool {
 	return matchStringValueOperator(filter.Operator, value, &filter.StrValue, filter.Regexp)
 }
 
-func matchStringValueOperator(op Operator, valueA *interface{}, valueB *string, regex *regexp.Regexp) bool {
+func matchStringValueOperator(op Operator, valueA *string, valueB *string, regex *regexp.Regexp) bool {
 	strA := fmt.Sprintf("%v", *valueA)
 	strB := *valueB
 	switch op {
@@ -464,9 +458,8 @@ func matchStringValueOperator(op Operator, valueA *interface{}, valueB *string, 
 	return false
 }
 
-func matchStringListFilter(filter *Filter, value *interface{}) bool {
-	list := reflect.ValueOf(*value)
-	listLen := list.Len()
+func matchStringListFilter(filter *Filter, list *[]string) bool {
+	listLen := len(*list)
 	switch filter.Operator {
 	case Equal:
 		if filter.StrValue == "" && listLen == 0 {
@@ -480,14 +473,14 @@ func matchStringListFilter(filter *Filter, value *interface{}) bool {
 		return false
 	case GreaterThan:
 		for i := 0; i < listLen; i++ {
-			if filter.StrValue == list.Index(i).Interface().(string) {
+			if filter.StrValue == (*list)[i] {
 				return true
 			}
 		}
 		return false
 	case GroupContainsNot:
 		for i := 0; i < listLen; i++ {
-			if filter.StrValue == list.Index(i).Interface().(string) {
+			if filter.StrValue == (*list)[i] {
 				return false
 			}
 		}
@@ -497,9 +490,8 @@ func matchStringListFilter(filter *Filter, value *interface{}) bool {
 	return false
 }
 
-func matchCustomVarFilter(filter *Filter, value *interface{}) bool {
-	custommap := (*value).(map[string]interface{})
-	val, ok := custommap[filter.CustomTag]
+func matchCustomVarFilter(filter *Filter, value *map[string]string) bool {
+	val, ok := (*value)[filter.CustomTag]
 	if !ok {
 		val = ""
 	}
