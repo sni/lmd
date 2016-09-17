@@ -352,9 +352,9 @@ func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, in
 		fallthrough
 	case FloatCol:
 		if v, ok := value.(float64); ok {
-			return matchNumberFilter(filter, v, filter.FloatValue)
+			return matchNumberFilter(filter.Operator, v, filter.FloatValue)
 		}
-		return matchNumberFilter(filter, NumberToFloat(value), filter.FloatValue)
+		return matchNumberFilter(filter.Operator, NumberToFloat(value), filter.FloatValue)
 	case StringListCol:
 		return matchStringListFilter(filter, &value)
 	}
@@ -362,8 +362,8 @@ func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, in
 	return false
 }
 
-func matchNumberFilter(filter *Filter, valueA float64, valueB float64) bool {
-	switch filter.Operator {
+func matchNumberFilter(op Operator, valueA float64, valueB float64) bool {
+	switch op {
 	case Equal:
 		if valueA == valueB {
 			return true
@@ -395,7 +395,7 @@ func matchNumberFilter(filter *Filter, valueA float64, valueB float64) bool {
 		}
 		break
 	default:
-		log.Errorf("not implemented op: %v", filter.Operator)
+		log.Errorf("not implemented op: %v", op)
 		return false
 	}
 	return false
@@ -506,19 +506,16 @@ func matchCustomVarFilter(filter *Filter, value *interface{}) bool {
 	return matchStringValueOperator(filter.Operator, &val, &filter.StrValue, filter.Regexp)
 }
 
-func NumberToFloat(in interface{}) (out float64) {
-	if v, ok := in.(float64); ok {
-		out = v
-	} else if v, ok := in.(int); ok {
-		out = float64(v)
-	} else if v, ok := in.(bool); ok {
-		if v {
-			out = 1
-		} else {
-			out = 0
+func NumberToFloat(in interface{}) float64 {
+	switch in.(type) {
+	case float64:
+		return (in.(float64))
+	case int:
+		return (float64(in.(int)))
+	case bool:
+		if in.(bool) {
+			return (1)
 		}
-	} else {
-		out = 0
 	}
-	return
+	return (0)
 }
