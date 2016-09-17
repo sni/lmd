@@ -507,15 +507,15 @@ func matchCustomVarFilter(filter *Filter, value *interface{}) bool {
 }
 
 func NumberToFloat(in interface{}) float64 {
-	switch in.(type) {
+	switch v := in.(type) {
 	case float64:
-		return (in.(float64))
+		return v
 	case int:
-		return (float64(in.(int)))
+		return float64(v)
 	case bool:
-		if in.(bool) {
-			return (1)
+		if v {
+			return 1
 		}
 	}
-	return (0)
+	return 0
 }
