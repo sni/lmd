@@ -134,6 +134,7 @@ Some things are still not complete
 - write huge logfile requests directly into a file
 - test ipv6 connections
 - run passthrough querys parallel
+- update hosts and service when timeperiods have changed
 
 
 Ideas

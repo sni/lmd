@@ -19,6 +19,7 @@ import (
 
 var ReResponseHeader = regexp.MustCompile(`^(\d+)\s+(\d+)$`)
 var ReHttpTooOld = regexp.MustCompile(`Can.t locate object method`)
+var ReShinkenVersion = regexp.MustCompile(`-shinken$`)
 
 type DataTable struct {
 	Table *Table
@@ -39,6 +40,7 @@ type Peer struct {
 	waitGroup       *sync.WaitGroup
 	shutdownChannel chan bool
 	Config          Connection
+	Flags           OptionalFlags
 }
 
 type PeerStatus int
@@ -55,7 +57,6 @@ type PeerErrorType int
 
 const (
 	ConnectionError PeerErrorType = iota
-	RequestError
 	ResponseError
 )
 
@@ -83,6 +84,8 @@ func (d *DataTable) RemoveItem(row []interface{}) {
 	for i, r := range d.Data {
 		if fmt.Sprintf("%p", r) == fmt.Sprintf("%p", row) {
 			d.Data = append(d.Data[:i], d.Data[i+1:]...)
+			// TODO: check
+			//delete(d.Index, fmt.Sprintf("%v", r.Index))
 			return
 		}
 	}
@@ -124,7 +127,7 @@ func NewPeer(config Connection, waitGroup *sync.WaitGroup, shutdownChannel chan 
 }
 
 // create initial objects
-func (p *Peer) Start() (_, err error) {
+func (p *Peer) Start() {
 	go func() {
 		defer p.waitGroup.Done()
 		p.waitGroup.Add(1)
@@ -320,7 +323,8 @@ func (p *Peer) UpdateDeltaTables() bool {
 func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	// update changed hosts
 	table := Objects.Tables["hosts"]
-	keys := append(table.DynamicColCacheNames, "name")
+	keys, indexes := table.GetDynamicColumns(p.Flags)
+	keys = append(keys, "name")
 	if filterStr == "" {
 		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", p.Status["LastUpdate"].(time.Time).Unix())
 	}
@@ -340,7 +344,7 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	fieldIndex := len(keys) - 1
 	for _, resRow := range res {
 		dataRow := nameindex[resRow[fieldIndex].(string)]
-		for j, k := range table.DynamicColCacheIndexes {
+		for j, k := range indexes {
 			dataRow[k] = resRow[j]
 		}
 	}
@@ -353,7 +357,8 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	// update changed services
 	table := Objects.Tables["services"]
-	keys := append(table.DynamicColCacheNames, []string{"host_name", "description"}...)
+	keys, indexes := table.GetDynamicColumns(p.Flags)
+	keys = append(keys, []string{"host_name", "description"}...)
 	if filterStr == "" {
 		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", p.Status["LastUpdate"].(time.Time).Unix())
 	}
@@ -374,7 +379,7 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	fieldIndex2 := len(keys) - 1
 	for _, resRow := range res {
 		dataRow := nameindex[resRow[fieldIndex1].(string)+";"+resRow[fieldIndex2].(string)]
-		for j, k := range table.DynamicColCacheIndexes {
+		for j, k := range indexes {
 			dataRow[k] = resRow[j]
 		}
 	}
@@ -399,11 +404,10 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	}
 	p.DataLock.Lock()
 	idIndex := p.Tables[table.Name].Index
-	fieldIndex := 0
 	missingIds := []string{}
 	resIndex := make(map[string]bool)
 	for _, resRow := range res {
-		id := fmt.Sprintf("%v", resRow[fieldIndex])
+		id := fmt.Sprintf("%v", resRow[0])
 		_, ok := idIndex[id]
 		if !ok {
 			log.Debugf("adding %s with id %s", name, id)
@@ -414,7 +418,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 
 	// remove old comments / downtimes
 	data := p.Tables[table.Name]
-	for id, _ := range idIndex {
+	for id := range idIndex {
 		_, ok := resIndex[id]
 		if !ok {
 			log.Debugf("removing %s with id %s", name, id)
@@ -427,7 +431,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	p.DataLock.Unlock()
 
 	if len(missingIds) > 0 {
-		keys := table.GetInitialKeys()
+		keys := table.GetInitialKeys(p.Flags)
 		req := &Request{
 			Table:           table.Name,
 			Columns:         keys,
@@ -439,7 +443,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 		if err != nil {
 			return
 		}
-		fieldIndex = table.ColumnsIndex["id"]
+		fieldIndex := table.ColumnsIndex["id"]
 		p.DataLock.Lock()
 		data := p.Tables[table.Name]
 		for _, resRow := range res {
@@ -489,6 +493,14 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 	} else {
 		conn.SetDeadline(time.Now().Add(time.Duration(GlobalConfig.NetTimeout) * time.Second))
 		fmt.Fprintf(conn, "%s", query)
+		switch c := conn.(type) {
+		case *net.TCPConn:
+			c.CloseWrite()
+			break
+		case *net.UnixConn:
+			c.CloseWrite()
+			break
+		}
 		// commands do not send anything back
 		if req.Command != "" {
 			return nil, err
@@ -641,8 +653,8 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 			promPeerConnections.WithLabelValues(p.Name).Inc()
 			if x > 0 {
 				log.Infof("[%s] active source changed to %s", p.Name, peerAddr)
+				p.Flags = NoFlags
 			}
-			// TODO: check backend capabilities here
 			return
 		}
 
@@ -685,7 +697,7 @@ func (p *Peer) setNextAddrFromErr(err error) {
 			log.Warnf("[%s] site went offline: %s", p.Name, err.Error())
 			// clear existing data from memory
 			p.DataLock.Lock()
-			for name, _ := range p.Tables {
+			for name := range p.Tables {
 				table := p.Tables[name]
 				table.Data = make([][]interface{}, 0)
 				table.Refs = make(map[string][][]interface{}, 0)
@@ -708,7 +720,8 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	if table.PassthroughOnly {
 		return
 	}
-	keys := table.GetInitialKeys()
+
+	keys := table.GetInitialKeys(p.Flags)
 	refs := make(map[string][][]interface{})
 	index := make(map[string][]interface{})
 
@@ -731,6 +744,7 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	if err != nil {
 		return
 	}
+
 	// expand references, create a hash entry for each reference type, ex.: hosts
 	// and put an array containing the references (using the same index as the original row)
 	for _, refNum := range table.RefColCacheIndexes {
@@ -745,6 +759,7 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 			}
 		}
 	}
+
 	// create host lookup indexes
 	if table.Name == "hosts" {
 		indexField := table.ColumnsIndex["name"]
@@ -762,18 +777,21 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 		}
 		promServiceCount.WithLabelValues(p.Name).Set(float64(len(res)))
 	}
-	// create comment id lookup indexes
-	if table.Name == "comments" {
+	// create downtime / comment id lookup indexes
+	if table.Name == "comments" || table.Name == "downtimes" {
 		indexField := table.ColumnsIndex["id"]
 		for _, row := range res {
 			index[fmt.Sprintf("%v", row[indexField])] = row
 		}
 	}
-	// create downtime id lookup indexes
-	if table.Name == "downtimes" {
-		indexField := table.ColumnsIndex["id"]
-		for _, row := range res {
-			index[fmt.Sprintf("%v", row[indexField])] = row
+	// is this a shinken backend?
+	if table.Name == "status" && len(res) > 0 {
+		row := res[0]
+		matched := ReShinkenVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))
+		if len(matched) > 0 {
+			p.PeerLock.Lock()
+			p.Flags |= ShinkenOnly
+			p.PeerLock.Unlock()
 		}
 	}
 	p.DataLock.Lock()
@@ -796,9 +814,10 @@ func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error)
 	if table.PassthroughOnly {
 		return
 	}
+	keys, indexes := table.GetDynamicColumns(p.Flags)
 	req := &Request{
 		Table:           table.Name,
-		Columns:         table.DynamicColCacheNames,
+		Columns:         keys,
 		ResponseFixed16: true,
 		OutputFormat:    "json",
 	}
@@ -809,7 +828,7 @@ func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error)
 	p.DataLock.Lock()
 	data := p.Tables[table.Name].Data
 	for i, row := range res {
-		for j, k := range table.DynamicColCacheIndexes {
+		for j, k := range indexes {
 			data[i][k] = row[j]
 		}
 	}

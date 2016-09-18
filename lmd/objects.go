@@ -24,7 +24,7 @@ type Table struct {
 type UpdateType int
 
 const (
-	UnknownUpdate UpdateType = iota
+	_ UpdateType = iota
 	StaticUpdate
 	DynamicUpdate
 	RefUpdate
@@ -34,7 +34,7 @@ const (
 type ColumnType int
 
 const (
-	UnknownCol ColumnType = iota
+	_ ColumnType = iota
 	StringCol
 	StringListCol
 	IntCol
@@ -53,15 +53,43 @@ type Column struct {
 	RefIndex    int
 	RefColIndex int
 	Update      UpdateType
+	Optional    OptionalFlags
 }
 
-func (t *Table) GetInitialKeys() (keys []string) {
-	for _, col := range t.Columns {
+type OptionalFlags byte
+
+const (
+	NoFlags OptionalFlags = iota
+	ShinkenOnly
+)
+
+func (t *Table) GetColumn(name string) Column {
+	return (t.Columns[t.ColumnsIndex[name]])
+}
+
+func (t *Table) GetInitialKeys(flags OptionalFlags) (keys []string) {
+	for i, _ := range t.Columns {
+		col := t.Columns[i]
 		if col.Update != RefUpdate && col.Update != RefNoUpdate && col.Type != VirtCol {
-			keys = append(keys, col.Name)
+			if col.Optional == NoFlags || flags&col.Optional != 0 {
+				keys = append(keys, col.Name)
+			}
 		}
 	}
 	return
+}
+
+func (t *Table) GetDynamicColumns(flags OptionalFlags) (keys []string, indexes []int) {
+	for i := range t.Columns {
+		col := t.Columns[i]
+		if col.Update == DynamicUpdate {
+			if col.Optional == NoFlags || flags&col.Optional != 0 {
+				keys = append(keys, col.Name)
+				indexes = append(indexes, col.Index)
+			}
+		}
+	}
+	return keys, indexes
 }
 
 func (t *Table) AddColumnObject(col *Column) int {
@@ -99,28 +127,33 @@ func (t *Table) AddColumn(Name string, Update UpdateType, Type ColumnType) int {
 	return t.AddColumnObject(&Column)
 }
 
-func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, Type ColumnType) (err error) {
-	LocalColumn := Column{
-		Name:   Prefix + "_" + Name,
-		Type:   Type,
-		Update: StaticUpdate,
+func (t *Table) AddOptColumn(Name string, Update UpdateType, Type ColumnType, Restrict OptionalFlags) int {
+	Column := Column{
+		Name:     Name,
+		Type:     Type,
+		Update:   Update,
+		Optional: Restrict,
 	}
-	LocalIndex := t.AddColumnObject(&LocalColumn)
+	return t.AddColumnObject(&Column)
+}
 
-	RefColumn := Column{
-		Name:        Ref, // type of reference, ex.: hosts
-		Type:        RefCol,
-		Update:      RefUpdate,
-		RefIndex:    LocalIndex,                             // contains the index from the local column, ex: host_name in services
-		RefColIndex: Objects.Tables[Ref].ColumnsIndex[Name], // contains the index from the remote column, ex: name in host
-	}
-	RefIndex := t.AddColumnObject(&RefColumn)
-
-	// expand reference columns
+func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, Type ColumnType) {
 	_, Ok := Objects.Tables[Ref]
 	if !Ok {
 		panic("no such reference " + Ref + " from column " + Prefix + "_" + Name)
 	}
+
+	// virtual column containing the information required to connect the referenced object
+	RefColumn := Column{
+		Name:        Ref, // type of reference, ex.: hosts
+		Type:        RefCol,
+		Update:      RefUpdate,
+		RefIndex:    t.ColumnsIndex[Prefix+"_"+Name],        // contains the index from the local column, ex: host_name in services
+		RefColIndex: Objects.Tables[Ref].ColumnsIndex[Name], // contains the index from the remote column, ex: name in host
+	}
+	RefIndex := t.AddColumnObject(&RefColumn)
+
+	// add fake columns for all columns from the referenced table
 	for _, col := range Objects.Tables[Ref].Columns {
 		if col.Name != Name {
 			Column := Column{
@@ -137,7 +170,7 @@ func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, Type Column
 }
 
 // create all table structures
-func InitObjects() (err error) {
+func InitObjects() {
 	if Objects != nil {
 		return
 	}
@@ -382,6 +415,17 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("state", DynamicUpdate, IntCol)
 	t.AddColumn("state_type", DynamicUpdate, IntCol)
 
+	// shinken specific
+	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, ShinkenOnly)
+	t.AddOptColumn("source_problems", DynamicUpdate, StringListCol, ShinkenOnly)
+	t.AddOptColumn("impacts", DynamicUpdate, StringListCol, ShinkenOnly)
+	t.AddOptColumn("criticity", DynamicUpdate, IntCol, ShinkenOnly)
+	t.AddOptColumn("is_problem", DynamicUpdate, IntCol, ShinkenOnly)
+	t.AddOptColumn("realm", DynamicUpdate, StringCol, ShinkenOnly)
+	t.AddOptColumn("poller_tag", DynamicUpdate, StringCol, ShinkenOnly)
+	t.AddOptColumn("got_business_rule", DynamicUpdate, IntCol, ShinkenOnly)
+	t.AddOptColumn("parent_dependencies", DynamicUpdate, StringCol, ShinkenOnly)
+
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol)
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol)
 	t.AddColumn("last_state_change_order", RefNoUpdate, VirtCol)
@@ -479,6 +523,18 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("scheduled_downtime_depth", DynamicUpdate, IntCol)
 	t.AddColumn("state", DynamicUpdate, IntCol)
 	t.AddColumn("state_type", DynamicUpdate, IntCol)
+	t.AddColumn("host_name", StaticUpdate, StringCol)
+
+	// shinken specific
+	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, ShinkenOnly)
+	t.AddOptColumn("source_problems", DynamicUpdate, StringListCol, ShinkenOnly)
+	t.AddOptColumn("impacts", DynamicUpdate, StringListCol, ShinkenOnly)
+	t.AddOptColumn("criticity", DynamicUpdate, IntCol, ShinkenOnly)
+	t.AddOptColumn("is_problem", DynamicUpdate, IntCol, ShinkenOnly)
+	t.AddOptColumn("realm", DynamicUpdate, StringCol, ShinkenOnly)
+	t.AddOptColumn("poller_tag", DynamicUpdate, StringCol, ShinkenOnly)
+	t.AddOptColumn("got_business_rule", DynamicUpdate, IntCol, ShinkenOnly)
+	t.AddOptColumn("parent_dependencies", DynamicUpdate, StringCol, ShinkenOnly)
 
 	t.AddRefColumn("hosts", "host", "name", StringCol)
 
