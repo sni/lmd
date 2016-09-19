@@ -30,9 +30,7 @@ type VirtKeyMapTupel struct {
 }
 
 var VirtKeyMap = map[string]VirtKeyMapTupel{
-	"peer_key":                {Index: -1, Key: "PeerKey", Type: StringCol},
 	"key":                     {Index: -1, Key: "PeerKey", Type: StringCol},
-	"peer_name":               {Index: -2, Key: "PeerName", Type: StringCol},
 	"name":                    {Index: -2, Key: "PeerName", Type: StringCol},
 	"addr":                    {Index: -4, Key: "PeerAddr", Type: StringCol},
 	"status":                  {Index: -5, Key: "PeerStatus", Type: IntCol},
@@ -134,6 +132,10 @@ func BuildResponse(req *Request) (res *Response, err error) {
 		SpinUpPeers(spinUpPeers)
 	}
 
+	if table.Name == "tables" || table.Name == "columns" {
+		selectedPeers = []string{DataStoreOrder[0]}
+	}
+
 	if table.PassthroughOnly {
 		// passthrough requests, ex.: log table
 		BuildPassThroughResult(selectedPeers, res, &table, &columns, numPerRow)
@@ -145,6 +147,9 @@ func BuildResponse(req *Request) (res *Response, err error) {
 			p := DataStore[id]
 			BuildLocalResponseDataForPeer(res, req, &p, numPerRow, &indexes)
 			log.Tracef("BuildLocalResponseDataForPeer done: %s", p.Name)
+			if table.Name == "tables" || table.Name == "columns" {
+				break
+			}
 		}
 	}
 	if res.Result == nil {
@@ -243,7 +248,7 @@ func BuildResponseIndexes(req *Request, table *Table) (indexes []int, columns []
 	if len(req.Columns) == 0 && len(req.Stats) == 0 {
 		req.SendColumnsHeader = true
 		for _, col := range table.Columns {
-			if col.Update == StaticUpdate || col.Update == DynamicUpdate || col.Type == VirtCol {
+			if col.Update == StaticUpdate || col.Update == DynamicUpdate || col.Update == VirtUpdate || col.Type == VirtCol {
 				req.Columns = append(req.Columns, col.Name)
 			}
 		}
@@ -287,9 +292,10 @@ func BuildResponseIndexes(req *Request, table *Table) (indexes []int, columns []
 
 func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow int, indexes *[]int) {
 	log.Tracef("BuildLocalResponseDataForPeer: %s", peer.Name)
+	table := peer.Tables[req.Table].Table
 	peer.PeerLock.Lock()
 	peer.Status["LastQuery"] = time.Now()
-	if peer.Status["PeerStatus"].(PeerStatus) == PeerStatusDown && req.Table != "backends" {
+	if peer.Status["PeerStatus"].(PeerStatus) == PeerStatusDown && !table.Virtual {
 		res.Failed[peer.Id] = fmt.Sprintf("%v", peer.Status["LastError"])
 		peer.PeerLock.Unlock()
 		return
@@ -304,9 +310,12 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 	peer.DataLock.RLock()
 	defer peer.DataLock.RUnlock()
 
-	table := peer.Tables[req.Table].Table
 	data := peer.Tables[req.Table].Data
 	refs := peer.Tables[req.Table].Refs
+
+	if table.Name == "tables" || table.Name == "columns" {
+		data = Objects.GetTableColumnsData()
+	}
 
 	if len(data) == 0 {
 		return

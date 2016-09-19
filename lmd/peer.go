@@ -727,7 +727,7 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	index := make(map[string][]interface{})
 
 	// complete virtual table ends here
-	if len(keys) == 0 {
+	if len(keys) == 0 || table.Virtual {
 		p.DataLock.Lock()
 		p.Tables[table.Name] = DataTable{Table: table, Data: make([][]interface{}, 1), Refs: refs, Index: index}
 		p.DataLock.Unlock()
@@ -809,6 +809,9 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 // assuming we get the objects always in the same order, we can just iterate over the index and update the fields
 func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error) {
 	if len(table.DynamicColCacheNames) == 0 {
+		return
+	}
+	if table.Virtual {
 		return
 	}
 	// no updates for passthrough tables, ex.: log
