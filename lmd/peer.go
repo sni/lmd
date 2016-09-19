@@ -1059,3 +1059,24 @@ func (p *Peer) HttpQuery(peerAddr string, query string) (res []byte, err error) 
 	}
 	return
 }
+
+func SpinUpPeers(peers []string) {
+	waitgroup := &sync.WaitGroup{}
+	for _, id := range peers {
+		p := DataStore[id]
+		waitgroup.Add(1)
+		go func(peer Peer, wg *sync.WaitGroup) {
+			defer wg.Done()
+			peer.PeerLock.Lock()
+			peer.Status["Idling"] = false
+			log.Infof("[%s] switched back to normal update interval", peer.Name)
+			peer.PeerLock.Unlock()
+			log.Debugf("[%s] spin up update", peer.Name)
+			peer.UpdateObjectByType(Objects.Tables["timeperiods"])
+			peer.UpdateDeltaTables()
+			log.Debugf("[%s] spin up update done", peer.Name)
+		}(p, waitgroup)
+	}
+	waitTimeout(waitgroup, 5)
+	log.Debugf("spin up completed")
+}

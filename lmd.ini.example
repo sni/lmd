@@ -13,17 +13,18 @@ LogLevel        = "Info"
 # is no response
 StaleBackendTimeout = 30
 
-# Refresh remote sites every x seconds
-# fast updates are ok, only changed hosts and services get fetched
-# and once a minute everything is updated
+# Refresh remote sites every x seconds.
+# Fast updates are ok, only changed hosts and services get fetched
+# and once every `FullUpdateInterval` everything gets updated.
 UpdateInterval = 5
 
 # Run a full update on all objects every x seconds. Set to zero to turn off
-# completly.
+# completly. This is usually not required and only needed if for uncommon
+# reasons some updates slip through the normal delta updates.
 FullUpdateInterval = 600
 
-# After IdleTimeout seconds of no activity (incoming querys for this backend)
-# the slower update interval of IdleInterval seconds will be used.
+# After `IdleTimeout` seconds of no activity (incoming querys for this backend)
+# the slower update interval of `IdleInterval` seconds will be used.
 # Don't set the timeout to low, clients will have to wait for a "spin up"
 # query on the first access after idling.
 IdleTimeout = 120

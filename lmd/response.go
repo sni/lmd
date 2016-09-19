@@ -110,10 +110,9 @@ func BuildResponse(req *Request) (res *Response, err error) {
 		return
 	}
 
-	if table.PassthroughOnly {
-		res.Result = make([][]interface{}, 0)
-	}
-
+	// check if we have to spin up updates, if so, do it parallel
+	selectedPeers := []string{}
+	spinUpPeers := []string{}
 	for _, id := range DataStoreOrder {
 		p := DataStore[id]
 		if numBackendsReq > 0 {
@@ -122,8 +121,25 @@ func BuildResponse(req *Request) (res *Response, err error) {
 				continue
 			}
 		}
+		selectedPeers = append(selectedPeers, id)
+
+		// spin up required?
+		if !table.PassthroughOnly && p.Status["Idling"].(bool) && len(table.DynamicColCacheIndexes) > 0 {
+			spinUpPeers = append(spinUpPeers, id)
+		}
+	}
+
+	if len(spinUpPeers) > 0 {
+		SpinUpPeers(spinUpPeers)
+	}
+
+	if table.PassthroughOnly {
+		res.Result = make([][]interface{}, 0)
+	}
+
+	for _, id := range selectedPeers {
+		p := DataStore[id]
 		// passthrough requests to the log table
-		// TODO: consider caching the last 24h
 		if table.PassthroughOnly {
 			var result [][]interface{}
 			// build columns list
@@ -314,16 +330,7 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 		peer.PeerLock.Unlock()
 		return
 	}
-	if peer.Status["Idling"].(bool) && req.Table != "backends" {
-		peer.Status["Idling"] = false
-		log.Infof("[%s] switched back to normal update interval", peer.Name)
-		peer.PeerLock.Unlock()
-		log.Debugf("[%s] spin up update", peer.Name)
-		peer.UpdateDeltaTables()
-		log.Debugf("[%s] spin up update done", peer.Name)
-	} else {
-		peer.PeerLock.Unlock()
-	}
+	peer.PeerLock.Unlock()
 
 	// if a WaitTrigger is supplied, wait max ms till the condition is true
 	if req.WaitTrigger != "" {
