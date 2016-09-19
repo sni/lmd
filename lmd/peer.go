@@ -174,6 +174,7 @@ func (p *Peer) UpdateLoop() {
 							ok = p.InitAllTables()
 							lastFullUpdateMinute = currentMinute
 						} else {
+							p.UpdateObjectByType(Objects.Tables["timeperiods"])
 							ok = p.UpdateDeltaTables()
 						}
 					}
@@ -825,14 +826,35 @@ func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error)
 	if err != nil {
 		return
 	}
-	p.DataLock.Lock()
 	data := p.Tables[table.Name].Data
-	for i, row := range res {
-		for j, k := range indexes {
-			data[i][k] = row[j]
+	if table.Name == "timeperiods" {
+		// check for changed timeperiods, because we have to update the linked hosts and services as well
+		changedTimeperiods := []string{}
+		nameIndex := table.ColumnsIndex["name"]
+		p.DataLock.Lock()
+		for i, row := range res {
+			for j, k := range indexes {
+				if data[i][k] != row[j] {
+					changedTimeperiods = append(changedTimeperiods, data[i][nameIndex].(string))
+				}
+				data[i][k] = row[j]
+			}
 		}
+		p.DataLock.Unlock()
+		// Update hosts and services with those changed timeperiods
+		for _, name := range changedTimeperiods {
+			p.UpdateDeltaTableHosts("Filter: check_period = " + name + "\nFilter: notification_period = " + name + "\nOr: 2\n")
+			p.UpdateDeltaTableServices("Filter: check_period = " + name + "\nFilter: notification_period = " + name + "\nOr: 2\n")
+		}
+	} else {
+		p.DataLock.Lock()
+		for i, row := range res {
+			for j, k := range indexes {
+				data[i][k] = row[j]
+			}
+		}
+		p.DataLock.Unlock()
 	}
-	p.DataLock.Unlock()
 
 	switch table.Name {
 	case "hosts":

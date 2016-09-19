@@ -4,6 +4,7 @@ next
           - add fullupdateinterval config option
           - add stale backend timeout config option
           - internal performance tuning
+          - optimize host / service updates
 
 0.0.1    Thu Sep 15 23:59:59 CEST 2016
           - initial release
