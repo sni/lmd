@@ -124,15 +124,6 @@ ex.:
     Sort: name desc
 
 
-TODO
-----
-
-Some things are still not complete
-
-- write huge logfile requests directly into a file
-- test ipv6 connections
-
-
 Ideas
 -----
 

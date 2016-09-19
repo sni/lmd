@@ -58,4 +58,17 @@ name   = "Local Site"
 id     = "id2"
 source = ["/var/tmp/nagios/run/live.sock"]
 
+# use tcp connections with ipv6 address
+[[Connections]]
+name   = "Monitoring Site A IPv6"
+id     = "id3"
+source = ["[::1]:6557"]
+
+# connect to thruk http(s) api
+[[Connections]]
+name   = "Thruk HTTP"
+id     = "id4"
+source = ["http://thruk.monitoring/omdsite/"]
+auth   = "authkey..."
+
 # add more connections as you like...
