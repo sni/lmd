@@ -131,7 +131,6 @@ Some things are still not complete
 
 - write huge logfile requests directly into a file
 - test ipv6 connections
-- run passthrough querys parallel
 
 
 Ideas

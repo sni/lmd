@@ -7,6 +7,7 @@ import (
 	"net"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -134,51 +135,14 @@ func BuildResponse(req *Request) (res *Response, err error) {
 	}
 
 	if table.PassthroughOnly {
-		res.Result = make([][]interface{}, 0)
-	}
-
-	for _, id := range selectedPeers {
-		p := DataStore[id]
-		// passthrough requests to the log table
-		if table.PassthroughOnly {
-			var result [][]interface{}
-			// build columns list
-			backendColumns := []string{}
-			virtColumns := []Column{}
-			for _, col := range columns {
-				if col.RefIndex > 0 {
-					virtColumns = append(virtColumns, col)
-				} else {
-					backendColumns = append(backendColumns, col.Name)
-				}
-			}
-			passthroughRequest := &Request{
-				Table:           req.Table,
-				Filter:          req.Filter,
-				Stats:           req.Stats,
-				Columns:         backendColumns,
-				Limit:           req.Limit,
-				OutputFormat:    "json",
-				ResponseFixed16: true,
-			}
-			result, err = p.Query(passthroughRequest)
-			if err != nil {
-				return
-			}
-			// insert virtual values
-			if len(virtColumns) > 0 {
-				for j, row := range result {
-					for _, col := range virtColumns {
-						i := col.Index
-						row = append(row, 0)
-						copy(row[i+1:], row[i:])
-						row[i] = p.getRowValue(col.RefIndex, &row, j, &table, nil, numPerRow)
-					}
-					result[j] = row
-				}
-			}
-			res.Result = append(res.Result, result...)
-		} else {
+		// passthrough requests, ex.: log table
+		BuildPassThroughResult(selectedPeers, res, &table, &columns, numPerRow)
+		if err != nil {
+			return
+		}
+	} else {
+		for _, id := range selectedPeers {
+			p := DataStore[id]
 			BuildLocalResponseDataForPeer(res, req, &p, numPerRow, &indexes)
 			log.Tracef("BuildLocalResponseDataForPeer done: %s", p.Name)
 		}
@@ -499,5 +463,83 @@ func SendResponse(c net.Conn, res *Response) (size int, err error) {
 	localAddr := c.LocalAddr().String()
 	promFrontendBytesSend.WithLabelValues(localAddr).Add(float64(len(resBytes)))
 	_, err = c.Write([]byte("\n"))
+	return
+}
+
+func BuildPassThroughResult(peers []string, res *Response, table *Table, columns *[]Column, numPerRow int) (err error) {
+	req := res.Request
+	res.Result = make([][]interface{}, 0)
+
+	// build columns list
+	backendColumns := []string{}
+	virtColumns := []Column{}
+	for _, col := range *columns {
+		if col.RefIndex > 0 {
+			virtColumns = append(virtColumns, col)
+		} else {
+			backendColumns = append(backendColumns, col.Name)
+		}
+	}
+
+	waitgroup := &sync.WaitGroup{}
+
+	for _, id := range peers {
+		p := DataStore[id]
+		m := sync.Mutex{}
+
+		p.PeerLock.RLock()
+		if p.Status["PeerStatus"].(PeerStatus) == PeerStatusDown {
+			m.Lock()
+			res.Failed[p.Id] = fmt.Sprintf("%v", p.Status["LastError"])
+			m.Unlock()
+			p.PeerLock.RUnlock()
+			continue
+		}
+		p.PeerLock.RUnlock()
+
+		waitgroup.Add(1)
+		go func(peer Peer, wg *sync.WaitGroup) {
+			log.Debugf("[%s] starting passthrough request", p.Name)
+			defer wg.Done()
+			passthroughRequest := &Request{
+				Table:           req.Table,
+				Filter:          req.Filter,
+				Stats:           req.Stats,
+				Columns:         backendColumns,
+				Limit:           req.Limit,
+				OutputFormat:    "json",
+				ResponseFixed16: true,
+			}
+			var result [][]interface{}
+			result, err = peer.Query(passthroughRequest)
+			log.Tracef("[%s] req done", p.Name)
+			if err != nil {
+				log.Tracef("[%s] req errored", err.Error())
+				m.Lock()
+				res.Failed[p.Id] = err.Error()
+				m.Unlock()
+				return
+			}
+			// insert virtual values
+			if len(virtColumns) > 0 {
+				for j, row := range result {
+					for _, col := range virtColumns {
+						i := col.Index
+						row = append(row, 0)
+						copy(row[i+1:], row[i:])
+						row[i] = peer.getRowValue(col.RefIndex, &row, j, table, nil, numPerRow)
+					}
+					result[j] = row
+				}
+			}
+			log.Tracef("[%s] result ready", p.Name)
+			m.Lock()
+			res.Result = append(res.Result, result...)
+			m.Unlock()
+		}(p, waitgroup)
+	}
+	log.Tracef("waiting...")
+	waitgroup.Wait()
+	log.Debugf("waiting for passed through requests done")
 	return
 }
