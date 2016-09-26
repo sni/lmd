@@ -196,6 +196,8 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 	switch colType {
 	case IntListCol:
 		fallthrough
+	case TimeCol:
+		fallthrough
 	case IntCol:
 		filtervalue, cerr := strconv.Atoi(tmp[2])
 		if cerr != nil {
@@ -227,7 +229,7 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 		filter.StrValue = tmp[2]
 		break
 	default:
-		log.Panicf("not implemented type: %v", colType)
+		log.Panicf("not implemented column type: %v", colType)
 	}
 	if isRegex {
 		val := filter.StrValue
@@ -357,8 +359,10 @@ func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, in
 		return matchNumberFilter(filter.Operator, NumberToFloat(value), filter.FloatValue)
 	case StringListCol:
 		return matchStringListFilter(filter, &value)
+	case IntListCol:
+		return matchIntListFilter(filter, &value)
 	}
-	log.Errorf("not implemented type: %v", filter.Column.Type)
+	log.Panicf("not implemented filter type: %v", filter.Column.Type)
 	return false
 }
 
@@ -488,6 +492,39 @@ func matchStringListFilter(filter *Filter, value *interface{}) bool {
 	case GroupContainsNot:
 		for i := 0; i < listLen; i++ {
 			if filter.StrValue == list.Index(i).Interface().(string) {
+				return false
+			}
+		}
+		return true
+	}
+	log.Errorf("not implemented op: %v", filter.Operator)
+	return false
+}
+
+func matchIntListFilter(filter *Filter, value *interface{}) bool {
+	list := reflect.ValueOf(*value)
+	listLen := list.Len()
+	switch filter.Operator {
+	case Equal:
+		if filter.StrValue == "" && listLen == 0 {
+			return true
+		}
+		return false
+	case Unequal:
+		if filter.StrValue == "" && listLen != 0 {
+			return true
+		}
+		return false
+	case GreaterThan:
+		for i := 0; i < listLen; i++ {
+			if filter.FloatValue == NumberToFloat(list.Index(i).Interface()) {
+				return true
+			}
+		}
+		return false
+	case GroupContainsNot:
+		for i := 0; i < listLen; i++ {
+			if filter.FloatValue == NumberToFloat(list.Index(i).Interface()) {
 				return false
 			}
 		}
