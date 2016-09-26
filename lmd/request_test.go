@@ -256,3 +256,20 @@ func TestRequestStatsBroken(t *testing.T) {
 
 	StopTestPeer()
 }
+
+func TestRequestRefs(t *testing.T) {
+	peer := SetupTestPeer()
+
+	res1, err := peer.QueryString("GET hosts\nColumns: name latency check_command\nLimit: 1\n\n")
+	if err := assertEq(1, len(res1)); err != nil {
+		t.Error(err)
+	}
+
+	res2, err := peer.QueryString("GET services\nColumns: host_name host_latency host_check_command\nFilter: host_name = " + res1[0][0].(string) + "\nLimit: 1\n\n")
+
+	if err = assertEq(res1[0], res2[0]); err != nil {
+		t.Error(err)
+	}
+
+	StopTestPeer()
+}

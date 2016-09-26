@@ -386,11 +386,17 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 		// build result row
 		resRow := make([]interface{}, numPerRow)
 		for k, i := range *(indexes) {
-			if i > 0 && i < inputRowLen {
-				resRow[k] = row[i]
-			} else {
-				// virtual and reference columns
+			if i < 0 {
+				// virtual columns
 				resRow[k] = peer.GetRowValue(res.Columns[k].RefIndex, &row, j, table, &refs, inputRowLen)
+			} else {
+				// check if this is a reference column
+				// reference columns come after the non-ref columns
+				if i >= inputRowLen {
+					resRow[k] = peer.GetRowValue(table.Columns[i].Index, &row, j, table, &refs, inputRowLen)
+				} else {
+					resRow[k] = row[i]
+				}
 			}
 			// fill null values with something useful
 			if resRow[k] == nil {
