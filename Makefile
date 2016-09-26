@@ -1,13 +1,16 @@
-all: build
+#!/usr/bin/make -f
 
+SHELL := /bin/bash
 LAMPDDIR=lmd
 
 INTERACTIVE:=$(shell [ -t 0 ] && echo 1)
 ifdef INTERACTIVE
-COLORIZE_TEST=| sed ''/PASS/s//$$(printf "\033[32mPASS\033[0m")/'' | sed ''/FAIL/s//$$(printf "\033[31mFAIL\033[0m")/''
+COLORIZE_TEST=| sed ''/PASS/s//$$(printf "\033[32mPASS\033[0m")/'' | sed ''/FAIL/s//$$(printf "\033[31mFAIL\033[0m")/'' ; test $${PIPESTATUS[0]} -eq 0
 else
 COLORIZE_TEST=
 endif
+
+all: build
 
 deps:
 	go get github.com/BurntSushi/toml
