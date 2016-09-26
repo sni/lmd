@@ -896,6 +896,15 @@ func (peer *Peer) getRowValue(index int, row *[]interface{}, rowNum int, table *
 						value = last_state_change
 					}
 					break
+				case "host_last_state_change_order":
+					// return last_state_change or program_start
+					last_state_change := NumberToFloat(peer.getRowValue(table.GetColumn("host_last_state_change").Index, row, rowNum, table, refs, inputRowLen))
+					if last_state_change == 0 {
+						value = peer.Status["ProgramStart"]
+					} else {
+						value = last_state_change
+					}
+					break
 				case "state_order":
 					// return 4 instead of 2, which makes critical come first
 					// this way we can use this column to sort by state
@@ -928,11 +937,39 @@ func (peer *Peer) getRowValue(index int, row *[]interface{}, rowNum int, table *
 				log.Panicf("not implemented")
 			}
 		}
+		// this happens if we are requesting an optional column from the wrong backend
+		// ex.: shinken specific columns from a non-shinken backend
+		if col.RefIndex == 0 {
+			if _, ok := (*refs)[table.Columns[col.RefIndex].Name]; !ok {
+				// return empty placeholder matching the column type
+				switch col.Type {
+				case IntListCol:
+					fallthrough
+				case StringListCol:
+					return (make([]interface{}, 0))
+				default:
+					return ("")
+				}
+			}
+		}
 		refObj := (*refs)[table.Columns[col.RefIndex].Name][rowNum]
 		if refObj == nil {
 			panic("should not happen, ref not found")
 		}
-		return refObj[table.Columns[index].RefColIndex]
+		if len(refObj) > col.RefColIndex {
+			return refObj[col.RefColIndex]
+		}
+		// this happens if we are requesting an optional column from the wrong backend
+		// ex.: shinken specific columns from a non-shinken backend
+		// -> return empty placeholder matching the column type
+		switch col.Type {
+		case IntListCol:
+			fallthrough
+		case StringListCol:
+			return (make([]interface{}, 0))
+		default:
+			return ("")
+		}
 	}
 	return (*row)[index]
 }
