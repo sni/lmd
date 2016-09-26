@@ -5,6 +5,8 @@ import "testing"
 func init() {
 	InitLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
 	InitObjects()
+	SetupTestPeer()
+	StopTestPeer()
 }
 
 func BenchmarkRequestsFilterSmall(b *testing.B) {
@@ -24,11 +26,9 @@ func BenchmarkRequestsFilterBig(b *testing.B) {
 	peer := SetupTestPeer()
 
 	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			peer.QueryString("GET hosts\nColumns: name\nFilter: name != test\nFilter: state != 5\nFilter: latency != 2\nFilter: contact_groups !=\nFilter: custom_variables != TEST blah\n")
-		}
-	})
+	for n := 0; n < b.N; n++ {
+		peer.QueryString("GET hosts\nColumns: name\nFilter: name != test\nFilter: state != 5\nFilter: latency != 2\nFilter: contact_groups !=\nFilter: custom_variables != TEST blah\n")
+	}
 
 	StopTestPeer()
 }
@@ -37,11 +37,9 @@ func BenchmarkRequestsStatsSmall(b *testing.B) {
 	peer := SetupTestPeer()
 
 	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			peer.QueryString("GET hosts\nStats: name != \nStats: avg latency\nStats: sum latency")
-		}
-	})
+	for n := 0; n < b.N; n++ {
+		peer.QueryString("GET hosts\nStats: name != \nStats: avg latency\nStats: sum latency")
+	}
 
 	StopTestPeer()
 }
@@ -50,9 +48,8 @@ func BenchmarkRequestsStatsBig(b *testing.B) {
 	peer := SetupTestPeer()
 
 	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			peer.QueryString(`GET services
+	for n := 0; n < b.N; n++ {
+		peer.QueryString(`GET services
 Stats: description !=
 Stats: check_type = 0
 Stats: check_type = 1
@@ -213,18 +210,15 @@ StatsAnd: 2
 Stats: accept_passive_checks = 0
 OutputFormat: json
 ResponseHeader: fixed16`)
-		}
-	})
+	}
 
 	StopTestPeer()
 }
 
 func BenchmarkNumberToFloat(b *testing.B) {
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			NumberToFloat(123.1231123123)
-			NumberToFloat(1231123123)
-			NumberToFloat(true)
-		}
-	})
+	for n := 0; n < b.N; n++ {
+		NumberToFloat(123.1231123123)
+		NumberToFloat(1231123123)
+		NumberToFloat(true)
+	}
 }

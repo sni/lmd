@@ -36,7 +36,7 @@ test: deps fmt
 	cd $(LAMPDDIR) && go test -v $(COLORIZE_TEST)
 
 benchmark: deps fmt
-	cd $(LAMPDDIR) && go test -v -bench=B\* -run=^$$ . -benchmem $(COLORIZE_TEST)
+	cd $(LAMPDDIR) && go test -v -bench=B\* -run=^$$ . -benchmem
 
 racetest: deps fmt
 	cd $(LAMPDDIR) && go test -race -v $(COLORIZE_TEST)
