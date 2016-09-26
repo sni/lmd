@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"os/exec"
 	"reflect"
 	"regexp"
 	"sync"
@@ -64,13 +65,13 @@ func StartMockLivestatusSource() {
 
 			if req.Command != "" {
 				conn.Close()
-				return
+				break
 			}
 
 			if len(req.Filter) > 0 {
 				conn.Write([]byte("200            3\n[]\n"))
 				conn.Close()
-				return
+				break
 			}
 
 			dat, err := ioutil.ReadFile("../t/data/" + req.Table + ".json")
@@ -128,7 +129,7 @@ func SetupTestPeer() (peer *Peer) {
 		// recheck every 100ms
 		time.Sleep(100 * time.Millisecond)
 		retries++
-		if retries > 1000 {
+		if retries > 100 {
 			panic("backend never came online")
 		}
 	}
@@ -143,4 +144,5 @@ func StopTestPeer() {
 	os.Remove("test.ini")
 	os.Remove("test.sock")
 	os.Remove("mock.sock")
+	exec.Command("ls", "-la", "mock.sock").Output()
 }
