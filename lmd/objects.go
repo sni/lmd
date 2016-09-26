@@ -710,6 +710,8 @@ func NewLogTable() (t *Table) {
 	t.AddColumn("state_type", StaticUpdate, StringCol, "The type of the state (varies on different log classes)")
 	t.AddColumn("time", StaticUpdate, IntCol, "Time of the log event (UNIX timestamp)")
 	t.AddColumn("type", StaticUpdate, StringCol, "The type of the message (text before the colon), the message itself for info messages")
+	t.AddColumn("current_service_contacts", StaticUpdate, StringListCol, "A list of all contacts of the service, either direct or via a contact group")
+	t.AddColumn("current_host_contacts", StaticUpdate, StringListCol, "A list of all contacts of this host, either direct or via a contact group")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
