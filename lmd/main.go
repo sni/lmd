@@ -177,6 +177,7 @@ func mainLoop() {
 
 	// Set the backends to be used.
 	DataStore = make(map[string]Peer)
+	DataStoreOrder = make([]string, 0)
 	InitObjects()
 
 	prometheusListener := InitPrometheus()
