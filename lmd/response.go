@@ -305,6 +305,8 @@ func BuildResponseIndexes(req *Request, table *Table) (indexes []int, columns []
 
 func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow int, indexes *[]int) {
 	log.Tracef("BuildLocalResponseDataForPeer: %s", peer.Name)
+	peer.DataLock.RLock()
+	defer peer.DataLock.RUnlock()
 	table := peer.Tables[req.Table].Table
 	peer.PeerLock.Lock()
 	peer.Status["LastQuery"] = time.Now()
@@ -319,9 +321,6 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 	if req.WaitTrigger != "" {
 		peer.waitCondition(req)
 	}
-
-	peer.DataLock.RLock()
-	defer peer.DataLock.RUnlock()
 
 	data := peer.Tables[req.Table].Data
 	refs := peer.Tables[req.Table].Refs
