@@ -354,7 +354,7 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 				// avg/sum/min/max are passed through, they dont have filter
 				// counter must match their filter
 				if s.StatsType != Counter || peer.matchFilter(table, &refs, inputRowLen, s, &row, j) {
-					val := peer.getRowValue(s.Column.Index, &row, j, table, &refs, inputRowLen)
+					val := peer.GetRowValue(s.Column.Index, &row, j, table, &refs, inputRowLen)
 					switch s.StatsType {
 					case Counter:
 						s.Stats++
@@ -390,7 +390,7 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 				resRow[k] = row[i]
 			} else {
 				// virtual and reference columns
-				resRow[k] = peer.getRowValue(res.Columns[k].RefIndex, &row, j, table, &refs, inputRowLen)
+				resRow[k] = peer.GetRowValue(res.Columns[k].RefIndex, &row, j, table, &refs, inputRowLen)
 			}
 			// fill null values with something useful
 			if resRow[k] == nil {
@@ -541,7 +541,7 @@ func BuildPassThroughResult(peers []string, res *Response, table *Table, columns
 						i := col.Index
 						row = append(row, 0)
 						copy(row[i+1:], row[i:])
-						row[i] = peer.getRowValue(col.RefIndex, &row, j, table, nil, numPerRow)
+						row[i] = peer.GetRowValue(col.RefIndex, &row, j, table, nil, numPerRow)
 					}
 					result[j] = row
 				}

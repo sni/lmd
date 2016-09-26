@@ -878,7 +878,7 @@ func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error)
 	return
 }
 
-func (peer *Peer) getRowValue(index int, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}, inputRowLen int) interface{} {
+func (peer *Peer) GetRowValue(index int, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}, inputRowLen int) interface{} {
 	if index >= inputRowLen {
 		col := table.Columns[index]
 		if col.Type == VirtCol {
@@ -898,7 +898,7 @@ func (peer *Peer) getRowValue(index int, row *[]interface{}, rowNum int, table *
 					break
 				case "host_last_state_change_order":
 					// return last_state_change or program_start
-					last_state_change := NumberToFloat(peer.getRowValue(table.GetColumn("host_last_state_change").Index, row, rowNum, table, refs, inputRowLen))
+					last_state_change := NumberToFloat(peer.GetRowValue(table.GetColumn("host_last_state_change").Index, row, rowNum, table, refs, inputRowLen))
 					if last_state_change == 0 {
 						value = peer.Status["ProgramStart"]
 					} else {

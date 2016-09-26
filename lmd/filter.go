@@ -337,7 +337,7 @@ func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, in
 	if filter.Column.Index < inputRowLen {
 		value = (*row)[filter.Column.Index]
 	} else {
-		value = peer.getRowValue(filter.Column.Index, row, rowNum, table, refs, inputRowLen)
+		value = peer.GetRowValue(filter.Column.Index, row, rowNum, table, refs, inputRowLen)
 	}
 	colType := filter.Column.Type
 	if colType == VirtCol {
