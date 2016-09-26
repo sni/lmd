@@ -310,7 +310,7 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 	table := peer.Tables[req.Table].Table
 	peer.PeerLock.Lock()
 	peer.Status["LastQuery"] = time.Now()
-	if peer.Status["PeerStatus"].(PeerStatus) == PeerStatusDown && (table == nil || !table.Virtual) {
+	if table == nil || (peer.Status["PeerStatus"].(PeerStatus) == PeerStatusDown && !table.Virtual) {
 		res.Failed[peer.Id] = fmt.Sprintf("%v", peer.Status["LastError"])
 		peer.PeerLock.Unlock()
 		return
