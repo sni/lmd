@@ -25,7 +25,7 @@ func TestRequestHeader(t *testing.T) {
 		"GET hosts\nSort: name asc\nSort: state desc\n\n",
 		"GET hosts\nStats: state = 1\nStats: avg latency\nStats: state = 3\nStats: state != 1\nStatsAnd: 2\n\n",
 		"GET hosts\nColumns: name\nFilter: name ~~ test\n\n",
-		"GET hosts\nColumns: name\nFilter: name ~~ Test\n\n",
+		"GET hosts\nColumns: name\nFilter: name !~ Test\n\n",
 		"GET hosts\nColumns: name\nFilter: name !~~ test\n\n",
 		"GET hosts\nColumns: name\nFilter: custom_variables ~~ TAGS test\n\n",
 		"GET hosts\nColumns: name\nFilter: name != \n\n",
@@ -34,6 +34,7 @@ func TestRequestHeader(t *testing.T) {
 		"GET hosts\nColumns: name\nFilter: latency != 1.23456789012345\n\n",
 		"GET hosts\nColumns: name comments\nFilter: comments >= 1\n\n",
 		"GET hosts\nColumns: name contact_groups\nFilter: contact_groups >= test\n\n",
+		"GET hosts\nColumns: name\nFilter: last_check >= 123456789\n\n",
 	}
 	for _, str := range testRequestStrings {
 		buf := bufio.NewReader(bytes.NewBufferString(str))
@@ -218,9 +219,18 @@ func TestResponseErrorsFunc(t *testing.T) {
 func TestRequestStats(t *testing.T) {
 	peer := SetupTestPeer()
 
-	res, err := peer.QueryString("GET hosts\nStats: sum latency\nStats: avg latency\nStats: min has_been_checked\nStats: max execution_time\n")
+	if err := assertEq(1, len(DataStore)); err != nil {
+		t.Error(err)
+	}
 
-	if err = assertEq(6.8264913559332, res[0][0]); err != nil {
+	res, err := peer.QueryString("GET hosts\nColumns: name latency\n\n")
+	if err := assertEq(12, len(res)); err != nil {
+		t.Error(err)
+	}
+
+	res, err = peer.QueryString("GET hosts\nStats: sum latency\nStats: avg latency\nStats: min has_been_checked\nStats: max execution_time\n")
+
+	if err = assertEq(1.7066228389833, res[0][0]); err != nil {
 		t.Error(err)
 	}
 	if err = assertEq(0.142218569915275, res[0][1]); err != nil {

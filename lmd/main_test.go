@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func init() {
 	InitLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
@@ -72,4 +75,46 @@ func TestMainFunc(t *testing.T) {
 	}
 
 	StopTestPeer()
+}
+
+func TestAllOps(t *testing.T) {
+	peer := SetupTestPeer()
+
+	ops := []string{"=", "!=", "=~", "!=~", "~", "!~", "~~", "!~~", "<", "<=", ">", ">=", "!>="}
+	values := []string{"", " test", " 5", " 3.124", "{}"}
+
+	res, err := peer.QueryString("GET columns\nColumns: table name description\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range res {
+		if row[2].(string) == "" {
+			t.Fatalf("got no description for %s in %s", row[1].(string), row[0].(string))
+		}
+		for _, op := range ops {
+			for _, value := range values {
+				testquery(t, peer, row[0].(string), row[1].(string), op, value)
+			}
+		}
+	}
+
+	StopTestPeer()
+}
+
+func testquery(t *testing.T, peer *Peer, table, column, op, value string) {
+	query := fmt.Sprintf("GET %s\nColumns: %s\nFilter: %s %s%s\nSort: %s asc\n\n",
+		table,
+		column,
+		column,
+		op,
+		value,
+		column,
+	)
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Recovered in f", r)
+			t.Fatalf("paniced for query:\n%s", query)
+		}
+	}()
+	peer.QueryString(query)
 }
