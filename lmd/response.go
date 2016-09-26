@@ -54,6 +54,8 @@ func (res Response) Less(i, j int) bool {
 	for _, s := range res.Request.Sort {
 		Type := res.Columns[s.Index].Type
 		switch Type {
+		case TimeCol:
+			fallthrough
 		case IntCol:
 			fallthrough
 		case FloatCol:
@@ -67,14 +69,23 @@ func (res Response) Less(i, j int) bool {
 			}
 			return valueA > valueB
 		case StringCol:
-			if res.Result[i][s.Index].(string) == res.Result[j][s.Index].(string) {
-				continue
+			if s1, ok := res.Result[i][s.Index].(string); ok {
+				if s2, ok := res.Result[j][s.Index].(string); ok {
+					if s1 == s2 {
+						continue
+					}
+					if s.Direction == Asc {
+						return s1 < s2
+					}
+					return s1 > s2
+				}
 			}
-			if s.Direction == Asc {
-				return res.Result[i][s.Index].(string) < res.Result[j][s.Index].(string)
-			}
-			return res.Result[i][s.Index].(string) > res.Result[j][s.Index].(string)
+			// not implemented
+			return s.Direction == Asc
 		case StringListCol:
+			// not implemented
+			return s.Direction == Asc
+		case IntListCol:
 			// not implemented
 			return s.Direction == Asc
 		}
@@ -123,9 +134,11 @@ func BuildResponse(req *Request) (res *Response, err error) {
 		selectedPeers = append(selectedPeers, id)
 
 		// spin up required?
+		p.PeerLock.RLock()
 		if !table.PassthroughOnly && p.Status["Idling"].(bool) && len(table.DynamicColCacheIndexes) > 0 {
 			spinUpPeers = append(spinUpPeers, id)
 		}
+		p.PeerLock.RUnlock()
 	}
 
 	if len(spinUpPeers) > 0 {
@@ -374,18 +387,11 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 		// build result row
 		resRow := make([]interface{}, numPerRow)
 		for k, i := range *(indexes) {
-			if i < 0 {
-				// virtual columns
-				resRow[k] = peer.getRowValue(res.Columns[k].RefIndex, &row, j, table, nil, inputRowLen)
+			if i > 0 && i < inputRowLen {
+				resRow[k] = row[i]
 			} else {
-				// check if this is a reference column
-				// reference columns come after the non-ref columns
-				if i >= inputRowLen {
-					refObj := refs[table.Columns[table.Columns[i].RefIndex].Name][j]
-					resRow[k] = refObj[table.Columns[i].RefColIndex]
-				} else {
-					resRow[k] = row[i]
-				}
+				// virtual and reference columns
+				resRow[k] = peer.getRowValue(res.Columns[k].RefIndex, &row, j, table, &refs, inputRowLen)
 			}
 			// fill null values with something useful
 			if resRow[k] == nil {
