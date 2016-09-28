@@ -4,6 +4,7 @@ next
           - add sites table as alias for backends table
           - add columns table with all columns with a description
           - add tables table as alias for columns table
+          - improve host/service updates to ensure no host/service update is missed
 
 0.0.2    Mon Sep 19 16:41:38 CEST 2016
           - add fullupdateinterval config option

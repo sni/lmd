@@ -326,8 +326,10 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	table := Objects.Tables["hosts"]
 	keys, indexes := table.GetDynamicColumns(p.Flags)
 	keys = append(keys, "name")
+	has_filter := true
 	if filterStr == "" {
-		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", p.Status["LastUpdate"].(time.Time).Unix())
+		has_filter = false
+		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.Status["LastUpdate"].(time.Time).Unix() - 3))
 	}
 	req := &Request{
 		Table:           table.Name,
@@ -352,6 +354,36 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	p.DataLock.Unlock()
 	promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(res)))
 	log.Debugf("[%s] updated %d hosts", p.Name, len(res))
+
+	// no filter means regular delta update, so lets check if all last_check dates match
+	if !has_filter {
+		req := &Request{
+			Table:           table.Name,
+			Columns:         []string{"last_check"},
+			ResponseFixed16: true,
+			OutputFormat:    "json",
+		}
+		res, err = p.Query(req)
+		if err != nil {
+			return
+		}
+		p.DataLock.RLock()
+		last_check_index := table.GetColumn("last_check").Index
+		data := p.Tables[table.Name].Data
+		missing := make(map[float64]bool)
+		for i, row := range res {
+			if row[0].(float64) != data[i][last_check_index].(float64) {
+				missing[row[0].(float64)] = true
+			}
+		}
+		p.DataLock.RUnlock()
+		if len(missing) > 0 {
+			for last_check, _ := range missing {
+				p.UpdateDeltaTableServices(fmt.Sprintf("Filter: last_check = %d\n", int(last_check)))
+			}
+		}
+	}
+
 	return
 }
 
@@ -360,8 +392,10 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	table := Objects.Tables["services"]
 	keys, indexes := table.GetDynamicColumns(p.Flags)
 	keys = append(keys, []string{"host_name", "description"}...)
+	has_filter := true
 	if filterStr == "" {
-		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", p.Status["LastUpdate"].(time.Time).Unix())
+		has_filter = false
+		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.Status["LastUpdate"].(time.Time).Unix() - 3))
 	}
 	req := &Request{
 		Table:           table.Name,
@@ -387,6 +421,36 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	p.DataLock.Unlock()
 	promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(res)))
 	log.Debugf("[%s] updated %d services", p.Name, len(res))
+
+	// no filter means regular delta update, so lets check if all last_check dates match
+	if !has_filter {
+		req := &Request{
+			Table:           table.Name,
+			Columns:         []string{"last_check"},
+			ResponseFixed16: true,
+			OutputFormat:    "json",
+		}
+		res, err = p.Query(req)
+		if err != nil {
+			return
+		}
+		p.DataLock.RLock()
+		last_check_index := table.GetColumn("last_check").Index
+		data := p.Tables[table.Name].Data
+		missing := make(map[float64]bool)
+		for i, row := range res {
+			if row[0].(float64) != data[i][last_check_index].(float64) {
+				missing[row[0].(float64)] = true
+			}
+		}
+		p.DataLock.RUnlock()
+		if len(missing) > 0 {
+			for last_check, _ := range missing {
+				p.UpdateDeltaTableServices(fmt.Sprintf("Filter: last_check = %d\n", int(last_check)))
+			}
+		}
+	}
+
 	return
 }
 
