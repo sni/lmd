@@ -5,8 +5,6 @@ import "testing"
 func init() {
 	InitLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
 	InitObjects()
-	SetupTestPeer()
-	StopTestPeer()
 }
 
 func BenchmarkRequestsFilterSmall(b *testing.B) {
