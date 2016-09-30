@@ -359,7 +359,7 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	if !has_filter {
 		req := &Request{
 			Table:           table.Name,
-			Columns:         []string{"last_check"},
+			Columns:         []string{"last_check", "scheduled_downtime_depth", "acknowledged"},
 			ResponseFixed16: true,
 			OutputFormat:    "json",
 		}
@@ -368,11 +368,17 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 			return
 		}
 		p.DataLock.RLock()
-		last_check_index := table.GetColumn("last_check").Index
+		index1 := table.GetColumn("last_check").Index
+		index2 := table.GetColumn("scheduled_downtime_depth").Index
+		index3 := table.GetColumn("acknowledged").Index
 		data := p.Tables[table.Name].Data
 		missing := make(map[float64]bool)
 		for i, row := range res {
-			if row[0].(float64) != data[i][last_check_index].(float64) {
+			if row[0].(float64) != data[i][index1].(float64) {
+				missing[row[0].(float64)] = true
+			} else if row[1].(float64) != data[i][index2].(float64) {
+				missing[row[0].(float64)] = true
+			} else if row[2].(float64) != data[i][index3].(float64) {
 				missing[row[0].(float64)] = true
 			}
 		}
@@ -426,7 +432,7 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	if !has_filter {
 		req := &Request{
 			Table:           table.Name,
-			Columns:         []string{"last_check"},
+			Columns:         []string{"last_check", "scheduled_downtime_depth", "acknowledged"},
 			ResponseFixed16: true,
 			OutputFormat:    "json",
 		}
@@ -435,11 +441,17 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 			return
 		}
 		p.DataLock.RLock()
-		last_check_index := table.GetColumn("last_check").Index
+		index1 := table.GetColumn("last_check").Index
+		index2 := table.GetColumn("scheduled_downtime_depth").Index
+		index3 := table.GetColumn("acknowledged").Index
 		data := p.Tables[table.Name].Data
 		missing := make(map[float64]bool)
 		for i, row := range res {
-			if row[0].(float64) != data[i][last_check_index].(float64) {
+			if row[0].(float64) != data[i][index1].(float64) {
+				missing[row[0].(float64)] = true
+			} else if row[1].(float64) != data[i][index2].(float64) {
+				missing[row[0].(float64)] = true
+			} else if row[2].(float64) != data[i][index3].(float64) {
 				missing[row[0].(float64)] = true
 			}
 		}
