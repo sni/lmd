@@ -89,7 +89,7 @@ func main() {
 	flag.BoolVar(&flagVeryVerbose, "vv", false, "enable very verbose output")
 	flag.BoolVar(&flagTraceVerbose, "vvv", false, "enable trace output")
 	flag.BoolVar(&flagVersion, "version", false, "print version and exit")
-	flag.StringVar(&flagProfile, "profiler", ":6060", "start pprof profiler on this port")
+	flag.StringVar(&flagProfile, "profiler", "", "start pprof profiler on this port, ex. :6060")
 	flag.Parse()
 	if flagVersion {
 		fmt.Printf("%s - version %s (Build: %s)\n", NAME, VERSION, Build)
