@@ -6,4 +6,6 @@ go:
   - 1.7
   - tip
 
-script: make test
+script:
+  -  make test
+  -  make benchmark
