@@ -1,14 +1,6 @@
 #!/usr/bin/make -f
 
-SHELL := /bin/bash
 LAMPDDIR=lmd
-
-INTERACTIVE:=$(shell [ -t 0 ] && echo 1)
-ifdef INTERACTIVE
-COLORIZE_TEST=| sed ''/PASS/s//$$(printf "\033[32mPASS\033[0m")/'' | sed ''/FAIL/s//$$(printf "\033[31mFAIL\033[0m")/'' ; test $${PIPESTATUS[0]} -eq 0
-else
-COLORIZE_TEST=
-endif
 
 all: build
 
@@ -35,10 +27,10 @@ debugbuild: deps fmt
 	cd $(LAMPDDIR) && go build -race -ldflags "-X main.Build=$(shell git rev-parse --short HEAD)"
 
 test: fmt dump
-	cd $(LAMPDDIR) && go test -short -v $(COLORIZE_TEST)
+	cd $(LAMPDDIR) && go test -short -v | ../t/test_counter.sh
 
 longtest: deps fmt
-	cd $(LAMPDDIR) && go test -v $(COLORIZE_TEST)
+	cd $(LAMPDDIR) && go test -v | ../t/test_counter.sh
 
 benchmark: deps fmt
 	cd $(LAMPDDIR) && go test -v -bench=B\* -run=^$$ . -benchmem

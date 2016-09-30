@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"syscall"
 	"testing"
 )
 
@@ -69,10 +70,13 @@ func TestMainFunc(t *testing.T) {
 	}
 
 	// send commands
-	res, err = peer.QueryString("COMMAND [123456] TEST\n\n")
+	_, err = peer.QueryString("COMMAND [123456] TEST\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// test reload
+	mainSignalChannel <- syscall.SIGHUP
 
 	StopTestPeer()
 }

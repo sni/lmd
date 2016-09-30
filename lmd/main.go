@@ -78,6 +78,7 @@ var flagProfile string
 
 var once sync.Once
 var netClient *http.Client
+var mainSignalChannel chan os.Signal
 
 func main() {
 	flag.Var(&flagConfigFile, "c", "set location for config file, can be specified multiple times")
@@ -139,13 +140,19 @@ func main() {
 
 	http.Handle("/metrics", prometheus.Handler())
 
-	shutdownChannel := make(chan os.Signal)
+	mainSignalChannel = make(chan os.Signal)
 	for {
-		mainLoop(shutdownChannel)
+		exitCode := mainLoop(mainSignalChannel)
+		if exitCode > 0 {
+			os.Exit(exitCode)
+		}
+		if exitCode == 0 {
+			break
+		}
 	}
 }
 
-func mainLoop(mainSignalChannel chan os.Signal) {
+func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	osSignalChannel := make(chan os.Signal, 1)
 	signal.Notify(osSignalChannel, syscall.SIGHUP)
 	signal.Notify(osSignalChannel, syscall.SIGTERM)
@@ -223,15 +230,13 @@ func mainLoop(mainSignalChannel chan os.Signal) {
 	// just wait till someone hits ctrl+c or we have to reload
 	select {
 	case sig := <-osSignalChannel:
-		mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
-		return
+		return mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
 	case sig := <-mainSignalChannel:
-		mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
-		return
+		return mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
 	}
 }
 
-func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers *sync.WaitGroup, waitGroupListener *sync.WaitGroup, prometheusListener net.Listener) {
+func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers *sync.WaitGroup, waitGroupListener *sync.WaitGroup, prometheusListener net.Listener) (exitCode int) {
 	switch sig {
 	case syscall.SIGTERM:
 		log.Infof("got sigterm, quiting gracefully")
@@ -245,8 +250,7 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		if flagPidfile != "" {
 			os.Remove(flagPidfile)
 		}
-		os.Exit(0)
-		break
+		return (0)
 	case os.Interrupt:
 		shutdownChannel <- true
 		close(shutdownChannel)
@@ -259,8 +263,7 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		if flagPidfile != "" {
 			os.Remove(flagPidfile)
 		}
-		os.Exit(1)
-		break
+		return (1)
 	case syscall.SIGHUP:
 		log.Infof("got sighup, reloading configuration...")
 		shutdownChannel <- true
@@ -269,11 +272,11 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 			prometheusListener.Close()
 		}
 		waitGroupListener.Wait()
-		return
+		return (-1)
 	default:
 		log.Warnf("Signal not handled: %v", sig)
 	}
-	return
+	return (1)
 }
 
 // waitTimeout waits for the waitgroup for the specified max timeout.
