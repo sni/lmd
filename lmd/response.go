@@ -198,7 +198,9 @@ func BuildResponsePostProcessing(res *Response) {
 		log.Debugf("sorting result took %s", duration.String())
 	}
 
-	res.ResultTotal = len(res.Result)
+	if res.ResultTotal == 0 {
+		res.ResultTotal = len(res.Result)
+	}
 
 	// apply request offset
 	if res.Request.Offset > 0 {
@@ -424,14 +426,13 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 				}
 			}
 		}
-		res.Result = append(res.Result, resRow)
-
-		// check if we have enough result rows already
 		found++
-		if limit > 0 && found >= limit {
-			break
+		// check if we have enough result rows already
+		if limit == 0 || found <= limit {
+			res.Result = append(res.Result, resRow)
 		}
 	}
+	res.ResultTotal += found
 
 	return
 }
