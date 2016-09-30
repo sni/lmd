@@ -89,8 +89,7 @@ func (d *DataTable) RemoveItem(row []interface{}) {
 	for i, r := range d.Data {
 		if fmt.Sprintf("%p", r) == fmt.Sprintf("%p", row) {
 			d.Data = append(d.Data[:i], d.Data[i+1:]...)
-			// TODO: check
-			//delete(d.Index, fmt.Sprintf("%v", r.Index))
+			delete(d.Index, fmt.Sprintf("%v", r[d.Table.GetColumn("id").Index]))
 			return
 		}
 	}
