@@ -21,6 +21,11 @@ var ReResponseHeader = regexp.MustCompile(`^(\d+)\s+(\d+)$`)
 var ReHttpTooOld = regexp.MustCompile(`Can.t locate object method`)
 var ReShinkenVersion = regexp.MustCompile(`-shinken$`)
 
+const (
+	UPDATE_ADDITIONAL_DELTA = 3  // number of seconds to add to the last_check filter on delta updates
+	MIN_FULL_SCAN_INTERVAL  = 30 // minimum interval between two full scans
+)
+
 type DataTable struct {
 	Table *Table
 	Data  [][]interface{}
@@ -328,10 +333,13 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	table := Objects.Tables["hosts"]
 	keys, indexes := table.GetDynamicColumns(p.Flags)
 	keys = append(keys, "name")
-	has_filter := true
 	if filterStr == "" {
-		has_filter = false
-		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.Status["LastUpdate"].(time.Time).Unix() - 3))
+		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.Status["LastUpdate"].(time.Time).Unix() - UPDATE_ADDITIONAL_DELTA))
+		// no filter means regular delta update, so lets check if all last_check dates match
+		ok, err := p.UpdateDeltaTableFullScan(&table, filterStr)
+		if ok || err != nil {
+			return err
+		}
 	}
 	req := &Request{
 		Table:           table.Name,
@@ -357,49 +365,6 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(res)))
 	log.Debugf("[%s] updated %d hosts", p.Name, len(res))
 
-	// no filter means regular delta update, so lets check if all last_check dates match
-	if !has_filter {
-		p.PeerLock.RLock()
-		last_update := p.Status["LastFullHostUpdate"].(time.Time).Unix()
-		p.PeerLock.RUnlock()
-		if last_update < time.Now().Unix()-30 {
-			req := &Request{
-				Table:           table.Name,
-				Columns:         []string{"last_check", "scheduled_downtime_depth", "acknowledged"},
-				ResponseFixed16: true,
-				OutputFormat:    "json",
-			}
-			res, err = p.Query(req)
-			if err != nil {
-				return
-			}
-			p.DataLock.RLock()
-			index1 := table.GetColumn("last_check").Index
-			index2 := table.GetColumn("scheduled_downtime_depth").Index
-			index3 := table.GetColumn("acknowledged").Index
-			data := p.Tables[table.Name].Data
-			missing := make(map[float64]bool)
-			for i, row := range res {
-				if row[0].(float64) != data[i][index1].(float64) {
-					missing[row[0].(float64)] = true
-				} else if row[1].(float64) != data[i][index2].(float64) {
-					missing[row[0].(float64)] = true
-				} else if row[2].(float64) != data[i][index3].(float64) {
-					missing[row[0].(float64)] = true
-				}
-			}
-			p.DataLock.RUnlock()
-			if len(missing) > 0 {
-				for last_check, _ := range missing {
-					p.UpdateDeltaTableServices(fmt.Sprintf("Filter: last_check = %d\n", int(last_check)))
-				}
-			}
-			p.PeerLock.Lock()
-			p.Status["LastFullHostUpdate"] = time.Now()
-			p.PeerLock.Unlock()
-		}
-	}
-
 	return
 }
 
@@ -408,10 +373,13 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	table := Objects.Tables["services"]
 	keys, indexes := table.GetDynamicColumns(p.Flags)
 	keys = append(keys, []string{"host_name", "description"}...)
-	has_filter := true
 	if filterStr == "" {
-		has_filter = false
-		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.Status["LastUpdate"].(time.Time).Unix() - 3))
+		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.Status["LastUpdate"].(time.Time).Unix() - UPDATE_ADDITIONAL_DELTA))
+		// no filter means regular delta update, so lets check if all last_check dates match
+		ok, err := p.UpdateDeltaTableFullScan(&table, filterStr)
+		if ok || err != nil {
+			return err
+		}
 	}
 	req := &Request{
 		Table:           table.Name,
@@ -438,49 +406,74 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(res)))
 	log.Debugf("[%s] updated %d services", p.Name, len(res))
 
-	// no filter means regular delta update, so lets check if all last_check dates match
-	if !has_filter {
-		p.PeerLock.RLock()
-		last_update := p.Status["LastFullServiceUpdate"].(time.Time).Unix()
-		p.PeerLock.RUnlock()
-		if last_update < time.Now().Unix()-30 {
-			req := &Request{
-				Table:           table.Name,
-				Columns:         []string{"last_check", "scheduled_downtime_depth", "acknowledged"},
-				ResponseFixed16: true,
-				OutputFormat:    "json",
-			}
-			res, err = p.Query(req)
-			if err != nil {
-				return
-			}
-			p.DataLock.RLock()
-			index1 := table.GetColumn("last_check").Index
-			index2 := table.GetColumn("scheduled_downtime_depth").Index
-			index3 := table.GetColumn("acknowledged").Index
-			data := p.Tables[table.Name].Data
-			missing := make(map[float64]bool)
-			for i, row := range res {
-				if row[0].(float64) != data[i][index1].(float64) {
-					missing[row[0].(float64)] = true
-				} else if row[1].(float64) != data[i][index2].(float64) {
-					missing[row[0].(float64)] = true
-				} else if row[2].(float64) != data[i][index3].(float64) {
-					missing[row[0].(float64)] = true
-				}
-			}
-			p.DataLock.RUnlock()
-			if len(missing) > 0 {
-				for last_check, _ := range missing {
-					p.UpdateDeltaTableServices(fmt.Sprintf("Filter: last_check = %d\n", int(last_check)))
-				}
-			}
-			p.PeerLock.Lock()
-			p.Status["LastFullServiceUpdate"] = time.Now()
-			p.PeerLock.Unlock()
+	return
+}
+
+func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated bool, err error) {
+	updated = false
+	p.PeerLock.RLock()
+	var last_update int64
+	if table.Name == "services" {
+		last_update = p.Status["LastFullServiceUpdate"].(time.Time).Unix()
+	} else if table.Name == "hosts" {
+		last_update = p.Status["LastFullHostUpdate"].(time.Time).Unix()
+	} else {
+		log.Panicf("not implemented for: " + table.Name)
+	}
+	p.PeerLock.RUnlock()
+
+	// do not do a full scan more often than every 30 seconds
+	if last_update > time.Now().Unix()-MIN_FULL_SCAN_INTERVAL {
+		return
+	}
+
+	req := &Request{
+		Table:           table.Name,
+		Columns:         []string{"last_check", "scheduled_downtime_depth", "acknowledged"},
+		ResponseFixed16: true,
+		OutputFormat:    "json",
+	}
+	res, err := p.Query(req)
+	if err != nil {
+		return
+	}
+	p.DataLock.RLock()
+	index1 := table.GetColumn("last_check").Index
+	index2 := table.GetColumn("scheduled_downtime_depth").Index
+	index3 := table.GetColumn("acknowledged").Index
+	data := p.Tables[table.Name].Data
+	missing := make(map[float64]bool)
+	for i, row := range res {
+		if row[0].(float64) != data[i][index1].(float64) {
+			missing[row[0].(float64)] = true
+		} else if row[1].(float64) != data[i][index2].(float64) {
+			missing[row[0].(float64)] = true
+		} else if row[2].(float64) != data[i][index3].(float64) {
+			missing[row[0].(float64)] = true
+		}
+	}
+	p.DataLock.RUnlock()
+	if len(missing) > 0 {
+		filter := []string{filterStr}
+		for last_check, _ := range missing {
+			filter = append(filter, fmt.Sprintf("Filter: last_check = %d\n", int(last_check)))
+		}
+		filter = append(filter, fmt.Sprintf("Or: %d\n", len(filter)))
+		if table.Name == "services" {
+			p.UpdateDeltaTableServices(strings.Join(filter, ""))
+		} else if table.Name == "hosts" {
+			p.UpdateDeltaTableHosts(strings.Join(filter, ""))
 		}
 	}
 
+	p.PeerLock.Lock()
+	if table.Name == "services" {
+		p.Status["LastFullServiceUpdate"] = time.Now()
+	} else if table.Name == "hosts" {
+		p.Status["LastFullHostUpdate"] = time.Now()
+	}
+	p.PeerLock.Unlock()
+	updated = true
 	return
 }
 
