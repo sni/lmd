@@ -480,13 +480,37 @@ func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated
 func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	// add new comments / downtimes
 	table := Objects.Tables[name]
+
+	// get number of entrys and max id
 	req := &Request{
+		Table:           table.Name,
+		ResponseFixed16: true,
+		OutputFormat:    "json",
+		FilterStr:       "Stats: id !=\nStats: max id\n",
+	}
+	res, err := p.Query(req)
+	if err != nil {
+		return
+	}
+	p.DataLock.RLock()
+	entries := len(p.Tables[table.Name].Data)
+	last := p.Tables[table.Name].Data[entries-1]
+	p.DataLock.RUnlock()
+	fieldIndex := table.ColumnsIndex["id"]
+
+	if float64(entries) == res[0][0].(float64) && last[fieldIndex].(float64) == res[0][1].(float64) {
+		log.Debugf("[%s] %s did not change", p.Name, name)
+		return
+	}
+
+	// fetch all ids to see which ones are missing or to be removed
+	req = &Request{
 		Table:           table.Name,
 		Columns:         []string{"id"},
 		ResponseFixed16: true,
 		OutputFormat:    "json",
 	}
-	res, err := p.Query(req)
+	res, err = p.Query(req)
 	if err != nil {
 		return
 	}
@@ -531,7 +555,6 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 		if err != nil {
 			return
 		}
-		fieldIndex := table.ColumnsIndex["id"]
 		p.DataLock.Lock()
 		data := p.Tables[table.Name]
 		for _, resRow := range res {
