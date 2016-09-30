@@ -28,9 +28,11 @@ debugbuild: deps fmt
 
 test: fmt dump
 	cd $(LAMPDDIR) && go test -short -v | ../t/test_counter.sh
+	if grep -r TODO: lmd/; then exit 1; fi
 
 longtest: deps fmt
 	cd $(LAMPDDIR) && go test -v | ../t/test_counter.sh
+	if grep -r TODO: lmd/; then exit 1; fi
 
 benchmark: deps fmt
 	cd $(LAMPDDIR) && go test -v -bench=B\* -run=^$$ . -benchmem
