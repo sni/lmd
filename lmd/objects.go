@@ -116,6 +116,26 @@ func (o *ObjectsType) GetTableColumnsData() (data [][]interface{}) {
 	return
 }
 
+func (t *Table) IsDefaultSortOrder(sort *[]*SortField) bool {
+	if len(*sort) == 0 {
+		return true
+	}
+	if len(*sort) == 2 {
+		if t.Name == "services" {
+			if (*sort)[0].Name == "host_name" && (*sort)[0].Direction == Asc && (*sort)[1].Name == "description" && (*sort)[1].Direction == Asc {
+				return true
+			}
+		}
+	} else if len(*sort) == 1 {
+		if t.Name == "hosts" {
+			if (*sort)[0].Name == "name" && (*sort)[0].Direction == Asc {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (t *Table) GetColumn(name string) Column {
 	return (t.Columns[t.ColumnsIndex[name]])
 }

@@ -334,6 +334,18 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 	}
 	inputRowLen := len(data[0])
 	statsLen := len(res.Request.Stats)
+
+	// if there is no sort header or sort by name only,
+	// we can drastically reduce the result set by applying the limit here already
+	limit := 0
+	if req.Limit > 0 && table.IsDefaultSortOrder(&req.Sort) {
+		limit = req.Limit
+		if req.Offset > 0 {
+			limit += req.Offset
+		}
+	}
+
+	found := 0
 	for j, row := range data {
 		// does our filter match?
 		filterMatched := true
@@ -413,6 +425,12 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 			}
 		}
 		res.Result = append(res.Result, resRow)
+
+		// check if we have enough result rows already
+		found++
+		if limit > 0 && found >= limit {
+			break
+		}
 	}
 
 	return
