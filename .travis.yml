@@ -7,5 +7,5 @@ go:
   - tip
 
 script:
-  -  make test
+  -  make longtest
   -  make benchmark

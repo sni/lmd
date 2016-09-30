@@ -78,6 +78,9 @@ func TestMainFunc(t *testing.T) {
 }
 
 func TestAllOps(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping all ops test in short mode")
+	}
 	peer := SetupTestPeer()
 
 	ops := []string{"=", "!=", "=~", "!=~", "~", "!~", "~~", "!~~", "<", "<=", ">", ">=", "!>="}

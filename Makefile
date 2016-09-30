@@ -12,12 +12,14 @@ endif
 
 all: build
 
-deps:
+deps: dump
 	go get github.com/BurntSushi/toml
 	go get github.com/kdar/factorlog
 	go get github.com/mgutz/ansi
 	go get golang.org/x/tools/cmd/goimports
 	go get github.com/prometheus/client_golang/prometheus
+
+dump:
 	if [ $(shell grep -rc Dump $(LAMPDDIR)/*.go | grep -v :0 | grep -v $(LAMPDDIR)/dump.go | wc -l) -ne 0 ]; then \
 		go get github.com/davecgh/go-spew/spew; \
 		sed -i.bak 's/\/\/ +build.*/\/\/ build with debug functions/' $(LAMPDDIR)/dump.go; \
@@ -32,7 +34,10 @@ build: deps fmt
 debugbuild: deps fmt
 	cd $(LAMPDDIR) && go build -race -ldflags "-X main.Build=$(shell git rev-parse --short HEAD)"
 
-test: deps fmt
+test: fmt dump
+	cd $(LAMPDDIR) && go test -short -v $(COLORIZE_TEST)
+
+longtest: deps fmt
 	cd $(LAMPDDIR) && go test -v $(COLORIZE_TEST)
 
 benchmark: deps fmt

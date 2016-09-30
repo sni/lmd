@@ -13,6 +13,7 @@ func init() {
 }
 
 func TestRequestHeaderTableFail(t *testing.T) {
+	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET none\n"))
 	_, _, err := ParseRequestFromBuffer(buf)
 	if err = assertEq(errors.New("bad request: table none does not exist"), err); err != nil {
@@ -21,6 +22,7 @@ func TestRequestHeaderTableFail(t *testing.T) {
 }
 
 func TestRequestHeaderColumnFail(t *testing.T) {
+	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nCOlumns: test\n"))
 	req, _, err := ParseRequestFromBuffer(buf)
 	_, err = BuildResponse(req)
@@ -30,6 +32,7 @@ func TestRequestHeaderColumnFail(t *testing.T) {
 }
 
 func TestRequestHeaderSort1Fail(t *testing.T) {
+	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nCOlumns: state\nSort: name\n"))
 	_, _, err := ParseRequestFromBuffer(buf)
 	if err = assertEq(errors.New("bad request: invalid sort header, must be Sort: <field> <asc|desc>"), err); err != nil {
@@ -38,6 +41,7 @@ func TestRequestHeaderSort1Fail(t *testing.T) {
 }
 
 func TestRequestHeaderSort2Fail(t *testing.T) {
+	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nCOlumns: state\nSort: name desc\n"))
 	req, _, err := ParseRequestFromBuffer(buf)
 	_, err = BuildResponse(req)

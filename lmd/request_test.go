@@ -12,6 +12,7 @@ func init() {
 }
 
 func TestRequestHeader(t *testing.T) {
+	t.Parallel()
 	testRequestStrings := []string{
 		"GET hosts\n\n",
 		"GET hosts\nColumns: name state\n\n",
@@ -49,6 +50,7 @@ func TestRequestHeader(t *testing.T) {
 }
 
 func TestRequestHeaderTable(t *testing.T) {
+	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\n"))
 	req, _, _ := ParseRequestFromBuffer(buf)
 	if err := assertEq("hosts", req.Table); err != nil {
@@ -57,6 +59,7 @@ func TestRequestHeaderTable(t *testing.T) {
 }
 
 func TestRequestHeaderLimit(t *testing.T) {
+	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nLimit: 10\n"))
 	req, _, _ := ParseRequestFromBuffer(buf)
 	if err := assertEq(10, req.Limit); err != nil {
@@ -65,6 +68,7 @@ func TestRequestHeaderLimit(t *testing.T) {
 }
 
 func TestRequestHeaderOffset(t *testing.T) {
+	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nOffset: 3\n"))
 	req, _, _ := ParseRequestFromBuffer(buf)
 	if err := assertEq(3, req.Offset); err != nil {
@@ -73,6 +77,7 @@ func TestRequestHeaderOffset(t *testing.T) {
 }
 
 func TestRequestHeaderColumns(t *testing.T) {
+	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name state\n"))
 	req, _, _ := ParseRequestFromBuffer(buf)
 	if err := assertEq([]string{"name", "state"}, req.Columns); err != nil {
@@ -81,6 +86,7 @@ func TestRequestHeaderColumns(t *testing.T) {
 }
 
 func TestRequestHeaderSort(t *testing.T) {
+	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: latency state name\nSort: name desc\nSort: state asc\n"))
 	req, _, _ := ParseRequestFromBuffer(buf)
 	table, _ := Objects.Tables[req.Table]
@@ -94,6 +100,7 @@ func TestRequestHeaderSort(t *testing.T) {
 }
 
 func TestRequestHeaderFilter1(t *testing.T) {
+	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: name != test\n"))
 	req, _, _ := ParseRequestFromBuffer(buf)
 	if err := assertEq(len(req.Filter), 1); err != nil {
@@ -105,6 +112,7 @@ func TestRequestHeaderFilter1(t *testing.T) {
 }
 
 func TestRequestHeaderFilter2(t *testing.T) {
+	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces \n"))
 	req, _, _ := ParseRequestFromBuffer(buf)
 	if err := assertEq(len(req.Filter), 2); err != nil {
@@ -122,6 +130,7 @@ func TestRequestHeaderFilter2(t *testing.T) {
 }
 
 func TestRequestHeaderFilter3(t *testing.T) {
+	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces\nOr: 2"))
 	req, _, _ := ParseRequestFromBuffer(buf)
 	if err := assertEq(len(req.Filter), 1); err != nil {
@@ -147,6 +156,7 @@ func TestRequestListFilter(t *testing.T) {
 }
 
 func TestRequestHeaderMultipleCommands(t *testing.T) {
+	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString(`COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web1;1473627610
 Backends: id2
 
