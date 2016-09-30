@@ -363,7 +363,7 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 
 		// count stats
 		if statsLen > 0 {
-			for i, _ := range res.Request.Stats {
+			for i := range res.Request.Stats {
 				s := &(res.Request.Stats[i])
 				// avg/sum/min/max are passed through, they dont have filter
 				// counter must match their filter

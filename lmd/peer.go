@@ -455,7 +455,7 @@ func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated
 	p.DataLock.RUnlock()
 	if len(missing) > 0 {
 		filter := []string{filterStr}
-		for last_check, _ := range missing {
+		for last_check := range missing {
 			filter = append(filter, fmt.Sprintf("Filter: last_check = %d\n", int(last_check)))
 		}
 		filter = append(filter, fmt.Sprintf("Or: %d\n", len(filter)))

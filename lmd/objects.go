@@ -141,7 +141,7 @@ func (t *Table) GetColumn(name string) Column {
 }
 
 func (t *Table) GetInitialKeys(flags OptionalFlags) (keys []string) {
-	for i, _ := range t.Columns {
+	for i := range t.Columns {
 		col := t.Columns[i]
 		if col.Update != RefUpdate && col.Update != RefNoUpdate && col.Type != VirtCol {
 			if col.Optional == NoFlags || flags&col.Optional != 0 {

@@ -51,4 +51,4 @@ clean:
 fmt:
 	cd $(LAMPDDIR) && goimports -w .
 	cd $(LAMPDDIR) && go vet
-	cd $(LAMPDDIR) && go fmt
+	cd $(LAMPDDIR) && gofmt -w -s .
