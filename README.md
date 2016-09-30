@@ -23,6 +23,17 @@ compiled fast daemon, but it works for everything which requires livestatus.
 Log table requests and commands are just passed through to the actual backends.
 
 
+How does it work
+================
+
+After starting LMD, it fetches all tables via Livestatus API from all
+configured remote backends. It then polls periodically all dynamic parts of the
+objects, like host status or plugin or downtime status. When there are no
+incoming connections to LMD, it switches into the idle mode with a slower poll
+interval. As soon as the first client requests some data, LMD will do a spin
+up and run a synchronous update and change back to the normal poll interval.
+
+
 Installation
 ============
 
