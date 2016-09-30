@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"syscall"
+
 	"github.com/BurntSushi/toml"
 )
 
@@ -87,6 +89,7 @@ func StartMockLivestatusSource() {
 }
 
 var shutdownChannel chan bool
+var mainShutdownChannel chan os.Signal
 var waitGroup *sync.WaitGroup
 var mainStarted bool = false
 
@@ -100,7 +103,8 @@ func SetupMainLoop() {
 
 	go func() {
 		if mainStarted {
-			mainLoop()
+			mainShutdownChannel = make(chan os.Signal)
+			mainLoop(mainShutdownChannel)
 		} else {
 			mainStarted = true
 			os.Args[1] = "-config=test.ini"
@@ -138,6 +142,10 @@ func SetupTestPeer() (peer *Peer) {
 }
 
 func StopTestPeer() {
+	if mainShutdownChannel != nil {
+		mainShutdownChannel <- syscall.SIGTERM
+		close(mainShutdownChannel)
+	}
 	shutdownChannel <- true
 	close(shutdownChannel)
 	waitTimeout(waitGroup, time.Second)

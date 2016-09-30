@@ -139,16 +139,17 @@ func main() {
 
 	http.Handle("/metrics", prometheus.Handler())
 
+	shutdownChannel := make(chan os.Signal)
 	for {
-		mainLoop()
+		mainLoop(shutdownChannel)
 	}
 }
 
-func mainLoop() {
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGHUP)
-	signal.Notify(c, syscall.SIGTERM)
-	signal.Notify(c, os.Interrupt)
+func mainLoop(mainSignalChannel chan os.Signal) {
+	osSignalChannel := make(chan os.Signal, 1)
+	signal.Notify(osSignalChannel, syscall.SIGHUP)
+	signal.Notify(osSignalChannel, syscall.SIGTERM)
+	signal.Notify(osSignalChannel, os.Interrupt)
 	shutdownChannel := make(chan bool)
 	waitGroupListener := &sync.WaitGroup{}
 	waitGroupPeers := &sync.WaitGroup{}
@@ -220,49 +221,59 @@ func mainLoop() {
 	once.Do(PrintVersion)
 
 	// just wait till someone hits ctrl+c or we have to reload
-	for sig := range c {
-		switch sig {
-		case syscall.SIGTERM:
-			log.Infof("got sigterm, quiting gracefully")
-			shutdownChannel <- true
-			close(shutdownChannel)
-			if prometheusListener != nil {
-				prometheusListener.Close()
-			}
-			waitGroupListener.Wait()
-			waitGroupPeers.Wait()
-			if flagPidfile != "" {
-				os.Remove(flagPidfile)
-			}
-			os.Exit(0)
-			break
-		case os.Interrupt:
-			shutdownChannel <- true
-			close(shutdownChannel)
-			if prometheusListener != nil {
-				prometheusListener.Close()
-			}
-			log.Infof("got sigint, quiting")
-			// wait one second which should be enough for the listeners
-			waitTimeout(waitGroupListener, time.Second)
-			if flagPidfile != "" {
-				os.Remove(flagPidfile)
-			}
-			os.Exit(1)
-			break
-		case syscall.SIGHUP:
-			log.Infof("got sighup, reloading configuration...")
-			shutdownChannel <- true
-			close(shutdownChannel)
-			if prometheusListener != nil {
-				prometheusListener.Close()
-			}
-			waitGroupListener.Wait()
-			return
-		default:
-			log.Warnf("Signal not handled: %v", sig)
-		}
+	select {
+	case sig := <-osSignalChannel:
+		mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
+		return
+	case sig := <-mainSignalChannel:
+		mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
+		return
 	}
+}
+
+func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers *sync.WaitGroup, waitGroupListener *sync.WaitGroup, prometheusListener net.Listener) {
+	switch sig {
+	case syscall.SIGTERM:
+		log.Infof("got sigterm, quiting gracefully")
+		shutdownChannel <- true
+		close(shutdownChannel)
+		if prometheusListener != nil {
+			prometheusListener.Close()
+		}
+		waitGroupListener.Wait()
+		waitGroupPeers.Wait()
+		if flagPidfile != "" {
+			os.Remove(flagPidfile)
+		}
+		os.Exit(0)
+		break
+	case os.Interrupt:
+		shutdownChannel <- true
+		close(shutdownChannel)
+		if prometheusListener != nil {
+			prometheusListener.Close()
+		}
+		log.Infof("got sigint, quiting")
+		// wait one second which should be enough for the listeners
+		waitTimeout(waitGroupListener, time.Second)
+		if flagPidfile != "" {
+			os.Remove(flagPidfile)
+		}
+		os.Exit(1)
+		break
+	case syscall.SIGHUP:
+		log.Infof("got sighup, reloading configuration...")
+		shutdownChannel <- true
+		close(shutdownChannel)
+		if prometheusListener != nil {
+			prometheusListener.Close()
+		}
+		waitGroupListener.Wait()
+		return
+	default:
+		log.Warnf("Signal not handled: %v", sig)
+	}
+	return
 }
 
 // waitTimeout waits for the waitgroup for the specified max timeout.
