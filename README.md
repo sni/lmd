@@ -33,6 +33,13 @@ incoming connections to LMD, it switches into the idle mode with a slower poll
 interval. As soon as the first client requests some data, LMD will do a spin
 up and run a synchronous update and change back to the normal poll interval.
 
+Usage
+=====
+
+If you want to use LMD with Thruk within OMD, see the [omd/lmd
+page](https://labs.consol.de/omd/packages/lmd/) for a quick start. The
+[OMD-Labs Edition](https://labs.consol.de/omd/) is already prepared to use LMD.
+
 
 Installation
 ============
