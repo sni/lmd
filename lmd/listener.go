@@ -56,7 +56,7 @@ func queryServer(c net.Conn) error {
 
 				size, err := SendResponse(c, response)
 				duration := time.Since(t1)
-				log.Infof("incoming %s request from %s to %s finished in %s, size: %d kB", req.Table, remote, c.LocalAddr().String(), duration.String(), size/1024)
+				log.Infof("incoming %s request from %s to %s finished in %s, size: %.3f kB", req.Table, remote, c.LocalAddr().String(), duration.String(), float64(size)/1024)
 				if err != nil {
 					return err
 				}
