@@ -247,7 +247,7 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 	return
 }
 
-func ParseStats(value string, line *string, table string, stack *[]Filter) (err error) {
+func parseStats(value string, line *string, table string, stack *[]Filter) (err error) {
 	tmp := strings.SplitN(value, " ", 3)
 	if len(tmp) < 2 {
 		err = errors.New("bad request: stats header, must be Stats: <field> <operator> <value> OR Stats: <sum|avg|min|max> <field>")
@@ -288,7 +288,7 @@ func ParseStats(value string, line *string, table string, stack *[]Filter) (err 
 	return
 }
 
-func ParseFilterOp(header string, value string, line *string, stack *[]Filter) (err error) {
+func parseFilterOp(header string, value string, line *string, stack *[]Filter) (err error) {
 	num, cerr := strconv.Atoi(value)
 	if cerr != nil || num < 1 {
 		err = errors.New("bad request: " + header + " must be a positive number in" + *line)

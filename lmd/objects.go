@@ -246,7 +246,7 @@ func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, Type Column
 }
 
 // create all table structures
-func InitObjects() {
+func initObjects() {
 	if Objects != nil {
 		return
 	}

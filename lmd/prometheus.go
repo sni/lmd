@@ -137,7 +137,7 @@ var (
 	)
 )
 
-func InitPrometheus() (prometheusListener net.Listener) {
+func initPrometheus() (prometheusListener net.Listener) {
 	if GlobalConfig.ListenPrometheus != "" {
 		var err error
 		prometheusListener, err = net.Listen("tcp", GlobalConfig.ListenPrometheus)

@@ -157,23 +157,16 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	signal.Notify(osSignalChannel, syscall.SIGHUP)
 	signal.Notify(osSignalChannel, syscall.SIGTERM)
 	signal.Notify(osSignalChannel, os.Interrupt)
+
 	shutdownChannel := make(chan bool)
 	waitGroupListener := &sync.WaitGroup{}
 	waitGroupPeers := &sync.WaitGroup{}
 
 	GlobalConfig = ReadConfig(flagConfigFile)
 
-	if flagVerbose {
-		GlobalConfig.LogLevel = "Info"
-	}
-	if flagVeryVerbose {
-		GlobalConfig.LogLevel = "Debug"
-	}
-	if flagTraceVerbose {
-		GlobalConfig.LogLevel = "Trace"
-	}
+	setVerboseFlags(&GlobalConfig)
 	setDefaults(&GlobalConfig)
-	InitLogging(&GlobalConfig)
+	initLogging(&GlobalConfig)
 
 	if len(GlobalConfig.Connections) == 0 {
 		log.Fatalf("no connections defined")
@@ -186,11 +179,59 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	// Set the backends to be used.
 	DataStore = make(map[string]Peer)
 	DataStoreOrder = make([]string, 0)
-	InitObjects()
+	initObjects()
 
-	prometheusListener := InitPrometheus()
+	// initialize prometheus
+	prometheusListener := initPrometheus()
 
 	// initialize http client
+	initializeHTTPClient()
+
+	// start local listeners
+	for _, listen := range GlobalConfig.Listen {
+		go localListener(listen, waitGroupListener, shutdownChannel)
+	}
+
+	// start remote connections
+	initializePeers(&GlobalConfig, waitGroupPeers, waitGroupListener, shutdownChannel)
+
+	once.Do(PrintVersion)
+
+	// just wait till someone hits ctrl+c or we have to reload
+	select {
+	case sig := <-osSignalChannel:
+		return mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
+	case sig := <-mainSignalChannel:
+		return mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
+	}
+}
+
+func initializePeers(GlobalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGroupListener *sync.WaitGroup, shutdownChannel chan bool) {
+	for _, c := range GlobalConfig.Connections {
+		p := NewPeer(c, waitGroupPeers, shutdownChannel)
+		_, Exists := DataStore[c.Id]
+		if Exists {
+			log.Fatalf("Duplicate id in connection list: %s", c.Id)
+		}
+		DataStore[c.Id] = *p
+		p.Start()
+		DataStoreOrder = append(DataStoreOrder, c.Id)
+	}
+}
+
+func setVerboseFlags(GlobalConfig *Config) {
+	if flagVerbose {
+		GlobalConfig.LogLevel = "Info"
+	}
+	if flagVeryVerbose {
+		GlobalConfig.LogLevel = "Debug"
+	}
+	if flagTraceVerbose {
+		GlobalConfig.LogLevel = "Trace"
+	}
+}
+
+func initializeHTTPClient() {
 	insecure := false
 	if GlobalConfig.SkipSSLCheck == 1 {
 		insecure = true
@@ -206,33 +247,6 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	netClient = &http.Client{
 		Timeout:   time.Second * 30,
 		Transport: tr,
-	}
-
-	// start local listeners
-	for _, listen := range GlobalConfig.Listen {
-		go localListener(listen, waitGroupListener, shutdownChannel)
-	}
-
-	// start remote connections
-	for _, c := range GlobalConfig.Connections {
-		p := NewPeer(c, waitGroupPeers, shutdownChannel)
-		_, Exists := DataStore[c.Id]
-		if Exists {
-			log.Fatalf("Duplicate id in connection list: %s", c.Id)
-		}
-		DataStore[c.Id] = *p
-		p.Start()
-		DataStoreOrder = append(DataStoreOrder, c.Id)
-	}
-
-	once.Do(PrintVersion)
-
-	// just wait till someone hits ctrl+c or we have to reload
-	select {
-	case sig := <-osSignalChannel:
-		return mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
-	case sig := <-mainSignalChannel:
-		return mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
 	}
 }
 

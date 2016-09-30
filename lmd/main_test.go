@@ -7,8 +7,8 @@ import (
 )
 
 func init() {
-	InitLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
-	InitObjects()
+	initLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
+	initObjects()
 }
 
 func TestMainFunc(t *testing.T) {

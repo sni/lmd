@@ -7,8 +7,8 @@ import (
 )
 
 func init() {
-	InitLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
-	InitObjects()
+	initLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
+	initObjects()
 }
 
 func TestRequestHeader(t *testing.T) {
@@ -213,6 +213,8 @@ func TestResponseErrorsFunc(t *testing.T) {
 		{"GET hosts\nColumns: name\nSort: state asc", "bad request: sort column state not in result set"},
 		{"GET hosts\nResponseheader: none", "bad request: unrecognized responseformat, only fixed16 is supported"},
 		{"GET hosts\nOutputFormat: csv: none", "bad request: unrecognized outputformat, only json and wrapped_json is supported"},
+		{"GET hosts\nStatsAnd: 1", "bad request: not enough filter on stack in StatsAnd: 1"},
+		{"GET hosts\nStatsOr: 1", "bad request: not enough filter on stack in StatsOr: 1"},
 	}
 
 	for _, er := range testRequestStrings {

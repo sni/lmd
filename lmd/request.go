@@ -281,54 +281,25 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 	case "and":
 		fallthrough
 	case "or":
-		err = ParseFilterOp(header, value, line, &req.Filter)
+		err = parseFilterOp(header, value, line, &req.Filter)
 		return
 	case "stats":
-		err = ParseStats(value, line, req.Table, &req.Stats)
+		err = parseStats(value, line, req.Table, &req.Stats)
 		return
 	case "statsand":
-		err = ParseFilterOp("and", value, line, &req.Stats)
-		req.Stats[len(req.Stats)-1].StatsType = Counter
+		err = parseStatsOp("and", value, line, &req.Stats)
 		return
 	case "statsor":
-		err = ParseFilterOp("or", value, line, &req.Stats)
-		req.Stats[len(req.Stats)-1].StatsType = Counter
+		err = parseStatsOp("or", value, line, &req.Stats)
 		return
 	case "sort":
-		tmp := strings.SplitN(value, " ", 2)
-		if len(tmp) < 2 {
-			err = errors.New("bad request: invalid sort header, must be Sort: <field> <asc|desc>")
-			return
-		}
-		var direction SortDirection
-		switch strings.ToLower(tmp[1]) {
-		case "asc":
-			direction = Asc
-			break
-		case "desc":
-			direction = Desc
-			break
-		default:
-			err = errors.New("bad request: unrecognized sort direction, must be asc or desc")
-			return
-		}
-		req.Sort = append(req.Sort, &SortField{Name: strings.ToLower(tmp[0]), Direction: direction})
+		err = parseSortHeader(&req.Sort, value)
 		return
 	case "limit":
-		limit, cerr := strconv.Atoi(value)
-		if cerr != nil || limit < 1 {
-			err = errors.New("bad request: limit must be a positive number")
-			return
-		}
-		req.Limit = limit
+		err = parseIntHeader(&req.Limit, header, value, 1)
 		return
 	case "offset":
-		offset, cerr := strconv.Atoi(value)
-		if cerr != nil || offset < 0 {
-			err = errors.New("bad request: offset must be a positive number")
-			return
-		}
-		req.Offset = offset
+		err = parseIntHeader(&req.Offset, header, value, 0)
 		return
 	case "backends":
 		req.Backends = strings.Split(value, " ")
@@ -357,12 +328,7 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 		}
 		return
 	case "waittimeout":
-		timeout, cerr := strconv.Atoi(value)
-		if cerr != nil || timeout < 1 {
-			err = errors.New("bad request: waittimeout must be a positive number")
-			return
-		}
-		req.WaitTimeout = timeout
+		err = parseIntHeader(&req.WaitTimeout, header, value, 1)
 		return
 	case "waittrigger":
 		req.WaitTrigger = value
@@ -377,4 +343,45 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 		err = errors.New("bad request: unrecognized header " + *line)
 		return
 	}
+}
+
+func parseIntHeader(field *int, header string, value string, minValue int) (err error) {
+	intVal, err := strconv.Atoi(value)
+	if err != nil || intVal < minValue {
+		err = errors.New("bad request: " + header + " must be a positive number")
+		return
+	}
+	*field = intVal
+	return
+}
+
+func parseSortHeader(field *[]*SortField, value string) (err error) {
+	tmp := strings.SplitN(value, " ", 2)
+	if len(tmp) < 2 {
+		err = errors.New("bad request: invalid sort header, must be Sort: <field> <asc|desc>")
+		return
+	}
+	var direction SortDirection
+	switch strings.ToLower(tmp[1]) {
+	case "asc":
+		direction = Asc
+		break
+	case "desc":
+		direction = Desc
+		break
+	default:
+		err = errors.New("bad request: unrecognized sort direction, must be asc or desc")
+		return
+	}
+	*field = append(*field, &SortField{Name: strings.ToLower(tmp[0]), Direction: direction})
+	return
+}
+
+func parseStatsOp(op string, value string, line *string, stats *[]Filter) (err error) {
+	err = parseFilterOp(op, value, line, stats)
+	if err != nil {
+		return
+	}
+	(*stats)[len(*stats)-1].StatsType = Counter
+	return
 }

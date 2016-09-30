@@ -15,7 +15,7 @@ const logColorReset = "%{Color \"reset\"}"
 
 var log *factorlog.FactorLog
 
-func InitLogging(conf *Config) {
+func initLogging(conf *Config) {
 	var logFormatter factorlog.Formatter
 	var targetWriter io.Writer
 	var err error
