@@ -25,6 +25,7 @@ type Request struct {
 	ResponseFixed16   bool
 	OutputFormat      string
 	Backends          []string
+	BackendsMap       map[string]string
 	SendColumnsHeader bool
 	WaitTimeout       int
 	WaitTrigger       string
@@ -82,7 +83,7 @@ var reRequestEmpty = regexp.MustCompile(`^\s*$`)
 func ParseRequest(c net.Conn) (req *Request, err error) {
 	b := bufio.NewReader(c)
 	localAddr := c.LocalAddr().String()
-	req, size, err := ParseRequestFromBuffer(b)
+	req, size, err := NewRequest(b)
 	promFrontendBytesReceived.WithLabelValues(localAddr).Add(float64(size))
 	return
 }
@@ -93,7 +94,7 @@ func ParseRequests(c net.Conn) (reqs []*Request, err error) {
 	b := bufio.NewReader(c)
 	localAddr := c.LocalAddr().String()
 	for {
-		req, size, err := ParseRequestFromBuffer(b)
+		req, size, err := NewRequest(b)
 		promFrontendBytesReceived.WithLabelValues(localAddr).Add(float64(size))
 		if err != nil {
 			return nil, err
@@ -160,9 +161,9 @@ func (req *Request) String() (str string) {
 	return
 }
 
-// ParseRequestFromBuffer reads a buffer and creates a request object.
+// NewRequest reads a buffer and creates a new request object.
 // It returns the request as long with the number of bytes read and any error.
-func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, size int, err error) {
+func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
 	req = &Request{SendColumnsHeader: false}
 	firstLine, err := b.ReadString('\n')
 	if err != nil && err != io.EOF {
@@ -218,6 +219,11 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, size int, err error)
 	}
 
 	err = req.VerifyRequestIntegrity()
+	if err != nil {
+		return
+	}
+
+	err = req.ExpandRequestedBackends()
 	return
 }
 
@@ -241,6 +247,13 @@ func (req *Request) VerifyRequestIntegrity() (err error) {
 		return
 	}
 	return
+}
+
+// GetResponse builds the response for a given request.
+// It returns the Response object and any error encountered.
+func (req *Request) GetResponse() (*Response, error) {
+	log.Tracef("GetResponse")
+	return (NewResponse(req))
 }
 
 // ParseRequestHeaderLine parses a single request line

@@ -11,17 +11,6 @@ import (
 	"time"
 )
 
-// Response contains the livestatus response data as long with some meta data
-type Response struct {
-	Code        int
-	Result      [][]interface{}
-	ResultTotal int
-	Request     *Request
-	Error       error
-	Failed      map[string]string
-	Columns     []Column
-}
-
 // VirtKeyMapTupel is used to define the virtual key mapping in the VirtKeyMap
 type VirtKeyMapTupel struct {
 	Index int
@@ -45,6 +34,81 @@ var VirtKeyMap = map[string]VirtKeyMapTupel{
 	"response_time":           {Index: -12, Key: "ReponseTime", Type: FloatCol},
 	"state_order":             {Index: -13, Key: "", Type: IntCol},
 	"last_state_change_order": {Index: -14, Key: "", Type: IntCol},
+}
+
+// Response contains the livestatus response data as long with some meta data
+type Response struct {
+	Code        int
+	Result      [][]interface{}
+	ResultTotal int
+	Request     *Request
+	Error       error
+	Failed      map[string]string
+	Columns     []Column
+}
+
+// NewResponse creates a new response object for a given request
+// It returns the Response object and any error encountered.
+func NewResponse(req *Request) (res *Response, err error) {
+	res = &Response{
+		Code:    200,
+		Failed:  make(map[string]string),
+		Request: req,
+	}
+
+	table, _ := Objects.Tables[req.Table]
+
+	indexes, columns, err := req.BuildResponseIndexes(&table)
+	if err != nil {
+		return
+	}
+	res.Columns = columns
+	numPerRow := len(indexes)
+
+	// check if we have to spin up updates, if so, do it parallel
+	selectedPeers := []string{}
+	spinUpPeers := []string{}
+	for _, id := range req.BackendsMap {
+		selectedPeers = append(selectedPeers, id)
+		p := DataStore[id]
+
+		// spin up required?
+		p.PeerLock.RLock()
+		if !table.PassthroughOnly && p.Status["Idling"].(bool) && len(table.DynamicColCacheIndexes) > 0 {
+			spinUpPeers = append(spinUpPeers, id)
+		}
+		p.PeerLock.RUnlock()
+	}
+
+	if len(spinUpPeers) > 0 {
+		SpinUpPeers(spinUpPeers)
+	}
+
+	if table.Name == "tables" || table.Name == "columns" {
+		selectedPeers = []string{DataStoreOrder[0]}
+	}
+
+	if table.PassthroughOnly {
+		// passthrough requests, ex.: log table
+		res.BuildPassThroughResult(selectedPeers, &table, &columns, numPerRow)
+		if err != nil {
+			return
+		}
+	} else {
+		for _, id := range selectedPeers {
+			p := DataStore[id]
+			p.BuildLocalResponseData(res, req, numPerRow, &indexes)
+			log.Tracef("BuildLocalResponseData done: %s", p.Name)
+			if table.Name == "tables" || table.Name == "columns" {
+				break
+			}
+		}
+	}
+	if res.Result == nil {
+		res.Result = make([][]interface{}, 0)
+	}
+	res.PostProcessing()
+	return
 }
 
 // Len returns the result length used for sorting results.
@@ -102,95 +166,25 @@ func (res Response) Swap(i, j int) {
 	res.Result[i], res.Result[j] = res.Result[j], res.Result[i]
 }
 
-// BuildResponse builds the response for a given request.
-// It returns the Response object and any error encountered.
-func BuildResponse(req *Request) (res *Response, err error) {
-	log.Tracef("BuildResponse")
-	res = &Response{
-		Code:    200,
-		Failed:  make(map[string]string),
-		Request: req,
-	}
+// ExpandRequestBackends fills the requests backends map
+func (req *Request) ExpandRequestedBackends() (err error) {
+	req.BackendsMap = make(map[string]string)
 
-	table, _ := Objects.Tables[req.Table]
-
-	indexes, columns, err := req.BuildResponseIndexes(&table)
-	if err != nil {
-		return
-	}
-	res.Columns = columns
-	numPerRow := len(indexes)
-
-	backendsMap, numBackendsReq, err := ExpandRequestBackends(req)
-	if err != nil {
+	// no backends selected means all backends
+	if len(req.Backends) == 0 {
+		for _, p := range DataStore {
+			req.BackendsMap[p.ID] = p.ID
+		}
 		return
 	}
 
-	// check if we have to spin up updates, if so, do it parallel
-	selectedPeers := []string{}
-	spinUpPeers := []string{}
-	for _, id := range DataStoreOrder {
-		p := DataStore[id]
-		if numBackendsReq > 0 {
-			_, Ok := backendsMap[p.ID]
-			if !Ok {
-				continue
-			}
-		}
-		selectedPeers = append(selectedPeers, id)
-
-		// spin up required?
-		p.PeerLock.RLock()
-		if !table.PassthroughOnly && p.Status["Idling"].(bool) && len(table.DynamicColCacheIndexes) > 0 {
-			spinUpPeers = append(spinUpPeers, id)
-		}
-		p.PeerLock.RUnlock()
-	}
-
-	if len(spinUpPeers) > 0 {
-		SpinUpPeers(spinUpPeers)
-	}
-
-	if table.Name == "tables" || table.Name == "columns" {
-		selectedPeers = []string{DataStoreOrder[0]}
-	}
-
-	if table.PassthroughOnly {
-		// passthrough requests, ex.: log table
-		res.BuildPassThroughResult(selectedPeers, &table, &columns, numPerRow)
-		if err != nil {
+	for _, b := range req.Backends {
+		_, Ok := DataStore[b]
+		if !Ok {
+			err = errors.New("bad request: backend " + b + " does not exist")
 			return
 		}
-	} else {
-		for _, id := range selectedPeers {
-			p := DataStore[id]
-			p.BuildLocalResponseData(res, req, numPerRow, &indexes)
-			log.Tracef("BuildLocalResponseData done: %s", p.Name)
-			if table.Name == "tables" || table.Name == "columns" {
-				break
-			}
-		}
-	}
-	if res.Result == nil {
-		res.Result = make([][]interface{}, 0)
-	}
-	res.PostProcessing()
-	return
-}
-
-// ExpandRequestBackends returns a map of used backends.
-func ExpandRequestBackends(req *Request) (backendsMap map[string]string, numBackendsReq int, err error) {
-	numBackendsReq = len(req.Backends)
-	if numBackendsReq > 0 {
-		backendsMap = make(map[string]string)
-		for _, b := range req.Backends {
-			_, Ok := DataStore[b]
-			if !Ok {
-				err = errors.New("bad request: backend " + b + " does not exist")
-				return
-			}
-			backendsMap[b] = b
-		}
+		req.BackendsMap[b] = b
 	}
 	return
 }

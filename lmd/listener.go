@@ -50,7 +50,7 @@ func QueryServer(c net.Conn) error {
 				if req.Table == "log" {
 					c.SetDeadline(time.Now().Add(time.Duration(60) * time.Second))
 				}
-				response, err := BuildResponse(req)
+				response, err := req.GetResponse()
 				if err != nil {
 					(&Response{Code: 400, Request: req, Error: err}).Send(c)
 					return err
@@ -72,16 +72,10 @@ func QueryServer(c net.Conn) error {
 // SendPeerCommands sends commands for this request to all selected remote sites.
 // It returns any error encountered.
 func (req *Request) SendPeerCommands() (err error) {
-	backendsMap, numBackendsReq, err := ExpandRequestBackends(req)
-	if err != nil {
-		return
-	}
 	for _, p := range DataStore {
-		if numBackendsReq > 0 {
-			_, ok := backendsMap[p.ID]
-			if !ok {
-				continue
-			}
+		_, ok := req.BackendsMap[p.ID]
+		if !ok {
+			continue
 		}
 		go func(peer Peer) {
 			commandRequest := &Request{

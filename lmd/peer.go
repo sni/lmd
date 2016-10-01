@@ -726,7 +726,7 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 // QueryString sends a livestatus request from a given string.
 // It returns the livestatus result and any error encountered.
 func (p *Peer) QueryString(str string) ([][]interface{}, error) {
-	req, _, err := ParseRequestFromBuffer(bufio.NewReader(bytes.NewBufferString(str)))
+	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString(str)))
 	if err != nil {
 		return nil, err
 	}
