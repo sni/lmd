@@ -166,7 +166,7 @@ func (res Response) Swap(i, j int) {
 	res.Result[i], res.Result[j] = res.Result[j], res.Result[i]
 }
 
-// ExpandRequestBackends fills the requests backends map
+// ExpandRequestedBackends fills the requests backends map
 func (req *Request) ExpandRequestedBackends() (err error) {
 	req.BackendsMap = make(map[string]string)
 
@@ -195,10 +195,14 @@ func (res *Response) PostProcessing() {
 	log.Tracef("PostProcessing")
 	// sort our result
 	if len(res.Request.Sort) > 0 {
-		t1 := time.Now()
-		sort.Sort(res)
-		duration := time.Since(t1)
-		log.Debugf("sorting result took %s", duration.String())
+		// skip sorting if there is only one backend requested and we want the default sort order
+		table := Objects.Tables[res.Request.Table]
+		if len(res.Request.BackendsMap) >= 1 || !table.IsDefaultSortOrder(&res.Request.Sort) {
+			t1 := time.Now()
+			sort.Sort(res)
+			duration := time.Since(t1)
+			log.Debugf("sorting result took %s", duration.String())
+		}
 	}
 
 	if res.ResultTotal == 0 {
@@ -315,7 +319,34 @@ func (req *Request) BuildResponseIndexes(table *Table) (indexes []int, columns [
 
 // Send writes converts the result object to a livestatus answer and writes the resulting bytes back to the client.
 func (res *Response) Send(c net.Conn) (size int, err error) {
-	resBytes := []byte{}
+	resBytes, err := res.Json()
+	if err != nil {
+		return
+	}
+	size = len(resBytes) + 1
+	if res.Request.ResponseFixed16 {
+		log.Debugf("write: %s", fmt.Sprintf("%d %11d", res.Code, size))
+		_, err = c.Write([]byte(fmt.Sprintf("%d %11d\n", res.Code, size)))
+		if err != nil {
+			log.Warnf("write error: %s", err.Error())
+		}
+	}
+	log.Debugf("write: %s", resBytes)
+	written, err := c.Write(resBytes)
+	if err != nil {
+		log.Warnf("write error: %s", err.Error())
+	}
+	if written != size-1 {
+		log.Warnf("write error: written %d, size: %d", written, size)
+	}
+	localAddr := c.LocalAddr().String()
+	promFrontendBytesSend.WithLabelValues(localAddr).Add(float64(len(resBytes)))
+	_, err = c.Write([]byte("\n"))
+	return
+}
+
+// Json converts the response into a json structure
+func (res *Response) Json() (resBytes []byte, err error) {
 	if res.Request.SendColumnsHeader {
 		var result [][]interface{}
 		cols := make([]interface{}, len(res.Request.Columns)+len(res.Request.Stats))
@@ -359,26 +390,6 @@ func (res *Response) Send(c net.Conn) (size int, err error) {
 			resBytes = append(resBytes, []byte(fmt.Sprintf("\n,\"total\":%d}", res.ResultTotal))...)
 		}
 	}
-
-	size = len(resBytes) + 1
-	if res.Request.ResponseFixed16 {
-		log.Debugf("write: %s", fmt.Sprintf("%d %11d", res.Code, size))
-		_, err = c.Write([]byte(fmt.Sprintf("%d %11d\n", res.Code, size)))
-		if err != nil {
-			log.Warnf("write error: %s", err.Error())
-		}
-	}
-	log.Debugf("write: %s", resBytes)
-	written, err := c.Write(resBytes)
-	if err != nil {
-		log.Warnf("write error: %s", err.Error())
-	}
-	if written != size-1 {
-		log.Warnf("write error: written %d, size: %d", written, size)
-	}
-	localAddr := c.LocalAddr().String()
-	promFrontendBytesSend.WithLabelValues(localAddr).Add(float64(len(resBytes)))
-	_, err = c.Write([]byte("\n"))
 	return
 }
 

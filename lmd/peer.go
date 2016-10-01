@@ -944,40 +944,8 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 		}
 	}
 
-	// create host lookup indexes
-	if table.Name == "hosts" {
-		indexField := table.ColumnsIndex["name"]
-		for _, row := range res {
-			index[row[indexField].(string)] = row
-		}
-		promHostCount.WithLabelValues(p.Name).Set(float64(len(res)))
-	}
-	// create service lookup indexes
-	if table.Name == "services" {
-		indexField1 := table.ColumnsIndex["host_name"]
-		indexField2 := table.ColumnsIndex["description"]
-		for _, row := range res {
-			index[row[indexField1].(string)+";"+row[indexField2].(string)] = row
-		}
-		promServiceCount.WithLabelValues(p.Name).Set(float64(len(res)))
-	}
-	// create downtime / comment id lookup indexes
-	if table.Name == "comments" || table.Name == "downtimes" {
-		indexField := table.ColumnsIndex["id"]
-		for _, row := range res {
-			index[fmt.Sprintf("%v", row[indexField])] = row
-		}
-	}
-	// is this a shinken backend?
-	if table.Name == "status" && len(res) > 0 {
-		row := res[0]
-		matched := reShinkenVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))
-		if len(matched) > 0 {
-			p.PeerLock.Lock()
-			p.Flags |= ShinkenOnly
-			p.PeerLock.Unlock()
-		}
-	}
+	p.createIndexAndFlags(table, &res, &index)
+
 	p.DataLock.Lock()
 	p.Tables[table.Name] = DataTable{Table: table, Data: res, Refs: refs, Index: index}
 	p.DataLock.Unlock()
@@ -986,6 +954,43 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	p.Status["LastFullUpdate"] = time.Now()
 	p.PeerLock.Unlock()
 	return
+}
+
+func (p *Peer) createIndexAndFlags(table *Table, res *[][]interface{}, index *map[string][]interface{}) {
+	// create host lookup indexes
+	if table.Name == "hosts" {
+		indexField := table.ColumnsIndex["name"]
+		for _, row := range *res {
+			(*index)[row[indexField].(string)] = row
+		}
+		promHostCount.WithLabelValues(p.Name).Set(float64(len((*res))))
+	}
+	// create service lookup indexes
+	if table.Name == "services" {
+		indexField1 := table.ColumnsIndex["host_name"]
+		indexField2 := table.ColumnsIndex["description"]
+		for _, row := range *res {
+			(*index)[row[indexField1].(string)+";"+row[indexField2].(string)] = row
+		}
+		promServiceCount.WithLabelValues(p.Name).Set(float64(len((*res))))
+	}
+	// create downtime / comment id lookup indexes
+	if table.Name == "comments" || table.Name == "downtimes" {
+		indexField := table.ColumnsIndex["id"]
+		for _, row := range *res {
+			(*index)[fmt.Sprintf("%v", row[indexField])] = row
+		}
+	}
+	// is this a shinken backend?
+	if table.Name == "status" && len((*res)) > 0 {
+		row := (*res)[0]
+		matched := reShinkenVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))
+		if len(matched) > 0 {
+			p.PeerLock.Lock()
+			p.Flags |= ShinkenOnly
+			p.PeerLock.Unlock()
+		}
+	}
 }
 
 // UpdateObjectByType updates a given table by requesting all dynamic columns from the remote peer.
@@ -1074,77 +1079,21 @@ func (p *Peer) updateTimeperiodsData(table *Table, res [][]interface{}, indexes 
 func (p *Peer) GetRowValue(index int, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}, inputRowLen int) interface{} {
 	if index >= inputRowLen {
 		col := table.Columns[index]
+
 		if col.Type == VirtCol {
-			p.PeerLock.RLock()
-			value, ok := p.Status[VirtKeyMap[col.Name].Key]
-			p.PeerLock.RUnlock()
-			if !ok {
-				switch col.Name {
-				case "last_state_change_order":
-					// return last_state_change or program_start
-					lastStateChange := numberToFloat((*row)[table.ColumnsIndex["last_state_change"]])
-					if lastStateChange == 0 {
-						value = p.Status["ProgramStart"]
-					} else {
-						value = lastStateChange
-					}
-					break
-				case "host_last_state_change_order":
-					// return last_state_change or program_start
-					lastStateChange := numberToFloat(p.GetRowValue(table.GetColumn("host_last_state_change").Index, row, rowNum, table, refs, inputRowLen))
-					if lastStateChange == 0 {
-						value = p.Status["ProgramStart"]
-					} else {
-						value = lastStateChange
-					}
-					break
-				case "state_order":
-					// return 4 instead of 2, which makes critical come first
-					// this way we can use this column to sort by state
-					state := numberToFloat((*row)[table.ColumnsIndex["state"]])
-					if state == 2 {
-						value = 4
-					} else {
-						value = state
-					}
-					break
-				default:
-					log.Panicf("cannot handle virtual column: %s", col.Name)
-					break
-				}
-			}
-			switch VirtKeyMap[col.Name].Type {
-			case IntCol:
-				fallthrough
-			case FloatCol:
-				fallthrough
-			case StringCol:
-				return value
-			case TimeCol:
-				val := value.(time.Time).Unix()
-				if val < 0 {
-					val = 0
-				}
-				return val
-			default:
-				log.Panicf("not implemented")
-			}
+			return p.GetVirtRowValue(col, row, rowNum, table, refs, inputRowLen)
 		}
+
 		// this happens if we are requesting an optional column from the wrong backend
 		// ex.: shinken specific columns from a non-shinken backend
 		if col.RefIndex == 0 {
 			if _, ok := (*refs)[table.Columns[col.RefIndex].Name]; !ok {
 				// return empty placeholder matching the column type
-				switch col.Type {
-				case IntListCol:
-					fallthrough
-				case StringListCol:
-					return (make([]interface{}, 0))
-				default:
-					return ("")
-				}
+				return (col.GetEmptyValue())
 			}
 		}
+
+		// reference columns
 		refObj := (*refs)[table.Columns[col.RefIndex].Name][rowNum]
 		if refObj == nil {
 			panic("should not happen, ref not found")
@@ -1152,24 +1101,79 @@ func (p *Peer) GetRowValue(index int, row *[]interface{}, rowNum int, table *Tab
 		if len(refObj) > col.RefColIndex {
 			return refObj[col.RefColIndex]
 		}
+
 		// this happens if we are requesting an optional column from the wrong backend
 		// ex.: shinken specific columns from a non-shinken backend
 		// -> return empty placeholder matching the column type
-		switch col.Type {
-		case IntListCol:
-			fallthrough
-		case StringListCol:
-			return (make([]interface{}, 0))
-		default:
-			return ("")
-		}
+		return (col.GetEmptyValue())
 	}
 	return (*row)[index]
+}
+
+func (p *Peer) GetVirtRowValue(col Column, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}, inputRowLen int) interface{} {
+	p.PeerLock.RLock()
+	value, ok := p.Status[VirtKeyMap[col.Name].Key]
+	p.PeerLock.RUnlock()
+	if !ok {
+		switch col.Name {
+		case "last_state_change_order":
+			// return last_state_change or program_start
+			lastStateChange := numberToFloat((*row)[table.ColumnsIndex["last_state_change"]])
+			if lastStateChange == 0 {
+				value = p.Status["ProgramStart"]
+			} else {
+				value = lastStateChange
+			}
+			break
+		case "host_last_state_change_order":
+			// return last_state_change or program_start
+			lastStateChange := numberToFloat(p.GetRowValue(table.GetColumn("host_last_state_change").Index, row, rowNum, table, refs, inputRowLen))
+			if lastStateChange == 0 {
+				value = p.Status["ProgramStart"]
+			} else {
+				value = lastStateChange
+			}
+			break
+		case "state_order":
+			// return 4 instead of 2, which makes critical come first
+			// this way we can use this column to sort by state
+			state := numberToFloat((*row)[table.ColumnsIndex["state"]])
+			if state == 2 {
+				value = 4
+			} else {
+				value = state
+			}
+			break
+		default:
+			log.Panicf("cannot handle virtual column: %s", col.Name)
+			break
+		}
+	}
+	switch VirtKeyMap[col.Name].Type {
+	case IntCol:
+		fallthrough
+	case FloatCol:
+		fallthrough
+	case StringCol:
+		return value
+	case TimeCol:
+		val := value.(time.Time).Unix()
+		if val < 0 {
+			val = 0
+		}
+		return val
+	default:
+		log.Panicf("not implemented")
+	}
+	return nil
 }
 
 // WaitCondition waits for a given condition.
 // It returns true if the wait timed out or false if the condition matched succesfully.
 func (p *Peer) WaitCondition(req *Request) bool {
+	if req.WaitTrigger == "" {
+		return false
+	}
 	c := make(chan struct{})
 	go func() {
 		table := p.Tables[req.Table].Table
@@ -1190,7 +1194,7 @@ func (p *Peer) WaitCondition(req *Request) bool {
 				close(c)
 				return
 			}
-			if p.MatchFilter(table, &refs, len(obj), &req.WaitCondition[0], &obj, 0) {
+			if p.MatchRowFilter(table, &refs, len(obj), &req.WaitCondition[0], &obj, 0) {
 				// trigger update for all, wait conditions are run against the last object
 				// but multiple commands may have been sent
 				if req.Table == "hosts" {
@@ -1335,13 +1339,11 @@ func (p *Peer) BuildLocalResponseData(res *Response, req *Request, numPerRow int
 	p.PeerLock.Unlock()
 
 	// if a WaitTrigger is supplied, wait max ms till the condition is true
-	if req.WaitTrigger != "" {
-		p.WaitCondition(req)
-	}
+	p.WaitCondition(req)
 
 	data := p.Tables[req.Table].Data
-	refs := p.Tables[req.Table].Refs
 
+	// get data for special tables
 	if table.Name == "tables" || table.Name == "columns" {
 		data = Objects.GetTableColumnsData()
 	}
@@ -1349,31 +1351,28 @@ func (p *Peer) BuildLocalResponseData(res *Response, req *Request, numPerRow int
 	if len(data) == 0 {
 		return
 	}
-	inputRowLen := len(data[0])
+
+	p.gatherResultRows(res, table, &data, numPerRow, indexes)
+}
+
+func (p *Peer) gatherResultRows(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) {
+	req := res.Request
+	refs := p.Tables[req.Table].Refs
 	statsLen := len(res.Request.Stats)
+	inputRowLen := len((*data)[0])
 
 	// if there is no sort header or sort by name only,
 	// we can drastically reduce the result set by applying the limit here already
-	limit := 0
-	if req.Limit > 0 && table.IsDefaultSortOrder(&req.Sort) {
-		limit = req.Limit
-		if req.Offset > 0 {
-			limit += req.Offset
-		}
-	}
+	limit := optimizeResultLimit(req, table)
 
 	found := 0
-	for j, row := range data {
+Rows:
+	for j, row := range *data {
 		// does our filter match?
-		filterMatched := true
 		for _, f := range res.Request.Filter {
-			if !p.MatchFilter(table, &refs, inputRowLen, &f, &row, j) {
-				filterMatched = false
-				break
+			if !p.MatchRowFilter(table, &refs, inputRowLen, &f, &row, j) {
+				continue Rows
 			}
-		}
-		if !filterMatched {
-			continue
 		}
 
 		// count stats
@@ -1382,34 +1381,12 @@ func (p *Peer) BuildLocalResponseData(res *Response, req *Request, numPerRow int
 				s := &(res.Request.Stats[i])
 				// avg/sum/min/max are passed through, they dont have filter
 				// counter must match their filter
-				if s.StatsType != Counter || p.MatchFilter(table, &refs, inputRowLen, s, &row, j) {
+				if s.StatsType != Counter || p.MatchRowFilter(table, &refs, inputRowLen, s, &row, j) {
 					val := p.GetRowValue(s.Column.Index, &row, j, table, &refs, inputRowLen)
-					switch s.StatsType {
-					case Counter:
-						s.Stats++
-						break
-					case Average:
-						fallthrough
-					case Sum:
-						s.Stats += numberToFloat(val)
-						break
-					case Min:
-						value := numberToFloat(val)
-						if s.Stats > value || s.Stats == -1 {
-							s.Stats = value
-						}
-						break
-					case Max:
-						value := numberToFloat(val)
-						if s.Stats < value {
-							s.Stats = value
-						}
-						break
-					}
-					s.StatsCount++
+					s.ApplyValue(&val)
 				}
 			}
-			continue
+			continue Rows
 		}
 
 		// build result row
@@ -1429,16 +1406,7 @@ func (p *Peer) BuildLocalResponseData(res *Response, req *Request, numPerRow int
 			}
 			// fill null values with something useful
 			if resRow[k] == nil {
-				switch table.Columns[i].Type {
-				case IntListCol:
-					fallthrough
-				case StringListCol:
-					resRow[k] = make([]interface{}, 0)
-					break
-				default:
-					resRow[k] = ""
-					break
-				}
+				resRow[k] = table.Columns[i].GetEmptyValue()
 			}
 		}
 		found++
@@ -1450,4 +1418,46 @@ func (p *Peer) BuildLocalResponseData(res *Response, req *Request, numPerRow int
 	res.ResultTotal += found
 
 	return
+}
+
+func optimizeResultLimit(req *Request, table *Table) (limit int) {
+	if req.Limit > 0 && table.IsDefaultSortOrder(&req.Sort) {
+		limit = req.Limit
+		if req.Offset > 0 {
+			limit += req.Offset
+		}
+	}
+	return
+}
+
+// MatchRowFilter returns true if the given filter matches the given datarow.
+func (p *Peer) MatchRowFilter(table *Table, refs *map[string][][]interface{}, inputRowLen int, filter *Filter, row *[]interface{}, rowNum int) bool {
+	// recursive group filter
+	if len(filter.Filter) > 0 {
+		for _, f := range filter.Filter {
+			subresult := p.MatchRowFilter(table, refs, inputRowLen, &f, row, rowNum)
+			if subresult == false && filter.GroupOperator == And {
+				return false
+			}
+			if subresult == true && filter.GroupOperator == Or {
+				return true
+			}
+		}
+		// if we did not return yet, this means all AND filter have matched
+		if filter.GroupOperator == And {
+			return true
+		}
+		// if we did not return yet, this means no OR filter have matched
+		return false
+	}
+
+	// normal field filter
+	var value interface{}
+	if filter.Column.Index < inputRowLen {
+		// directly access the row value
+		value = (*row)[filter.Column.Index]
+	} else {
+		value = p.GetRowValue(filter.Column.Index, row, rowNum, table, refs, inputRowLen)
+	}
+	return (filter.MatchFilter(&value))
 }

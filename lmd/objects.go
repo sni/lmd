@@ -90,6 +90,17 @@ const (
 	ShinkenOnly
 )
 
+// GetEmptyValue returns an empty placeholder representation for the given column type
+func (c Column) GetEmptyValue() interface{} {
+	switch c.Type {
+	case IntListCol:
+		fallthrough
+	case StringListCol:
+		return (make([]interface{}, 0))
+	}
+	return ("")
+}
+
 // GetTableColumnsData returns the virtual data used for the columns/table livestatus table.
 func (o *ObjectsType) GetTableColumnsData() (data [][]interface{}) {
 	for _, t := range o.Tables {

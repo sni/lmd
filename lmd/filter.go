@@ -188,6 +188,32 @@ func (f *Filter) strValue() (str string) {
 	return
 }
 
+func (f *Filter) ApplyValue(val *interface{}) {
+	switch f.StatsType {
+	case Counter:
+		f.Stats++
+		break
+	case Average:
+		fallthrough
+	case Sum:
+		f.Stats += numberToFloat(*val)
+		break
+	case Min:
+		value := numberToFloat(*val)
+		if f.Stats > value || f.Stats == -1 {
+			f.Stats = value
+		}
+		break
+	case Max:
+		value := numberToFloat(*val)
+		if f.Stats < value {
+			f.Stats = value
+		}
+		break
+	}
+	f.StatsCount++
+}
+
 // ParseFilter parses a single line into a filter object.
 // It returns any error encountered.
 func ParseFilter(value string, line *string, table string, stack *[]Filter) (err error) {
@@ -385,58 +411,32 @@ func ParseFilterOp(header string, value string, line *string, stack *[]Filter) (
 	return
 }
 
-// MatchFilter returns true if the given filter matches the given datarow.
-func (peer *Peer) MatchFilter(table *Table, refs *map[string][][]interface{}, inputRowLen int, filter *Filter, row *[]interface{}, rowNum int) bool {
-	// recursive group filter
-	if len(filter.Filter) > 0 {
-		for _, f := range filter.Filter {
-			subresult := peer.MatchFilter(table, refs, inputRowLen, &f, row, rowNum)
-			if subresult == false && filter.GroupOperator == And {
-				return false
-			}
-			if subresult == true && filter.GroupOperator == Or {
-				return true
-			}
-		}
-		// if we did not return yet, this means all AND filter have matched
-		if filter.GroupOperator == And {
-			return true
-		}
-		// if we did not return yet, this means no OR filter have matched
-		return false
-	}
-
-	// normal field filter
-	var value interface{}
-	if filter.Column.Index < inputRowLen {
-		value = (*row)[filter.Column.Index]
-	} else {
-		value = peer.GetRowValue(filter.Column.Index, row, rowNum, table, refs, inputRowLen)
-	}
-	colType := filter.Column.Type
+// MatchFilter returns true if the given filter matches the given value.
+func (f *Filter) MatchFilter(value *interface{}) bool {
+	colType := f.Column.Type
 	if colType == VirtCol {
-		colType = VirtKeyMap[filter.Column.Name].Type
+		colType = VirtKeyMap[f.Column.Name].Type
 	}
 	switch colType {
 	case StringCol:
-		return matchStringFilter(filter, &value)
+		return matchStringFilter(f, value)
 	case CustomVarCol:
-		return matchCustomVarFilter(filter, &value)
+		return matchCustomVarFilter(f, value)
 	case TimeCol:
 		fallthrough
 	case IntCol:
 		fallthrough
 	case FloatCol:
-		if v, ok := value.(float64); ok {
-			return matchNumberFilter(filter.Operator, v, filter.FloatValue)
+		if v, ok := (*value).(float64); ok {
+			return matchNumberFilter(f.Operator, v, f.FloatValue)
 		}
-		return matchNumberFilter(filter.Operator, numberToFloat(value), filter.FloatValue)
+		return matchNumberFilter(f.Operator, numberToFloat(*value), f.FloatValue)
 	case StringListCol:
-		return matchStringListFilter(filter, &value)
+		return matchStringListFilter(f, value)
 	case IntListCol:
-		return matchIntListFilter(filter, &value)
+		return matchIntListFilter(f, value)
 	}
-	log.Panicf("not implemented filter type: %v", filter.Column.Type)
+	log.Panicf("not implemented filter type: %v", f.Column.Type)
 	return false
 }
 

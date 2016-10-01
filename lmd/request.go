@@ -320,17 +320,7 @@ func (req *Request) ParseRequestHeaderLine(line *string) (err error) {
 		req.ResponseFixed16 = true
 		return
 	case "outputformat":
-		switch value {
-		case "wrapped_json":
-			req.OutputFormat = value
-			break
-		case "json":
-			req.OutputFormat = value
-			break
-		default:
-			err = errors.New("bad request: unrecognized outputformat, only json and wrapped_json is supported")
-			return
-		}
+		err = parseOutputFormat(&req.OutputFormat, value)
 		return
 	case "waittimeout":
 		err = parseIntHeader(&req.WaitTimeout, header, value, 1)
@@ -388,5 +378,20 @@ func parseStatsOp(op string, value string, line *string, stats *[]Filter) (err e
 		return
 	}
 	(*stats)[len(*stats)-1].StatsType = Counter
+	return
+}
+
+func parseOutputFormat(field *string, value string) (err error) {
+	switch value {
+	case "wrapped_json":
+		*field = value
+		break
+	case "json":
+		*field = value
+		break
+	default:
+		err = errors.New("bad request: unrecognized outputformat, only json and wrapped_json is supported")
+		return
+	}
 	return
 }
