@@ -5,13 +5,14 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
-	"os/exec"
 	"reflect"
 	"regexp"
 	"sync"
 	"time"
 
 	"syscall"
+
+	"os/exec"
 
 	"github.com/BurntSushi/toml"
 )
