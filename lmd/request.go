@@ -38,7 +38,7 @@ type SortDirection int
 // The only possible SortDirection are "Asc" and "Desc" for
 // sorting ascending or descending.
 const (
-	UnknownSortDirection SortDirection = iota
+	_ SortDirection = iota
 	Asc
 	Desc
 )
@@ -55,7 +55,7 @@ type GroupOperator int
 
 // The only possible GroupOperator are "And" and "Or"
 const (
-	UnknownGroupOperator GroupOperator = iota
+	_ GroupOperator = iota
 	And
 	Or
 )

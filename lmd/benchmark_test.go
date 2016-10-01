@@ -4,7 +4,7 @@ import "testing"
 
 func init() {
 	initLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
-	initObjects()
+	InitObjects()
 }
 
 func BenchmarkRequestsFilterSmall(b *testing.B) {

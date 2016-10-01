@@ -8,7 +8,7 @@ import (
 
 func init() {
 	initLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
-	initObjects()
+	InitObjects()
 }
 
 func TestMainFunc(t *testing.T) {

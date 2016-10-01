@@ -1,12 +1,15 @@
 package main
 
+// ObjectsType is a map of tables with a given order.
 type ObjectsType struct {
 	Tables map[string]Table
 	Order  []string
 }
 
+// Objects contains the static definition of all available tables and columns
 var Objects *ObjectsType
 
+// Table defines the livestatus table object.
 type Table struct {
 	Name                   string
 	MaxIndex               int
@@ -22,32 +25,49 @@ type Table struct {
 	Virtual                bool
 }
 
+// UpdateType defines if and how the column is updated.
 type UpdateType int
 
 const (
 	_ UpdateType = iota
+	// StaticUpdate is used for all columns which are updated once at start.
 	StaticUpdate
+	// DynamicUpdate columns are updated periodically.
 	DynamicUpdate
+	// RefUpdate columns are static columns containing the key for a foreign table.
 	RefUpdate
+	// RefNoUpdate columns are referenced columns from other tables and not updated directly.
 	RefNoUpdate
+	// VirtUpdate columns are not updated directly and calculated on the fly.
 	VirtUpdate
 )
 
+// ColumnType defines the data type of a column.
 type ColumnType int
 
 const (
 	_ ColumnType = iota
+	// StringCol is used for string columns.
 	StringCol
+	// StringListCol is used for string list columns.
 	StringListCol
+	// IntCol is used for integer columns.
 	IntCol
+	// IntListCol is used for integer list columns.
 	IntListCol
+	// FloatCol is used for float columns.
 	FloatCol
+	// RefCol is used for reference columns.
 	RefCol
+	// TimeCol is used for unix timestamp columns.
 	TimeCol
+	// CustomVarCol is used for custom variable map columns.
 	CustomVarCol
+	// VirtCol is used for virtual columns.
 	VirtCol
 )
 
+// Column is the definition of a single column within a table.
 type Column struct {
 	Name        string
 	Type        ColumnType
@@ -59,13 +79,18 @@ type Column struct {
 	Description string
 }
 
+// OptionalFlags is used to set flags for optionial columns.
 type OptionalFlags byte
 
 const (
+	// NoFlags is set if there are no flags at all.
 	NoFlags OptionalFlags = iota
+
+	// ShinkenOnly flag is set if the remote site is a shinken installation.
 	ShinkenOnly
 )
 
+// GetTableColumnsData returns the virtual data used for the columns/table livestatus table.
 func (o *ObjectsType) GetTableColumnsData() (data [][]interface{}) {
 	for _, t := range o.Tables {
 		for _, c := range t.Columns {
@@ -116,6 +141,7 @@ func (o *ObjectsType) GetTableColumnsData() (data [][]interface{}) {
 	return
 }
 
+// IsDefaultSortOrder returns true if the sortfield is the default for the given table.
 func (t *Table) IsDefaultSortOrder(sort *[]*SortField) bool {
 	if len(*sort) == 0 {
 		return true
@@ -136,10 +162,12 @@ func (t *Table) IsDefaultSortOrder(sort *[]*SortField) bool {
 	return false
 }
 
+// GetColumn returns a column by name.
 func (t *Table) GetColumn(name string) Column {
 	return (t.Columns[t.ColumnsIndex[name]])
 }
 
+// GetInitialKeys returns the list of strings of all static and dynamic columns.
 func (t *Table) GetInitialKeys(flags OptionalFlags) (keys []string) {
 	for i := range t.Columns {
 		col := t.Columns[i]
@@ -152,6 +180,7 @@ func (t *Table) GetInitialKeys(flags OptionalFlags) (keys []string) {
 	return
 }
 
+// GetDynamicColumns returns a list of all dynamic columns along with their indexes.
 func (t *Table) GetDynamicColumns(flags OptionalFlags) (keys []string, indexes []int) {
 	for i := range t.Columns {
 		col := t.Columns[i]
@@ -165,6 +194,7 @@ func (t *Table) GetDynamicColumns(flags OptionalFlags) (keys []string, indexes [
 	return keys, indexes
 }
 
+// AddColumnObject adds a column object.
 func (t *Table) AddColumnObject(col *Column) int {
 	Index := t.MaxIndex
 	t.MaxIndex++
@@ -191,6 +221,7 @@ func (t *Table) AddColumnObject(col *Column) int {
 	return col.Index
 }
 
+// AddColumn adds a (normal) column.
 func (t *Table) AddColumn(Name string, Update UpdateType, Type ColumnType, Description string) int {
 	Column := Column{
 		Name:        Name,
@@ -201,6 +232,7 @@ func (t *Table) AddColumn(Name string, Update UpdateType, Type ColumnType, Descr
 	return t.AddColumnObject(&Column)
 }
 
+// AddOptColumn adds a optional column.
 func (t *Table) AddOptColumn(Name string, Update UpdateType, Type ColumnType, Restrict OptionalFlags, Description string) int {
 	Column := Column{
 		Name:        Name,
@@ -212,6 +244,7 @@ func (t *Table) AddOptColumn(Name string, Update UpdateType, Type ColumnType, Re
 	return t.AddColumnObject(&Column)
 }
 
+// AddRefColumn adds a reference column.
 func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, Type ColumnType) {
 	_, Ok := Objects.Tables[Ref]
 	if !Ok {
@@ -245,8 +278,8 @@ func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, Type Column
 	return
 }
 
-// create all table structures
-func initObjects() {
+// InitObjects creates the initial table object structures.
+func InitObjects() {
 	if Objects != nil {
 		return
 	}
@@ -288,6 +321,7 @@ func initObjects() {
 	return
 }
 
+// AddTable appends a table object to the Objects and verifies that no table is added twice.
 func (o *ObjectsType) AddTable(name string, table *Table) {
 	_, exists := o.Tables[name]
 	if exists {
@@ -298,7 +332,7 @@ func (o *ObjectsType) AddTable(name string, table *Table) {
 	return
 }
 
-// add backends table definitions
+// NewBackendsTable returns a new backends table
 func NewBackendsTable(name string) (t *Table) {
 	t = &Table{Name: name, Virtual: true}
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
@@ -318,7 +352,7 @@ func NewBackendsTable(name string) (t *Table) {
 	return
 }
 
-// add columns table definitions
+// NewColumnsTable returns a new columns table
 func NewColumnsTable(name string) (t *Table) {
 	t = &Table{Name: name, Virtual: true}
 	t.AddColumn("name", VirtUpdate, StringCol, "The name of the column within the table")
@@ -329,7 +363,7 @@ func NewColumnsTable(name string) (t *Table) {
 	return
 }
 
-// add state table definitions
+// NewStatusTable returns a new status table
 func NewStatusTable() (t *Table) {
 	t = &Table{Name: "status"}
 	t.AddColumn("accept_passive_host_checks", DynamicUpdate, IntCol, "The number of host checks since program start")
@@ -383,7 +417,7 @@ func NewStatusTable() (t *Table) {
 	return
 }
 
-// add timeperiods table definitions
+// NewTimeperiodsTable returns a new timeperiods table
 func NewTimeperiodsTable() (t *Table) {
 	t = &Table{Name: "timeperiods"}
 	t.AddColumn("alias", StaticUpdate, StringCol, "The alias of the timeperiod")
@@ -395,7 +429,7 @@ func NewTimeperiodsTable() (t *Table) {
 	return
 }
 
-// add contacts table definitions
+// NewContactsTable returns a new contacts table
 func NewContactsTable() (t *Table) {
 	t = &Table{Name: "contacts"}
 	t.AddColumn("alias", StaticUpdate, StringCol, "The full name of the contact")
@@ -413,7 +447,7 @@ func NewContactsTable() (t *Table) {
 	return
 }
 
-// add contactgroupstable definitions
+// NewContactgroupsTable returns a new contactgroups table
 func NewContactgroupsTable() (t *Table) {
 	t = &Table{Name: "contactgroups"}
 	t.AddColumn("alias", StaticUpdate, StringCol, "The alias of the contactgroup")
@@ -425,7 +459,7 @@ func NewContactgroupsTable() (t *Table) {
 	return
 }
 
-// add commands definitions
+// NewCommandsTable returns a new commands table
 func NewCommandsTable() (t *Table) {
 	t = &Table{Name: "commands"}
 	t.AddColumn("name", StaticUpdate, StringCol, "The name of the command")
@@ -436,7 +470,7 @@ func NewCommandsTable() (t *Table) {
 	return
 }
 
-// add hosts table definitions
+// NewHostsTable returns a new hosts table
 func NewHostsTable() (t *Table) {
 	t = &Table{Name: "hosts"}
 	t.AddColumn("accept_passive_checks", DynamicUpdate, IntCol, "Whether passive host checks are accepted (0/1)")
@@ -539,7 +573,7 @@ func NewHostsTable() (t *Table) {
 	return
 }
 
-// add hostgroups definitions
+// NewHostgroupsTable returns a new hostgroups table
 func NewHostgroupsTable() (t *Table) {
 	t = &Table{Name: "hostgroups"}
 	t.AddColumn("action_url", StaticUpdate, StringCol, "An optional URL to custom actions or information about the hostgroup")
@@ -554,7 +588,7 @@ func NewHostgroupsTable() (t *Table) {
 	return
 }
 
-// add services table definitions
+// NewServicesTable returns a new services table
 func NewServicesTable() (t *Table) {
 	t = &Table{Name: "services"}
 	t.AddColumn("accept_passive_checks", DynamicUpdate, IntCol, "Whether the service accepts passive checks (0/1)")
@@ -652,7 +686,7 @@ func NewServicesTable() (t *Table) {
 	return
 }
 
-// add hostgroups definitions
+// NewServicegroupsTable returns a new hostgroups table
 func NewServicegroupsTable() (t *Table) {
 	t = &Table{Name: "servicegroups"}
 	t.AddColumn("action_url", StaticUpdate, StringCol, "An optional URL to custom notes or actions on the service group")
@@ -667,7 +701,7 @@ func NewServicegroupsTable() (t *Table) {
 	return
 }
 
-// add comments definitions
+// NewCommentsTable returns a new comments table
 func NewCommentsTable() (t *Table) {
 	t = &Table{Name: "comments"}
 	t.AddColumn("author", StaticUpdate, StringCol, "The contact that entered the comment")
@@ -689,7 +723,7 @@ func NewCommentsTable() (t *Table) {
 	return
 }
 
-// add downtimes definitions
+// NewDowntimesTable returns a new downtimes table
 func NewDowntimesTable() (t *Table) {
 	t = &Table{Name: "downtimes"}
 	t.AddColumn("author", StaticUpdate, StringCol, "The contact that scheduled the downtime")
@@ -712,7 +746,7 @@ func NewDowntimesTable() (t *Table) {
 	return
 }
 
-// add log table definitions
+// NewLogTable returns a new log table
 func NewLogTable() (t *Table) {
 	t = &Table{Name: "log"}
 	t.PassthroughOnly = true

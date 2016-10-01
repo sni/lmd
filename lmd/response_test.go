@@ -9,7 +9,7 @@ import (
 
 func init() {
 	initLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
-	initObjects()
+	InitObjects()
 }
 
 func TestRequestHeaderTableFail(t *testing.T) {

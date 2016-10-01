@@ -179,7 +179,7 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	// Set the backends to be used.
 	DataStore = make(map[string]Peer)
 	DataStoreOrder = make([]string, 0)
-	initObjects()
+	InitObjects()
 
 	// initialize prometheus
 	prometheusListener := initPrometheus()
