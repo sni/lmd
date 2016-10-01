@@ -2,6 +2,7 @@ LMD - Livestatus Multitool Daemon
 =================================
 
 [![Build Status](https://travis-ci.org/sni/lmd.svg?branch=master)](https://travis-ci.org/sni/lmd)
+[![Go Report Card](https://goreportcard.com/badge/github.com/sni/lmd)](https://goreportcard.com/report/github.com/sni/lmd)
 
 What is this
 ============
@@ -149,6 +150,7 @@ An example installation with 200.000 services at a 3 second update interval uses
 This makes an average of 7kB memory and 1Byte/s of bandwitdh usage per service.
 
 However your milage may vary, these number heavily depend on the size of the plugin output and the check interval of your services.
+Use the Prometheus exporter to create nice graphs to see how your environment differs.
 
 Btw, changing the update interval to 30 seconds does not reduce the used bandwith, you just have to update many services every 30 seconds than small packages every 3 seconds.
 
