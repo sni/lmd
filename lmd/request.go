@@ -11,6 +11,7 @@ import (
 	"strings"
 )
 
+// Request defines a livestatus request object.
 type Request struct {
 	Table             string
 	Command           string
@@ -31,33 +32,41 @@ type Request struct {
 	WaitObject        string
 }
 
+// SortDirection can be either Asc or Desc
 type SortDirection int
 
+// The only possible SortDirection are "Asc" and "Desc" for
+// sorting ascending or descending.
 const (
 	UnknownSortDirection SortDirection = iota
 	Asc
 	Desc
 )
 
+// SortField defines a single sort entry
 type SortField struct {
 	Name      string
 	Direction SortDirection
 	Index     int
 }
 
+// GroupOperator is the operator used to combine multiple filter or stats header.
 type GroupOperator int
 
+// The only possible GroupOperator are "And" and "Or"
 const (
 	UnknownGroupOperator GroupOperator = iota
 	And
 	Or
 )
 
-var ReRequestAction = regexp.MustCompile(`^GET ([a-z]+)$`)
-var ReRequestCommand = regexp.MustCompile(`^COMMAND (\[\d+\].*)$`)
-var ReRequestHeader = regexp.MustCompile(`^(\w+):\s*(.*)$`)
-var ReRequestEmpty = regexp.MustCompile(`^\s*$`)
+var reRequestAction = regexp.MustCompile(`^GET ([a-z]+)$`)
+var reRequestCommand = regexp.MustCompile(`^COMMAND (\[\d+\].*)$`)
+var reRequestHeader = regexp.MustCompile(`^(\w+):\s*(.*)$`)
+var reRequestEmpty = regexp.MustCompile(`^\s*$`)
 
+// ParseRequest reads from a connection and returns a single requests.
+// It returns a the requests and any errors encountered.
 func ParseRequest(c net.Conn) (req *Request, err error) {
 	b := bufio.NewReader(c)
 	localAddr := c.LocalAddr().String()
@@ -66,6 +75,8 @@ func ParseRequest(c net.Conn) (req *Request, err error) {
 	return
 }
 
+// ParseRequests reads from a connection and returns all requests read.
+// It returns a list of requests and any errors encountered.
 func ParseRequests(c net.Conn) (reqs []*Request, err error) {
 	b := bufio.NewReader(c)
 	localAddr := c.LocalAddr().String()
@@ -87,6 +98,7 @@ func ParseRequests(c net.Conn) (reqs []*Request, err error) {
 	return
 }
 
+// OperatorString converts a Operator back to the original string.
 func OperatorString(op Operator) string {
 	switch op {
 	case Equal:
@@ -120,6 +132,7 @@ func OperatorString(op Operator) string {
 	return ""
 }
 
+// StatsTypeString converts a StatsType back to the original string.
 func StatsTypeString(op StatsType) string {
 	switch op {
 	case Average:
@@ -135,6 +148,7 @@ func StatsTypeString(op StatsType) string {
 	return ""
 }
 
+// String returns the request object as livestatus query string.
 func (req *Request) String() (str string) {
 	// Commands are easy passthrough
 	if req.Command != "" {
@@ -192,6 +206,8 @@ func (req *Request) String() (str string) {
 	return
 }
 
+// ParseRequestFromBuffer reads a buffer and creates a request object.
+// It returns the request as long with the number of bytes read and any error.
 func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, size int, err error) {
 	req = &Request{SendColumnsHeader: false}
 	firstLine, err := b.ReadString('\n')
@@ -203,17 +219,16 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, size int, err error)
 	firstLine = strings.TrimSpace(firstLine)
 	// check for commands
 	log.Debugf("request: %s", firstLine)
-	matched := ReRequestCommand.FindStringSubmatch(firstLine)
+	matched := reRequestCommand.FindStringSubmatch(firstLine)
 	if len(matched) == 2 {
 		req.Command = matched[0]
 	} else {
-		matched = ReRequestAction.FindStringSubmatch(firstLine)
+		matched = reRequestAction.FindStringSubmatch(firstLine)
 		if len(matched) != 2 {
 			if len(firstLine) == 0 {
 				return nil, size, nil
-			} else {
-				err = fmt.Errorf("bad request: %s", firstLine)
 			}
+			err = fmt.Errorf("bad request: %s", firstLine)
 			return
 		}
 
@@ -233,12 +248,12 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, size int, err error)
 		}
 		size += len(line)
 		line = strings.TrimSpace(line)
-		if ReRequestEmpty.MatchString(line) {
+		if reRequestEmpty.MatchString(line) {
 			break
 		}
 
 		log.Debugf("request: %s", line)
-		perr := ParseRequestHeaderLine(req, &line)
+		perr := req.ParseRequestHeaderLine(&line)
 		if perr != nil {
 			err = perr
 			return
@@ -257,8 +272,10 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, size int, err error)
 	return
 }
 
-func ParseRequestHeaderLine(req *Request, line *string) (err error) {
-	matched := ReRequestHeader.FindStringSubmatch(*line)
+// ParseRequestHeaderLine parses a single request line
+// It returns any error encountered.
+func (req *Request) ParseRequestHeaderLine(line *string) (err error) {
+	matched := reRequestHeader.FindStringSubmatch(*line)
 	if len(matched) != 3 {
 		err = fmt.Errorf("bad request header: %s", *line)
 		return
