@@ -15,7 +15,7 @@ type StatsType int
 // Besides the Counter, which counts the data rows by using a filter, there are 4 aggregations
 // operators: Sum, Average, Min and Max.
 const (
-	UnknownStatsType StatsType = iota
+	NoStats StatsType = iota
 	Counter
 	Sum     // sum
 	Average // avg
@@ -112,7 +112,7 @@ func (f *Filter) String(prefix string) (str string) {
 			log.Panicf("not implemented column type: %v", f.Column.Type)
 			break
 		}
-		if f.StatsType == UnknownStatsType {
+		if f.StatsType == NoStats {
 			if prefix == "" {
 				str = fmt.Sprintf("Filter: %s %s %v\n", f.Column.Name, OperatorString(f.Operator), value)
 			} else {
