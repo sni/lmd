@@ -1110,6 +1110,7 @@ func (p *Peer) GetRowValue(index int, row *[]interface{}, rowNum int, table *Tab
 	return (*row)[index]
 }
 
+// GetVirtRowValue returns the actual value for a virtual column.
 func (p *Peer) GetVirtRowValue(col Column, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}, inputRowLen int) interface{} {
 	p.PeerLock.RLock()
 	value, ok := p.Status[VirtKeyMap[col.Name].Key]
@@ -1149,7 +1150,8 @@ func (p *Peer) GetVirtRowValue(col Column, row *[]interface{}, rowNum int, table
 			break
 		}
 	}
-	switch VirtKeyMap[col.Name].Type {
+	colType := VirtKeyMap[col.Name].Type
+	switch colType {
 	case IntCol:
 		fallthrough
 	case FloatCol:

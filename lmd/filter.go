@@ -188,6 +188,7 @@ func (f *Filter) strValue() (str string) {
 	return
 }
 
+// ApplyValue add the given value to this stats filter
 func (f *Filter) ApplyValue(val *interface{}) {
 	switch f.StatsType {
 	case Counter:

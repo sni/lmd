@@ -319,7 +319,7 @@ func (req *Request) BuildResponseIndexes(table *Table) (indexes []int, columns [
 
 // Send writes converts the result object to a livestatus answer and writes the resulting bytes back to the client.
 func (res *Response) Send(c net.Conn) (size int, err error) {
-	resBytes, err := res.Json()
+	resBytes, err := res.JSON()
 	if err != nil {
 		return
 	}
@@ -345,8 +345,8 @@ func (res *Response) Send(c net.Conn) (size int, err error) {
 	return
 }
 
-// Json converts the response into a json structure
-func (res *Response) Json() (resBytes []byte, err error) {
+// JSON converts the response into a json structure
+func (res *Response) JSON() (resBytes []byte, err error) {
 	if res.Request.SendColumnsHeader {
 		var result [][]interface{}
 		cols := make([]interface{}, len(res.Request.Columns)+len(res.Request.Stats))
