@@ -59,12 +59,16 @@ benchmark: deps fmt
 	cd $(LAMPDDIR) && go test -v -bench=B\* -run=^$$ . -benchmem
 
 racetest: deps fmt
-	cd $(LAMPDDIR) && go test -race -v $(COLORIZE_TEST)
+	cd $(LAMPDDIR) && go test -race -v
 
 covertest: deps fmt
-	cd $(LAMPDDIR) && go test -v -coverprofile=cover.out $(COLORIZE_TEST)
+	cd $(LAMPDDIR) && go test -v -coverprofile=cover.out
 	cd $(LAMPDDIR) && go tool cover -func=cover.out
 	cd $(LAMPDDIR) && go tool cover -html=cover.out -o coverage.html
+
+coverweb: deps fmt
+	cd $(LAMPDDIR) && go test -v -coverprofile=cover.out
+	cd $(LAMPDDIR) && go tool cover -html=cover.out
 
 clean:
 	rm -f $(LAMPDDIR)/lmd
