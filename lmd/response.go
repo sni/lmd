@@ -174,7 +174,7 @@ func BuildResponse(req *Request) (res *Response, err error) {
 	if res.Result == nil {
 		res.Result = make([][]interface{}, 0)
 	}
-	res.BuildResponsePostProcessing()
+	res.PostProcessing()
 	return
 }
 
@@ -195,9 +195,10 @@ func ExpandRequestBackends(req *Request) (backendsMap map[string]string, numBack
 	return
 }
 
-// BuildResponsePostProcessing does all the post processing required for a request like sorting and cutting of limits and applying offsets.
-func (res *Response) BuildResponsePostProcessing() {
-	log.Tracef("BuildResponsePostProcessing")
+// PostProcessing does all the post processing required for a request like sorting
+// and cutting of limits, applying offsets and calculating final stats.
+func (res *Response) PostProcessing() {
+	log.Tracef("PostProcessing")
 	// sort our result
 	if len(res.Request.Sort) > 0 {
 		t1 := time.Now()
@@ -220,47 +221,51 @@ func (res *Response) BuildResponsePostProcessing() {
 	}
 
 	// apply request limit
-	if res.Request.Limit > 0 {
-		if res.Request.Limit < res.ResultTotal {
-			res.Result = res.Result[0:res.Request.Limit]
-		}
+	if res.Request.Limit > 0 && res.Request.Limit < res.ResultTotal {
+		res.Result = res.Result[0:res.Request.Limit]
 	}
 
 	// final calculation of stats querys
-	if len(res.Request.Stats) > 0 {
-		res.Result = make([][]interface{}, 1)
-		res.Result[0] = make([]interface{}, len(res.Request.Stats))
-		for i, s := range res.Request.Stats {
-			switch s.StatsType {
-			case Counter:
-				res.Result[0][i] = s.Stats
-				break
-			case Min:
-				res.Result[0][i] = s.Stats
-				break
-			case Max:
-				res.Result[0][i] = s.Stats
-				break
-			case Sum:
-				res.Result[0][i] = s.Stats
-				break
-			case Average:
-				if s.StatsCount > 0 {
-					res.Result[0][i] = float64(s.Stats) / float64(s.StatsCount)
-				} else {
-					res.Result[0][i] = 0
-				}
-				break
-			default:
-				log.Panicf("not implemented")
-				break
-			}
-			if s.StatsCount == 0 {
+	res.CalculateFinalStats()
+	return
+}
+
+// CalculateFinalStats calculates final averages and sums from stats queries
+func (res *Response) CalculateFinalStats() {
+	if len(res.Request.Stats) == 0 {
+		return
+	}
+	res.Result = make([][]interface{}, 1)
+	res.Result[0] = make([]interface{}, len(res.Request.Stats))
+	for i, s := range res.Request.Stats {
+		switch s.StatsType {
+		case Counter:
+			res.Result[0][i] = s.Stats
+			break
+		case Min:
+			res.Result[0][i] = s.Stats
+			break
+		case Max:
+			res.Result[0][i] = s.Stats
+			break
+		case Sum:
+			res.Result[0][i] = s.Stats
+			break
+		case Average:
+			if s.StatsCount > 0 {
+				res.Result[0][i] = float64(s.Stats) / float64(s.StatsCount)
+			} else {
 				res.Result[0][i] = 0
 			}
+			break
+		default:
+			log.Panicf("not implemented")
+			break
+		}
+		if s.StatsCount == 0 {
+			res.Result[0][i] = 0
 		}
 	}
-	return
 }
 
 // BuildResponseIndexes returns a list of used indexes and columns for this request.

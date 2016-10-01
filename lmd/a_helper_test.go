@@ -18,6 +18,7 @@ import (
 const testConfig = `
 Loglevel = "Panic"
 Listen = ["test.sock"]
+ListenPrometheus = ":50999"
 
 [[Connections]]
 name = "Test"

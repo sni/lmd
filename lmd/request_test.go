@@ -218,6 +218,12 @@ func TestResponseErrorsFunc(t *testing.T) {
 		{"GET hosts\nWaitTrigger: all", "bad request: WaitTrigger without WaitCondition"},
 		{"GET hosts\nWaitTrigger: all\nWaitCondition: last_check > 0", "bad request: WaitTrigger without WaitTimeout"},
 		{"GET hosts\nWaitTrigger: all\nWaitCondition: last_check > 0\nWaitTimeout: 10000", "bad request: WaitTrigger without WaitObject"},
+		{"GET hosts\nFilter: name", "bad request: filter header, must be Filter: <field> <operator> <value>"},
+		{"GET hosts\nFilter: name ~~ *^", "bad request: invalid regular expression: error parsing regexp: missing argument to repetition operator: `*` in filter Filter: name ~~ *^"},
+		{"GET hosts\nStats: name", "bad request: stats header, must be Stats: <field> <operator> <value> OR Stats: <sum|avg|min|max> <field>"},
+		{"GET hosts\nStats: avg none", "bad request: unrecognized column from stats: none in Stats: avg none"},
+		{"GET hosts\nFilter: name !=\nAnd: x", "bad request: and must be a positive number in: And: x"},
+		{"GET hosts\nStats: name !=\nColumns: name\n", "bad request: stats and columns cannot be mixed"},
 	}
 
 	for _, er := range testRequestStrings {
