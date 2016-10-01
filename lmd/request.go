@@ -160,27 +160,21 @@ func (req *Request) String() (str string) {
 	if req.Offset > 0 {
 		str += fmt.Sprintf("Offset: %d\n", req.Offset)
 	}
-	if len(req.Sort) > 0 {
-		for _, s := range req.Sort {
-			direction := "asc"
-			if s.Direction == Desc {
-				direction = "desc"
-			}
-			str += fmt.Sprintf("Sort: %s %s\n", s.Name, direction)
+	for _, s := range req.Sort {
+		direction := "asc"
+		if s.Direction == Desc {
+			direction = "desc"
 		}
+		str += fmt.Sprintf("Sort: %s %s\n", s.Name, direction)
 	}
-	if len(req.Filter) > 0 {
-		for _, f := range req.Filter {
-			str += f.String("")
-		}
+	for _, f := range req.Filter {
+		str += f.String("")
 	}
 	if req.FilterStr != "" {
 		str += req.FilterStr
 	}
-	if len(req.Stats) > 0 {
-		for _, s := range req.Stats {
-			str += s.String("Stats")
-		}
+	for _, s := range req.Stats {
+		str += s.String("Stats")
 	}
 	if req.WaitTrigger != "" {
 		str += fmt.Sprintf("WaitTrigger: %s\n", req.WaitTrigger)
@@ -191,10 +185,8 @@ func (req *Request) String() (str string) {
 	if req.WaitTimeout > 0 {
 		str += fmt.Sprintf("WaitTimeout: %d\n", req.WaitTimeout)
 	}
-	if len(req.WaitCondition) > 0 {
-		for _, f := range req.WaitCondition {
-			str += f.String("WaitCondition")
-		}
+	for _, f := range req.WaitCondition {
+		str += f.String("WaitCondition")
 	}
 	str += "\n"
 	return
@@ -204,7 +196,7 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, size int, err error)
 	req = &Request{SendColumnsHeader: false}
 	firstLine, err := b.ReadString('\n')
 	if err != nil && err != io.EOF {
-		err = errors.New("bad request: " + err.Error())
+		err = fmt.Errorf("bad request: %s", err.Error())
 		return
 	}
 	size += len(firstLine)
@@ -220,7 +212,7 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, size int, err error)
 			if len(firstLine) == 0 {
 				return nil, size, nil
 			} else {
-				err = errors.New("bad request: " + firstLine)
+				err = fmt.Errorf("bad request: %s", firstLine)
 			}
 			return
 		}
@@ -228,7 +220,7 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, size int, err error)
 		req.Table = matched[1]
 		_, ok := Objects.Tables[req.Table]
 		if !ok {
-			err = errors.New("bad request: table " + req.Table + " does not exist")
+			err = fmt.Errorf("bad request: table %s does not exist", req.Table)
 			return
 		}
 	}
@@ -268,7 +260,7 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, size int, err error)
 func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 	matched := ReRequestHeader.FindStringSubmatch(*line)
 	if len(matched) != 3 {
-		err = errors.New("bad request header: " + *line)
+		err = fmt.Errorf("bad request header: %s", *line)
 		return
 	}
 	header := strings.ToLower(matched[1])
@@ -340,7 +332,7 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 		err = ParseFilter(value, line, req.Table, &req.WaitCondition)
 		return
 	default:
-		err = errors.New("bad request: unrecognized header " + *line)
+		err = fmt.Errorf("bad request: unrecognized header %s", *line)
 		return
 	}
 }
@@ -348,7 +340,7 @@ func ParseRequestHeaderLine(req *Request, line *string) (err error) {
 func parseIntHeader(field *int, header string, value string, minValue int) (err error) {
 	intVal, err := strconv.Atoi(value)
 	if err != nil || intVal < minValue {
-		err = errors.New("bad request: " + header + " must be a positive number")
+		err = fmt.Errorf("bad request: %s must be a positive number", header)
 		return
 	}
 	*field = intVal
