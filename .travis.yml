@@ -8,4 +8,3 @@ go:
 
 script:
   -  make citest
-  -  make benchmark

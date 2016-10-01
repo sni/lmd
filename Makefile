@@ -32,6 +32,7 @@ test: fmt dump
 
 citest:
 	cd $(LAMPDDIR) && go test -v | ../t/test_counter.sh
+	cd $(LAMPDDIR) && go test -v -bench=B\* -run=^$$ . -benchmem
 	if [ $$(cd $(LAMPDDIR) && gofmt -s -l . | wc -l) -gt 0 ]; then \
 		echo "found format errors in these files:"; \
 		cd $(LAMPDDIR) && gofmt -s -l .; \
