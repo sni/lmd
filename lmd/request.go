@@ -43,6 +43,18 @@ const (
 	Desc
 )
 
+// String converts a SortDirection back to the original string.
+func (s *SortDirection) String() string {
+	switch *s {
+	case Asc:
+		return ("asc")
+	case Desc:
+		return ("desc")
+	}
+	log.Panicf("not implemented")
+	return ""
+}
+
 // SortField defines a single sort entry
 type SortField struct {
 	Name      string
@@ -98,56 +110,6 @@ func ParseRequests(c net.Conn) (reqs []*Request, err error) {
 	return
 }
 
-// OperatorString converts a Operator back to the original string.
-func OperatorString(op Operator) string {
-	switch op {
-	case Equal:
-		return ("=")
-	case Unequal:
-		return ("!=")
-	case EqualNocase:
-		return ("=~")
-	case UnequalNocase:
-		return ("!=~")
-	case RegexMatch:
-		return ("~")
-	case RegexMatchNot:
-		return ("!~")
-	case RegexNoCaseMatch:
-		return ("~~")
-	case RegexNoCaseMatchNot:
-		return ("!~~")
-	case Less:
-		return ("<")
-	case LessThan:
-		return ("<=")
-	case Greater:
-		return (">")
-	case GreaterThan:
-		return (">=")
-	case GroupContainsNot:
-		return ("!>=")
-	}
-	log.Panicf("not implemented")
-	return ""
-}
-
-// StatsTypeString converts a StatsType back to the original string.
-func StatsTypeString(op StatsType) string {
-	switch op {
-	case Average:
-		return ("avg")
-	case Sum:
-		return ("sum")
-	case Min:
-		return ("min")
-	case Max:
-		return ("Max")
-	}
-	log.Panicf("not implemented")
-	return ""
-}
-
 // String returns the request object as livestatus query string.
 func (req *Request) String() (str string) {
 	// Commands are easy passthrough
@@ -175,11 +137,7 @@ func (req *Request) String() (str string) {
 		str += fmt.Sprintf("Offset: %d\n", req.Offset)
 	}
 	for _, s := range req.Sort {
-		direction := "asc"
-		if s.Direction == Desc {
-			direction = "desc"
-		}
-		str += fmt.Sprintf("Sort: %s %s\n", s.Name, direction)
+		str += fmt.Sprintf("Sort: %s %s\n", s.Name, s.Direction.String())
 	}
 	for _, f := range req.Filter {
 		str += f.String("")
@@ -192,15 +150,11 @@ func (req *Request) String() (str string) {
 	}
 	if req.WaitTrigger != "" {
 		str += fmt.Sprintf("WaitTrigger: %s\n", req.WaitTrigger)
-	}
-	if req.WaitObject != "" {
 		str += fmt.Sprintf("WaitObject: %s\n", req.WaitObject)
-	}
-	if req.WaitTimeout > 0 {
 		str += fmt.Sprintf("WaitTimeout: %d\n", req.WaitTimeout)
-	}
-	for _, f := range req.WaitCondition {
-		str += f.String("WaitCondition")
+		for _, f := range req.WaitCondition {
+			str += f.String("WaitCondition")
+		}
 	}
 	str += "\n"
 	return
@@ -263,12 +217,29 @@ func ParseRequestFromBuffer(b *bufio.Reader) (req *Request, size int, err error)
 		}
 	}
 
+	err = req.VerifyRequestIntegrity()
+	return
+}
+
+// VerifyRequestIntegrity checks for logical errors in the request
+// It returns any error encountered.
+func (req *Request) VerifyRequestIntegrity() (err error) {
 	if len(req.Columns) > 0 && len(req.Stats) > 0 {
 		err = errors.New("bad request: stats and columns cannot be mixed")
 		return
 	}
-
-	err = nil
+	if req.WaitTrigger != "" {
+		if req.WaitObject == "" {
+			err = errors.New("bad request: WaitTrigger without WaitObject")
+		}
+		if req.WaitTimeout == 0 {
+			err = errors.New("bad request: WaitTrigger without WaitTimeout")
+		}
+		if len(req.WaitCondition) == 0 {
+			err = errors.New("bad request: WaitTrigger without WaitCondition")
+		}
+		return
+	}
 	return
 }
 

@@ -215,6 +215,9 @@ func TestResponseErrorsFunc(t *testing.T) {
 		{"GET hosts\nOutputFormat: csv: none", "bad request: unrecognized outputformat, only json and wrapped_json is supported"},
 		{"GET hosts\nStatsAnd: 1", "bad request: not enough filter on stack in StatsAnd: 1"},
 		{"GET hosts\nStatsOr: 1", "bad request: not enough filter on stack in StatsOr: 1"},
+		{"GET hosts\nWaitTrigger: all", "bad request: WaitTrigger without WaitCondition"},
+		{"GET hosts\nWaitTrigger: all\nWaitCondition: last_check > 0", "bad request: WaitTrigger without WaitTimeout"},
+		{"GET hosts\nWaitTrigger: all\nWaitCondition: last_check > 0\nWaitTimeout: 10000", "bad request: WaitTrigger without WaitObject"},
 	}
 
 	for _, er := range testRequestStrings {

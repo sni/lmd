@@ -23,6 +23,22 @@ const (
 	Max     // max
 )
 
+// String converts a StatsType back to the original string.
+func (op *StatsType) String() string {
+	switch *op {
+	case Average:
+		return ("avg")
+	case Sum:
+		return ("sum")
+	case Min:
+		return ("min")
+	case Max:
+		return ("Max")
+	}
+	log.Panicf("not implemented")
+	return ""
+}
+
 // Filter defines a single filter object.
 type Filter struct {
 	// filter can either be a single filter
@@ -72,6 +88,40 @@ const (
 	GroupContainsNot // !>=
 )
 
+// String converts a Operator back to the original string.
+func (op *Operator) String() string {
+	switch *op {
+	case Equal:
+		return ("=")
+	case Unequal:
+		return ("!=")
+	case EqualNocase:
+		return ("=~")
+	case UnequalNocase:
+		return ("!=~")
+	case RegexMatch:
+		return ("~")
+	case RegexMatchNot:
+		return ("!~")
+	case RegexNoCaseMatch:
+		return ("~~")
+	case RegexNoCaseMatchNot:
+		return ("!~~")
+	case Less:
+		return ("<")
+	case LessThan:
+		return ("<=")
+	case Greater:
+		return (">")
+	case GreaterThan:
+		return (">=")
+	case GroupContainsNot:
+		return ("!>=")
+	}
+	log.Panicf("not implemented")
+	return ""
+}
+
 // String converts a filter back to its string representation.
 func (f *Filter) String(prefix string) (str string) {
 	if len(f.Filter) > 0 {
@@ -120,13 +170,13 @@ func (f *Filter) String(prefix string) (str string) {
 		if prefix == "" {
 			prefix = "Filter"
 		}
-		str = fmt.Sprintf("%s: %s %s %v\n", prefix, f.Column.Name, OperatorString(f.Operator), value)
+		str = fmt.Sprintf("%s: %s %s %v\n", prefix, f.Column.Name, f.Operator.String(), value)
 		break
 	case Counter:
-		str = fmt.Sprintf("Stats: %s %s %v\n", f.Column.Name, OperatorString(f.Operator), value)
+		str = fmt.Sprintf("Stats: %s %s %v\n", f.Column.Name, f.Operator.String(), value)
 		break
 	default:
-		str = fmt.Sprintf("Stats: %s %s\n", StatsTypeString(f.StatsType), f.Column.Name)
+		str = fmt.Sprintf("Stats: %s %s\n", f.StatsType.String(), f.Column.Name)
 		break
 	}
 	return
