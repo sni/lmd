@@ -11,11 +11,10 @@ import (
 	"time"
 )
 
-type ResultData [][]interface{}
-
+// Response contains the livestatus response data as long with some meta data
 type Response struct {
 	Code        int
-	Result      ResultData
+	Result      [][]interface{}
 	ResultTotal int
 	Request     *Request
 	Error       error
@@ -23,12 +22,15 @@ type Response struct {
 	Columns     []Column
 }
 
+// VirtKeyMapTupel is used to define the virtual key mapping in the VirtKeyMap
 type VirtKeyMapTupel struct {
 	Index int
 	Key   string
 	Type  ColumnType
 }
 
+// VirtKeyMap maps the virtual columns with the peer status map entry.
+// If the entry is empty, then there must be a corresponding resolve function in the GetRowValue() function.
 var VirtKeyMap = map[string]VirtKeyMapTupel{
 	"key":                     {Index: -1, Key: "PeerKey", Type: StringCol},
 	"name":                    {Index: -2, Key: "PeerName", Type: StringCol},
@@ -45,11 +47,12 @@ var VirtKeyMap = map[string]VirtKeyMapTupel{
 	"last_state_change_order": {Index: -14, Key: "", Type: IntCol},
 }
 
-// result sorter
+// Len returns the result length used for sorting results.
 func (res Response) Len() int {
 	return len(res.Result)
 }
 
+// Less returns the sort result of two data rows
 func (res Response) Less(i, j int) bool {
 	for _, s := range res.Request.Sort {
 		Type := res.Columns[s.Index].Type
@@ -94,10 +97,13 @@ func (res Response) Less(i, j int) bool {
 	return true
 }
 
+// Swap replaces two data rows while sorting.
 func (res Response) Swap(i, j int) {
 	res.Result[i], res.Result[j] = res.Result[j], res.Result[i]
 }
 
+// BuildResponse builds the response for a given request.
+// It returns the Response object and any error encountered.
 func BuildResponse(req *Request) (res *Response, err error) {
 	log.Tracef("BuildResponse")
 	res = &Response{
@@ -108,7 +114,7 @@ func BuildResponse(req *Request) (res *Response, err error) {
 
 	table, _ := Objects.Tables[req.Table]
 
-	indexes, columns, err := BuildResponseIndexes(req, &table)
+	indexes, columns, err := req.BuildResponseIndexes(&table)
 	if err != nil {
 		return
 	}
@@ -151,15 +157,15 @@ func BuildResponse(req *Request) (res *Response, err error) {
 
 	if table.PassthroughOnly {
 		// passthrough requests, ex.: log table
-		BuildPassThroughResult(selectedPeers, res, &table, &columns, numPerRow)
+		res.BuildPassThroughResult(selectedPeers, &table, &columns, numPerRow)
 		if err != nil {
 			return
 		}
 	} else {
 		for _, id := range selectedPeers {
 			p := DataStore[id]
-			BuildLocalResponseDataForPeer(res, req, &p, numPerRow, &indexes)
-			log.Tracef("BuildLocalResponseDataForPeer done: %s", p.Name)
+			p.BuildLocalResponseData(res, req, numPerRow, &indexes)
+			log.Tracef("BuildLocalResponseData done: %s", p.Name)
 			if table.Name == "tables" || table.Name == "columns" {
 				break
 			}
@@ -168,10 +174,11 @@ func BuildResponse(req *Request) (res *Response, err error) {
 	if res.Result == nil {
 		res.Result = make([][]interface{}, 0)
 	}
-	BuildResponsePostProcessing(res)
+	res.BuildResponsePostProcessing()
 	return
 }
 
+// ExpandRequestBackends returns a map of used backends.
 func ExpandRequestBackends(req *Request) (backendsMap map[string]string, numBackendsReq int, err error) {
 	numBackendsReq = len(req.Backends)
 	if numBackendsReq > 0 {
@@ -188,7 +195,8 @@ func ExpandRequestBackends(req *Request) (backendsMap map[string]string, numBack
 	return
 }
 
-func BuildResponsePostProcessing(res *Response) {
+// BuildResponsePostProcessing does all the post processing required for a request like sorting and cutting of limits and applying offsets.
+func (res *Response) BuildResponsePostProcessing() {
 	log.Tracef("BuildResponsePostProcessing")
 	// sort our result
 	if len(res.Request.Sort) > 0 {
@@ -255,7 +263,8 @@ func BuildResponsePostProcessing(res *Response) {
 	return
 }
 
-func BuildResponseIndexes(req *Request, table *Table) (indexes []int, columns []Column, err error) {
+// BuildResponseIndexes returns a list of used indexes and columns for this request.
+func (req *Request) BuildResponseIndexes(table *Table) (indexes []int, columns []Column, err error) {
 	log.Tracef("BuildResponseIndexes")
 	requestColumnsMap := make(map[string]int)
 	// if no column header was given, return all columns
@@ -305,142 +314,11 @@ func BuildResponseIndexes(req *Request, table *Table) (indexes []int, columns []
 	return
 }
 
-func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numPerRow int, indexes *[]int) {
-	log.Tracef("BuildLocalResponseDataForPeer: %s", peer.Name)
-	peer.DataLock.RLock()
-	defer peer.DataLock.RUnlock()
-	table := peer.Tables[req.Table].Table
-	peer.PeerLock.Lock()
-	peer.Status["LastQuery"] = time.Now()
-	if table == nil || (peer.Status["PeerStatus"].(PeerStatus) == PeerStatusDown && !table.Virtual) {
-		res.Failed[peer.ID] = fmt.Sprintf("%v", peer.Status["LastError"])
-		peer.PeerLock.Unlock()
-		return
-	}
-	peer.PeerLock.Unlock()
-
-	// if a WaitTrigger is supplied, wait max ms till the condition is true
-	if req.WaitTrigger != "" {
-		peer.WaitCondition(req)
-	}
-
-	data := peer.Tables[req.Table].Data
-	refs := peer.Tables[req.Table].Refs
-
-	if table.Name == "tables" || table.Name == "columns" {
-		data = Objects.GetTableColumnsData()
-	}
-
-	if len(data) == 0 {
-		return
-	}
-	inputRowLen := len(data[0])
-	statsLen := len(res.Request.Stats)
-
-	// if there is no sort header or sort by name only,
-	// we can drastically reduce the result set by applying the limit here already
-	limit := 0
-	if req.Limit > 0 && table.IsDefaultSortOrder(&req.Sort) {
-		limit = req.Limit
-		if req.Offset > 0 {
-			limit += req.Offset
-		}
-	}
-
-	found := 0
-	for j, row := range data {
-		// does our filter match?
-		filterMatched := true
-		for _, f := range res.Request.Filter {
-			if !peer.matchFilter(table, &refs, inputRowLen, &f, &row, j) {
-				filterMatched = false
-				break
-			}
-		}
-		if !filterMatched {
-			continue
-		}
-
-		// count stats
-		if statsLen > 0 {
-			for i := range res.Request.Stats {
-				s := &(res.Request.Stats[i])
-				// avg/sum/min/max are passed through, they dont have filter
-				// counter must match their filter
-				if s.StatsType != Counter || peer.matchFilter(table, &refs, inputRowLen, s, &row, j) {
-					val := peer.GetRowValue(s.Column.Index, &row, j, table, &refs, inputRowLen)
-					switch s.StatsType {
-					case Counter:
-						s.Stats++
-						break
-					case Average:
-						fallthrough
-					case Sum:
-						s.Stats += NumberToFloat(val)
-						break
-					case Min:
-						value := NumberToFloat(val)
-						if s.Stats > value || s.Stats == -1 {
-							s.Stats = value
-						}
-						break
-					case Max:
-						value := NumberToFloat(val)
-						if s.Stats < value {
-							s.Stats = value
-						}
-						break
-					}
-					s.StatsCount++
-				}
-			}
-			continue
-		}
-
-		// build result row
-		resRow := make([]interface{}, numPerRow)
-		for k, i := range *(indexes) {
-			if i < 0 {
-				// virtual columns
-				resRow[k] = peer.GetRowValue(res.Columns[k].RefIndex, &row, j, table, &refs, inputRowLen)
-			} else {
-				// check if this is a reference column
-				// reference columns come after the non-ref columns
-				if i >= inputRowLen {
-					resRow[k] = peer.GetRowValue(table.Columns[i].Index, &row, j, table, &refs, inputRowLen)
-				} else {
-					resRow[k] = row[i]
-				}
-			}
-			// fill null values with something useful
-			if resRow[k] == nil {
-				switch table.Columns[i].Type {
-				case IntListCol:
-					fallthrough
-				case StringListCol:
-					resRow[k] = make([]interface{}, 0)
-					break
-				default:
-					resRow[k] = ""
-					break
-				}
-			}
-		}
-		found++
-		// check if we have enough result rows already
-		if limit == 0 || found <= limit {
-			res.Result = append(res.Result, resRow)
-		}
-	}
-	res.ResultTotal += found
-
-	return
-}
-
-func SendResponse(c net.Conn, res *Response) (size int, err error) {
+// Send writes converts the result object to a livestatus answer and writes the resulting bytes back to the client.
+func (res *Response) Send(c net.Conn) (size int, err error) {
 	resBytes := []byte{}
 	if res.Request.SendColumnsHeader {
-		var result ResultData = make([][]interface{}, 0)
+		var result [][]interface{}
 		cols := make([]interface{}, len(res.Request.Columns)+len(res.Request.Stats))
 		for i, v := range res.Request.Columns {
 			cols[i] = v
@@ -505,7 +383,9 @@ func SendResponse(c net.Conn, res *Response) (size int, err error) {
 	return
 }
 
-func BuildPassThroughResult(peers []string, res *Response, table *Table, columns *[]Column, numPerRow int) (err error) {
+// BuildPassThroughResult passes a query transparently to one or more remote sites and builds the response
+// from that.
+func (res *Response) BuildPassThroughResult(peers []string, table *Table, columns *[]Column, numPerRow int) (err error) {
 	req := res.Request
 	res.Result = make([][]interface{}, 0)
 

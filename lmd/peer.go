@@ -1298,3 +1298,136 @@ func SpinUpPeers(peers []string) {
 	waitTimeout(waitgroup, 5)
 	log.Debugf("spin up completed")
 }
+
+// BuildLocalResponseData returnss the result data for a given request
+func (p *Peer) BuildLocalResponseData(res *Response, req *Request, numPerRow int, indexes *[]int) {
+	log.Tracef("BuildLocalResponseData: %s", p.Name)
+	p.DataLock.RLock()
+	defer p.DataLock.RUnlock()
+	table := p.Tables[req.Table].Table
+	p.PeerLock.Lock()
+	p.Status["LastQuery"] = time.Now()
+	if table == nil || (p.Status["PeerStatus"].(PeerStatus) == PeerStatusDown && !table.Virtual) {
+		res.Failed[p.ID] = fmt.Sprintf("%v", p.Status["LastError"])
+		p.PeerLock.Unlock()
+		return
+	}
+	p.PeerLock.Unlock()
+
+	// if a WaitTrigger is supplied, wait max ms till the condition is true
+	if req.WaitTrigger != "" {
+		p.WaitCondition(req)
+	}
+
+	data := p.Tables[req.Table].Data
+	refs := p.Tables[req.Table].Refs
+
+	if table.Name == "tables" || table.Name == "columns" {
+		data = Objects.GetTableColumnsData()
+	}
+
+	if len(data) == 0 {
+		return
+	}
+	inputRowLen := len(data[0])
+	statsLen := len(res.Request.Stats)
+
+	// if there is no sort header or sort by name only,
+	// we can drastically reduce the result set by applying the limit here already
+	limit := 0
+	if req.Limit > 0 && table.IsDefaultSortOrder(&req.Sort) {
+		limit = req.Limit
+		if req.Offset > 0 {
+			limit += req.Offset
+		}
+	}
+
+	found := 0
+	for j, row := range data {
+		// does our filter match?
+		filterMatched := true
+		for _, f := range res.Request.Filter {
+			if !p.matchFilter(table, &refs, inputRowLen, &f, &row, j) {
+				filterMatched = false
+				break
+			}
+		}
+		if !filterMatched {
+			continue
+		}
+
+		// count stats
+		if statsLen > 0 {
+			for i := range res.Request.Stats {
+				s := &(res.Request.Stats[i])
+				// avg/sum/min/max are passed through, they dont have filter
+				// counter must match their filter
+				if s.StatsType != Counter || p.matchFilter(table, &refs, inputRowLen, s, &row, j) {
+					val := p.GetRowValue(s.Column.Index, &row, j, table, &refs, inputRowLen)
+					switch s.StatsType {
+					case Counter:
+						s.Stats++
+						break
+					case Average:
+						fallthrough
+					case Sum:
+						s.Stats += NumberToFloat(val)
+						break
+					case Min:
+						value := NumberToFloat(val)
+						if s.Stats > value || s.Stats == -1 {
+							s.Stats = value
+						}
+						break
+					case Max:
+						value := NumberToFloat(val)
+						if s.Stats < value {
+							s.Stats = value
+						}
+						break
+					}
+					s.StatsCount++
+				}
+			}
+			continue
+		}
+
+		// build result row
+		resRow := make([]interface{}, numPerRow)
+		for k, i := range *(indexes) {
+			if i < 0 {
+				// virtual columns
+				resRow[k] = p.GetRowValue(res.Columns[k].RefIndex, &row, j, table, &refs, inputRowLen)
+			} else {
+				// check if this is a reference column
+				// reference columns come after the non-ref columns
+				if i >= inputRowLen {
+					resRow[k] = p.GetRowValue(table.Columns[i].Index, &row, j, table, &refs, inputRowLen)
+				} else {
+					resRow[k] = row[i]
+				}
+			}
+			// fill null values with something useful
+			if resRow[k] == nil {
+				switch table.Columns[i].Type {
+				case IntListCol:
+					fallthrough
+				case StringListCol:
+					resRow[k] = make([]interface{}, 0)
+					break
+				default:
+					resRow[k] = ""
+					break
+				}
+			}
+		}
+		found++
+		// check if we have enough result rows already
+		if limit == 0 || found <= limit {
+			res.Result = append(res.Result, resRow)
+		}
+	}
+	res.ResultTotal += found
+
+	return
+}
