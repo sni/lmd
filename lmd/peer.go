@@ -17,15 +17,19 @@ import (
 	"time"
 )
 
-var ReResponseHeader = regexp.MustCompile(`^(\d+)\s+(\d+)$`)
-var ReHttpTooOld = regexp.MustCompile(`Can.t locate object method`)
-var ReShinkenVersion = regexp.MustCompile(`-shinken$`)
+var reResponseHeader = regexp.MustCompile(`^(\d+)\s+(\d+)$`)
+var reHTTPTooOld = regexp.MustCompile(`Can.t locate object method`)
+var reShinkenVersion = regexp.MustCompile(`-shinken$`)
 
 const (
-	UPDATE_ADDITIONAL_DELTA = 3  // number of seconds to add to the last_check filter on delta updates
-	MIN_FULL_SCAN_INTERVAL  = 30 // minimum interval between two full scans
+	// UpdateAdditionalDelta is the number of seconds to add to the last_check filter on delta updates
+	UpdateAdditionalDelta = 3
+
+	// MinFullScanInterval is the minimum interval between two full scans
+	MinFullScanInterval = 30
 )
 
+// DataTable contains the actual data with a reference to the table.
 type DataTable struct {
 	Table *Table
 	Data  [][]interface{}
@@ -33,9 +37,10 @@ type DataTable struct {
 	Index map[string][]interface{}
 }
 
+// Peer is the object which handles collecting and updating data and connections.
 type Peer struct {
 	Name            string
-	Id              string
+	ID              string
 	Source          []string
 	PeerLock        *sync.RWMutex
 	DataLock        *sync.RWMutex
@@ -48,8 +53,12 @@ type Peer struct {
 	Flags           OptionalFlags
 }
 
+// PeerStatus contains the different states a peer can have
 type PeerStatus int
 
+// A peer can be up, warning, down and pending.
+// It is pending right after start and warning when the connection fails
+// but the stale timeout is not yet hit.
 const (
 	PeerStatusUp PeerStatus = iota
 	PeerStatusWarning
@@ -58,33 +67,44 @@ const (
 	PeerStatusPending
 )
 
+// PeerErrorType is used to distinguish between connection and response errors.
 type PeerErrorType int
 
 const (
+	// ConnectionError is used when the connection to a remote site failed
 	ConnectionError PeerErrorType = iota
+
+	// ResponseError is used when the remote site is available but returns an unusable result.
 	ResponseError
 )
 
-type PeerError struct {
-	msg  string
-	kind PeerErrorType
-}
-
-type HttpResult struct {
+// HTTPResult contains the livestatus result as long with some meta data.
+type HTTPResult struct {
 	Rc      int
 	Version string
 	Branch  string
 	Output  json.RawMessage
 }
 
-func (e *PeerError) Error() string       { return e.msg }
+// PeerError is a custom error to distinguish between connection and response errors.
+type PeerError struct {
+	msg  string
+	kind PeerErrorType
+}
+
+// Error returns the error message as string.
+func (e *PeerError) Error() string { return e.msg }
+
+// Type returns the error type.
 func (e *PeerError) Type() PeerErrorType { return e.kind }
 
+// AddItem adds an new entry to a datatable.
 func (d *DataTable) AddItem(row *[]interface{}) {
 	d.Data = append(d.Data, *row)
 	return
 }
 
+// RemoveItem removes an entry from a datatable.
 func (d *DataTable) RemoveItem(row []interface{}) {
 	for i, r := range d.Data {
 		if fmt.Sprintf("%p", r) == fmt.Sprintf("%p", row) {
@@ -96,11 +116,12 @@ func (d *DataTable) RemoveItem(row []interface{}) {
 	panic("element not found")
 }
 
-// send query to remote livestatus and returns unmarshaled result
+// NewPeer creates a new peer object.
+// It returns the created peer.
 func NewPeer(config Connection, waitGroup *sync.WaitGroup, shutdownChannel chan bool) *Peer {
 	p := Peer{
 		Name:            config.Name,
-		Id:              config.Id,
+		ID:              config.Id,
 		Source:          config.Source,
 		Tables:          make(map[string]DataTable),
 		Status:          make(map[string]interface{}),
@@ -111,7 +132,7 @@ func NewPeer(config Connection, waitGroup *sync.WaitGroup, shutdownChannel chan 
 		DataLock:        new(sync.RWMutex),
 		Config:          config,
 	}
-	p.Status["PeerKey"] = p.Id
+	p.Status["PeerKey"] = p.ID
 	p.Status["PeerName"] = p.Name
 	p.Status["CurPeerAddrNum"] = 0
 	p.Status["PeerAddr"] = p.Source[p.Status["CurPeerAddrNum"].(int)]
@@ -132,7 +153,7 @@ func NewPeer(config Connection, waitGroup *sync.WaitGroup, shutdownChannel chan 
 	return &p
 }
 
-// create initial objects
+// Start creates the initial objects and starts the update loop in a separate goroutine.
 func (p *Peer) Start() {
 	go func() {
 		defer p.waitGroup.Done()
@@ -144,6 +165,8 @@ func (p *Peer) Start() {
 	return
 }
 
+// UpdateLoop is the main loop updating this peer.
+// It does not return till triggered by the shutdownChannel.
 func (p *Peer) UpdateLoop() {
 	for {
 		ok := p.InitAllTables()
@@ -208,6 +231,8 @@ func (p *Peer) UpdateLoop() {
 	}
 }
 
+// InitAllTables creates all tables for this peer.
+// It returns true if the import was succesful or false otherwise.
 func (p *Peer) InitAllTables() bool {
 	var err error
 	p.PeerLock.Lock()
@@ -256,6 +281,8 @@ func (p *Peer) InitAllTables() bool {
 	return true
 }
 
+// UpdateAllTables runs a full update on all dynamic values for all tables which have dynamic updated columns.
+// It returns true if the update was succesful or false otherwise.
 func (p *Peer) UpdateAllTables() bool {
 	t1 := time.Now()
 	var err error
@@ -291,6 +318,8 @@ func (p *Peer) UpdateAllTables() bool {
 	return true
 }
 
+// UpdateDeltaTables runs a delta update on all status, hosts, services, comments and downtimes table.
+// It returns true if the update was succesful or false otherwise.
 func (p *Peer) UpdateDeltaTables() bool {
 	t1 := time.Now()
 
@@ -327,13 +356,16 @@ func (p *Peer) UpdateDeltaTables() bool {
 	return true
 }
 
+// UpdateDeltaTableHosts update services by fetching all dynamic data with a last_check filter on the timestamp since
+// the previous update with additional UpdateAdditionalDelta seconds.
+// It returns any error encountered.
 func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	// update changed hosts
 	table := Objects.Tables["hosts"]
 	keys, indexes := table.GetDynamicColumns(p.Flags)
 	keys = append(keys, "name")
 	if filterStr == "" {
-		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.Status["LastUpdate"].(time.Time).Unix() - UPDATE_ADDITIONAL_DELTA))
+		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.Status["LastUpdate"].(time.Time).Unix() - UpdateAdditionalDelta))
 		// no filter means regular delta update, so lets check if all last_check dates match
 		ok, err := p.UpdateDeltaTableFullScan(&table, filterStr)
 		if ok || err != nil {
@@ -367,13 +399,16 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	return
 }
 
+// UpdateDeltaTableServices update services by fetching all dynamic data with a last_check filter on the timestamp since
+// the previous update with additional UpdateAdditionalDelta seconds.
+// It returns any error encountered.
 func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	// update changed services
 	table := Objects.Tables["services"]
 	keys, indexes := table.GetDynamicColumns(p.Flags)
 	keys = append(keys, []string{"host_name", "description"}...)
 	if filterStr == "" {
-		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.Status["LastUpdate"].(time.Time).Unix() - UPDATE_ADDITIONAL_DELTA))
+		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.Status["LastUpdate"].(time.Time).Unix() - UpdateAdditionalDelta))
 		// no filter means regular delta update, so lets check if all last_check dates match
 		ok, err := p.UpdateDeltaTableFullScan(&table, filterStr)
 		if ok || err != nil {
@@ -408,21 +443,27 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	return
 }
 
+// UpdateDeltaTableFullScan updates hosts and services tables by fetching some key indicator fields like last_check
+// downtimes or acknowledged status. If an update is required, the last_check timestamp is used as filter for a
+// delta update.
+// The full scan just returns false without any update if the last update was less then MinFullScanInterval seconds
+// ago.
+// It returns true if an update was done and any error encountered.
 func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated bool, err error) {
 	updated = false
 	p.PeerLock.RLock()
-	var last_update int64
+	var lastUpdate int64
 	if table.Name == "services" {
-		last_update = p.Status["LastFullServiceUpdate"].(time.Time).Unix()
+		lastUpdate = p.Status["LastFullServiceUpdate"].(time.Time).Unix()
 	} else if table.Name == "hosts" {
-		last_update = p.Status["LastFullHostUpdate"].(time.Time).Unix()
+		lastUpdate = p.Status["LastFullHostUpdate"].(time.Time).Unix()
 	} else {
 		log.Panicf("not implemented for: " + table.Name)
 	}
 	p.PeerLock.RUnlock()
 
 	// do not do a full scan more often than every 30 seconds
-	if last_update > time.Now().Unix()-MIN_FULL_SCAN_INTERVAL {
+	if lastUpdate > time.Now().Unix()-MinFullScanInterval {
 		return
 	}
 
@@ -454,8 +495,8 @@ func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated
 	p.DataLock.RUnlock()
 	if len(missing) > 0 {
 		filter := []string{filterStr}
-		for last_check := range missing {
-			filter = append(filter, fmt.Sprintf("Filter: last_check = %d\n", int(last_check)))
+		for lastCheck := range missing {
+			filter = append(filter, fmt.Sprintf("Filter: last_check = %d\n", int(lastCheck)))
 		}
 		filter = append(filter, fmt.Sprintf("Or: %d\n", len(filter)))
 		if table.Name == "services" {
@@ -476,6 +517,10 @@ func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated
 	return
 }
 
+// UpdateDeltaCommentsOrDowntimes update the comments or downtimes table. It fetches the number and highest id of
+// the remote comments/downtimes. If an update is required, it then fetches all ids to check which are new and
+// which have to be removed.
+// It returns any error encountered.
 func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	// add new comments / downtimes
 	table := Objects.Tables[name]
@@ -572,7 +617,8 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	return
 }
 
-// send query to remote livestatus and returns unmarshaled result
+// query sends the request to a remote livestatus.
+// It returns the unmarshaled result and any error encountered.
 func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 	conn, connType, err := p.GetConnection()
 	if err != nil {
@@ -594,7 +640,7 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 
 	var buf bytes.Buffer
 	if connType == "http" {
-		res, hErr := p.HttpQuery(peerAddr, query)
+		res, hErr := p.HTTPQuery(peerAddr, query)
 		if hErr != nil {
 			return nil, hErr
 		}
@@ -643,12 +689,12 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 			err = errors.New(strings.TrimSpace(string(resBytes)))
 			return nil, &PeerError{msg: err.Error(), kind: ResponseError}
 		}
-		wrapped_result := make(map[string]json.RawMessage)
-		err = json.Unmarshal(resBytes, &wrapped_result)
+		wrappedResult := make(map[string]json.RawMessage)
+		err = json.Unmarshal(resBytes, &wrappedResult)
 		if err != nil {
 			return nil, &PeerError{msg: err.Error(), kind: ResponseError}
 		}
-		err = json.Unmarshal(wrapped_result["data"], &result)
+		err = json.Unmarshal(wrappedResult["data"], &result)
 	} else {
 		if len(resBytes) == 0 || string(resBytes[0]) != "[" {
 			err = errors.New(strings.TrimSpace(string(resBytes)))
@@ -666,7 +712,9 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 	return
 }
 
-// call query and log all errors except connection errors which are logged in GetConnection
+// Query sends a livestatus request from a request object.
+// It calls query and logs all errors except connection errors which are logged in GetConnection.
+// It returns the livestatus result and any error encountered.
 func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 	result, err = p.query(req)
 	if err != nil {
@@ -675,6 +723,8 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 	return
 }
 
+// QueryString sends a livestatus request from a given string.
+// It returns the livestatus result and any error encountered.
 func (p *Peer) QueryString(str string) ([][]interface{}, error) {
 	req, _, err := ParseRequestFromBuffer(bufio.NewReader(bytes.NewBufferString(str)))
 	if err != nil {
@@ -687,34 +737,40 @@ func (p *Peer) QueryString(str string) ([][]interface{}, error) {
 	return p.Query(req)
 }
 
+// CheckResponseHeader verifies the return code and content length of livestatus answer.
+// It returns an error if something is wrong with the header.
 func (p *Peer) CheckResponseHeader(resBytes *[]byte) (err error) {
 	resSize := len(*resBytes)
 	if resSize < 16 {
-		err = errors.New(fmt.Sprintf("uncomplete response header: " + string(*resBytes)))
+		err = fmt.Errorf("uncomplete response header: " + string(*resBytes))
 		return
 	}
 	header := (*resBytes)[0:15]
 	resSize = resSize - 16
 
-	matched := ReResponseHeader.FindStringSubmatch(string(header))
+	matched := reResponseHeader.FindStringSubmatch(string(header))
 	if len(matched) != 3 {
-		err = errors.New(fmt.Sprintf("[%s] uncomplete response header: %s", p.Name, string(header)))
+		err = fmt.Errorf("[%s] uncomplete response header: %s", p.Name, string(header))
 		return
 	}
 	resCode, _ := strconv.Atoi(matched[1])
 	expSize, _ := strconv.Atoi(matched[2])
 
 	if resCode != 200 {
-		err = errors.New(fmt.Sprintf("[%s] bad response: %s", p.Name, string(*resBytes)))
+		err = fmt.Errorf("[%s] bad response: %s", p.Name, string(*resBytes))
 		return
 	}
 	if expSize != resSize {
-		err = errors.New(fmt.Sprintf("[%s] bad response size, expected %d, got %d", p.Name, expSize, resSize))
+		err = fmt.Errorf("[%s] bad response size, expected %d, got %d", p.Name, expSize, resSize)
 		return
 	}
 	return
 }
 
+// GetConnection returns the next net.Conn object which answers to a connect.
+// In case of a http connection, it just trys a tcp connect, but does not
+// return anything.
+// It returns the connection object and any error encountered.
 func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 	numSources := len(p.Source)
 
@@ -827,7 +883,8 @@ func (p *Peer) setNextAddrFromErr(err error) {
 	return
 }
 
-// create initial objects
+// CreateObjectByType fetches all static and dynamic data from the remote site and creates the initial table.
+// It returns any error encountered.
 func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	// log table does not create objects
 	if table.PassthroughOnly {
@@ -900,7 +957,7 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	// is this a shinken backend?
 	if table.Name == "status" && len(res) > 0 {
 		row := res[0]
-		matched := ReShinkenVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))
+		matched := reShinkenVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))
 		if len(matched) > 0 {
 			p.PeerLock.Lock()
 			p.Flags |= ShinkenOnly
@@ -917,8 +974,9 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	return
 }
 
-// update objects
-// assuming we get the objects always in the same order, we can just iterate over the index and update the fields
+// UpdateObjectByType updates a given table by requesting all dynamic columns from the remote peer.
+// Assuming we get the objects always in the same order, we can just iterate over the index and update the fields.
+// It returns a boolean flag wheter the remote site has been restarted and any error encountered.
 func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error) {
 	if len(table.DynamicColCacheNames) == 0 {
 		return
@@ -990,31 +1048,34 @@ func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error)
 	return
 }
 
-func (peer *Peer) GetRowValue(index int, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}, inputRowLen int) interface{} {
+// GetRowValue returns the value for a given index in a data row and resolves
+// any virtual or reference column.
+// The result is returned as interface.
+func (p *Peer) GetRowValue(index int, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}, inputRowLen int) interface{} {
 	if index >= inputRowLen {
 		col := table.Columns[index]
 		if col.Type == VirtCol {
-			peer.PeerLock.RLock()
-			value, ok := peer.Status[VirtKeyMap[col.Name].Key]
-			peer.PeerLock.RUnlock()
+			p.PeerLock.RLock()
+			value, ok := p.Status[VirtKeyMap[col.Name].Key]
+			p.PeerLock.RUnlock()
 			if !ok {
 				switch col.Name {
 				case "last_state_change_order":
 					// return last_state_change or program_start
-					last_state_change := NumberToFloat((*row)[table.ColumnsIndex["last_state_change"]])
-					if last_state_change == 0 {
-						value = peer.Status["ProgramStart"]
+					lastStateChange := NumberToFloat((*row)[table.ColumnsIndex["last_state_change"]])
+					if lastStateChange == 0 {
+						value = p.Status["ProgramStart"]
 					} else {
-						value = last_state_change
+						value = lastStateChange
 					}
 					break
 				case "host_last_state_change_order":
 					// return last_state_change or program_start
-					last_state_change := NumberToFloat(peer.GetRowValue(table.GetColumn("host_last_state_change").Index, row, rowNum, table, refs, inputRowLen))
-					if last_state_change == 0 {
-						value = peer.Status["ProgramStart"]
+					lastStateChange := NumberToFloat(p.GetRowValue(table.GetColumn("host_last_state_change").Index, row, rowNum, table, refs, inputRowLen))
+					if lastStateChange == 0 {
+						value = p.Status["ProgramStart"]
 					} else {
-						value = last_state_change
+						value = lastStateChange
 					}
 					break
 				case "state_order":
@@ -1086,11 +1147,13 @@ func (peer *Peer) GetRowValue(index int, row *[]interface{}, rowNum int, table *
 	return (*row)[index]
 }
 
-func (peer *Peer) waitCondition(req *Request) bool {
+// WaitCondition waits for a given condition.
+// It returns true if the wait timed out or false if the condition matched succesfully.
+func (p *Peer) WaitCondition(req *Request) bool {
 	c := make(chan struct{})
 	go func() {
-		table := peer.Tables[req.Table].Table
-		refs := peer.Tables[req.Table].Refs
+		table := p.Tables[req.Table].Table
+		refs := p.Tables[req.Table].Refs
 		for {
 			select {
 			case <-c:
@@ -1101,26 +1164,26 @@ func (peer *Peer) waitCondition(req *Request) bool {
 			// get object to watch
 			var obj []interface{}
 			if req.Table == "hosts" || req.Table == "services" {
-				obj = peer.Tables[req.Table].Index[req.WaitObject]
+				obj = p.Tables[req.Table].Index[req.WaitObject]
 			} else {
 				log.Errorf("unsupported wait table: %s", req.Table)
 				close(c)
 				return
 			}
-			if peer.matchFilter(table, &refs, len(obj), &req.WaitCondition[0], &obj, 0) {
+			if p.matchFilter(table, &refs, len(obj), &req.WaitCondition[0], &obj, 0) {
 				// trigger update for all, wait conditions are run against the last object
 				// but multiple commands may have been sent
 				if req.Table == "hosts" {
-					go peer.UpdateDeltaTableHosts("")
+					go p.UpdateDeltaTableHosts("")
 				} else if req.Table == "services" {
-					go peer.UpdateDeltaTableServices("")
+					go p.UpdateDeltaTableServices("")
 				}
 				close(c)
 				return
 			}
 			time.Sleep(time.Millisecond * 200)
 			if req.Table == "hosts" {
-				peer.UpdateDeltaTableHosts("Filter: name = " + req.WaitObject + "\n")
+				p.UpdateDeltaTableHosts("Filter: name = " + req.WaitObject + "\n")
 			} else if req.Table == "services" {
 				tmp := strings.SplitN(req.WaitObject, ";", 2)
 				if len(tmp) < 2 {
@@ -1128,7 +1191,7 @@ func (peer *Peer) waitCondition(req *Request) bool {
 					close(c)
 					return
 				}
-				peer.UpdateDeltaTableServices("Filter: host_name = " + tmp[0] + "\nFilter: description = " + tmp[1] + "\n")
+				p.UpdateDeltaTableServices("Filter: host_name = " + tmp[0] + "\nFilter: description = " + tmp[1] + "\n")
 			}
 		}
 	}()
@@ -1141,7 +1204,9 @@ func (peer *Peer) waitCondition(req *Request) bool {
 	}
 }
 
-func (p *Peer) HttpQuery(peerAddr string, query string) (res []byte, err error) {
+// HTTPQuery sends a query over http to a Thruk backend.
+// It returns the livestatus answers and any encountered error.
+func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) {
 	options := make(map[string]interface{})
 	if p.Config.RemoteName != "" {
 		options["backends"] = []string{p.Config.RemoteName}
@@ -1176,7 +1241,7 @@ func (p *Peer) HttpQuery(peerAddr string, query string) (res []byte, err error) 
 		err = &PeerError{msg: fmt.Sprintf("site did not return a proper response: %s", contents), kind: ResponseError}
 		return
 	}
-	var result HttpResult
+	var result HTTPResult
 	err = json.Unmarshal(contents, &result)
 	if err != nil {
 		return
@@ -1195,7 +1260,7 @@ func (p *Peer) HttpQuery(peerAddr string, query string) (res []byte, err error) 
 	if len(output) >= 4 {
 		if v, ok := output[3].(string); ok {
 			remoteError = strings.TrimSpace(v)
-			matched := ReHttpTooOld.FindStringSubmatch(remoteError)
+			matched := reHTTPTooOld.FindStringSubmatch(remoteError)
 			if len(matched) > 0 {
 				err = &PeerError{msg: fmt.Sprintf("remote site too old: v%s - %s", result.Version, result.Branch), kind: ResponseError}
 			} else {
@@ -1212,6 +1277,7 @@ func (p *Peer) HttpQuery(peerAddr string, query string) (res []byte, err error) 
 	return
 }
 
+// SpinUpPeers starts an immediate parallel delta update for all supplied peer ids.
 func SpinUpPeers(peers []string) {
 	waitgroup := &sync.WaitGroup{}
 	for _, id := range peers {

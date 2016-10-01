@@ -89,7 +89,7 @@ func StartMockLivestatusSource() {
 
 var TestPeerShutdownChannel chan bool
 var waitGroup *sync.WaitGroup
-var mainStarted bool = false
+var mainStarted = false
 
 func SetupMainLoop() {
 	err := ioutil.WriteFile("test.ini", []byte(testConfig), 0644)

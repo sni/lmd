@@ -74,7 +74,7 @@ func SendPeerCommands(req *Request) (err error) {
 	}
 	for _, p := range DataStore {
 		if numBackendsReq > 0 {
-			_, ok := backendsMap[p.Id]
+			_, ok := backendsMap[p.ID]
 			if !ok {
 				continue
 			}

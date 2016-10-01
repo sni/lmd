@@ -126,7 +126,7 @@ func BuildResponse(req *Request) (res *Response, err error) {
 	for _, id := range DataStoreOrder {
 		p := DataStore[id]
 		if numBackendsReq > 0 {
-			_, Ok := backendsMap[p.Id]
+			_, Ok := backendsMap[p.ID]
 			if !Ok {
 				continue
 			}
@@ -313,7 +313,7 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 	peer.PeerLock.Lock()
 	peer.Status["LastQuery"] = time.Now()
 	if table == nil || (peer.Status["PeerStatus"].(PeerStatus) == PeerStatusDown && !table.Virtual) {
-		res.Failed[peer.Id] = fmt.Sprintf("%v", peer.Status["LastError"])
+		res.Failed[peer.ID] = fmt.Sprintf("%v", peer.Status["LastError"])
 		peer.PeerLock.Unlock()
 		return
 	}
@@ -321,7 +321,7 @@ func BuildLocalResponseDataForPeer(res *Response, req *Request, peer *Peer, numP
 
 	// if a WaitTrigger is supplied, wait max ms till the condition is true
 	if req.WaitTrigger != "" {
-		peer.waitCondition(req)
+		peer.WaitCondition(req)
 	}
 
 	data := peer.Tables[req.Table].Data
@@ -529,7 +529,7 @@ func BuildPassThroughResult(peers []string, res *Response, table *Table, columns
 		p.PeerLock.RLock()
 		if p.Status["PeerStatus"].(PeerStatus) == PeerStatusDown {
 			m.Lock()
-			res.Failed[p.Id] = fmt.Sprintf("%v", p.Status["LastError"])
+			res.Failed[p.ID] = fmt.Sprintf("%v", p.Status["LastError"])
 			m.Unlock()
 			p.PeerLock.RUnlock()
 			continue
@@ -555,7 +555,7 @@ func BuildPassThroughResult(peers []string, res *Response, table *Table, columns
 			if err != nil {
 				log.Tracef("[%s] req errored", err.Error())
 				m.Lock()
-				res.Failed[p.Id] = err.Error()
+				res.Failed[p.ID] = err.Error()
 				m.Unlock()
 				return
 			}
