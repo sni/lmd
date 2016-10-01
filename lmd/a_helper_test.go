@@ -12,8 +12,6 @@ import (
 
 	"syscall"
 
-	"os/exec"
-
 	"github.com/BurntSushi/toml"
 )
 
@@ -103,7 +101,9 @@ func SetupMainLoop() {
 
 	go func() {
 		if mainStarted {
+			waitGroup.Add(1)
 			mainLoop(mainSignalChannel)
+			waitGroup.Done()
 		} else {
 			mainStarted = true
 			os.Args[1] = "-config=test.ini"
@@ -115,10 +115,10 @@ func SetupMainLoop() {
 }
 
 func SetupTestPeer() (peer *Peer) {
+	waitGroup = &sync.WaitGroup{}
 	SetupMainLoop()
 
 	TestPeerShutdownChannel = make(chan bool)
-	waitGroup = &sync.WaitGroup{}
 	peer = NewPeer(Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", Id: "id0"}, waitGroup, TestPeerShutdownChannel)
 	peer.Start()
 
@@ -148,5 +148,4 @@ func StopTestPeer() {
 	os.Remove("test.ini")
 	os.Remove("test.sock")
 	os.Remove("mock.sock")
-	exec.Command("ls", "-la", "mock.sock").Output()
 }
