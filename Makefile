@@ -66,3 +66,7 @@ fmt:
 lint:
 	go get -u github.com/golang/lint/golint
 	cd $(LAMPDDIR) && golint .
+
+cyclo:
+	go get github.com/fzipp/gocyclo
+	cd $(LAMPDDIR) && gocyclo -over 15 .
