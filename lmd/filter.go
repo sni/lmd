@@ -83,48 +83,51 @@ func (f *Filter) String(prefix string) (str string) {
 		} else {
 			str += fmt.Sprintf("%sOr: %d\n", prefix, len(f.Filter))
 		}
-	} else {
-		var value string
-		colType := f.Column.Type
-		if colType == VirtCol {
-			colType = VirtKeyMap[f.Column.Name].Type
+		return
+	}
+
+	var value string
+	colType := f.Column.Type
+	if colType == VirtCol {
+		colType = VirtKeyMap[f.Column.Name].Type
+	}
+	switch colType {
+	case CustomVarCol:
+		value = f.CustomTag + " " + f.StrValue
+		break
+	case TimeCol:
+		fallthrough
+	case IntListCol:
+		fallthrough
+	case IntCol:
+		value = fmt.Sprintf("%d", int(f.FloatValue))
+		break
+	case FloatCol:
+		value = fmt.Sprintf("%v", f.FloatValue)
+		break
+	case StringListCol:
+		fallthrough
+	case StringCol:
+		value = f.StrValue
+		break
+	default:
+		log.Panicf("not implemented column type: %v", f.Column.Type)
+		break
+	}
+
+	switch f.StatsType {
+	case NoStats:
+		if prefix == "" {
+			prefix = "Filter"
 		}
-		switch colType {
-		case CustomVarCol:
-			value = f.CustomTag + " " + f.StrValue
-			break
-		case TimeCol:
-			fallthrough
-		case IntListCol:
-			fallthrough
-		case IntCol:
-			value = fmt.Sprintf("%d", int(f.FloatValue))
-			break
-		case FloatCol:
-			value = fmt.Sprintf("%v", f.FloatValue)
-			break
-		case StringListCol:
-			fallthrough
-		case StringCol:
-			value = f.StrValue
-			break
-		default:
-			log.Panicf("not implemented column type: %v", f.Column.Type)
-			break
-		}
-		if f.StatsType == NoStats {
-			if prefix == "" {
-				str = fmt.Sprintf("Filter: %s %s %v\n", f.Column.Name, OperatorString(f.Operator), value)
-			} else {
-				str = fmt.Sprintf("%s: %s %s %v\n", prefix, f.Column.Name, OperatorString(f.Operator), value)
-			}
-		} else {
-			if f.StatsType == Counter {
-				str = fmt.Sprintf("Stats: %s %s %v\n", f.Column.Name, OperatorString(f.Operator), value)
-			} else {
-				str = fmt.Sprintf("Stats: %s %s\n", StatsTypeString(f.StatsType), f.Column.Name)
-			}
-		}
+		str = fmt.Sprintf("%s: %s %s %v\n", prefix, f.Column.Name, OperatorString(f.Operator), value)
+		break
+	case Counter:
+		str = fmt.Sprintf("Stats: %s %s %v\n", f.Column.Name, OperatorString(f.Operator), value)
+		break
+	default:
+		str = fmt.Sprintf("Stats: %s %s\n", StatsTypeString(f.StatsType), f.Column.Name)
+		break
 	}
 	return
 }

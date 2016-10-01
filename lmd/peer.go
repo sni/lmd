@@ -1002,23 +1002,7 @@ func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error)
 	data := p.Tables[table.Name].Data
 	if table.Name == "timeperiods" {
 		// check for changed timeperiods, because we have to update the linked hosts and services as well
-		changedTimeperiods := []string{}
-		nameIndex := table.ColumnsIndex["name"]
-		p.DataLock.Lock()
-		for i, row := range res {
-			for j, k := range indexes {
-				if data[i][k] != row[j] {
-					changedTimeperiods = append(changedTimeperiods, data[i][nameIndex].(string))
-				}
-				data[i][k] = row[j]
-			}
-		}
-		p.DataLock.Unlock()
-		// Update hosts and services with those changed timeperiods
-		for _, name := range changedTimeperiods {
-			p.UpdateDeltaTableHosts("Filter: check_period = " + name + "\nFilter: notification_period = " + name + "\nOr: 2\n")
-			p.UpdateDeltaTableServices("Filter: check_period = " + name + "\nFilter: notification_period = " + name + "\nOr: 2\n")
-		}
+		p.updateTimeperiodsData(&table, res, indexes)
 	} else {
 		p.DataLock.Lock()
 		for i, row := range res {
@@ -1046,6 +1030,28 @@ func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error)
 		return
 	}
 	return
+}
+
+func (p *Peer) updateTimeperiodsData(table *Table, res [][]interface{}, indexes []int) {
+	changedTimeperiods := make(map[string]float64)
+	nameIndex := table.ColumnsIndex["name"]
+	p.DataLock.Lock()
+	data := p.Tables[table.Name].Data
+	for i, row := range res {
+		for j, k := range indexes {
+			if data[i][k] != row[j] {
+				changedTimeperiods[data[i][nameIndex].(string)] = data[i][k].(float64)
+			}
+			data[i][k] = row[j]
+		}
+	}
+	p.DataLock.Unlock()
+	// Update hosts and services with those changed timeperiods
+	for name, state := range changedTimeperiods {
+		log.Debugf("[%s] timeperiod %s has changed to %v, need to update affected hosts/services", p.Name, state)
+		p.UpdateDeltaTableHosts("Filter: check_period = " + name + "\nFilter: notification_period = " + name + "\nOr: 2\n")
+		p.UpdateDeltaTableServices("Filter: check_period = " + name + "\nFilter: notification_period = " + name + "\nOr: 2\n")
+	}
 }
 
 // GetRowValue returns the value for a given index in a data row and resolves
