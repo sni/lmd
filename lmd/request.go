@@ -290,10 +290,10 @@ func (req *Request) ParseRequestHeaderLine(line *string) (err error) {
 	case "and":
 		fallthrough
 	case "or":
-		err = parseFilterOp(header, value, line, &req.Filter)
+		err = ParseFilterOp(header, value, line, &req.Filter)
 		return
 	case "stats":
-		err = parseStats(value, line, req.Table, &req.Stats)
+		err = ParseStats(value, line, req.Table, &req.Stats)
 		return
 	case "statsand":
 		err = parseStatsOp("and", value, line, &req.Stats)
@@ -387,7 +387,7 @@ func parseSortHeader(field *[]*SortField, value string) (err error) {
 }
 
 func parseStatsOp(op string, value string, line *string, stats *[]Filter) (err error) {
-	err = parseFilterOp(op, value, line, stats)
+	err = ParseFilterOp(op, value, line, stats)
 	if err != nil {
 		return
 	}

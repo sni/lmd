@@ -21,22 +21,27 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// compile passing -ldflags "-X main.Build <build sha1>"
+// Build contains the current git commit id
+// compile passing -ldflags "-X main.Build <build sha1>" to set the id.
 var Build string
 
 const (
+	// VERSION contains the actual lmd version
 	VERSION = "0.0.1"
-	NAME    = "lmd"
+	// NAME defines the name of this project
+	NAME = "lmd"
 )
 
+// Connection defines a single connection configuration.
 type Connection struct {
 	Name       string
-	Id         string
+	ID         string
 	Source     []string
 	Auth       string
 	RemoteName string
 }
 
+// Config defines the available configuration options from supplied config files.
 type Config struct {
 	Listen              []string
 	Updateinterval      int64
@@ -52,20 +57,26 @@ type Config struct {
 	StaleBackendTimeout int
 }
 
+// DataStore contains a map of available remote peers.
 var DataStore map[string]Peer
+
+// DataStoreOrder contains the order of all remote peers as defined in the supplied config files.
 var DataStoreOrder []string
 
 type configFiles []string
 
+// String returns the config files list as string.
 func (c *configFiles) String() string {
 	return fmt.Sprintf("%s", *c)
 }
 
+// Set appends a config file to the list of config files.
 func (c *configFiles) Set(value string) error {
 	*c = append(*c, value)
 	return nil
 }
 
+// GlobalConfig contains the global configuration (after config files have been parsed)
 var GlobalConfig Config
 var flagVerbose bool
 var flagVeryVerbose bool
@@ -189,7 +200,7 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 
 	// start local listeners
 	for _, listen := range GlobalConfig.Listen {
-		go localListener(listen, waitGroupListener, shutdownChannel)
+		go LocalListener(listen, waitGroupListener, shutdownChannel)
 	}
 
 	// start remote connections
@@ -209,13 +220,13 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 func initializePeers(GlobalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGroupListener *sync.WaitGroup, shutdownChannel chan bool) {
 	for _, c := range GlobalConfig.Connections {
 		p := NewPeer(c, waitGroupPeers, shutdownChannel)
-		_, Exists := DataStore[c.Id]
+		_, Exists := DataStore[c.ID]
 		if Exists {
-			log.Fatalf("Duplicate id in connection list: %s", c.Id)
+			log.Fatalf("Duplicate id in connection list: %s", c.ID)
 		}
-		DataStore[c.Id] = *p
+		DataStore[c.ID] = *p
 		p.Start()
-		DataStoreOrder = append(DataStoreOrder, c.Id)
+		DataStoreOrder = append(DataStoreOrder, c.ID)
 	}
 }
 
@@ -330,10 +341,13 @@ func setDefaults(conf *Config) {
 	}
 }
 
+// PrintVersion prints the version
 func PrintVersion() {
 	fmt.Printf("%s - version %s (Build: %s) started with config %s\n", NAME, VERSION, Build, flagConfigFile)
 }
 
+// ReadConfig reads all config files.
+// It returns a Config object.
 func ReadConfig(files []string) (conf Config) {
 	for _, configFile := range files {
 		if _, err := os.Stat(configFile); err != nil {

@@ -9,7 +9,9 @@ import (
 	"time"
 )
 
-func queryServer(c net.Conn) error {
+// QueryServer handles a single client connection.
+// It returns any error encountered.
+func QueryServer(c net.Conn) error {
 	localAddr := c.LocalAddr().String()
 	for {
 		t1 := time.Now()
@@ -35,7 +37,7 @@ func queryServer(c net.Conn) error {
 		for _, req := range reqs {
 			if req.Command != "" {
 				// commands do not send anything back
-				err = SendPeerCommands(req)
+				err = req.SendPeerCommands()
 				duration := time.Since(t1)
 				log.Infof("incoming command request from %s to %s finished in %s", remote, c.LocalAddr().String(), duration.String())
 				if err != nil {
@@ -67,7 +69,9 @@ func queryServer(c net.Conn) error {
 	}
 }
 
-func SendPeerCommands(req *Request) (err error) {
+// SendPeerCommands sends commands for this request to all selected remote sites.
+// It returns any error encountered.
+func (req *Request) SendPeerCommands() (err error) {
 	backendsMap, numBackendsReq, err := ExpandRequestBackends(req)
 	if err != nil {
 		return
@@ -100,7 +104,8 @@ func SendPeerCommands(req *Request) (err error) {
 	return
 }
 
-func localListener(listen string, waitGroup *sync.WaitGroup, shutdownChannel chan bool) {
+// LocalListener starts a local tcp/unix listening socket.
+func LocalListener(listen string, waitGroup *sync.WaitGroup, shutdownChannel chan bool) {
 	defer waitGroup.Done()
 	waitGroup.Add(1)
 	connType := "unix"
@@ -147,6 +152,6 @@ func localListener(listen string, waitGroup *sync.WaitGroup, shutdownChannel cha
 			return
 		}
 
-		go queryServer(fd)
+		go QueryServer(fd)
 	}
 }

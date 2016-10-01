@@ -213,8 +213,8 @@ ResponseHeader: fixed16`)
 
 func BenchmarkNumberToFloat(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		NumberToFloat(123.1231123123)
-		NumberToFloat(1231123123)
-		NumberToFloat(true)
+		numberToFloat(123.1231123123)
+		numberToFloat(1231123123)
+		numberToFloat(true)
 	}
 }

@@ -9,8 +9,11 @@ import (
 	"strings"
 )
 
+// StatsType is the stats operator.
 type StatsType int
 
+// Besides the Counter, which counts the data rows by using a filter, there are 4 aggregations
+// operators: Sum, Average, Min and Max.
 const (
 	UnknownStatsType StatsType = iota
 	Counter
@@ -20,6 +23,7 @@ const (
 	Max     // max
 )
 
+// Filter defines a single filter object.
 type Filter struct {
 	// filter can either be a single filter
 	Column     Column
@@ -39,10 +43,13 @@ type Filter struct {
 	StatsType  StatsType
 }
 
+// Operator defines a filter operator.
 type Operator int
 
+// Operator defines the kind of operator used to compare values with
+// data columns.
 const (
-	UnknownOperator Operator = iota
+	_ Operator = iota
 	// Generic
 	Equal         // =
 	Unequal       // !=
@@ -65,6 +72,7 @@ const (
 	GroupContainsNot // !>=
 )
 
+// String converts a filter back to its string representation.
 func (f *Filter) String(prefix string) (str string) {
 	if len(f.Filter) > 0 {
 		for _, sub := range f.Filter {
@@ -104,23 +112,25 @@ func (f *Filter) String(prefix string) (str string) {
 			log.Panicf("not implemented column type: %v", f.Column.Type)
 			break
 		}
-		if f.StatsType != UnknownStatsType {
-			if f.StatsType == Counter {
-				str = fmt.Sprintf("Stats: %s %s %v\n", f.Column.Name, OperatorString(f.Operator), value)
-			} else {
-				str = fmt.Sprintf("Stats: %s %s\n", StatsTypeString(f.StatsType), f.Column.Name)
-			}
-		} else {
+		if f.StatsType == UnknownStatsType {
 			if prefix == "" {
 				str = fmt.Sprintf("Filter: %s %s %v\n", f.Column.Name, OperatorString(f.Operator), value)
 			} else {
 				str = fmt.Sprintf("%s: %s %s %v\n", prefix, f.Column.Name, OperatorString(f.Operator), value)
+			}
+		} else {
+			if f.StatsType == Counter {
+				str = fmt.Sprintf("Stats: %s %s %v\n", f.Column.Name, OperatorString(f.Operator), value)
+			} else {
+				str = fmt.Sprintf("Stats: %s %s\n", StatsTypeString(f.StatsType), f.Column.Name)
 			}
 		}
 	}
 	return
 }
 
+// ParseFilter parses a single line into a filter object.
+// It returns any error encountered.
 func ParseFilter(value string, line *string, table string, stack *[]Filter) (err error) {
 	tmp := strings.SplitN(value, " ", 3)
 	if len(tmp) < 2 {
@@ -131,7 +141,7 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 		tmp = append(tmp, "")
 	}
 	isRegex := false
-	op := UnknownOperator
+	var op Operator
 	switch tmp[1] {
 	case "=":
 		op = Equal
@@ -247,7 +257,9 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 	return
 }
 
-func parseStats(value string, line *string, table string, stack *[]Filter) (err error) {
+// ParseStats parses a text line into a stats object.
+// It returns any error encountered.
+func ParseStats(value string, line *string, table string, stack *[]Filter) (err error) {
 	tmp := strings.SplitN(value, " ", 3)
 	if len(tmp) < 2 {
 		err = errors.New("bad request: stats header, must be Stats: <field> <operator> <value> OR Stats: <sum|avg|min|max> <field>")
@@ -288,7 +300,9 @@ func parseStats(value string, line *string, table string, stack *[]Filter) (err 
 	return
 }
 
-func parseFilterOp(header string, value string, line *string, stack *[]Filter) (err error) {
+// ParseFilterOp parses a text line into a filter group operator like And: <nr>.
+// It returns any error encountered.
+func ParseFilterOp(header string, value string, line *string, stack *[]Filter) (err error) {
 	num, cerr := strconv.Atoi(value)
 	if cerr != nil || num < 1 {
 		err = errors.New("bad request: " + header + " must be a positive number in" + *line)
@@ -312,11 +326,12 @@ func parseFilterOp(header string, value string, line *string, stack *[]Filter) (
 	return
 }
 
-func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, inputRowLen int, filter *Filter, row *[]interface{}, rowNum int) bool {
+// MatchFilter returns true if the given filter matches the given datarow.
+func (peer *Peer) MatchFilter(table *Table, refs *map[string][][]interface{}, inputRowLen int, filter *Filter, row *[]interface{}, rowNum int) bool {
 	// recursive group filter
 	if len(filter.Filter) > 0 {
 		for _, f := range filter.Filter {
-			subresult := peer.matchFilter(table, refs, inputRowLen, &f, row, rowNum)
+			subresult := peer.MatchFilter(table, refs, inputRowLen, &f, row, rowNum)
 			if subresult == false && filter.GroupOperator == And {
 				return false
 			}
@@ -356,7 +371,7 @@ func (peer *Peer) matchFilter(table *Table, refs *map[string][][]interface{}, in
 		if v, ok := value.(float64); ok {
 			return matchNumberFilter(filter.Operator, v, filter.FloatValue)
 		}
-		return matchNumberFilter(filter.Operator, NumberToFloat(value), filter.FloatValue)
+		return matchNumberFilter(filter.Operator, numberToFloat(value), filter.FloatValue)
 	case StringListCol:
 		return matchStringListFilter(filter, &value)
 	case IntListCol:
@@ -517,14 +532,14 @@ func matchIntListFilter(filter *Filter, value *interface{}) bool {
 		return false
 	case GreaterThan:
 		for i := 0; i < listLen; i++ {
-			if filter.FloatValue == NumberToFloat(list.Index(i).Interface()) {
+			if filter.FloatValue == numberToFloat(list.Index(i).Interface()) {
 				return true
 			}
 		}
 		return false
 	case GroupContainsNot:
 		for i := 0; i < listLen; i++ {
-			if filter.FloatValue == NumberToFloat(list.Index(i).Interface()) {
+			if filter.FloatValue == numberToFloat(list.Index(i).Interface()) {
 				return false
 			}
 		}
@@ -543,7 +558,7 @@ func matchCustomVarFilter(filter *Filter, value *interface{}) bool {
 	return matchStringValueOperator(filter.Operator, &val, &filter.StrValue, filter.Regexp)
 }
 
-func NumberToFloat(in interface{}) float64 {
+func numberToFloat(in interface{}) float64 {
 	switch v := in.(type) {
 	case float64:
 		return v

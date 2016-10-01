@@ -121,7 +121,7 @@ func (d *DataTable) RemoveItem(row []interface{}) {
 func NewPeer(config Connection, waitGroup *sync.WaitGroup, shutdownChannel chan bool) *Peer {
 	p := Peer{
 		Name:            config.Name,
-		ID:              config.Id,
+		ID:              config.ID,
 		Source:          config.Source,
 		Tables:          make(map[string]DataTable),
 		Status:          make(map[string]interface{}),
@@ -1062,7 +1062,7 @@ func (p *Peer) GetRowValue(index int, row *[]interface{}, rowNum int, table *Tab
 				switch col.Name {
 				case "last_state_change_order":
 					// return last_state_change or program_start
-					lastStateChange := NumberToFloat((*row)[table.ColumnsIndex["last_state_change"]])
+					lastStateChange := numberToFloat((*row)[table.ColumnsIndex["last_state_change"]])
 					if lastStateChange == 0 {
 						value = p.Status["ProgramStart"]
 					} else {
@@ -1071,7 +1071,7 @@ func (p *Peer) GetRowValue(index int, row *[]interface{}, rowNum int, table *Tab
 					break
 				case "host_last_state_change_order":
 					// return last_state_change or program_start
-					lastStateChange := NumberToFloat(p.GetRowValue(table.GetColumn("host_last_state_change").Index, row, rowNum, table, refs, inputRowLen))
+					lastStateChange := numberToFloat(p.GetRowValue(table.GetColumn("host_last_state_change").Index, row, rowNum, table, refs, inputRowLen))
 					if lastStateChange == 0 {
 						value = p.Status["ProgramStart"]
 					} else {
@@ -1081,7 +1081,7 @@ func (p *Peer) GetRowValue(index int, row *[]interface{}, rowNum int, table *Tab
 				case "state_order":
 					// return 4 instead of 2, which makes critical come first
 					// this way we can use this column to sort by state
-					state := NumberToFloat((*row)[table.ColumnsIndex["state"]])
+					state := numberToFloat((*row)[table.ColumnsIndex["state"]])
 					if state == 2 {
 						value = 4
 					} else {
@@ -1170,7 +1170,7 @@ func (p *Peer) WaitCondition(req *Request) bool {
 				close(c)
 				return
 			}
-			if p.matchFilter(table, &refs, len(obj), &req.WaitCondition[0], &obj, 0) {
+			if p.MatchFilter(table, &refs, len(obj), &req.WaitCondition[0], &obj, 0) {
 				// trigger update for all, wait conditions are run against the last object
 				// but multiple commands may have been sent
 				if req.Table == "hosts" {
@@ -1347,7 +1347,7 @@ func (p *Peer) BuildLocalResponseData(res *Response, req *Request, numPerRow int
 		// does our filter match?
 		filterMatched := true
 		for _, f := range res.Request.Filter {
-			if !p.matchFilter(table, &refs, inputRowLen, &f, &row, j) {
+			if !p.MatchFilter(table, &refs, inputRowLen, &f, &row, j) {
 				filterMatched = false
 				break
 			}
@@ -1362,7 +1362,7 @@ func (p *Peer) BuildLocalResponseData(res *Response, req *Request, numPerRow int
 				s := &(res.Request.Stats[i])
 				// avg/sum/min/max are passed through, they dont have filter
 				// counter must match their filter
-				if s.StatsType != Counter || p.matchFilter(table, &refs, inputRowLen, s, &row, j) {
+				if s.StatsType != Counter || p.MatchFilter(table, &refs, inputRowLen, s, &row, j) {
 					val := p.GetRowValue(s.Column.Index, &row, j, table, &refs, inputRowLen)
 					switch s.StatsType {
 					case Counter:
@@ -1371,16 +1371,16 @@ func (p *Peer) BuildLocalResponseData(res *Response, req *Request, numPerRow int
 					case Average:
 						fallthrough
 					case Sum:
-						s.Stats += NumberToFloat(val)
+						s.Stats += numberToFloat(val)
 						break
 					case Min:
-						value := NumberToFloat(val)
+						value := numberToFloat(val)
 						if s.Stats > value || s.Stats == -1 {
 							s.Stats = value
 						}
 						break
 					case Max:
-						value := NumberToFloat(val)
+						value := numberToFloat(val)
 						if s.Stats < value {
 							s.Stats = value
 						}
