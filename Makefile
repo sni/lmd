@@ -1,6 +1,7 @@
 #!/usr/bin/make -f
 
 LAMPDDIR=lmd
+MAKE:=make
 
 all: build
 
@@ -31,16 +32,28 @@ test: fmt dump
 	if grep -r TODO: lmd/; then exit 1; fi
 
 citest:
+	#
+	# Normal test cases
+	#
 	cd $(LAMPDDIR) && go test -v | ../t/test_counter.sh
+	#
+	# Benchmark tests
+	#
 	cd $(LAMPDDIR) && go test -v -bench=B\* -run=^$$ . -benchmem
+	#
+	# Checking gofmt errors
+	#
 	if [ $$(cd $(LAMPDDIR) && gofmt -s -l . | wc -l) -gt 0 ]; then \
 		echo "found format errors in these files:"; \
 		cd $(LAMPDDIR) && gofmt -s -l .; \
 		exit 1; \
 	fi
+	#
+	# Checking TODO items
+	#
 	if grep -r TODO: lmd/; then exit 1; fi
-	go get -u github.com/golang/lint/golint
-	cd $(LAMPDDIR) && golint -set_exit_status .
+	$(MAKE) lint
+	$(MAKE) cyclo
 
 benchmark: deps fmt
 	cd $(LAMPDDIR) && go test -v -bench=B\* -run=^$$ . -benchmem
@@ -65,8 +78,17 @@ fmt:
 
 lint:
 	go get -u github.com/golang/lint/golint
-	cd $(LAMPDDIR) && golint .
+	#
+	# Check if golint complains
+	# see https://github.com/golang/lint/ for details.
+	#
+	cd $(LAMPDDIR) && golint -set_exit_status .
 
 cyclo:
 	go get github.com/fzipp/gocyclo
+	#
+	# Check if there are any too complicated functions
+	# Any function with a score higher than 15 is bad.
+	# See https://github.com/fzipp/gocyclo for details.
+	#
 	cd $(LAMPDDIR) && gocyclo -over 15 .
