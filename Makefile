@@ -96,3 +96,10 @@ cyclo:
 	# See https://github.com/fzipp/gocyclo for details.
 	#
 	cd $(LAMPDDIR) && gocyclo -over 15 .
+
+version:
+	OLDVERSION="$(shell grep "VERSION =" $(LAMPDDIR)/main.go | awk '{print $$3}' | tr -d '"')"; \
+	NEWVERSION=$$(dialog --stdout --inputbox "New Version:" 0 0 "v$$OLDVERSION") && \
+		NEWVERSION=$$(echo $$NEWVERSION | sed "s/^v//g"); \
+		if [ "v$$OLDVERSION" = "v$$NEWVERSION" -o "x$$NEWVERSION" = "x" ]; then echo "no changes"; exit 1; fi; \
+		sed -i -e 's/VERSION =.*/VERSION = "'$$NEWVERSION'"/g' $(LAMPDDIR)/main.go
