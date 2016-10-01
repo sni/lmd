@@ -30,9 +30,16 @@ test: fmt dump
 	cd $(LAMPDDIR) && go test -short -v | ../t/test_counter.sh
 	if grep -r TODO: lmd/; then exit 1; fi
 
-longtest: deps fmt
+citest:
 	cd $(LAMPDDIR) && go test -v | ../t/test_counter.sh
+	if [ $$(cd $(LAMPDDIR) && gofmt -s -l . | wc -l) -gt 0 ]; then \
+		echo "found format errors in these files:"; \
+		cd $(LAMPDDIR) && gofmt -s -l .; \
+		exit 1; \
+	fi
 	if grep -r TODO: lmd/; then exit 1; fi
+	go get -u github.com/golang/lint/golint
+	cd $(LAMPDDIR) && golint -set_exit_status .
 
 benchmark: deps fmt
 	cd $(LAMPDDIR) && go test -v -bench=B\* -run=^$$ . -benchmem
@@ -54,3 +61,7 @@ fmt:
 	cd $(LAMPDDIR) && goimports -w .
 	cd $(LAMPDDIR) && go vet
 	cd $(LAMPDDIR) && gofmt -w -s .
+
+lint:
+	go get -u github.com/golang/lint/golint
+	cd $(LAMPDDIR) && golint .
