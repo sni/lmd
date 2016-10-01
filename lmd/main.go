@@ -185,7 +185,7 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 
 	setVerboseFlags(&GlobalConfig)
 	setDefaults(&GlobalConfig)
-	initLogging(&GlobalConfig)
+	InitLogging(&GlobalConfig)
 
 	if len(GlobalConfig.Connections) == 0 {
 		log.Fatalf("no connections defined")

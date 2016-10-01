@@ -1,15 +1,12 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"syscall"
 	"testing"
 )
-
-func init() {
-	initLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
-	InitObjects()
-}
 
 func TestMainFunc(t *testing.T) {
 	peer := SetupTestPeer()
@@ -123,5 +120,12 @@ func testquery(t *testing.T, peer *Peer, table, column, op, value string) {
 			t.Fatalf("paniced for query:\n%s", query)
 		}
 	}()
+	buf := bufio.NewReader(bytes.NewBufferString(query))
+	req, _, err := NewRequest(buf)
+	if err == nil {
+		if err = assertEq(query, req.String()); err != nil {
+			t.Fatal(err)
+		}
+	}
 	peer.QueryString(query)
 }

@@ -638,33 +638,12 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 	peerAddr := p.Status["PeerAddr"].(string)
 	p.PeerLock.Unlock()
 
-	var buf bytes.Buffer
-	if connType == "http" {
-		res, hErr := p.HTTPQuery(peerAddr, query)
-		if hErr != nil {
-			return nil, hErr
-		}
-		// commands do not send anything back
-		if req.Command != "" {
-			return nil, err
-		}
-		buf = *(bytes.NewBuffer(res))
-	} else {
-		conn.SetDeadline(time.Now().Add(time.Duration(GlobalConfig.NetTimeout) * time.Second))
-		fmt.Fprintf(conn, "%s", query)
-		switch c := conn.(type) {
-		case *net.TCPConn:
-			c.CloseWrite()
-			break
-		case *net.UnixConn:
-			c.CloseWrite()
-			break
-		}
-		// commands do not send anything back
-		if req.Command != "" {
-			return nil, err
-		}
-		io.Copy(&buf, conn)
+	buf, err := p.sendTo(req, query, peerAddr, conn, connType)
+	if err != nil {
+		return nil, err
+	}
+	if req.Command != "" {
+		return
 	}
 
 	log.Tracef("[%s] result: %s", p.Name, string(buf.Bytes()))
@@ -709,6 +688,41 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 		return nil, &PeerError{msg: err.Error(), kind: ResponseError}
 	}
 
+	return
+}
+
+func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn, connType string) (buf bytes.Buffer, err error) {
+	// http connections
+	if connType == "http" {
+		var res []byte
+		res, err = p.HTTPQuery(peerAddr, query)
+		if err != nil {
+			return
+		}
+		// commands do not send anything back
+		if req.Command != "" {
+			return
+		}
+		buf = *(bytes.NewBuffer(res))
+		return
+	}
+
+	// tcp/unix connections
+	conn.SetDeadline(time.Now().Add(time.Duration(GlobalConfig.NetTimeout) * time.Second))
+	fmt.Fprintf(conn, "%s", query)
+	switch c := conn.(type) {
+	case *net.TCPConn:
+		c.CloseWrite()
+		break
+	case *net.UnixConn:
+		c.CloseWrite()
+		break
+	}
+	// commands do not send anything back
+	if req.Command != "" {
+		return
+	}
+	io.Copy(&buf, conn)
 	return
 }
 

@@ -128,14 +128,33 @@ func (f *Filter) String(prefix string) (str string) {
 		for _, sub := range f.Filter {
 			str += sub.String(prefix)
 		}
-		if f.GroupOperator == And {
-			str += fmt.Sprintf("%sAnd: %d\n", prefix, len(f.Filter))
-		} else {
-			str += fmt.Sprintf("%sOr: %d\n", prefix, len(f.Filter))
-		}
+		str += fmt.Sprintf("%s%s: %d\n", prefix, f.GroupOperator.String(), len(f.Filter))
 		return
 	}
 
+	strVal := f.strValue()
+	if strVal != "" {
+		strVal = " " + strVal
+	}
+
+	switch f.StatsType {
+	case NoStats:
+		if prefix == "" {
+			prefix = "Filter"
+		}
+		str = fmt.Sprintf("%s: %s %s%s\n", prefix, f.Column.Name, f.Operator.String(), strVal)
+		break
+	case Counter:
+		str = fmt.Sprintf("Stats: %s %s%s\n", f.Column.Name, f.Operator.String(), strVal)
+		break
+	default:
+		str = fmt.Sprintf("Stats: %s %s\n", f.StatsType.String(), f.Column.Name)
+		break
+	}
+	return
+}
+
+func (f *Filter) strValue() (str string) {
 	var value string
 	colType := f.Column.Type
 	if colType == VirtCol {
@@ -165,20 +184,7 @@ func (f *Filter) String(prefix string) (str string) {
 		break
 	}
 
-	switch f.StatsType {
-	case NoStats:
-		if prefix == "" {
-			prefix = "Filter"
-		}
-		str = fmt.Sprintf("%s: %s %s %v\n", prefix, f.Column.Name, f.Operator.String(), value)
-		break
-	case Counter:
-		str = fmt.Sprintf("Stats: %s %s %v\n", f.Column.Name, f.Operator.String(), value)
-		break
-	default:
-		str = fmt.Sprintf("Stats: %s %s\n", f.StatsType.String(), f.Column.Name)
-		break
-	}
+	str = fmt.Sprintf("%v", value)
 	return
 }
 

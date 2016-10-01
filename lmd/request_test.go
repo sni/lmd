@@ -6,11 +6,6 @@ import (
 	"testing"
 )
 
-func init() {
-	initLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
-	InitObjects()
-}
-
 func TestRequestHeader(t *testing.T) {
 	t.Parallel()
 	testRequestStrings := []string{
@@ -29,7 +24,7 @@ func TestRequestHeader(t *testing.T) {
 		"GET hosts\nColumns: name\nFilter: name !~ Test\n\n",
 		"GET hosts\nColumns: name\nFilter: name !~~ test\n\n",
 		"GET hosts\nColumns: name\nFilter: custom_variables ~~ TAGS test\n\n",
-		"GET hosts\nColumns: name\nFilter: name != \n\n",
+		"GET hosts\nColumns: name\nFilter: name !=\n\n",
 		"COMMAND [123456] TEST\n\n",
 		"GET hosts\nColumns: name\nFilter: name = test\nWaitTrigger: all\nWaitObject: test\nWaitTimeout: 10000\nWaitCondition: last_check > 1473760401\n\n",
 		"GET hosts\nColumns: name\nFilter: latency != 1.23456789012345\n\n",

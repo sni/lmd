@@ -73,6 +73,18 @@ const (
 	Or
 )
 
+// String converts a GroupOperator back to the original string.
+func (op *GroupOperator) String() string {
+	switch *op {
+	case And:
+		return ("And")
+	case Or:
+		return ("Or")
+	}
+	log.Panicf("not implemented")
+	return ""
+}
+
 var reRequestAction = regexp.MustCompile(`^GET ([a-z]+)$`)
 var reRequestCommand = regexp.MustCompile(`^COMMAND (\[\d+\].*)$`)
 var reRequestHeader = regexp.MustCompile(`^(\w+):\s*(.*)$`)
@@ -137,9 +149,6 @@ func (req *Request) String() (str string) {
 	if req.Offset > 0 {
 		str += fmt.Sprintf("Offset: %d\n", req.Offset)
 	}
-	for _, s := range req.Sort {
-		str += fmt.Sprintf("Sort: %s %s\n", s.Name, s.Direction.String())
-	}
 	for _, f := range req.Filter {
 		str += f.String("")
 	}
@@ -156,6 +165,9 @@ func (req *Request) String() (str string) {
 		for _, f := range req.WaitCondition {
 			str += f.String("WaitCondition")
 		}
+	}
+	for _, s := range req.Sort {
+		str += fmt.Sprintf("Sort: %s %s\n", s.Name, s.Direction.String())
 	}
 	str += "\n"
 	return

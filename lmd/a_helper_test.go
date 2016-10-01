@@ -15,6 +15,11 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+func init() {
+	InitLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
+	InitObjects()
+}
+
 const testConfig = `
 Loglevel = "Panic"
 Listen = ["test.sock"]

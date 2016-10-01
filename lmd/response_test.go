@@ -7,11 +7,6 @@ import (
 	"testing"
 )
 
-func init() {
-	initLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
-	InitObjects()
-}
-
 func TestRequestHeaderTableFail(t *testing.T) {
 	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET none\n"))
