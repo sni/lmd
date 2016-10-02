@@ -313,11 +313,7 @@ func (req *Request) ParseRequestHeaderLine(line *string) (err error) {
 		req.Columns = strings.Split(value, " ")
 		return
 	case "responseheader":
-		if value != "fixed16" {
-			err = errors.New("bad request: unrecognized responseformat, only fixed16 is supported")
-			return
-		}
-		req.ResponseFixed16 = true
+		err = parseResponseHeader(&req.ResponseFixed16, value)
 		return
 	case "outputformat":
 		err = parseOutputFormat(&req.OutputFormat, value)
@@ -338,6 +334,15 @@ func (req *Request) ParseRequestHeaderLine(line *string) (err error) {
 		err = fmt.Errorf("bad request: unrecognized header %s", *line)
 		return
 	}
+}
+
+func parseResponseHeader(field *bool, value string) (err error) {
+	if value != "fixed16" {
+		err = errors.New("bad request: unrecognized responseformat, only fixed16 is supported")
+		return
+	}
+	*field = true
+	return
 }
 
 func parseIntHeader(field *int, header string, value string, minValue int) (err error) {

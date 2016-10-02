@@ -95,7 +95,7 @@ cyclo:
 	# Any function with a score higher than 15 is bad.
 	# See https://github.com/fzipp/gocyclo for details.
 	#
-	cd $(LAMPDDIR) && gocyclo -over 15 .
+	cd $(LAMPDDIR) && gocyclo -over 15 . | ../t/filter_cyclo_exceptions.sh
 
 version:
 	OLDVERSION="$(shell grep "VERSION =" $(LAMPDDIR)/main.go | awk '{print $$3}' | tr -d '"')"; \
