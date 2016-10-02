@@ -97,7 +97,6 @@ func StartMockLivestatusSource() {
 }
 
 var TestPeerWaitGroup *sync.WaitGroup
-var mainStarted = false
 
 func SetupMainLoop() {
 	err := ioutil.WriteFile("test.ini", []byte(testConfig), 0644)
@@ -105,19 +104,15 @@ func SetupMainLoop() {
 		panic(err.Error())
 	}
 
-	go func() {
-		if mainStarted {
-			TestPeerWaitGroup.Add(1)
-			mainLoop(mainSignalChannel)
-			TestPeerWaitGroup.Done()
-		} else {
-			mainStarted = true
-			flagConfigFile = configFiles{"test.ini"}
-			main()
-		}
-	}()
-
 	toml.DecodeFile("test.ini", &GlobalConfig)
+	mainSignalChannel = make(chan os.Signal)
+
+	go func() {
+		flagConfigFile = configFiles{"test.ini"}
+		TestPeerWaitGroup.Add(1)
+		mainLoop(mainSignalChannel)
+		TestPeerWaitGroup.Done()
+	}()
 
 	StartMockLivestatusSource()
 }

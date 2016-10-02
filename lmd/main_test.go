@@ -72,10 +72,8 @@ func TestMainFunc(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// test reload
+	// test reload, makes the mainloop exit as well
 	mainSignalChannel <- syscall.SIGHUP
-
-	StopTestPeer(peer)
 }
 
 func TestAllOps(t *testing.T) {
