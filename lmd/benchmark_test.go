@@ -1,46 +1,76 @@
 package main
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func BenchmarkRequestsFilterSmall(b *testing.B) {
+	acceptInterval = 5e8
 	peer := SetupTestPeer()
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
 	}
+	b.StopTimer()
 
 	StopTestPeer()
+	time.Sleep(1)
 }
 
 func BenchmarkRequestsFilterBig(b *testing.B) {
+	acceptInterval = 5e8
 	peer := SetupTestPeer()
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		peer.QueryString("GET hosts\nColumns: name\nFilter: name != test\nFilter: state != 5\nFilter: latency != 2\nFilter: contact_groups !=\nFilter: custom_variables != TEST blah\n")
 	}
+	b.StopTimer()
 
 	StopTestPeer()
+	time.Sleep(1)
 }
 
 func BenchmarkRequestsStatsSmall(b *testing.B) {
+	acceptInterval = 5e8
 	peer := SetupTestPeer()
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		peer.QueryString("GET hosts\nStats: name != \nStats: avg latency\nStats: sum latency")
 	}
+	b.StopTimer()
 
 	StopTestPeer()
+	time.Sleep(1)
 }
 
 func BenchmarkRequestsStatsBig(b *testing.B) {
+	acceptInterval = 5e8
 	peer := SetupTestPeer()
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		peer.QueryString(`GET services
+		peer.QueryString(tacPageStatsQuery)
+	}
+	b.StopTimer()
+
+	StopTestPeer()
+	time.Sleep(1)
+}
+
+func BenchmarkNumberToFloat(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		numberToFloat(123.1231123123)
+		numberToFloat(1231123123)
+		numberToFloat(true)
+	}
+}
+
+// Test queries
+var tacPageStatsQuery = `GET services
 Stats: description !=
 Stats: check_type = 0
 Stats: check_type = 1
@@ -200,16 +230,4 @@ Stats: active_checks_enabled = 0
 StatsAnd: 2
 Stats: accept_passive_checks = 0
 OutputFormat: json
-ResponseHeader: fixed16`)
-	}
-
-	StopTestPeer()
-}
-
-func BenchmarkNumberToFloat(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		numberToFloat(123.1231123123)
-		numberToFloat(1231123123)
-		numberToFloat(true)
-	}
-}
+ResponseHeader: fixed16`
