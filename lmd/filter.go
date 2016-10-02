@@ -223,59 +223,16 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 		err = errors.New("bad request: filter header, must be Filter: <field> <operator> <value>")
 		return
 	}
+	// filter are allowed to be empty
 	if len(tmp) == 2 {
 		tmp = append(tmp, "")
 	}
-	isRegex := false
-	var op Operator
-	switch tmp[1] {
-	case "=":
-		op = Equal
-		break
-	case "=~":
-		op = EqualNocase
-		break
-	case "~":
-		op = RegexMatch
-		isRegex = true
-		break
-	case "!~":
-		op = RegexMatchNot
-		isRegex = true
-		break
-	case "~~":
-		op = RegexNoCaseMatch
-		isRegex = true
-		break
-	case "!~~":
-		op = RegexNoCaseMatchNot
-		isRegex = true
-		break
-	case "!=":
-		op = Unequal
-		break
-	case "!=~":
-		op = UnequalNocase
-		break
-	case "<":
-		op = Less
-		break
-	case "<=":
-		op = LessThan
-		break
-	case ">":
-		op = Greater
-		break
-	case ">=":
-		op = GreaterThan
-		break
-	case "!>=":
-		op = GroupContainsNot
-		break
-	default:
-		err = errors.New("bad request: unrecognized filter operator: " + tmp[1] + " in " + *line)
+
+	op, isRegex, err := parseFilterOp(tmp[1], line)
+	if err != nil {
 		return
 	}
+
 	// convert value to type of column
 	i, Ok := Objects.Tables[table].ColumnsIndex[tmp[0]]
 	if !Ok {
@@ -285,48 +242,11 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 	col := Objects.Tables[table].Columns[i]
 	filter := Filter{Operator: op, Column: col}
 
-	colType := col.Type
-	if colType == VirtCol {
-		colType = VirtKeyMap[col.Name].Type
+	err = filter.setFilterValue(&col, tmp[2], line)
+	if err != nil {
+		return
 	}
-	switch colType {
-	case IntListCol:
-		fallthrough
-	case TimeCol:
-		fallthrough
-	case IntCol:
-		filtervalue, cerr := strconv.Atoi(tmp[2])
-		if cerr != nil {
-			err = errors.New("bad request: could not convert " + tmp[2] + " to integer from filter: " + *line)
-			return
-		}
-		filter.FloatValue = float64(filtervalue)
-		break
-	case FloatCol:
-		filtervalue, cerr := strconv.ParseFloat(tmp[2], 64)
-		if cerr != nil {
-			err = errors.New("bad request: could not convert " + tmp[2] + " to float from filter: " + *line)
-			return
-		}
-		filter.FloatValue = filtervalue
-		break
-	case CustomVarCol:
-		vars := strings.SplitN(tmp[2], " ", 2)
-		if len(vars) < 2 {
-			err = errors.New("bad request: custom variable filter must have form \"Filter: custom_variables <op> <variable> <value>\" in " + *line)
-			return
-		}
-		filter.StrValue = vars[1]
-		filter.CustomTag = vars[0]
-		break
-	case StringListCol:
-		fallthrough
-	case StringCol:
-		filter.StrValue = tmp[2]
-		break
-	default:
-		log.Panicf("not implemented column type: %v", colType)
-	}
+
 	if isRegex {
 		val := filter.StrValue
 		if op == RegexNoCaseMatchNot || op == RegexNoCaseMatch {
@@ -340,6 +260,104 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 		filter.Regexp = regex
 	}
 	*stack = append(*stack, filter)
+	return
+}
+
+// setFilterValue converts the text value into the given filters type value
+func (f *Filter) setFilterValue(col *Column, strVal string, line *string) (err error) {
+	colType := col.Type
+	if colType == VirtCol {
+		colType = VirtKeyMap[col.Name].Type
+	}
+	switch colType {
+	case IntListCol:
+		fallthrough
+	case TimeCol:
+		fallthrough
+	case IntCol:
+		filtervalue, cerr := strconv.Atoi(strVal)
+		if cerr != nil {
+			err = fmt.Errorf("bad request: could not convert %s to integer from filter: %s", strVal, *line)
+			return
+		}
+		f.FloatValue = float64(filtervalue)
+		break
+	case FloatCol:
+		filtervalue, cerr := strconv.ParseFloat(strVal, 64)
+		if cerr != nil {
+			err = fmt.Errorf("bad request: could not convert %s to float from filter: %s", strVal, *line)
+			return
+		}
+		f.FloatValue = filtervalue
+		break
+	case CustomVarCol:
+		vars := strings.SplitN(strVal, " ", 2)
+		if len(vars) < 2 {
+			err = errors.New("bad request: custom variable filter must have form \"Filter: custom_variables <op> <variable> <value>\" in " + *line)
+			return
+		}
+		f.StrValue = vars[1]
+		f.CustomTag = vars[0]
+		break
+	case StringListCol:
+		fallthrough
+	case StringCol:
+		f.StrValue = strVal
+		break
+	default:
+		log.Panicf("not implemented column type: %v", colType)
+	}
+	return
+}
+
+func parseFilterOp(opStr string, line *string) (op Operator, isRegex bool, err error) {
+	isRegex = false
+	switch opStr {
+	case "=":
+		op = Equal
+		return
+	case "=~":
+		op = EqualNocase
+		return
+	case "~":
+		op = RegexMatch
+		isRegex = true
+		return
+	case "!~":
+		op = RegexMatchNot
+		isRegex = true
+		return
+	case "~~":
+		op = RegexNoCaseMatch
+		isRegex = true
+		return
+	case "!~~":
+		op = RegexNoCaseMatchNot
+		isRegex = true
+		return
+	case "!=":
+		op = Unequal
+		return
+	case "!=~":
+		op = UnequalNocase
+		return
+	case "<":
+		op = Less
+		return
+	case "<=":
+		op = LessThan
+		return
+	case ">":
+		op = Greater
+		return
+	case ">=":
+		op = GreaterThan
+		return
+	case "!>=":
+		op = GroupContainsNot
+		return
+	}
+	err = errors.New("bad request: unrecognized filter operator: " + opStr + " in " + *line)
 	return
 }
 
@@ -368,7 +386,10 @@ func ParseStats(value string, line *string, table string, stack *[]Filter) (err 
 		op = Sum
 		break
 	default:
-		ParseFilter(value, line, table, stack)
+		err = ParseFilter(value, line, table, stack)
+		if err != nil {
+			return
+		}
 		// set last one to counter
 		(*stack)[len(*stack)-1].StatsType = Counter
 		return
