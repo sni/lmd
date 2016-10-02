@@ -108,14 +108,11 @@ func LocalListener(listen string, waitGroup *sync.WaitGroup, shutdownChannel cha
 	if strings.Contains(listen, ":") {
 		connType = "tcp"
 	} else {
-		// remove socket on exit
+		// remove stale sockets on start
 		if _, err := os.Stat(listen); err == nil {
 			log.Warnf("removing stale socket: %s", listen)
 			os.Remove(listen)
 		}
-		defer func() {
-			os.Remove(listen)
-		}()
 	}
 	l, err := net.Listen(connType, listen)
 	if err != nil {
@@ -136,6 +133,9 @@ func LocalListener(listen string, waitGroup *sync.WaitGroup, shutdownChannel cha
 		select {
 		case <-shutdownChannel:
 			log.Infof("stopping listening on %s", listen)
+			if connType == "unix" {
+				os.Remove(listen)
+			}
 			return
 		default:
 		}

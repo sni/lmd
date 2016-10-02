@@ -147,7 +147,7 @@ func TestRequestListFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	StopTestPeer()
+	StopTestPeer(peer)
 }
 
 func TestRequestHeaderMultipleCommands(t *testing.T) {
@@ -229,7 +229,7 @@ func TestResponseErrorsFunc(t *testing.T) {
 		}
 	}
 
-	StopTestPeer()
+	StopTestPeer(peer)
 }
 
 func TestRequestStats(t *testing.T) {
@@ -259,7 +259,7 @@ func TestRequestStats(t *testing.T) {
 		t.Error(err)
 	}
 
-	StopTestPeer()
+	StopTestPeer(peer)
 }
 
 func TestRequestStatsBroken(t *testing.T) {
@@ -270,7 +270,7 @@ func TestRequestStatsBroken(t *testing.T) {
 		t.Error(err)
 	}
 
-	StopTestPeer()
+	StopTestPeer(peer)
 }
 
 func TestRequestRefs(t *testing.T) {
@@ -287,5 +287,5 @@ func TestRequestRefs(t *testing.T) {
 		t.Error(err)
 	}
 
-	StopTestPeer()
+	StopTestPeer(peer)
 }

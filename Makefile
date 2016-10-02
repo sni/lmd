@@ -59,18 +59,18 @@ citest:
 	# All CI tests successfull
 	#
 
-benchmark: deps fmt
+benchmark: fmt
 	cd $(LAMPDDIR) && go test -v -bench=B\* -run=^$$ . -benchmem
 
-racetest: deps fmt
+racetest: fmt
 	cd $(LAMPDDIR) && go test -race -v
 
-covertest: deps fmt
+covertest: fmt
 	cd $(LAMPDDIR) && go test -v -coverprofile=cover.out
 	cd $(LAMPDDIR) && go tool cover -func=cover.out
 	cd $(LAMPDDIR) && go tool cover -html=cover.out -o coverage.html
 
-coverweb: deps fmt
+coverweb: fmt
 	cd $(LAMPDDIR) && go test -v -coverprofile=cover.out
 	cd $(LAMPDDIR) && go tool cover -html=cover.out
 

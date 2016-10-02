@@ -19,7 +19,7 @@ func init() {
 	InitLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
 	InitObjects()
 
-	acceptInterval = 10 * time.Millisecond
+	acceptInterval = 30 * time.Millisecond
 }
 
 const testConfig = `
@@ -95,8 +95,7 @@ func StartMockLivestatusSource() {
 	return
 }
 
-var TestPeerShutdownChannel chan bool
-var waitGroup *sync.WaitGroup
+var TestPeerWaitGroup *sync.WaitGroup
 var mainStarted = false
 
 func SetupMainLoop() {
@@ -109,9 +108,9 @@ func SetupMainLoop() {
 
 	go func() {
 		if mainStarted {
-			waitGroup.Add(1)
+			TestPeerWaitGroup.Add(1)
 			mainLoop(mainSignalChannel)
-			waitGroup.Done()
+			TestPeerWaitGroup.Done()
 		} else {
 			mainStarted = true
 			flagConfigFile = configFiles{"test.ini"}
@@ -123,11 +122,11 @@ func SetupMainLoop() {
 }
 
 func SetupTestPeer() (peer *Peer) {
-	waitGroup = &sync.WaitGroup{}
+	TestPeerWaitGroup = &sync.WaitGroup{}
 	SetupMainLoop()
 
-	TestPeerShutdownChannel = make(chan bool)
-	peer = NewPeer(Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "id0"}, waitGroup, TestPeerShutdownChannel)
+	testPeerShutdownChannel := make(chan bool)
+	peer = NewPeer(Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "id0"}, TestPeerWaitGroup, testPeerShutdownChannel)
 	peer.Start()
 
 	// wait till backend is available
@@ -148,12 +147,10 @@ func SetupTestPeer() (peer *Peer) {
 	return
 }
 
-func StopTestPeer() {
-	mainSignalChannel <- syscall.SIGTERM
-	TestPeerShutdownChannel <- true
-	close(TestPeerShutdownChannel)
-	waitTimeout(waitGroup, time.Second)
+func StopTestPeer(peer *Peer) {
 	os.Remove("test.ini")
-	os.Remove("test.sock")
 	os.Remove("mock.sock")
+	mainSignalChannel <- syscall.SIGTERM
+	peer.Stop()
+	waitTimeout(TestPeerWaitGroup, time.Second)
 }

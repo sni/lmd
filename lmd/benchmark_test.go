@@ -2,63 +2,54 @@ package main
 
 import (
 	"testing"
-	"time"
 )
 
 func BenchmarkRequestsFilterSmall(b *testing.B) {
-	acceptInterval = 5e8
 	peer := SetupTestPeer()
 
-	b.ResetTimer()
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
 	}
 	b.StopTimer()
 
-	StopTestPeer()
-	time.Sleep(1)
+	StopTestPeer(peer)
 }
 
 func BenchmarkRequestsFilterBig(b *testing.B) {
-	acceptInterval = 5e8
 	peer := SetupTestPeer()
 
-	b.ResetTimer()
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		peer.QueryString("GET hosts\nColumns: name\nFilter: name != test\nFilter: state != 5\nFilter: latency != 2\nFilter: contact_groups !=\nFilter: custom_variables != TEST blah\n")
 	}
 	b.StopTimer()
 
-	StopTestPeer()
-	time.Sleep(1)
+	StopTestPeer(peer)
 }
 
 func BenchmarkRequestsStatsSmall(b *testing.B) {
-	acceptInterval = 5e8
 	peer := SetupTestPeer()
 
-	b.ResetTimer()
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		peer.QueryString("GET hosts\nStats: name != \nStats: avg latency\nStats: sum latency")
 	}
 	b.StopTimer()
 
-	StopTestPeer()
-	time.Sleep(1)
+	StopTestPeer(peer)
 }
 
 func BenchmarkRequestsStatsBig(b *testing.B) {
-	acceptInterval = 5e8
 	peer := SetupTestPeer()
 
-	b.ResetTimer()
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		peer.QueryString(tacPageStatsQuery)
 	}
 	b.StopTimer()
 
-	StopTestPeer()
-	time.Sleep(1)
+	StopTestPeer(peer)
 }
 
 func BenchmarkNumberToFloat(b *testing.B) {

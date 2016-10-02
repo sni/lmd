@@ -75,7 +75,7 @@ func TestMainFunc(t *testing.T) {
 	// test reload
 	mainSignalChannel <- syscall.SIGHUP
 
-	StopTestPeer()
+	StopTestPeer(peer)
 }
 
 func TestAllOps(t *testing.T) {
@@ -102,7 +102,7 @@ func TestAllOps(t *testing.T) {
 		}
 	}
 
-	StopTestPeer()
+	StopTestPeer(peer)
 }
 
 func testquery(t *testing.T, peer *Peer, table, column, op, value string) {

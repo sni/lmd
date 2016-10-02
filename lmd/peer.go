@@ -150,6 +150,7 @@ func NewPeer(config Connection, waitGroup *sync.WaitGroup, shutdownChannel chan 
 	p.Status["Querys"] = 0
 	p.Status["ReponseTime"] = 0
 	p.Status["Idling"] = false
+	p.Status["Updating"] = false
 	return &p
 }
 
@@ -159,10 +160,26 @@ func (p *Peer) Start() {
 		defer p.waitGroup.Done()
 		p.waitGroup.Add(1)
 		log.Infof("[%s] starting connection", p.Name)
+		p.Status["Updating"] = true
 		p.UpdateLoop()
+		p.Status["Updating"] = false
 	}()
 
 	return
+}
+
+// PauseUpdates stops the UpdateLoop. Restart with Start() again.
+func (p *Peer) PauseUpdates() {
+	if p.Status["Updating"].(bool) {
+		p.shutdownChannel <- true
+	}
+}
+
+// Stop stops this peer.
+func (p *Peer) Stop() {
+	// Pause and Stop is basically them, both just stop the UpdateLoop
+	p.PauseUpdates()
+	close(p.shutdownChannel)
 }
 
 // UpdateLoop is the main loop updating this peer.
