@@ -55,6 +55,9 @@ citest:
 	$(MAKE) lint
 	$(MAKE) cyclo
 	$(MAKE) mispell
+	#
+	# All CI tests successfull
+	#
 
 benchmark: deps fmt
 	cd $(LAMPDDIR) && go test -v -bench=B\* -run=^$$ . -benchmem

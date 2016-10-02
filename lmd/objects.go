@@ -234,25 +234,25 @@ func (t *Table) AddColumnObject(col *Column) int {
 
 // AddColumn adds a (normal) column.
 func (t *Table) AddColumn(Name string, Update UpdateType, Type ColumnType, Description string) int {
-	Column := Column{
+	column := &Column{
 		Name:        Name,
 		Type:        Type,
 		Update:      Update,
 		Description: Description,
 	}
-	return t.AddColumnObject(&Column)
+	return t.AddColumnObject(column)
 }
 
 // AddOptColumn adds a optional column.
 func (t *Table) AddOptColumn(Name string, Update UpdateType, Type ColumnType, Restrict OptionalFlags, Description string) int {
-	Column := Column{
+	column := &Column{
 		Name:        Name,
 		Type:        Type,
 		Update:      Update,
 		Description: Description,
 		Optional:    Restrict,
 	}
-	return t.AddColumnObject(&Column)
+	return t.AddColumnObject(column)
 }
 
 // AddRefColumn adds a reference column.
@@ -275,7 +275,7 @@ func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, Type Column
 	// add fake columns for all columns from the referenced table
 	for _, col := range Objects.Tables[Ref].Columns {
 		if col.Name != Name {
-			Column := Column{
+			column := &Column{
 				Name:        Prefix + "_" + col.Name,
 				Type:        col.Type,
 				Update:      RefNoUpdate,
@@ -283,7 +283,7 @@ func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, Type Column
 				RefColIndex: col.Index,
 				Description: col.Description,
 			}
-			t.AddColumnObject(&Column)
+			t.AddColumnObject(column)
 		}
 	}
 	return

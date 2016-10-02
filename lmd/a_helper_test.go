@@ -114,7 +114,7 @@ func SetupMainLoop() {
 			waitGroup.Done()
 		} else {
 			mainStarted = true
-			os.Args[1] = "-config=test.ini"
+			flagConfigFile = configFiles{"test.ini"}
 			main()
 		}
 	}()

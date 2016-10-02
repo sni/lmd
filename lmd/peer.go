@@ -628,7 +628,7 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 		defer conn.Close()
 	}
 
-	query := fmt.Sprintf(req.String())
+	query := req.String()
 	log.Tracef("[%s] query: %s", p.Name, query)
 
 	p.PeerLock.Lock()
@@ -1438,19 +1438,16 @@ func (p *Peer) MatchRowFilter(table *Table, refs *map[string][][]interface{}, in
 	if len(filter.Filter) > 0 {
 		for _, f := range filter.Filter {
 			subresult := p.MatchRowFilter(table, refs, inputRowLen, &f, row, rowNum)
-			if subresult == false && filter.GroupOperator == And {
+			if !subresult && filter.GroupOperator == And {
 				return false
 			}
-			if subresult == true && filter.GroupOperator == Or {
+			if subresult && filter.GroupOperator == Or {
 				return true
 			}
 		}
-		// if we did not return yet, this means all AND filter have matched
-		if filter.GroupOperator == And {
-			return true
-		}
-		// if we did not return yet, this means no OR filter have matched
-		return false
+		// if this is an AND filter and we did not return yet, this means all have matched.
+		// else its an OR filter and none has matched so far.
+		return filter.GroupOperator == And
 	}
 
 	// normal field filter

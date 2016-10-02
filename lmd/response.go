@@ -251,7 +251,7 @@ func (res *Response) CalculateFinalStats() {
 			break
 		case Average:
 			if s.StatsCount > 0 {
-				res.Result[0][i] = float64(s.Stats) / float64(s.StatsCount)
+				res.Result[0][i] = s.Stats / float64(s.StatsCount)
 			} else {
 				res.Result[0][i] = 0
 			}
