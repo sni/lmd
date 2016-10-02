@@ -29,10 +29,10 @@ debugbuild: deps fmt
 
 test: fmt dump
 	cd $(LAMPDDIR) && go test -short -v | ../t/test_counter.sh
-	if grep -r TODO: lmd/; then exit 1; fi
 	rm -f $(LAMPDDIR)/test.ini
 	rm -f $(LAMPDDIR)/test.sock
 	rm -f $(LAMPDDIR)/mock.sock
+	if grep -r TODO: lmd/; then exit 1; fi
 
 citest: deps
 	#
