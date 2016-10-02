@@ -3,6 +3,7 @@ LMD - Livestatus Multitool Daemon
 
 [![Build Status](https://travis-ci.org/sni/lmd.svg?branch=master)](https://travis-ci.org/sni/lmd)
 [![Go Report Card](https://goreportcard.com/badge/github.com/sni/lmd)](https://goreportcard.com/report/github.com/sni/lmd)
+[![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](http://www.gnu.org/licenses/gpl-3.0)
 
 What is this
 ============
