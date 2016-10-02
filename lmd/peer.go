@@ -232,7 +232,7 @@ func (p *Peer) UpdateLoop() {
 }
 
 // InitAllTables creates all tables for this peer.
-// It returns true if the import was succesful or false otherwise.
+// It returns true if the import was successful or false otherwise.
 func (p *Peer) InitAllTables() bool {
 	var err error
 	p.PeerLock.Lock()
@@ -282,7 +282,7 @@ func (p *Peer) InitAllTables() bool {
 }
 
 // UpdateAllTables runs a full update on all dynamic values for all tables which have dynamic updated columns.
-// It returns true if the update was succesful or false otherwise.
+// It returns true if the update was successful or false otherwise.
 func (p *Peer) UpdateAllTables() bool {
 	t1 := time.Now()
 	var err error
@@ -319,7 +319,7 @@ func (p *Peer) UpdateAllTables() bool {
 }
 
 // UpdateDeltaTables runs a delta update on all status, hosts, services, comments and downtimes table.
-// It returns true if the update was succesful or false otherwise.
+// It returns true if the update was successful or false otherwise.
 func (p *Peer) UpdateDeltaTables() bool {
 	t1 := time.Now()
 
@@ -831,7 +831,7 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 			conn = nil
 			break
 		}
-		// connection succesfull
+		// connection successful
 		if err == nil {
 			promPeerConnections.WithLabelValues(p.Name).Inc()
 			if x > 0 {
@@ -1171,7 +1171,7 @@ func (p *Peer) GetVirtRowValue(col Column, row *[]interface{}, rowNum int, table
 }
 
 // WaitCondition waits for a given condition.
-// It returns true if the wait timed out or false if the condition matched succesfully.
+// It returns true if the wait timed out or false if the condition matched successfully.
 func (p *Peer) WaitCondition(req *Request) bool {
 	if req.WaitTrigger == "" {
 		return false
