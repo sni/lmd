@@ -30,6 +30,9 @@ debugbuild: deps fmt
 test: fmt dump
 	cd $(LAMPDDIR) && go test -short -v | ../t/test_counter.sh
 	if grep -r TODO: lmd/; then exit 1; fi
+	rm -f $(LAMPDDIR)/test.ini
+	rm -f $(LAMPDDIR)/test.sock
+	rm -f $(LAMPDDIR)/mock.sock
 
 citest: deps
 	#
@@ -78,6 +81,9 @@ clean:
 	rm -f $(LAMPDDIR)/lmd
 	rm -f $(LAMPDDIR)/cover.out
 	rm -f $(LAMPDDIR)/coverage.html
+	rm -f $(LAMPDDIR)/test.ini
+	rm -f $(LAMPDDIR)/test.sock
+	rm -f $(LAMPDDIR)/mock.sock
 
 fmt:
 	cd $(LAMPDDIR) && goimports -w .

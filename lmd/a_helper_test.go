@@ -19,6 +19,7 @@ func init() {
 	InitLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
 	InitObjects()
 
+	// make tests faster if the listener does not wait that long to shutdown
 	acceptInterval = 30 * time.Millisecond
 }
 
@@ -104,8 +105,6 @@ func SetupMainLoop() {
 		panic(err.Error())
 	}
 
-	StartMockLivestatusSource()
-
 	go func() {
 		if mainStarted {
 			TestPeerWaitGroup.Add(1)
@@ -119,6 +118,8 @@ func SetupMainLoop() {
 	}()
 
 	toml.DecodeFile("test.ini", &GlobalConfig)
+
+	StartMockLivestatusSource()
 }
 
 func SetupTestPeer() (peer *Peer) {
@@ -148,7 +149,6 @@ func SetupTestPeer() (peer *Peer) {
 }
 
 func StopTestPeer(peer *Peer) {
-	os.Remove("test.ini")
 	os.Remove("mock.sock")
 	mainSignalChannel <- syscall.SIGTERM
 	peer.Stop()
