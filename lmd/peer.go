@@ -160,9 +160,9 @@ func (p *Peer) Start() {
 		defer p.waitGroup.Done()
 		p.waitGroup.Add(1)
 		log.Infof("[%s] starting connection", p.Name)
-		p.Status["Updating"] = true
+		p.StatusSet("Updating", true)
 		p.UpdateLoop()
-		p.Status["Updating"] = false
+		p.StatusSet("Updating", false)
 	}()
 
 	return
@@ -170,9 +170,11 @@ func (p *Peer) Start() {
 
 // PauseUpdates stops the UpdateLoop. Restart with Start() again.
 func (p *Peer) PauseUpdates() {
+	p.PeerLock.RLock()
 	if p.Status["Updating"].(bool) {
 		p.shutdownChannel <- true
 	}
+	p.PeerLock.RUnlock()
 }
 
 // Stop stops this peer.
@@ -206,9 +208,7 @@ func (p *Peer) UpdateLoop() {
 
 				if !idling && lastQuery < now-GlobalConfig.IdleTimeout {
 					log.Infof("[%s] switched to idle interval, last query: %s", p.Name, time.Unix(lastQuery, 0))
-					p.PeerLock.Lock()
-					p.Status["Idling"] = true
-					p.PeerLock.Unlock()
+					p.StatusSet("Idling", true)
 					idling = true
 				}
 
@@ -246,6 +246,13 @@ func (p *Peer) UpdateLoop() {
 			}
 		}
 	}
+}
+
+// StatusSet updates a status map and takes care about the logging.
+func (p *Peer) StatusSet(key string, value interface{}) {
+	p.PeerLock.Lock()
+	p.Status[key] = value
+	p.PeerLock.Unlock()
 }
 
 // InitAllTables creates all tables for this peer.
@@ -523,13 +530,11 @@ func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated
 		}
 	}
 
-	p.PeerLock.Lock()
 	if table.Name == "services" {
-		p.Status["LastFullServiceUpdate"] = time.Now()
+		p.StatusSet("LastFullServiceUpdate", time.Now())
 	} else if table.Name == "hosts" {
-		p.Status["LastFullHostUpdate"] = time.Now()
+		p.StatusSet("LastFullHostUpdate", time.Now())
 	}
-	p.PeerLock.Unlock()
 	updated = true
 	return
 }
@@ -1328,10 +1333,8 @@ func SpinUpPeers(peers []string) {
 		waitgroup.Add(1)
 		go func(peer Peer, wg *sync.WaitGroup) {
 			defer wg.Done()
-			peer.PeerLock.Lock()
-			peer.Status["Idling"] = false
+			p.StatusSet("Idling", false)
 			log.Infof("[%s] switched back to normal update interval", peer.Name)
-			peer.PeerLock.Unlock()
 			log.Debugf("[%s] spin up update", peer.Name)
 			peer.UpdateObjectByType(Objects.Tables["timeperiods"])
 			peer.UpdateDeltaTables()
