@@ -31,7 +31,7 @@ test: fmt dump
 	cd $(LAMPDDIR) && go test -short -v | ../t/test_counter.sh
 	if grep -r TODO: lmd/; then exit 1; fi
 
-citest:
+citest: deps
 	#
 	# Normal test cases
 	#
