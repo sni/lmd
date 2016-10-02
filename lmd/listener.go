@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+var acceptInterval = 500 * time.Millisecond
+
 // QueryServer handles a single client connection.
 // It returns any error encountered.
 func QueryServer(c net.Conn) error {
@@ -125,10 +127,10 @@ func LocalListener(listen string, waitGroup *sync.WaitGroup, shutdownChannel cha
 
 	for {
 		if l, ok := l.(*net.TCPListener); ok {
-			l.SetDeadline(time.Now().Add(5e8)) // set timeout to 0.5 seconds
+			l.SetDeadline(time.Now().Add(acceptInterval)) // set timeout to 0.5 seconds (10ms during tests for faster shutdowns)
 		}
 		if l, ok := l.(*net.UnixListener); ok {
-			l.SetDeadline(time.Now().Add(5e8))
+			l.SetDeadline(time.Now().Add(acceptInterval))
 		}
 
 		select {

@@ -18,6 +18,8 @@ import (
 func init() {
 	InitLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
 	InitObjects()
+
+	acceptInterval = 10 * time.Millisecond
 }
 
 const testConfig = `
