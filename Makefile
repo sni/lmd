@@ -6,15 +6,15 @@ MAKE:=make
 all: build
 
 deps: dump
-	go get github.com/BurntSushi/toml
-	go get github.com/kdar/factorlog
-	go get github.com/mgutz/ansi
-	go get golang.org/x/tools/cmd/goimports
-	go get github.com/prometheus/client_golang/prometheus
+	go get -u github.com/BurntSushi/toml
+	go get -u github.com/kdar/factorlog
+	go get -u github.com/mgutz/ansi
+	go get -u golang.org/x/tools/cmd/goimports
+	go get -u github.com/prometheus/client_golang/prometheus
 
 dump:
 	if [ $(shell grep -rc Dump $(LAMPDDIR)/*.go | grep -v :0 | grep -v $(LAMPDDIR)/dump.go | wc -l) -ne 0 ]; then \
-		go get github.com/davecgh/go-spew/spew; \
+		go get -u github.com/davecgh/go-spew/spew; \
 		sed -i.bak 's/\/\/ +build.*/\/\/ build with debug functions/' $(LAMPDDIR)/dump.go; \
 	else \
 		sed -i.bak 's/\/\/ build.*/\/\/ +build ignore/' $(LAMPDDIR)/dump.go; \
@@ -54,6 +54,7 @@ citest:
 	if grep -r TODO: lmd/; then exit 1; fi
 	$(MAKE) lint
 	$(MAKE) cyclo
+	$(MAKE) mispell
 
 benchmark: deps fmt
 	cd $(LAMPDDIR) && go test -v -bench=B\* -run=^$$ . -benchmem
@@ -89,13 +90,21 @@ lint:
 	cd $(LAMPDDIR) && golint -set_exit_status .
 
 cyclo:
-	go get github.com/fzipp/gocyclo
+	go get -u github.com/fzipp/gocyclo
 	#
 	# Check if there are any too complicated functions
 	# Any function with a score higher than 15 is bad.
 	# See https://github.com/fzipp/gocyclo for details.
 	#
 	cd $(LAMPDDIR) && gocyclo -over 15 . | ../t/filter_cyclo_exceptions.sh
+
+mispell:
+	go get -u github.com/client9/misspell/cmd/misspell
+	#
+	# Check if there are common spell errors.
+	# See https://github.com/client9/misspell
+	#
+	cd $(LAMPDDIR) && misspell -error .
 
 version:
 	OLDVERSION="$(shell grep "VERSION =" $(LAMPDDIR)/main.go | awk '{print $$3}' | tr -d '"')"; \
