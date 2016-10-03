@@ -1186,12 +1186,7 @@ func (p *Peer) GetVirtRowValue(col Column, row *[]interface{}, rowNum int, table
 	case StringCol:
 		return value
 	case TimeCol:
-		var val int64
-		if v, ok := value.(int64); ok {
-			val = v
-		} else {
-			val = value.(time.Time).Unix()
-		}
+		val := value.(int64)
 		if val < 0 {
 			val = 0
 		}
