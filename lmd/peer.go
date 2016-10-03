@@ -137,13 +137,13 @@ func NewPeer(config Connection, waitGroup *sync.WaitGroup, shutdownChannel chan 
 	p.Status["CurPeerAddrNum"] = 0
 	p.Status["PeerAddr"] = p.Source[p.Status["CurPeerAddrNum"].(int)]
 	p.Status["PeerStatus"] = PeerStatusPending
-	p.Status["LastUpdate"] = time.Now()
-	p.Status["LastFullUpdate"] = time.Now()
-	p.Status["LastFullHostUpdate"] = time.Now()
-	p.Status["LastFullServiceUpdate"] = time.Now()
-	p.Status["LastQuery"] = time.Now()
+	p.Status["LastUpdate"] = int64(0)
+	p.Status["LastFullUpdate"] = int64(0)
+	p.Status["LastFullHostUpdate"] = int64(0)
+	p.Status["LastFullServiceUpdate"] = int64(0)
+	p.Status["LastQuery"] = int64(0)
 	p.Status["LastError"] = "connecting..."
-	p.Status["LastOnline"] = time.Time{}
+	p.Status["LastOnline"] = int64(0)
 	p.Status["ProgramStart"] = 0
 	p.Status["BytesSend"] = 0
 	p.Status["BytesReceived"] = 0
@@ -156,11 +156,14 @@ func NewPeer(config Connection, waitGroup *sync.WaitGroup, shutdownChannel chan 
 
 // Start creates the initial objects and starts the update loop in a separate goroutine.
 func (p *Peer) Start() {
+	if p.StatusGet("Updating").(bool) {
+		log.Panicf("[%s] tried to start updateLoop twice", p.Name)
+	}
+	p.waitGroup.Add(1)
+	p.StatusSet("Updating", true)
+	log.Infof("[%s] starting connection", p.Name)
 	go func() {
-		p.waitGroup.Add(1)
-		log.Infof("[%s] starting connection", p.Name)
-		p.StatusSet("Updating", true)
-		p.UpdateLoop()
+		p.updateLoop()
 		p.StatusSet("Updating", false)
 		p.waitGroup.Done()
 	}()
@@ -168,7 +171,7 @@ func (p *Peer) Start() {
 	return
 }
 
-// PauseUpdates stops the UpdateLoop. Restart with Start() again.
+// PauseUpdates stops the updateLoop. Restart with Start() again.
 func (p *Peer) PauseUpdates() {
 	if p.StatusGet("Updating").(bool) {
 		p.shutdownChannel <- true
@@ -177,14 +180,14 @@ func (p *Peer) PauseUpdates() {
 
 // Stop stops this peer.
 func (p *Peer) Stop() {
-	// Pause and Stop is basically them, both just stop the UpdateLoop
+	// Pause and Stop is basically them, both just stop the updateLoop
 	p.PauseUpdates()
 	close(p.shutdownChannel)
 }
 
-// UpdateLoop is the main loop updating this peer.
+// updateLoop is the main loop updating this peer.
 // It does not return till triggered by the shutdownChannel.
-func (p *Peer) UpdateLoop() {
+func (p *Peer) updateLoop() {
 	for {
 		ok := p.InitAllTables()
 		lastFullUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
@@ -197,9 +200,9 @@ func (p *Peer) UpdateLoop() {
 				return
 			case <-c:
 				p.PeerLock.RLock()
-				lastUpdate := p.Status["LastUpdate"].(time.Time).Unix()
-				lastQuery := p.Status["LastQuery"].(time.Time).Unix()
-				lastFullUpdate := p.Status["LastFullUpdate"].(time.Time).Unix()
+				lastUpdate := p.Status["LastUpdate"].(int64)
+				lastQuery := p.Status["LastQuery"].(int64)
+				lastFullUpdate := p.Status["LastFullUpdate"].(int64)
 				idling := p.Status["Idling"].(bool)
 				p.PeerLock.RUnlock()
 				now := time.Now().Unix()
@@ -225,6 +228,7 @@ func (p *Peer) UpdateLoop() {
 				} else {
 					// full update interval
 					if GlobalConfig.FullUpdateInterval > 0 && now > lastFullUpdate+GlobalConfig.FullUpdateInterval {
+						ok = p.UpdateAllTables()
 					} else if now > lastUpdate+GlobalConfig.Updateinterval {
 						// normal update interval
 						if !ok {
@@ -232,7 +236,6 @@ func (p *Peer) UpdateLoop() {
 							lastFullUpdateMinute = currentMinute
 						} else {
 							if lastFullUpdateMinute != currentMinute {
-								//ok = p.UpdateAllTables()
 								p.UpdateObjectByType(Objects.Tables["timeperiods"])
 								lastFullUpdateMinute = currentMinute
 							}
@@ -266,8 +269,8 @@ func (p *Peer) StatusGet(key string) interface{} {
 func (p *Peer) InitAllTables() bool {
 	var err error
 	p.PeerLock.Lock()
-	p.Status["LastUpdate"] = time.Now()
-	p.Status["LastFullUpdate"] = time.Now()
+	p.Status["LastUpdate"] = time.Now().Unix()
+	p.Status["LastFullUpdate"] = time.Now().Unix()
 	p.PeerLock.Unlock()
 	t1 := time.Now()
 	for _, n := range Objects.Order {
@@ -300,7 +303,7 @@ func (p *Peer) InitAllTables() bool {
 			log.Infof("[%s] site is back online", p.Name)
 		}
 		p.Status["LastError"] = ""
-		p.Status["LastOnline"] = time.Now()
+		p.Status["LastOnline"] = time.Now().Unix()
 		p.ErrorCount = 0
 		p.Status["PeerStatus"] = PeerStatusUp
 		p.PeerLock.Unlock()
@@ -336,9 +339,9 @@ func (p *Peer) UpdateAllTables() bool {
 	duration := time.Since(t1)
 	p.PeerLock.Lock()
 	p.Status["ReponseTime"] = duration.Seconds()
-	p.Status["LastUpdate"] = time.Now()
-	p.Status["LastFullUpdate"] = time.Now()
-	p.Status["LastOnline"] = time.Now()
+	p.Status["LastUpdate"] = time.Now().Unix()
+	p.Status["LastFullUpdate"] = time.Now().Unix()
+	p.Status["LastOnline"] = time.Now().Unix()
 	p.Status["PeerStatus"] = PeerStatusUp
 	p.Status["LastError"] = ""
 	p.PeerLock.Unlock()
@@ -377,8 +380,8 @@ func (p *Peer) UpdateDeltaTables() bool {
 	}
 	log.Debugf("[%s] delta update complete in: %s", p.Name, duration.String())
 	p.PeerLock.Lock()
-	p.Status["LastUpdate"] = time.Now()
-	p.Status["LastOnline"] = time.Now()
+	p.Status["LastUpdate"] = time.Now().Unix()
+	p.Status["LastOnline"] = time.Now().Unix()
 	p.Status["ReponseTime"] = duration.Seconds()
 	p.PeerLock.Unlock()
 	promPeerUpdates.WithLabelValues(p.Name).Inc()
@@ -395,7 +398,7 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	keys, indexes := table.GetDynamicColumns(p.Flags)
 	keys = append(keys, "name")
 	if filterStr == "" {
-		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.Status["LastUpdate"].(time.Time).Unix() - UpdateAdditionalDelta))
+		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.Status["LastUpdate"].(int64) - UpdateAdditionalDelta))
 		// no filter means regular delta update, so lets check if all last_check dates match
 		ok, err := p.UpdateDeltaTableFullScan(&table, filterStr)
 		if ok || err != nil {
@@ -438,7 +441,7 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	keys, indexes := table.GetDynamicColumns(p.Flags)
 	keys = append(keys, []string{"host_name", "description"}...)
 	if filterStr == "" {
-		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.Status["LastUpdate"].(time.Time).Unix() - UpdateAdditionalDelta))
+		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.Status["LastUpdate"].(int64) - UpdateAdditionalDelta))
 		// no filter means regular delta update, so lets check if all last_check dates match
 		ok, err := p.UpdateDeltaTableFullScan(&table, filterStr)
 		if ok || err != nil {
@@ -484,9 +487,9 @@ func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated
 	p.PeerLock.RLock()
 	var lastUpdate int64
 	if table.Name == "services" {
-		lastUpdate = p.Status["LastFullServiceUpdate"].(time.Time).Unix()
+		lastUpdate = p.Status["LastFullServiceUpdate"].(int64)
 	} else if table.Name == "hosts" {
-		lastUpdate = p.Status["LastFullHostUpdate"].(time.Time).Unix()
+		lastUpdate = p.Status["LastFullHostUpdate"].(int64)
 	} else {
 		log.Panicf("not implemented for: " + table.Name)
 	}
@@ -537,9 +540,9 @@ func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated
 	}
 
 	if table.Name == "services" {
-		p.StatusSet("LastFullServiceUpdate", time.Now())
+		p.StatusSet("LastFullServiceUpdate", time.Now().Unix())
 	} else if table.Name == "hosts" {
-		p.StatusSet("LastFullHostUpdate", time.Now())
+		p.StatusSet("LastFullHostUpdate", time.Now().Unix())
 	}
 	updated = true
 	return
@@ -784,7 +787,7 @@ func (p *Peer) QueryString(str string) ([][]interface{}, error) {
 func (p *Peer) CheckResponseHeader(resBytes *[]byte) (err error) {
 	resSize := len(*resBytes)
 	if resSize < 16 {
-		err = fmt.Errorf("uncomplete response header: " + string(*resBytes))
+		err = fmt.Errorf("[%s] uncomplete response header: %s", p.Name, string(*resBytes))
 		return
 	}
 	header := (*resBytes)[0:15]
@@ -899,7 +902,7 @@ func (p *Peer) setNextAddrFromErr(err error) {
 		p.Status["PeerStatus"] = PeerStatusWarning
 	}
 	now := time.Now().Unix()
-	lastOnline := p.Status["LastOnline"].(time.Time).Unix()
+	lastOnline := p.Status["LastOnline"].(int64)
 	log.Debugf("[%s] last online: %s", p.Name, time.Unix(lastOnline, 0))
 	if lastOnline < now-int64(GlobalConfig.StaleBackendTimeout) || (p.ErrorCount > numSources && lastOnline <= 0) {
 		if p.Status["PeerStatus"].(PeerStatus) != PeerStatusDown {
@@ -976,8 +979,8 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	p.Tables[table.Name] = DataTable{Table: table, Data: res, Refs: refs, Index: index}
 	p.DataLock.Unlock()
 	p.PeerLock.Lock()
-	p.Status["LastUpdate"] = time.Now()
-	p.Status["LastFullUpdate"] = time.Now()
+	p.Status["LastUpdate"] = time.Now().Unix()
+	p.Status["LastFullUpdate"] = time.Now().Unix()
 	p.PeerLock.Unlock()
 	return
 }
@@ -1183,7 +1186,12 @@ func (p *Peer) GetVirtRowValue(col Column, row *[]interface{}, rowNum int, table
 	case StringCol:
 		return value
 	case TimeCol:
-		val := value.(time.Time).Unix()
+		var val int64
+		if v, ok := value.(int64); ok {
+			val = v
+		} else {
+			val = value.(time.Time).Unix()
+		}
 		if val < 0 {
 			val = 0
 		}
@@ -1354,7 +1362,7 @@ func (p *Peer) BuildLocalResponseData(res *Response, req *Request, numPerRow int
 	defer p.DataLock.RUnlock()
 	table := p.Tables[req.Table].Table
 	p.PeerLock.Lock()
-	p.Status["LastQuery"] = time.Now()
+	p.Status["LastQuery"] = time.Now().Unix()
 	if table == nil || (p.Status["PeerStatus"].(PeerStatus) == PeerStatusDown && !table.Virtual) {
 		res.Failed[p.ID] = fmt.Sprintf("%v", p.Status["LastError"])
 		p.PeerLock.Unlock()
