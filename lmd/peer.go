@@ -157,12 +157,12 @@ func NewPeer(config Connection, waitGroup *sync.WaitGroup, shutdownChannel chan 
 // Start creates the initial objects and starts the update loop in a separate goroutine.
 func (p *Peer) Start() {
 	go func() {
-		defer p.waitGroup.Done()
 		p.waitGroup.Add(1)
 		log.Infof("[%s] starting connection", p.Name)
 		p.StatusSet("Updating", true)
 		p.UpdateLoop()
 		p.StatusSet("Updating", false)
+		p.waitGroup.Done()
 	}()
 
 	return
@@ -170,11 +170,9 @@ func (p *Peer) Start() {
 
 // PauseUpdates stops the UpdateLoop. Restart with Start() again.
 func (p *Peer) PauseUpdates() {
-	p.PeerLock.RLock()
-	if p.Status["Updating"].(bool) {
+	if p.StatusGet("Updating").(bool) {
 		p.shutdownChannel <- true
 	}
-	p.PeerLock.RUnlock()
 }
 
 // Stop stops this peer.
@@ -253,6 +251,14 @@ func (p *Peer) StatusSet(key string, value interface{}) {
 	p.PeerLock.Lock()
 	p.Status[key] = value
 	p.PeerLock.Unlock()
+}
+
+// StatusGet returns a status map entry and takes care about the logging.
+func (p *Peer) StatusGet(key string) interface{} {
+	p.PeerLock.RLock()
+	value := p.Status[key]
+	p.PeerLock.RUnlock()
+	return value
 }
 
 // InitAllTables creates all tables for this peer.
@@ -811,9 +817,7 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 	numSources := len(p.Source)
 
 	for x := 0; x < numSources; x++ {
-		p.PeerLock.RLock()
-		peerAddr := p.Status["PeerAddr"].(string)
-		p.PeerLock.RUnlock()
+		peerAddr := p.StatusGet("PeerAddr").(string)
 		connType = "unix"
 		if strings.HasPrefix(peerAddr, "http") {
 			connType = "http"
@@ -1062,12 +1066,10 @@ func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error)
 		promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(res)))
 		break
 	case "status":
-		p.PeerLock.RLock()
-		if p.Status["ProgramStart"] != data[0][table.ColumnsIndex["program_start"]] {
+		if p.StatusGet("ProgramStart") != data[0][table.ColumnsIndex["program_start"]] {
 			log.Infof("[%s] site has been restarted, recreating objects", p.Name)
 			restartRequired = true
 		}
-		p.PeerLock.RUnlock()
 		return
 	}
 	return
