@@ -5,7 +5,31 @@ import (
 )
 
 func BenchmarkRequestsFilterSmall(b *testing.B) {
-	peer := StartTestPeer()
+	peer := StartTestPeer(1, 0, 0)
+
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
+	}
+	b.StopTimer()
+
+	StopTestPeer(peer)
+}
+
+func BenchmarkRequestsFilterSmall_1k_svc__1Peer(b *testing.B) {
+	peer := StartTestPeer(1, 100, 1000)
+
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
+	}
+	b.StopTimer()
+
+	StopTestPeer(peer)
+}
+
+func BenchmarkRequestsFilterSmall_1k_svc_10Peer(b *testing.B) {
+	peer := StartTestPeer(10, 10, 100)
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -17,7 +41,7 @@ func BenchmarkRequestsFilterSmall(b *testing.B) {
 }
 
 func BenchmarkRequestsFilterBig(b *testing.B) {
-	peer := StartTestPeer()
+	peer := StartTestPeer(1, 0, 0)
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -29,7 +53,7 @@ func BenchmarkRequestsFilterBig(b *testing.B) {
 }
 
 func BenchmarkRequestsStatsSmall(b *testing.B) {
-	peer := StartTestPeer()
+	peer := StartTestPeer(1, 0, 0)
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -41,11 +65,59 @@ func BenchmarkRequestsStatsSmall(b *testing.B) {
 }
 
 func BenchmarkRequestsStatsBig(b *testing.B) {
-	peer := StartTestPeer()
+	peer := StartTestPeer(1, 0, 0)
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		peer.QueryString(tacPageStatsQuery)
+	}
+	b.StopTimer()
+
+	StopTestPeer(peer)
+}
+
+func BenchmarkRequestsStatsBig_1k_svc__1Peer(b *testing.B) {
+	peer := StartTestPeer(1, 100, 1000)
+
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		peer.QueryString(tacPageStatsQuery)
+	}
+	b.StopTimer()
+
+	StopTestPeer(peer)
+}
+
+func BenchmarkRequestsStatsBig_1k_svc_10Peer(b *testing.B) {
+	peer := StartTestPeer(10, 10, 100)
+
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		peer.QueryString(tacPageStatsQuery)
+	}
+	b.StopTimer()
+
+	StopTestPeer(peer)
+}
+
+func BenchmarkRequestsServicelistLimit_1k_svc__1Peer(b *testing.B) {
+	peer := StartTestPeer(1, 100, 1000)
+
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		peer.QueryString("GET services\nSort: host_name asc\nSort: description asc\nLimit: 100")
+	}
+	b.StopTimer()
+
+	StopTestPeer(peer)
+}
+
+func BenchmarkRequestsServicelistLimit_1k_svc__10Peer(b *testing.B) {
+	peer := StartTestPeer(10, 10, 100)
+
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		peer.QueryString("GET services\nSort: host_name asc\nSort: description asc\nLimit: 100")
 	}
 	b.StopTimer()
 

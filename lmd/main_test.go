@@ -10,13 +10,13 @@ import (
 )
 
 func TestMainFunc(t *testing.T) {
-	peer := StartTestPeer()
+	peer := StartTestPeer(1, 0, 0)
 
 	res, err := peer.QueryString("GET backends\n\n")
 	if err = assertEq("peer_key", res[0][0]); err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq("mockid", res[1][0]); err != nil {
+	if err = assertEq("mockid0", res[1][0]); err != nil {
 		t.Fatal(err)
 	}
 
@@ -25,10 +25,10 @@ func TestMainFunc(t *testing.T) {
 		"GET backends\nResponseHeader: fixed16\n\n",
 		"GET backends\nResponseHeader: fixed16\nOutputFormat: json\n\n",
 		"GET backends\nResponseHeader: fixed16\nOutputFormat: wrapped_json\n\n",
-		"GET backends\nResponseHeader: fixed16\nFilter: peer_key = mockid\n\n",
-		"GET backends\nResponseHeader: fixed16\nFilter: peer_key = mockid\n\n",
-		"GET backends\nResponseHeader: fixed16\nFilter: peer_key ~~ mockid\n\n",
-		"GET backends\nResponseHeader: fixed16\nFilter: peer_key =~ mockid\n\n",
+		"GET backends\nResponseHeader: fixed16\nFilter: peer_key = mockid0\n\n",
+		"GET backends\nResponseHeader: fixed16\nFilter: peer_key = mockid0\n\n",
+		"GET backends\nResponseHeader: fixed16\nFilter: peer_key ~~ mockid0\n\n",
+		"GET backends\nResponseHeader: fixed16\nFilter: peer_key =~ mockid0\n\n",
 		"GET backends\nResponseHeader: fixed16\nFilter: peer_key !=\n\n",
 		"GET backends\nResponseHeader: fixed16\nFilter: peer_key != id2\n\n",
 		"GET backends\nResponseHeader: fixed16\nFilter: peer_key !=~ id2\n\n",
@@ -44,7 +44,7 @@ func TestMainFunc(t *testing.T) {
 		if err = assertEq("peer_key", res[0][0]); err != nil {
 			t.Fatal(err)
 		}
-		if err = assertEq("mockid", res[1][0]); err != nil {
+		if err = assertEq("mockid0", res[1][0]); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -54,7 +54,7 @@ func TestMainFunc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq("mockid", res[0][0]); err != nil {
+	if err = assertEq("mockid0", res[0][0]); err != nil {
 		t.Fatal(err)
 	}
 
@@ -77,7 +77,7 @@ func TestMainFunc(t *testing.T) {
 }
 
 func TestMainReload(t *testing.T) {
-	StartMockMainLoop()
+	StartMockMainLoop([]string{"mock0.sock"})
 	mainSignalChannel <- syscall.SIGHUP
 	waitTimeout(TestPeerWaitGroup, 5*time.Second)
 }
@@ -86,7 +86,7 @@ func TestAllOps(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping all ops test in short mode")
 	}
-	peer := StartTestPeer()
+	peer := StartTestPeer(1, 0, 0)
 
 	ops := []string{"=", "!=", "=~", "!=~", "~", "!~", "~~", "!~~", "<", "<=", ">", ">=", "!>="}
 	values := []string{"", " test", " 5", " 3.124", "{}"}

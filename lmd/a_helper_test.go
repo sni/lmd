@@ -12,6 +12,10 @@ import (
 
 	"syscall"
 
+	"io"
+
+	"encoding/json"
+
 	"github.com/BurntSushi/toml"
 )
 
@@ -25,17 +29,6 @@ func init() {
 
 	once.Do(PrintVersion)
 }
-
-const testConfig = `
-Loglevel = "Panic"
-Listen = ["test.sock"]
-ListenPrometheus = ":50999"
-
-[[Connections]]
-name = "MockCon"
-id   = "mockid"
-source = ["mock.sock"]
-`
 
 func assertEq(exp, got interface{}) error {
 	if !reflect.DeepEqual(exp, got) {
@@ -55,10 +48,19 @@ func assertLike(exp string, got string) error {
 	return nil
 }
 
-func StartMockLivestatusSource() {
+func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen string) {
 	startedChannel := make(chan bool)
-	listen := "mock.sock"
+	listen = fmt.Sprintf("mock%d.sock", nr)
 	TestPeerWaitGroup.Add(1)
+
+	dataFolder := "../t/data"
+	if numHosts > 0 || numServices > 0 {
+		// prepare data files
+		tempFolder := prepareTmpData(dataFolder, numHosts, numServices)
+		defer os.Remove(tempFolder)
+		dataFolder = tempFolder
+	}
+
 	go func() {
 		os.Remove(listen)
 		l, err := net.Listen("unix", listen)
@@ -96,7 +98,7 @@ func StartMockLivestatusSource() {
 				continue
 			}
 
-			dat, err := ioutil.ReadFile("../t/data/" + req.Table + ".json")
+			dat, err := ioutil.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, req.Table))
 			if err != nil {
 				panic("could not read file: " + err.Error())
 			}
@@ -108,9 +110,87 @@ func StartMockLivestatusSource() {
 	return
 }
 
+func prepareTmpData(dataFolder string, numHosts int, numServices int) (tempFolder string) {
+	tempFolder, err := ioutil.TempDir("", "mockdata")
+	if err != nil {
+		panic("failed to create temp data folder: " + err.Error())
+	}
+	// read existing json files and extend hosts and services
+	for name, table := range Objects.Tables {
+		file, err := os.Create(fmt.Sprintf("%s/%s.json", tempFolder, name))
+		if err != nil {
+			panic("failed to create temp file: " + err.Error())
+		}
+		template, err := os.Open(fmt.Sprintf("%s/%s.json", dataFolder, name))
+		if name == "hosts" || name == "services" {
+			dat, _ := ioutil.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, name))
+			removeFirstLine := regexp.MustCompile("^200.*")
+			dat = removeFirstLine.ReplaceAll(dat, []byte{})
+			var raw = [][]interface{}{}
+			err = json.Unmarshal(dat, &raw)
+			if err != nil {
+				panic("failed to decode: " + err.Error())
+			}
+			num := len(raw)
+			last := raw[num-1]
+			newData := [][]interface{}{}
+			if name == "hosts" {
+				nameIndex := table.GetColumn("name").Index
+				for x := 1; x < numHosts; x++ {
+					newObj := make([]interface{}, len(last))
+					copy(newObj, last)
+					newObj[nameIndex] = fmt.Sprintf("%s_%d", "testhost", x)
+					newData = append(newData, newObj)
+				}
+			}
+			if name == "services" {
+				nameIndex := table.GetColumn("host_name").Index
+				descIndex := table.GetColumn("description").Index
+				for x := 1; x < numHosts; x++ {
+					for y := 1; y < numServices/numHosts; y++ {
+						newObj := make([]interface{}, len(last))
+						copy(newObj, last)
+						newObj[nameIndex] = fmt.Sprintf("%s_%d", "testhost", x)
+						newObj[descIndex] = fmt.Sprintf("%s_%d", "testsvc", y)
+						newData = append(newData, newObj)
+						if len(newData) == numServices {
+							break
+						}
+					}
+					if len(newData) == numServices {
+						break
+					}
+				}
+			}
+
+			encoded, _ := json.Marshal(newData)
+			err = file.Close()
+			encoded = append([]byte(fmt.Sprintf("%d %11d\n", 200, len(encoded))), encoded...)
+			ioutil.WriteFile(fmt.Sprintf("%s/%s.json", tempFolder, name), encoded, 0644)
+		} else {
+			io.Copy(file, template)
+			err = file.Close()
+		}
+		if err != nil {
+			panic("failed to create temp file: " + err.Error())
+		}
+	}
+	return
+}
+
 var TestPeerWaitGroup *sync.WaitGroup
 
-func StartMockMainLoop() {
+func StartMockMainLoop(sockets []string) {
+	var testConfig = `
+Loglevel = "Panic"
+Listen = ["test.sock"]
+ListenPrometheus = ":50999"
+
+`
+	for i, socket := range sockets {
+		testConfig += fmt.Sprintf("[[Connections]]\nname = \"MockCon\"\nid   = \"mockid%d\"\nsource = [\"%s\"]\n\n", i, socket)
+	}
+
 	err := ioutil.WriteFile("test.ini", []byte(testConfig), 0644)
 	if err != nil {
 		panic(err.Error())
@@ -135,9 +215,13 @@ func StartMockMainLoop() {
 //  - a mock livestatus server which responds from status json
 //  - a main loop which has the mock server as backend
 // It returns a peer which the "mainloop" connection configured
-func StartTestPeer() (peer *Peer) {
-	StartMockLivestatusSource()
-	StartMockMainLoop()
+func StartTestPeer(numPeers int, numHosts int, numServices int) (peer *Peer) {
+	sockets := []string{}
+	for i := 0; i < numPeers; i++ {
+		listen := StartMockLivestatusSource(i, numHosts, numServices)
+		sockets = append(sockets, listen)
+	}
+	StartMockMainLoop(sockets)
 
 	testPeerShutdownChannel := make(chan bool)
 	peer = NewPeer(Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
@@ -154,7 +238,7 @@ func StartTestPeer() (peer *Peer) {
 		time.Sleep(100 * time.Millisecond)
 		retries++
 		if retries > 30 {
-			panic("backend never came online")
+			panic("backend never came online: " + err.Error())
 		}
 	}
 
@@ -166,7 +250,7 @@ func StopTestPeer(peer *Peer) {
 	mainSignalChannel <- syscall.SIGTERM
 	// stop the test peer
 	peer.Stop()
-	// stop the mock server
+	// stop the mock servers
 	peer.QueryString("COMMAND [0] MOCK_EXIT")
 	// wait till all has stoped
 	waitTimeout(TestPeerWaitGroup, 5*time.Second)

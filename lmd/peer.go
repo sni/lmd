@@ -968,7 +968,7 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 		for i, row := range res {
 			refs[fieldName][i] = RefByName[row[refCol.RefIndex].(string)]
 			if RefByName[row[refCol.RefIndex].(string)] == nil {
-				panic("ref not found")
+				panic("ref not found: " + row[refCol.RefIndex].(string))
 			}
 		}
 	}
