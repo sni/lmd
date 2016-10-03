@@ -22,6 +22,8 @@ func init() {
 	InitLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
 
 	TestPeerWaitGroup = &sync.WaitGroup{}
+
+	once.Do(PrintVersion)
 }
 
 const testConfig = `
@@ -30,7 +32,7 @@ Listen = ["test.sock"]
 ListenPrometheus = ":50999"
 
 [[Connections]]
-name = "Test"
+name = "MockCon"
 id   = "id1"
 source = ["mock.sock"]
 `
@@ -55,18 +57,24 @@ func assertLike(exp string, got string) error {
 
 func StartMockLivestatusSource() {
 	startedChannel := make(chan bool)
+	listen := "mock.sock"
+	TestPeerWaitGroup.Add(1)
 	go func() {
-		os.Remove("mock.sock")
-		l, err := net.Listen("unix", "mock.sock")
+		os.Remove(listen)
+		l, err := net.Listen("unix", listen)
 		if err != nil {
 			panic(err.Error())
 		}
-		defer l.Close()
+		defer func() {
+			l.Close()
+			TestPeerWaitGroup.Done()
+			os.Remove(listen)
+		}()
 		startedChannel <- true
 		for {
 			conn, err := l.Accept()
 			if err != nil {
-				return
+				panic(err.Error())
 			}
 
 			req, err := ParseRequest(conn)
@@ -110,18 +118,26 @@ func StartMockMainLoop() {
 
 	toml.DecodeFile("test.ini", &GlobalConfig)
 	mainSignalChannel = make(chan os.Signal)
+	startedChannel := make(chan bool)
 
 	go func() {
 		flagConfigFile = configFiles{"test.ini"}
 		TestPeerWaitGroup.Add(1)
+		startedChannel <- true
 		mainLoop(mainSignalChannel)
 		TestPeerWaitGroup.Done()
+		os.Remove("test.ini")
 	}()
+	<-startedChannel
 }
 
+// StartTestPeer starts:
+//  - a mock livestatus server which responds from status json
+//  - a main loop which has the mock server as backend
+// It returns a peer which the "mainloop" connection configured
 func StartTestPeer() (peer *Peer) {
-	StartMockMainLoop()
 	StartMockLivestatusSource()
+	StartMockMainLoop()
 
 	testPeerShutdownChannel := make(chan bool)
 	peer = NewPeer(Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "id0"}, TestPeerWaitGroup, testPeerShutdownChannel)
@@ -146,9 +162,12 @@ func StartTestPeer() (peer *Peer) {
 }
 
 func StopTestPeer(peer *Peer) {
-	peer.QueryString("COMMAND [0] MOCK_EXIT")
-	os.Remove("mock.sock")
+	// stop the mainloop
 	mainSignalChannel <- syscall.SIGTERM
+	// stop the test peer
 	peer.Stop()
+	// stop the mock server
+	peer.QueryString("COMMAND [0] MOCK_EXIT")
+	// wait till all has stoped
 	waitTimeout(TestPeerWaitGroup, 5*time.Second)
 }
