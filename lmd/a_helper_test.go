@@ -16,11 +16,12 @@ import (
 )
 
 func init() {
-	InitLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
-	InitObjects()
-
 	// make tests faster if the listener does not wait that long to shutdown
 	acceptInterval = 30 * time.Millisecond
+
+	InitLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
+
+	TestPeerWaitGroup = &sync.WaitGroup{}
 }
 
 const testConfig = `
@@ -75,6 +76,9 @@ func StartMockLivestatusSource() {
 
 			if req.Command != "" {
 				conn.Close()
+				if req.Command == "COMMAND [0] MOCK_EXIT" {
+					return
+				}
 				break
 			}
 
@@ -98,7 +102,7 @@ func StartMockLivestatusSource() {
 
 var TestPeerWaitGroup *sync.WaitGroup
 
-func SetupMainLoop() {
+func StartMockMainLoop() {
 	err := ioutil.WriteFile("test.ini", []byte(testConfig), 0644)
 	if err != nil {
 		panic(err.Error())
@@ -113,13 +117,11 @@ func SetupMainLoop() {
 		mainLoop(mainSignalChannel)
 		TestPeerWaitGroup.Done()
 	}()
-
-	StartMockLivestatusSource()
 }
 
-func SetupTestPeer() (peer *Peer) {
-	TestPeerWaitGroup = &sync.WaitGroup{}
-	SetupMainLoop()
+func StartTestPeer() (peer *Peer) {
+	StartMockMainLoop()
+	StartMockLivestatusSource()
 
 	testPeerShutdownChannel := make(chan bool)
 	peer = NewPeer(Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "id0"}, TestPeerWaitGroup, testPeerShutdownChannel)
@@ -135,7 +137,7 @@ func SetupTestPeer() (peer *Peer) {
 		// recheck every 100ms
 		time.Sleep(100 * time.Millisecond)
 		retries++
-		if retries > 100 {
+		if retries > 50 {
 			panic("backend never came online")
 		}
 	}
@@ -144,8 +146,9 @@ func SetupTestPeer() (peer *Peer) {
 }
 
 func StopTestPeer(peer *Peer) {
+	peer.QueryString("COMMAND [0] MOCK_EXIT")
 	os.Remove("mock.sock")
 	mainSignalChannel <- syscall.SIGTERM
 	peer.Stop()
-	waitTimeout(TestPeerWaitGroup, time.Second)
+	waitTimeout(TestPeerWaitGroup, 5*time.Second)
 }

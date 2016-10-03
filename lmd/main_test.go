@@ -9,7 +9,7 @@ import (
 )
 
 func TestMainFunc(t *testing.T) {
-	peer := SetupTestPeer()
+	peer := StartTestPeer()
 
 	res, err := peer.QueryString("GET backends\n\n")
 	if err = assertEq("peer_key", res[0][0]); err != nil {
@@ -72,7 +72,11 @@ func TestMainFunc(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// test reload, makes the mainloop exit as well
+	StopTestPeer(peer)
+}
+
+func TestMainReload(t *testing.T) {
+	StartMockMainLoop()
 	mainSignalChannel <- syscall.SIGHUP
 }
 
@@ -80,7 +84,7 @@ func TestAllOps(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping all ops test in short mode")
 	}
-	peer := SetupTestPeer()
+	peer := StartTestPeer()
 
 	ops := []string{"=", "!=", "=~", "!=~", "~", "!~", "~~", "!~~", "<", "<=", ">", ">=", "!>="}
 	values := []string{"", " test", " 5", " 3.124", "{}"}

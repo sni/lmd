@@ -5,7 +5,7 @@ import (
 )
 
 func BenchmarkRequestsFilterSmall(b *testing.B) {
-	peer := SetupTestPeer()
+	peer := StartTestPeer()
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -17,7 +17,7 @@ func BenchmarkRequestsFilterSmall(b *testing.B) {
 }
 
 func BenchmarkRequestsFilterBig(b *testing.B) {
-	peer := SetupTestPeer()
+	peer := StartTestPeer()
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -29,7 +29,7 @@ func BenchmarkRequestsFilterBig(b *testing.B) {
 }
 
 func BenchmarkRequestsStatsSmall(b *testing.B) {
-	peer := SetupTestPeer()
+	peer := StartTestPeer()
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -41,7 +41,7 @@ func BenchmarkRequestsStatsSmall(b *testing.B) {
 }
 
 func BenchmarkRequestsStatsBig(b *testing.B) {
-	peer := SetupTestPeer()
+	peer := StartTestPeer()
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
