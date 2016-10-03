@@ -33,7 +33,7 @@ ListenPrometheus = ":50999"
 
 [[Connections]]
 name = "MockCon"
-id   = "id1"
+id   = "mockid"
 source = ["mock.sock"]
 `
 
@@ -87,13 +87,13 @@ func StartMockLivestatusSource() {
 				if req.Command == "COMMAND [0] MOCK_EXIT" {
 					return
 				}
-				break
+				continue
 			}
 
 			if len(req.Filter) > 0 {
 				conn.Write([]byte("200            3\n[]\n"))
 				conn.Close()
-				break
+				continue
 			}
 
 			dat, err := ioutil.ReadFile("../t/data/" + req.Table + ".json")
@@ -140,7 +140,7 @@ func StartTestPeer() (peer *Peer) {
 	StartMockMainLoop()
 
 	testPeerShutdownChannel := make(chan bool)
-	peer = NewPeer(Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "id0"}, TestPeerWaitGroup, testPeerShutdownChannel)
+	peer = NewPeer(Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
 	peer.Start()
 
 	// wait till backend is available
@@ -153,7 +153,7 @@ func StartTestPeer() (peer *Peer) {
 		// recheck every 100ms
 		time.Sleep(100 * time.Millisecond)
 		retries++
-		if retries > 300 {
+		if retries > 30 {
 			panic("backend never came online")
 		}
 	}

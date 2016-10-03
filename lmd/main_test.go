@@ -16,7 +16,7 @@ func TestMainFunc(t *testing.T) {
 	if err = assertEq("peer_key", res[0][0]); err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq("id1", res[1][0]); err != nil {
+	if err = assertEq("mockid", res[1][0]); err != nil {
 		t.Fatal(err)
 	}
 
@@ -25,10 +25,10 @@ func TestMainFunc(t *testing.T) {
 		"GET backends\nResponseHeader: fixed16\n\n",
 		"GET backends\nResponseHeader: fixed16\nOutputFormat: json\n\n",
 		"GET backends\nResponseHeader: fixed16\nOutputFormat: wrapped_json\n\n",
-		"GET backends\nResponseHeader: fixed16\nFilter: peer_key = id1\n\n",
-		"GET backends\nResponseHeader: fixed16\nFilter: peer_key = id1\n\n",
-		"GET backends\nResponseHeader: fixed16\nFilter: peer_key ~~ id1\n\n",
-		"GET backends\nResponseHeader: fixed16\nFilter: peer_key =~ id1\n\n",
+		"GET backends\nResponseHeader: fixed16\nFilter: peer_key = mockid\n\n",
+		"GET backends\nResponseHeader: fixed16\nFilter: peer_key = mockid\n\n",
+		"GET backends\nResponseHeader: fixed16\nFilter: peer_key ~~ mockid\n\n",
+		"GET backends\nResponseHeader: fixed16\nFilter: peer_key =~ mockid\n\n",
 		"GET backends\nResponseHeader: fixed16\nFilter: peer_key !=\n\n",
 		"GET backends\nResponseHeader: fixed16\nFilter: peer_key != id2\n\n",
 		"GET backends\nResponseHeader: fixed16\nFilter: peer_key !=~ id2\n\n",
@@ -44,7 +44,7 @@ func TestMainFunc(t *testing.T) {
 		if err = assertEq("peer_key", res[0][0]); err != nil {
 			t.Fatal(err)
 		}
-		if err = assertEq("id1", res[1][0]); err != nil {
+		if err = assertEq("mockid", res[1][0]); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -54,7 +54,7 @@ func TestMainFunc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq("id1", res[0][0]); err != nil {
+	if err = assertEq("mockid", res[0][0]); err != nil {
 		t.Fatal(err)
 	}
 

@@ -7,7 +7,6 @@ import (
 )
 
 func TestRequestHeader(t *testing.T) {
-	t.Parallel()
 	testRequestStrings := []string{
 		"GET hosts\n\n",
 		"GET hosts\nColumns: name state\n\n",
@@ -16,7 +15,7 @@ func TestRequestHeader(t *testing.T) {
 		"GET hosts\nResponseHeader: fixed16\n\n",
 		"GET hosts\nColumns: name state\nFilter: state != 1\nFilter: is_executing = 1\nOr: 2\n\n",
 		"GET hosts\nColumns: name state\nFilter: state != 1\nFilter: is_executing = 1\nAnd: 2\nFilter: state = 1\nOr: 2\nFilter: name = test\n\n",
-		"GET hosts\nBackends: id1\n\n",
+		"GET hosts\nBackends: mockid\n\n",
 		"GET hosts\nLimit: 25\nOffset: 5\n\n",
 		"GET hosts\nSort: name asc\nSort: state desc\n\n",
 		"GET hosts\nStats: state = 1\nStats: avg latency\nStats: state = 3\nStats: state != 1\nStatsAnd: 2\n\n",
@@ -45,7 +44,6 @@ func TestRequestHeader(t *testing.T) {
 }
 
 func TestRequestHeaderTable(t *testing.T) {
-	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\n"))
 	req, _, _ := NewRequest(buf)
 	if err := assertEq("hosts", req.Table); err != nil {
@@ -54,7 +52,6 @@ func TestRequestHeaderTable(t *testing.T) {
 }
 
 func TestRequestHeaderLimit(t *testing.T) {
-	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nLimit: 10\n"))
 	req, _, _ := NewRequest(buf)
 	if err := assertEq(10, req.Limit); err != nil {
@@ -63,7 +60,6 @@ func TestRequestHeaderLimit(t *testing.T) {
 }
 
 func TestRequestHeaderOffset(t *testing.T) {
-	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nOffset: 3\n"))
 	req, _, _ := NewRequest(buf)
 	if err := assertEq(3, req.Offset); err != nil {
@@ -72,7 +68,6 @@ func TestRequestHeaderOffset(t *testing.T) {
 }
 
 func TestRequestHeaderColumns(t *testing.T) {
-	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name state\n"))
 	req, _, _ := NewRequest(buf)
 	if err := assertEq([]string{"name", "state"}, req.Columns); err != nil {
@@ -81,7 +76,6 @@ func TestRequestHeaderColumns(t *testing.T) {
 }
 
 func TestRequestHeaderSort(t *testing.T) {
-	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: latency state name\nSort: name desc\nSort: state asc\n"))
 	req, _, _ := NewRequest(buf)
 	table, _ := Objects.Tables[req.Table]
@@ -95,7 +89,6 @@ func TestRequestHeaderSort(t *testing.T) {
 }
 
 func TestRequestHeaderFilter1(t *testing.T) {
-	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: name != test\n"))
 	req, _, _ := NewRequest(buf)
 	if err := assertEq(len(req.Filter), 1); err != nil {
@@ -107,7 +100,6 @@ func TestRequestHeaderFilter1(t *testing.T) {
 }
 
 func TestRequestHeaderFilter2(t *testing.T) {
-	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces \n"))
 	req, _, _ := NewRequest(buf)
 	if err := assertEq(len(req.Filter), 2); err != nil {
@@ -125,7 +117,6 @@ func TestRequestHeaderFilter2(t *testing.T) {
 }
 
 func TestRequestHeaderFilter3(t *testing.T) {
-	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces\nOr: 2"))
 	req, _, _ := NewRequest(buf)
 	if err := assertEq(len(req.Filter), 1); err != nil {
@@ -151,22 +142,21 @@ func TestRequestListFilter(t *testing.T) {
 }
 
 func TestRequestHeaderMultipleCommands(t *testing.T) {
-	t.Parallel()
 	buf := bufio.NewReader(bytes.NewBufferString(`COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web1;1473627610
-Backends: id1
+Backends: mockid
 
 COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web2;1473627610`))
 	req, size, err := NewRequest(buf)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(size, 83); err != nil {
+	if err := assertEq(size, 86); err != nil {
 		t.Fatal(err)
 	}
 	if err := assertEq(req.Command, "COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web1;1473627610"); err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(req.Backends[0], "id1"); err != nil {
+	if err := assertEq(req.Backends[0], "mockid"); err != nil {
 		t.Fatal(err)
 	}
 	req, size, err = NewRequest(buf)
