@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"syscall"
 	"testing"
+	"time"
 )
 
 func TestMainFunc(t *testing.T) {
@@ -78,6 +79,7 @@ func TestMainFunc(t *testing.T) {
 func TestMainReload(t *testing.T) {
 	StartMockMainLoop()
 	mainSignalChannel <- syscall.SIGHUP
+	waitTimeout(TestPeerWaitGroup, 5*time.Second)
 }
 
 func TestAllOps(t *testing.T) {
