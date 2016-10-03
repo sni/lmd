@@ -153,7 +153,7 @@ func StartTestPeer() (peer *Peer) {
 		// recheck every 100ms
 		time.Sleep(100 * time.Millisecond)
 		retries++
-		if retries > 50 {
+		if retries > 300 {
 			panic("backend never came online")
 		}
 	}
