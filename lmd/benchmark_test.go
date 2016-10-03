@@ -112,7 +112,7 @@ func BenchmarkRequestsServicelistLimit_1k_svc__1Peer(b *testing.B) {
 	StopTestPeer(peer)
 }
 
-func BenchmarkRequestsServicelistLimit_1k_svc__10Peer(b *testing.B) {
+func BenchmarkRequestsServicelistLimit_1k_svc_10Peer(b *testing.B) {
 	peer := StartTestPeer(10, 10, 100)
 
 	b.StartTimer()
