@@ -99,7 +99,14 @@ var once sync.Once
 var netClient *http.Client
 var mainSignalChannel chan os.Signal
 
-func main() {
+// initialize objects structure
+func init() {
+	InitObjects()
+	mainSignalChannel = make(chan os.Signal)
+	http.Handle("/metrics", prometheus.Handler())
+}
+
+func setFlags() {
 	flag.Var(&flagConfigFile, "c", "set location for config file, can be specified multiple times")
 	flag.Var(&flagConfigFile, "config", "set location for config file, can be specified multiple times")
 	flag.StringVar(&flagPidfile, "pidfile", "", "set path to pidfile")
@@ -110,61 +117,19 @@ func main() {
 	flag.BoolVar(&flagTraceVerbose, "vvv", false, "enable trace output")
 	flag.BoolVar(&flagVersion, "version", false, "print version and exit")
 	flag.StringVar(&flagProfile, "profiler", "", "start pprof profiler on this port, ex. :6060")
-	flag.Parse()
-	if flagVersion {
-		fmt.Printf("%s - version %s (Build: %s)\n", NAME, VERSION, Build)
-		os.Exit(2)
-	}
+}
 
-	if flagProfile != "" {
-		runtime.SetBlockProfileRate(10)
-		go func() {
-			http.ListenAndServe(flagProfile, http.DefaultServeMux)
-		}()
-	}
+func main() {
+	// command line arguments
+	setFlags()
+	checkFlags()
 
-	if len(flagConfigFile) == 0 {
-		fmt.Print("ERROR: no config files specified.\nSee --help for all options.\n")
-		os.Exit(2)
-	}
-
-	if flagPidfile != "" {
-		if _, err := os.Stat(flagPidfile); err == nil {
-			dat, err := ioutil.ReadFile(flagPidfile)
-			pid, err := strconv.ParseInt(strings.TrimSpace(string(dat)), 10, 64)
-			process, err := os.FindProcess(int(pid))
-			if err == nil {
-				err = process.Signal(syscall.Signal(0))
-				if err == nil {
-					fmt.Fprintf(os.Stderr, "ERROR: pidfile '%s' does already exist (and process %d is still running)\n", flagPidfile, pid)
-					os.Exit(2)
-				}
-			}
-			fmt.Fprintf(os.Stderr, "WARNING: removing stale pidfile '%s'\n", flagPidfile)
-			os.Remove(flagPidfile)
-		}
-	}
-
-	// check for config errors
-	GlobalConfig = ReadConfig(flagConfigFile)
-
-	// write pidfile
-	if flagPidfile != "" {
-		err := ioutil.WriteFile(flagPidfile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0640)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "ERROR: could not write pidfile '%s': %s\n", flagPidfile, err.Error())
-			os.Exit(2)
-		}
-	}
-
-	http.Handle("/metrics", prometheus.Handler())
-
-	mainSignalChannel = make(chan os.Signal)
 	for {
 		exitCode := mainLoop(mainSignalChannel)
 		if exitCode > 0 {
 			os.Exit(exitCode)
 		}
+		// make it possible to call main() from tests without exiting the tests
 		if exitCode == 0 {
 			break
 		}
@@ -198,7 +163,6 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	// Set the backends to be used.
 	DataStore = make(map[string]Peer)
 	DataStoreOrder = make([]string, 0)
-	InitObjects()
 
 	// initialize prometheus
 	prometheusListener := initPrometheus()
@@ -236,6 +200,55 @@ func initializePeers(GlobalConfig *Config, waitGroupPeers *sync.WaitGroup, waitG
 		p.Start()
 		DataStoreOrder = append(DataStoreOrder, c.ID)
 	}
+}
+
+func checkFlags() {
+	flag.Parse()
+	if flagVersion {
+		fmt.Printf("%s - version %s (Build: %s)\n", NAME, VERSION, Build)
+		os.Exit(2)
+	}
+
+	if flagProfile != "" {
+		runtime.SetBlockProfileRate(10)
+		go func() {
+			http.ListenAndServe(flagProfile, http.DefaultServeMux)
+		}()
+	}
+
+	if len(flagConfigFile) == 0 {
+		fmt.Print("ERROR: no config files specified.\nSee --help for all options.\n")
+		os.Exit(2)
+	}
+
+	if flagPidfile != "" {
+		if _, err := os.Stat(flagPidfile); err == nil {
+			dat, err := ioutil.ReadFile(flagPidfile)
+			pid, err := strconv.ParseInt(strings.TrimSpace(string(dat)), 10, 64)
+			process, err := os.FindProcess(int(pid))
+			if err == nil {
+				err = process.Signal(syscall.Signal(0))
+				if err == nil {
+					fmt.Fprintf(os.Stderr, "ERROR: pidfile '%s' does already exist (and process %d is still running)\n", flagPidfile, pid)
+					os.Exit(2)
+				}
+			}
+			fmt.Fprintf(os.Stderr, "WARNING: removing stale pidfile '%s'\n", flagPidfile)
+			os.Remove(flagPidfile)
+		}
+	}
+
+	// write pidfile
+	if flagPidfile != "" {
+		err := ioutil.WriteFile(flagPidfile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0640)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: could not write pidfile '%s': %s\n", flagPidfile, err.Error())
+			os.Exit(2)
+		}
+	}
+
+	// initialize configuration and check for config errors
+	GlobalConfig = ReadConfig(flagConfigFile)
 }
 
 func setVerboseFlags(GlobalConfig *Config) {
