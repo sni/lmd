@@ -73,8 +73,6 @@ var DataStoreOrder []string
 
 type configFiles []string
 
-var mainLoopCounter = 0
-
 // String returns the config files list as string.
 func (c *configFiles) String() string {
 	return fmt.Sprintf("%s", *c)
@@ -139,13 +137,6 @@ func main() {
 }
 
 func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
-	mainLoopCounter++
-	defer func() {
-		mainLoopCounter--
-	}()
-	if mainLoopCounter > 1 {
-		log.Panicf("mainLoop started twice, this causes race conditions!")
-	}
 	osSignalChannel := make(chan os.Signal, 1)
 	signal.Notify(osSignalChannel, syscall.SIGHUP)
 	signal.Notify(osSignalChannel, syscall.SIGTERM)
