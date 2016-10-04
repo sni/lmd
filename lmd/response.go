@@ -347,45 +347,56 @@ func (res *Response) Send(c net.Conn) (size int, err error) {
 
 // JSON converts the response into a json structure
 func (res *Response) JSON() (resBytes []byte, err error) {
+	if res.Error != nil {
+		log.Warnf("client error: %s", res.Error.Error())
+		resBytes = []byte(res.Error.Error())
+		return
+	}
+
+	if res.Request.OutputFormat == "wrapped_json" {
+		resBytes = append(resBytes, []byte("{\"data\":[")...)
+	}
+	if res.Request.OutputFormat == "json" || res.Request.OutputFormat == "" {
+		resBytes = append(resBytes, []byte("[")...)
+	}
 	if res.Request.SendColumnsHeader {
 		cols := make([]interface{}, len(res.Request.Columns)+len(res.Request.Stats))
 		for i, v := range res.Request.Columns {
 			cols[i] = v
 		}
-		res.Result = append([][]interface{}{cols}, res.Result...)
+		rowBytes, jerr := json.Marshal(cols)
+		if jerr != nil {
+			log.Errorf("json error: %s in column header: %v", jerr.Error(), cols)
+			err = jerr
+			return
+		}
+		resBytes = append(resBytes, rowBytes...)
 	}
-	if res.Error != nil {
-		log.Warnf("client error: %s", res.Error.Error())
-		resBytes = []byte(res.Error.Error())
-	} else if res.Result != nil {
-		if res.Request.OutputFormat == "wrapped_json" {
-			resBytes = append(resBytes, []byte("{\"data\":[")...)
-		}
-		if res.Request.OutputFormat == "json" || res.Request.OutputFormat == "" {
-			resBytes = append(resBytes, []byte("[")...)
-		}
-		// append result row by row
-		if res.Request.OutputFormat == "wrapped_json" || res.Request.OutputFormat == "json" || res.Request.OutputFormat == "" {
-			for i, row := range res.Result {
-				rowBytes, jerr := json.Marshal(row)
-				if jerr != nil {
-					log.Errorf("json error: %s in row: %v", jerr.Error(), row)
-					err = jerr
-					return
-				}
-				if i > 0 {
+	// append result row by row
+	if res.Request.OutputFormat == "wrapped_json" || res.Request.OutputFormat == "json" || res.Request.OutputFormat == "" {
+		for i, row := range res.Result {
+			rowBytes, jerr := json.Marshal(row)
+			if jerr != nil {
+				log.Errorf("json error: %s in row: %v", jerr.Error(), row)
+				err = jerr
+				return
+			}
+			if i == 0 {
+				if res.Request.SendColumnsHeader {
 					resBytes = append(resBytes, []byte(",\n")...)
 				}
-				resBytes = append(resBytes, rowBytes...)
+			} else {
+				resBytes = append(resBytes, []byte(",\n")...)
 			}
-			resBytes = append(resBytes, []byte("]")...)
+			resBytes = append(resBytes, rowBytes...)
 		}
-		if res.Request.OutputFormat == "wrapped_json" {
-			resBytes = append(resBytes, []byte("\n,\"failed\":")...)
-			failBytes, _ := json.Marshal(res.Failed)
-			resBytes = append(resBytes, failBytes...)
-			resBytes = append(resBytes, []byte(fmt.Sprintf("\n,\"total\":%d}", res.ResultTotal))...)
-		}
+		resBytes = append(resBytes, []byte("]")...)
+	}
+	if res.Request.OutputFormat == "wrapped_json" {
+		resBytes = append(resBytes, []byte("\n,\"failed\":")...)
+		failBytes, _ := json.Marshal(res.Failed)
+		resBytes = append(resBytes, failBytes...)
+		resBytes = append(resBytes, []byte(fmt.Sprintf("\n,\"total\":%d}", res.ResultTotal))...)
 	}
 	return
 }
