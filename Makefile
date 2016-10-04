@@ -92,7 +92,7 @@ lint:
 	# see https://github.com/golang/lint/ for details.
 	# Only works with Go 1.6 or up.
 	#
-	[ $$(echo "$(GOVERSION)" | tr -d ".") -lt 18 ] || { \
+	[ $$(echo "$(GOVERSION)" | tr -d ".") -lt 16 ] || { \
 		go get -u github.com/golang/lint/golint; \
 		cd $(LAMPDDIR) && golint -set_exit_status .; \
 	}
