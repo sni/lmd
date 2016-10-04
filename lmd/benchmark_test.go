@@ -9,7 +9,10 @@ func BenchmarkSingleFilter(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
+		_, err := peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
+		if err != nil {
+			panic(err.Error())
+		}
 	}
 	b.StopTimer()
 
@@ -23,7 +26,10 @@ func BenchmarkSingleFilter_1k_svc__1Peer(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
+		_, err := peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
+		if err != nil {
+			panic(err.Error())
+		}
 	}
 	b.StopTimer()
 
@@ -37,7 +43,10 @@ func BenchmarkSingleFilter_1k_svc_10Peer(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
+		_, err := peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
+		if err != nil {
+			panic(err.Error())
+		}
 	}
 	b.StopTimer()
 
@@ -51,7 +60,10 @@ func BenchmarkMultiFilter(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		peer.QueryString("GET hosts\nColumns: name\nFilter: name != test\nFilter: state != 5\nFilter: latency != 2\nFilter: contact_groups !=\nFilter: custom_variables != TEST blah\n")
+		_, err := peer.QueryString("GET hosts\nColumns: name\nFilter: name != test\nFilter: state != 5\nFilter: latency != 2\nFilter: contact_groups !=\nFilter: custom_variables != TEST blah\n")
+		if err != nil {
+			panic(err.Error())
+		}
 	}
 	b.StopTimer()
 
@@ -65,7 +77,10 @@ func BenchmarkSimpleStats(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		peer.QueryString("GET hosts\nStats: name != \nStats: avg latency\nStats: sum latency")
+		_, err := peer.QueryString("GET hosts\nStats: name != \nStats: avg latency\nStats: sum latency")
+		if err != nil {
+			panic(err.Error())
+		}
 	}
 	b.StopTimer()
 
@@ -79,7 +94,10 @@ func BenchmarkTacStats(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		peer.QueryString(tacPageStatsQuery)
+		_, err := peer.QueryString(tacPageStatsQuery)
+		if err != nil {
+			panic(err.Error())
+		}
 	}
 	b.StopTimer()
 
@@ -93,7 +111,10 @@ func BenchmarkTacStats_1k_svc__1Peer(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		peer.QueryString(tacPageStatsQuery)
+		_, err := peer.QueryString(tacPageStatsQuery)
+		if err != nil {
+			panic(err.Error())
+		}
 	}
 	b.StopTimer()
 
@@ -107,7 +128,10 @@ func BenchmarkTacStats_1k_svc_10Peer(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		peer.QueryString(tacPageStatsQuery)
+		_, err := peer.QueryString(tacPageStatsQuery)
+		if err != nil {
+			panic(err.Error())
+		}
 	}
 	b.StopTimer()
 
@@ -121,7 +145,10 @@ func BenchmarkServicelistLimit_1k_svc__1Peer(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		peer.QueryString(servicesPageQuery)
+		_, err := peer.QueryString(servicesPageQuery)
+		if err != nil {
+			panic(err.Error())
+		}
 	}
 	b.StopTimer()
 
@@ -135,7 +162,10 @@ func BenchmarkServicelistLimit_1k_svc_10Peer(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		peer.QueryString(servicesPageQuery)
+		_, err := peer.QueryString(servicesPageQuery)
+		if err != nil {
+			panic(err.Error())
+		}
 	}
 	b.StopTimer()
 
