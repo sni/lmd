@@ -98,12 +98,14 @@ var flagProfile string
 var once sync.Once
 var netClient *http.Client
 var mainSignalChannel chan os.Signal
+var lastMainRestart = time.Now().Unix()
 
 // initialize objects structure
 func init() {
 	InitObjects()
 	mainSignalChannel = make(chan os.Signal)
 	http.Handle("/metrics", prometheus.Handler())
+
 }
 
 func setFlags() {
@@ -142,6 +144,7 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	signal.Notify(osSignalChannel, syscall.SIGTERM)
 	signal.Notify(osSignalChannel, os.Interrupt)
 
+	lastMainRestart = time.Now().Unix()
 	shutdownChannel := make(chan bool)
 	waitGroupListener := &sync.WaitGroup{}
 	waitGroupPeers := &sync.WaitGroup{}

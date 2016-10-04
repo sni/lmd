@@ -205,9 +205,15 @@ func (p *Peer) updateLoop() {
 				lastFullUpdate := p.Status["LastFullUpdate"].(int64)
 				idling := p.Status["Idling"].(bool)
 				p.PeerLock.RUnlock()
-				now := time.Now().Unix()
 
-				if !idling && lastQuery < now-GlobalConfig.IdleTimeout {
+				now := time.Now().Unix()
+				shouldIdle := false
+				if lastQuery == 0 && lastMainRestart < now-GlobalConfig.IdleTimeout {
+					shouldIdle = true
+				} else if lastQuery > 0 && lastQuery < now-GlobalConfig.IdleTimeout {
+					shouldIdle = true
+				}
+				if !idling && shouldIdle {
 					log.Infof("[%s] switched to idle interval, last query: %s", p.Name, time.Unix(lastQuery, 0))
 					p.StatusSet("Idling", true)
 					idling = true
