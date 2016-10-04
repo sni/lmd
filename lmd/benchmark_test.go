@@ -1,11 +1,11 @@
 package main
 
-import (
-	"testing"
-)
+import "testing"
 
-func BenchmarkRequestsFilterSmall(b *testing.B) {
+func BenchmarkSingleFilter(b *testing.B) {
+	b.StopTimer()
 	peer := StartTestPeer(1, 0, 0)
+	peer.PauseUpdates()
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -16,8 +16,10 @@ func BenchmarkRequestsFilterSmall(b *testing.B) {
 	StopTestPeer(peer)
 }
 
-func BenchmarkRequestsFilterSmall_1k_svc__1Peer(b *testing.B) {
+func BenchmarkSingleFilter_1k_svc__1Peer(b *testing.B) {
+	b.StopTimer()
 	peer := StartTestPeer(1, 100, 1000)
+	peer.PauseUpdates()
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -28,8 +30,10 @@ func BenchmarkRequestsFilterSmall_1k_svc__1Peer(b *testing.B) {
 	StopTestPeer(peer)
 }
 
-func BenchmarkRequestsFilterSmall_1k_svc_10Peer(b *testing.B) {
+func BenchmarkSingleFilter_1k_svc_10Peer(b *testing.B) {
+	b.StopTimer()
 	peer := StartTestPeer(10, 10, 100)
+	peer.PauseUpdates()
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -40,8 +44,10 @@ func BenchmarkRequestsFilterSmall_1k_svc_10Peer(b *testing.B) {
 	StopTestPeer(peer)
 }
 
-func BenchmarkRequestsFilterBig(b *testing.B) {
+func BenchmarkMultiFilter(b *testing.B) {
+	b.StopTimer()
 	peer := StartTestPeer(1, 0, 0)
+	peer.PauseUpdates()
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -52,8 +58,10 @@ func BenchmarkRequestsFilterBig(b *testing.B) {
 	StopTestPeer(peer)
 }
 
-func BenchmarkRequestsStatsSmall(b *testing.B) {
+func BenchmarkSimpleStats(b *testing.B) {
+	b.StopTimer()
 	peer := StartTestPeer(1, 0, 0)
+	peer.PauseUpdates()
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -64,8 +72,10 @@ func BenchmarkRequestsStatsSmall(b *testing.B) {
 	StopTestPeer(peer)
 }
 
-func BenchmarkRequestsStatsBig(b *testing.B) {
+func BenchmarkTacStats(b *testing.B) {
+	b.StopTimer()
 	peer := StartTestPeer(1, 0, 0)
+	peer.PauseUpdates()
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -76,8 +86,10 @@ func BenchmarkRequestsStatsBig(b *testing.B) {
 	StopTestPeer(peer)
 }
 
-func BenchmarkRequestsStatsBig_1k_svc__1Peer(b *testing.B) {
+func BenchmarkTacStats_1k_svc__1Peer(b *testing.B) {
+	b.StopTimer()
 	peer := StartTestPeer(1, 100, 1000)
+	peer.PauseUpdates()
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -88,8 +100,10 @@ func BenchmarkRequestsStatsBig_1k_svc__1Peer(b *testing.B) {
 	StopTestPeer(peer)
 }
 
-func BenchmarkRequestsStatsBig_1k_svc_10Peer(b *testing.B) {
+func BenchmarkTacStats_1k_svc_10Peer(b *testing.B) {
+	b.StopTimer()
 	peer := StartTestPeer(10, 10, 100)
+	peer.PauseUpdates()
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -100,36 +114,32 @@ func BenchmarkRequestsStatsBig_1k_svc_10Peer(b *testing.B) {
 	StopTestPeer(peer)
 }
 
-func BenchmarkRequestsServicelistLimit_1k_svc__1Peer(b *testing.B) {
+func BenchmarkServicelistLimit_1k_svc__1Peer(b *testing.B) {
+	b.StopTimer()
 	peer := StartTestPeer(1, 100, 1000)
+	peer.PauseUpdates()
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		peer.QueryString("GET services\nSort: host_name asc\nSort: description asc\nLimit: 100")
+		peer.QueryString(servicesPageQuery)
 	}
 	b.StopTimer()
 
 	StopTestPeer(peer)
 }
 
-func BenchmarkRequestsServicelistLimit_1k_svc_10Peer(b *testing.B) {
+func BenchmarkServicelistLimit_1k_svc_10Peer(b *testing.B) {
+	b.StopTimer()
 	peer := StartTestPeer(10, 10, 100)
+	peer.PauseUpdates()
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		peer.QueryString("GET services\nSort: host_name asc\nSort: description asc\nLimit: 100")
+		peer.QueryString(servicesPageQuery)
 	}
 	b.StopTimer()
 
 	StopTestPeer(peer)
-}
-
-func BenchmarkNumberToFloat(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		numberToFloat(123.1231123123)
-		numberToFloat(1231123123)
-		numberToFloat(true)
-	}
 }
 
 // Test queries
@@ -292,5 +302,11 @@ Stats: check_type = 1
 Stats: active_checks_enabled = 0
 StatsAnd: 2
 Stats: accept_passive_checks = 0
+OutputFormat: json
+ResponseHeader: fixed16`
+
+var servicesPageQuery = `GET services
+Columns: accept_passive_checks acknowledged action_url action_url_expanded active_checks_enabled check_command check_interval check_options check_period check_type checks_enabled comments current_attempt current_notification_number description event_handler event_handler_enabled custom_variable_names custom_variable_values execution_time first_notification_delay flap_detection_enabled groups has_been_checked high_flap_threshold host_acknowledged host_action_url_expanded host_active_checks_enabled host_address host_alias host_checks_enabled host_check_type host_latency host_plugin_output host_perf_data host_current_attempt host_check_command host_comments host_groups host_has_been_checked host_icon_image_expanded host_icon_image_alt host_is_executing host_is_flapping host_name host_notes_url_expanded host_notifications_enabled host_scheduled_downtime_depth host_state host_accept_passive_checks host_last_state_change icon_image icon_image_alt icon_image_expanded is_executing is_flapping last_check last_notification last_state_change latency long_plugin_output low_flap_threshold max_check_attempts next_check notes notes_expanded notes_url notes_url_expanded notification_interval notification_period notifications_enabled obsess_over_service percent_state_change perf_data plugin_output process_performance_data retry_interval scheduled_downtime_depth state state_type modified_attributes_list last_time_critical last_time_ok last_time_unknown last_time_warning display_name host_display_name host_custom_variable_names host_custom_variable_values in_check_period in_notification_period host_parents
+Limit: 100
 OutputFormat: json
 ResponseHeader: fixed16`
