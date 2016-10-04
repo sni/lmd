@@ -225,7 +225,7 @@ func StartTestPeer(numPeers int, numHosts int, numServices int) (peer *Peer) {
 
 	testPeerShutdownChannel := make(chan bool)
 	peer = NewPeer(Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
-	peer.Start()
+	peer.InitAllTables()
 
 	// wait till backend is available
 	retries := 0

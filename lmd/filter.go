@@ -506,7 +506,12 @@ func matchStringFilter(filter *Filter, value *interface{}) bool {
 }
 
 func matchStringValueOperator(op Operator, valueA *interface{}, valueB *string, regex *regexp.Regexp) bool {
-	strA := fmt.Sprintf("%v", *valueA)
+	var strA string
+	if s, ok := (*valueA).(string); ok {
+		strA = s
+	} else {
+		strA = fmt.Sprintf("%v", *valueA)
+	}
 	strB := *valueB
 	switch op {
 	case Equal:
