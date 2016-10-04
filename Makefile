@@ -5,7 +5,7 @@ MAKE:=make
 SHELL:=bash
 GOVERSION:=$(shell go version | awk '{print $$3}' | sed 's/^go\([0-9]\.[0-9]\).*/\1/')
 
-all: build
+all: build fmt deps
 
 deps: dump
 	go get -u github.com/BurntSushi/toml
@@ -23,7 +23,7 @@ dump:
 	fi
 	rm -f $(LAMPDDIR)/dump.go.bak
 
-build: deps fmt
+build: dump
 	cd $(LAMPDDIR) && go build -ldflags "-X main.Build=$(shell git rev-parse --short HEAD)"
 
 debugbuild: deps fmt
