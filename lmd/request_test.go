@@ -213,6 +213,9 @@ func TestResponseErrorsFunc(t *testing.T) {
 
 	for _, er := range testRequestStrings {
 		_, err := peer.QueryString(er.Request)
+		if err == nil {
+			t.Fatalf("No Error in Request: " + er.Request)
+		}
 		if err = assertEq(er.Error, err.Error()); err != nil {
 			t.Error("Request: " + er.Request)
 			t.Error(err)
