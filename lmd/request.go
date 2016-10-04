@@ -186,15 +186,9 @@ func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
 	firstLine = strings.TrimSpace(firstLine)
 	// check for commands
 	log.Debugf("request: %s", firstLine)
-	matched := reRequestCommand.FindStringSubmatch(firstLine)
-	if len(matched) == 2 {
-		req.Command = matched[0]
-	} else {
-		matched = reRequestAction.FindStringSubmatch(firstLine)
+	if strings.HasPrefix(firstLine, "GET ") {
+		matched := reRequestAction.FindStringSubmatch(firstLine)
 		if len(matched) != 2 {
-			if len(firstLine) == 0 {
-				return nil, size, nil
-			}
 			err = fmt.Errorf("bad request: %s", firstLine)
 			return
 		}
@@ -205,6 +199,15 @@ func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
 			err = fmt.Errorf("bad request: table %s does not exist", req.Table)
 			return
 		}
+	} else if strings.HasPrefix(firstLine, "COMMAND ") {
+		matched := reRequestCommand.FindStringSubmatch(firstLine)
+		req.Command = matched[0]
+	} else {
+		if len(firstLine) == 0 {
+			return nil, size, nil
+		}
+		err = fmt.Errorf("bad request: %s", firstLine)
+		return
 	}
 
 	for {
