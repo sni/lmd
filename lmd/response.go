@@ -348,14 +348,11 @@ func (res *Response) Send(c net.Conn) (size int, err error) {
 // JSON converts the response into a json structure
 func (res *Response) JSON() (resBytes []byte, err error) {
 	if res.Request.SendColumnsHeader {
-		var result [][]interface{}
 		cols := make([]interface{}, len(res.Request.Columns)+len(res.Request.Stats))
 		for i, v := range res.Request.Columns {
 			cols[i] = v
 		}
-		result = append(result, cols)
-		result = append(result, res.Result...)
-		res.Result = result
+		res.Result = append([][]interface{}{cols}, res.Result...)
 	}
 	if res.Error != nil {
 		log.Warnf("client error: %s", res.Error.Error())
