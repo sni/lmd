@@ -38,10 +38,18 @@ func InitLogging(conf *Config) {
 		LogLevel = conf.LogLevel
 	}
 	logger := factorlog.New(targetWriter, logFormatter)
+	logger.SetVerbosity(1)
 	if strings.ToLower(LogLevel) == "off" {
 		logger.SetMinMaxSeverity(factorlog.StringToSeverity("PANIC"), factorlog.StringToSeverity("PANIC"))
+		logger.SetVerbosity(0)
 	} else {
 		logger.SetMinMaxSeverity(factorlog.StringToSeverity(strings.ToUpper(LogLevel)), factorlog.StringToSeverity("PANIC"))
+		if strings.ToLower(LogLevel) == "trace" {
+			logger.SetVerbosity(3)
+		}
+		if strings.ToLower(LogLevel) == "debug" {
+			logger.SetVerbosity(2)
+		}
 	}
 	log = logger
 }

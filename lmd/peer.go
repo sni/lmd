@@ -666,7 +666,9 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 	}
 
 	query := req.String()
-	log.Tracef("[%s] query: %s", p.Name, query)
+	if log.IsV(3) {
+		log.Tracef("[%s] query: %s", p.Name, query)
+	}
 
 	p.PeerLock.Lock()
 	p.Status["Querys"] = p.Status["Querys"].(int) + 1
@@ -683,7 +685,9 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 		return
 	}
 
-	log.Tracef("[%s] result: %s", p.Name, string(buf.Bytes()))
+	if log.IsV(3) {
+		log.Tracef("[%s] result: %s", p.Name, string(buf.Bytes()))
+	}
 
 	resBytes := buf.Bytes()
 	if req.ResponseFixed16 {

@@ -184,8 +184,10 @@ func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
 	}
 	size += len(firstLine)
 	firstLine = strings.TrimSpace(firstLine)
-	// check for commands
-	log.Debugf("request: %s", firstLine)
+	if log.IsV(2) {
+		log.Debugf("request: %s", firstLine)
+	}
+	// normal get request?
 	if strings.HasPrefix(firstLine, "GET ") {
 		matched := reRequestAction.FindStringSubmatch(firstLine)
 		if len(matched) != 2 {
@@ -199,6 +201,7 @@ func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
 			err = fmt.Errorf("bad request: table %s does not exist", req.Table)
 			return
 		}
+		// or a command
 	} else if strings.HasPrefix(firstLine, "COMMAND ") {
 		matched := reRequestCommand.FindStringSubmatch(firstLine)
 		req.Command = matched[0]
@@ -222,7 +225,9 @@ func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
 			break
 		}
 
-		log.Debugf("request: %s", line)
+		if log.IsV(2) {
+			log.Debugf("request: %s", line)
+		}
 		perr := req.ParseRequestHeaderLine(&line)
 		if perr != nil {
 			err = perr

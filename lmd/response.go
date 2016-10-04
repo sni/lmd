@@ -331,7 +331,9 @@ func (res *Response) Send(c net.Conn) (size int, err error) {
 			log.Warnf("write error: %s", err.Error())
 		}
 	}
-	log.Debugf("write: %s", resBytes)
+	if log.IsV(2) {
+		log.Debugf("write: %s", resBytes)
+	}
 	written, err := c.Write(resBytes)
 	if err != nil {
 		log.Warnf("write error: %s", err.Error())
