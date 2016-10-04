@@ -2,6 +2,8 @@
 
 LAMPDDIR=lmd
 MAKE:=make
+SHELL:=bash
+GOVERSION:=$(shell go version | awk '{print $$3}' | sed 's/^go\([0-9]\.[0-9]\).*/\1/')
 
 all: build
 
@@ -89,8 +91,9 @@ lint:
 	#
 	# Check if golint complains
 	# see https://github.com/golang/lint/ for details.
+	# Only works with Go 1.6 or up.
 	#
-	cd $(LAMPDDIR) && golint -set_exit_status .
+	[ $$(echo "$(GOVERSION) >= 1.6" | bc) -eq 0 ] || cd $(LAMPDDIR) && golint -set_exit_status .
 
 cyclo:
 	go get -u github.com/fzipp/gocyclo
