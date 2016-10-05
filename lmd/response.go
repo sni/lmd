@@ -63,7 +63,6 @@ func NewResponse(req *Request) (res *Response, err error) {
 		return
 	}
 	res.Columns = columns
-	numPerRow := len(indexes)
 
 	// check if we have to spin up updates, if so, do it parallel
 	selectedPeers := []string{}
@@ -84,25 +83,29 @@ func NewResponse(req *Request) (res *Response, err error) {
 		SpinUpPeers(spinUpPeers)
 	}
 
+	// only use the first backend when requesting table or columns table
 	if table.Name == "tables" || table.Name == "columns" {
 		selectedPeers = []string{DataStoreOrder[0]}
 	}
 
 	if table.PassthroughOnly {
 		// passthrough requests, ex.: log table
-		res.BuildPassThroughResult(selectedPeers, &table, &columns, numPerRow)
+		err = res.BuildPassThroughResult(selectedPeers, &table, &columns)
 		if err != nil {
 			return
 		}
 	} else {
-		for _, id := range selectedPeers {
-			p := DataStore[id]
-			p.BuildLocalResponseData(res, req, numPerRow, &indexes)
-			log.Tracef("BuildLocalResponseData done: %s", p.Name)
-			if table.Name == "tables" || table.Name == "columns" {
-				break
-			}
+		err = res.BuildLocalResponse(selectedPeers, &indexes)
+		if err != nil {
+			return
 		}
+		/*
+			for _, id := range selectedPeers {
+				p := DataStore[id]
+				p.BuildLocalResponseData(res, req, &indexes)
+				log.Tracef("BuildLocalResponseData done: %s", p.Name)
+			}
+		*/
 	}
 	if res.Result == nil {
 		res.Result = make([][]interface{}, 0)
@@ -408,9 +411,50 @@ func (res *Response) JSON() (resBytes []byte, err error) {
 	return
 }
 
+// BuildLocalResponse builds local data table result for all selected peers
+func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) (err error) {
+	//req := res.Request
+	res.Result = make([][]interface{}, 0)
+
+	waitgroup := &sync.WaitGroup{}
+	resultLock := sync.Mutex{}
+
+	for _, id := range peers {
+		p := DataStore[id]
+
+		p.PeerLock.RLock()
+		if p.Status["PeerStatus"].(PeerStatus) == PeerStatusDown {
+			resultLock.Lock()
+			res.Failed[p.ID] = fmt.Sprintf("%v", p.Status["LastError"])
+			resultLock.Unlock()
+			p.PeerLock.RUnlock()
+			continue
+		}
+		p.PeerLock.RUnlock()
+
+		waitgroup.Add(1)
+		go func(peer Peer, wg *sync.WaitGroup) {
+			log.Debugf("[%s] starting local data computation", p.Name)
+			defer wg.Done()
+
+			result := p.BuildLocalResponseData(res, indexes)
+			log.Tracef("[%s] result ready", p.Name)
+			if result != nil {
+				resultLock.Lock()
+				res.Result = append(res.Result, (*result)...)
+				resultLock.Unlock()
+			}
+		}(p, waitgroup)
+	}
+	log.Tracef("waiting...")
+	waitgroup.Wait()
+	log.Tracef("waiting for all local data computations done")
+	return
+}
+
 // BuildPassThroughResult passes a query transparently to one or more remote sites and builds the response
 // from that.
-func (res *Response) BuildPassThroughResult(peers []string, table *Table, columns *[]Column, numPerRow int) (err error) {
+func (res *Response) BuildPassThroughResult(peers []string, table *Table, columns *[]Column) (err error) {
 	req := res.Request
 	res.Result = make([][]interface{}, 0)
 
@@ -425,17 +469,18 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table, column
 		}
 	}
 
+	numPerRow := len(*columns)
 	waitgroup := &sync.WaitGroup{}
+	resultLock := sync.Mutex{}
 
 	for _, id := range peers {
 		p := DataStore[id]
-		m := sync.Mutex{}
 
 		p.PeerLock.RLock()
 		if p.Status["PeerStatus"].(PeerStatus) == PeerStatusDown {
-			m.Lock()
+			resultLock.Lock()
 			res.Failed[p.ID] = fmt.Sprintf("%v", p.Status["LastError"])
-			m.Unlock()
+			resultLock.Unlock()
 			p.PeerLock.RUnlock()
 			continue
 		}
@@ -459,9 +504,9 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table, column
 			log.Tracef("[%s] req done", p.Name)
 			if err != nil {
 				log.Tracef("[%s] req errored", err.Error())
-				m.Lock()
+				resultLock.Lock()
 				res.Failed[p.ID] = err.Error()
-				m.Unlock()
+				resultLock.Unlock()
 				return
 			}
 			// insert virtual values
@@ -477,9 +522,9 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table, column
 				}
 			}
 			log.Tracef("[%s] result ready", p.Name)
-			m.Lock()
+			resultLock.Lock()
 			res.Result = append(res.Result, result...)
-			m.Unlock()
+			resultLock.Unlock()
 		}(p, waitgroup)
 	}
 	log.Tracef("waiting...")

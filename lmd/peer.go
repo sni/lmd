@@ -1360,7 +1360,9 @@ func SpinUpPeers(peers []string) {
 }
 
 // BuildLocalResponseData returnss the result data for a given request
-func (p *Peer) BuildLocalResponseData(res *Response, req *Request, numPerRow int, indexes *[]int) {
+func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) *[][]interface{} {
+	req := res.Request
+	numPerRow := len(*indexes)
 	log.Tracef("BuildLocalResponseData: %s", p.Name)
 	p.DataLock.RLock()
 	defer p.DataLock.RUnlock()
@@ -1370,7 +1372,7 @@ func (p *Peer) BuildLocalResponseData(res *Response, req *Request, numPerRow int
 	if table == nil || (p.Status["PeerStatus"].(PeerStatus) == PeerStatusDown && !table.Virtual) {
 		res.Failed[p.ID] = fmt.Sprintf("%v", p.Status["LastError"])
 		p.PeerLock.Unlock()
-		return
+		return nil
 	}
 	p.PeerLock.Unlock()
 
@@ -1385,17 +1387,18 @@ func (p *Peer) BuildLocalResponseData(res *Response, req *Request, numPerRow int
 	}
 
 	if len(data) == 0 {
-		return
+		return nil
 	}
 
-	p.gatherResultRows(res, table, &data, numPerRow, indexes)
+	return p.gatherResultRows(res, table, &data, numPerRow, indexes)
 }
 
-func (p *Peer) gatherResultRows(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) {
+func (p *Peer) gatherResultRows(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) *[][]interface{} {
 	req := res.Request
 	refs := p.Tables[req.Table].Refs
 	statsLen := len(res.Request.Stats)
 	inputRowLen := len((*data)[0])
+	result := make([][]interface{}, 0)
 
 	// if there is no sort header or sort by name only,
 	// we can drastically reduce the result set by applying the limit here already
@@ -1448,12 +1451,12 @@ Rows:
 		found++
 		// check if we have enough result rows already
 		if limit == 0 || found <= limit {
-			res.Result = append(res.Result, resRow)
+			result = append(result, resRow)
 		}
 	}
 	res.ResultTotal += found
 
-	return
+	return &result
 }
 
 func optimizeResultLimit(req *Request, table *Table) (limit int) {
