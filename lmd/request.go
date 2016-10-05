@@ -227,6 +227,8 @@ func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
 	return
 }
 
+// ParseRequestAction parses the first line from a request which
+// may start with GET or COMMAND
 func (req *Request) ParseRequestAction(firstLine *string) (valid bool, err error) {
 	valid = false
 
