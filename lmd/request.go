@@ -113,6 +113,10 @@ func ParseRequests(c net.Conn) (reqs []*Request, err error) {
 		if req == nil {
 			break
 		}
+		err = req.ExpandRequestedBackends()
+		if err != nil {
+			return nil, err
+		}
 		reqs = append(reqs, req)
 		// only multiple commands are allowed
 		if req.Command == "" {
@@ -219,11 +223,6 @@ func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
 	}
 
 	err = req.VerifyRequestIntegrity()
-	if err != nil {
-		return
-	}
-
-	err = req.ExpandRequestedBackends()
 	return
 }
 
