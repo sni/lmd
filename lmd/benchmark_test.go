@@ -138,6 +138,40 @@ func BenchmarkTacStats_1k_svc_10Peer(b *testing.B) {
 	StopTestPeer(peer)
 }
 
+func BenchmarkTacStats_1k_svc_100Peer(b *testing.B) {
+	b.StopTimer()
+	peer := StartTestPeer(100, 10, 10)
+	peer.PauseUpdates()
+
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		_, err := peer.QueryString(tacPageStatsQuery)
+		if err != nil {
+			panic(err.Error())
+		}
+	}
+	b.StopTimer()
+
+	StopTestPeer(peer)
+}
+
+func BenchmarkTacStats_5k_svc_500Peer(b *testing.B) {
+	b.StopTimer()
+	peer := StartTestPeer(500, 10, 10)
+	peer.PauseUpdates()
+
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		_, err := peer.QueryString(tacPageStatsQuery)
+		if err != nil {
+			panic(err.Error())
+		}
+	}
+	b.StopTimer()
+
+	StopTestPeer(peer)
+}
+
 func BenchmarkServicelistLimit_1k_svc__1Peer(b *testing.B) {
 	b.StopTimer()
 	peer := StartTestPeer(1, 100, 1000)
