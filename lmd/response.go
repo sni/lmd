@@ -355,12 +355,17 @@ func (res *Response) JSON() (resBytes []byte, err error) {
 		return
 	}
 
-	if res.Request.OutputFormat == "wrapped_json" {
-		resBytes = append(resBytes, []byte("{\"data\":[")...)
+	outputFormat := res.Request.OutputFormat
+	if outputFormat == "" {
+		outputFormat = "json"
 	}
-	if res.Request.OutputFormat == "json" || res.Request.OutputFormat == "" {
-		resBytes = append(resBytes, []byte("[")...)
+
+	if outputFormat == "wrapped_json" {
+		resBytes = append(resBytes, []byte("{\"data\":")...)
 	}
+
+	resBytes = append(resBytes, []byte("[")...)
+	// add optional columns header as first row
 	if res.Request.SendColumnsHeader {
 		cols := make([]interface{}, len(res.Request.Columns)+len(res.Request.Stats))
 		for i, v := range res.Request.Columns {
@@ -375,7 +380,7 @@ func (res *Response) JSON() (resBytes []byte, err error) {
 		resBytes = append(resBytes, rowBytes...)
 	}
 	// append result row by row
-	if res.Request.OutputFormat == "wrapped_json" || res.Request.OutputFormat == "json" || res.Request.OutputFormat == "" {
+	if outputFormat == "wrapped_json" || outputFormat == "json" {
 		for i, row := range res.Result {
 			rowBytes, jerr := json.Marshal(row)
 			if jerr != nil {
@@ -394,7 +399,7 @@ func (res *Response) JSON() (resBytes []byte, err error) {
 		}
 		resBytes = append(resBytes, []byte("]")...)
 	}
-	if res.Request.OutputFormat == "wrapped_json" {
+	if outputFormat == "wrapped_json" {
 		resBytes = append(resBytes, []byte("\n,\"failed\":")...)
 		failBytes, _ := json.Marshal(res.Failed)
 		resBytes = append(resBytes, failBytes...)

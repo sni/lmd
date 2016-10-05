@@ -88,7 +88,6 @@ func (op *GroupOperator) String() string {
 var reRequestAction = regexp.MustCompile(`^GET ([a-z]+)$`)
 var reRequestCommand = regexp.MustCompile(`^COMMAND (\[\d+\].*)$`)
 var reRequestHeader = regexp.MustCompile(`^(\w+):\s*(.*)$`)
-var reRequestEmpty = regexp.MustCompile(`^\s*$`)
 
 // ParseRequest reads from a connection and returns a single requests.
 // It returns a the requests and any errors encountered.
@@ -187,29 +186,10 @@ func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
 	if log.IsV(2) {
 		log.Debugf("request: %s", firstLine)
 	}
-	// normal get request?
-	if strings.HasPrefix(firstLine, "GET ") {
-		matched := reRequestAction.FindStringSubmatch(firstLine)
-		if len(matched) != 2 {
-			err = fmt.Errorf("bad request: %s", firstLine)
-			return
-		}
 
-		req.Table = matched[1]
-		_, ok := Objects.Tables[req.Table]
-		if !ok {
-			err = fmt.Errorf("bad request: table %s does not exist", req.Table)
-			return
-		}
-		// or a command
-	} else if strings.HasPrefix(firstLine, "COMMAND ") {
-		matched := reRequestCommand.FindStringSubmatch(firstLine)
-		req.Command = matched[0]
-	} else {
-		if len(firstLine) == 0 {
-			return nil, size, nil
-		}
-		err = fmt.Errorf("bad request: %s", firstLine)
+	ok, err := req.ParseRequestAction(&firstLine)
+	if err != nil || !ok {
+		req = nil
 		return
 	}
 
@@ -221,7 +201,7 @@ func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
 		}
 		size += len(line)
 		line = strings.TrimSpace(line)
-		if reRequestEmpty.MatchString(line) {
+		if line == "" {
 			break
 		}
 
@@ -244,6 +224,43 @@ func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
 	}
 
 	err = req.ExpandRequestedBackends()
+	return
+}
+
+func (req *Request) ParseRequestAction(firstLine *string) (valid bool, err error) {
+	valid = false
+
+	// normal get request?
+	if strings.HasPrefix(*firstLine, "GET ") {
+		matched := reRequestAction.FindStringSubmatch(*firstLine)
+		if len(matched) != 2 {
+			err = fmt.Errorf("bad request: %s", *firstLine)
+			return
+		}
+
+		req.Table = matched[1]
+		_, ok := Objects.Tables[req.Table]
+		if !ok {
+			err = fmt.Errorf("bad request: table %s does not exist", req.Table)
+		}
+		valid = true
+		return
+	}
+
+	// or a command
+	if strings.HasPrefix(*firstLine, "COMMAND ") {
+		matched := reRequestCommand.FindStringSubmatch(*firstLine)
+		req.Command = matched[0]
+		valid = true
+		return
+	}
+
+	// empty request
+	if len(*firstLine) == 0 {
+		return
+	}
+
+	err = fmt.Errorf("bad request: %s", *firstLine)
 	return
 }
 

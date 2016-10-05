@@ -218,7 +218,7 @@ func TestResponseErrorsFunc(t *testing.T) {
 		}
 		if err = assertEq(er.Error, err.Error()); err != nil {
 			t.Error("Request: " + er.Request)
-			t.Error(err)
+			t.Fatalf(err.Error())
 		}
 	}
 

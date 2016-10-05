@@ -190,7 +190,7 @@ func (p *Peer) Stop() {
 func (p *Peer) updateLoop() {
 	for {
 		ok := p.InitAllTables()
-		lastFullUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
+		lastTimeperiodUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
 
 		c := time.Tick(500 * time.Millisecond)
 		for {
@@ -201,58 +201,61 @@ func (p *Peer) updateLoop() {
 			case <-c:
 				p.PeerLock.RLock()
 				lastUpdate := p.Status["LastUpdate"].(int64)
-				lastQuery := p.Status["LastQuery"].(int64)
 				lastFullUpdate := p.Status["LastFullUpdate"].(int64)
-				idling := p.Status["Idling"].(bool)
 				p.PeerLock.RUnlock()
 
+				idling := p.updateIdleStatus()
 				now := time.Now().Unix()
-				shouldIdle := false
-				if lastQuery == 0 && lastMainRestart < now-GlobalConfig.IdleTimeout {
-					shouldIdle = true
-				} else if lastQuery > 0 && lastQuery < now-GlobalConfig.IdleTimeout {
-					shouldIdle = true
-				}
-				if !idling && shouldIdle {
-					log.Infof("[%s] switched to idle interval, last query: %s", p.Name, time.Unix(lastQuery, 0))
-					p.StatusSet("Idling", true)
-					idling = true
-				}
-
 				currentMinute, _ := strconv.Atoi(time.Now().Format("4"))
 				if idling {
-					// idle update interval
-					if now > lastUpdate+GlobalConfig.IdleInterval {
-						if !ok {
-							ok = p.InitAllTables()
-							lastFullUpdateMinute = currentMinute
-						} else {
-							p.UpdateObjectByType(Objects.Tables["timeperiods"])
-							ok = p.UpdateDeltaTables()
-						}
+					if now < lastUpdate+GlobalConfig.IdleInterval {
+						break
 					}
-				} else {
-					// full update interval
-					if GlobalConfig.FullUpdateInterval > 0 && now > lastFullUpdate+GlobalConfig.FullUpdateInterval {
-						ok = p.UpdateAllTables()
-					} else if now > lastUpdate+GlobalConfig.Updateinterval {
-						// normal update interval
-						if !ok {
-							ok = p.InitAllTables()
-							lastFullUpdateMinute = currentMinute
-						} else {
-							if lastFullUpdateMinute != currentMinute {
-								p.UpdateObjectByType(Objects.Tables["timeperiods"])
-								lastFullUpdateMinute = currentMinute
-							}
-							ok = p.UpdateDeltaTables()
-						}
-					}
+				} else if now < lastUpdate+GlobalConfig.Updateinterval {
+					break
 				}
+				if !ok {
+					ok = p.InitAllTables()
+					lastTimeperiodUpdateMinute = currentMinute
+					break
+				}
+
+				// full update interval
+				if !idling && GlobalConfig.FullUpdateInterval > 0 && now > lastFullUpdate+GlobalConfig.FullUpdateInterval {
+					ok = p.UpdateAllTables()
+					break
+				}
+
+				if lastTimeperiodUpdateMinute != currentMinute {
+					p.UpdateObjectByType(Objects.Tables["timeperiods"])
+					lastTimeperiodUpdateMinute = currentMinute
+				}
+
+				ok = p.UpdateDeltaTables()
 				break
 			}
 		}
 	}
+}
+
+func (p *Peer) updateIdleStatus() bool {
+	now := time.Now().Unix()
+	shouldIdle := false
+	p.PeerLock.RLock()
+	lastQuery := p.Status["LastQuery"].(int64)
+	idling := p.Status["Idling"].(bool)
+	p.PeerLock.RUnlock()
+	if lastQuery == 0 && lastMainRestart < now-GlobalConfig.IdleTimeout {
+		shouldIdle = true
+	} else if lastQuery > 0 && lastQuery < now-GlobalConfig.IdleTimeout {
+		shouldIdle = true
+	}
+	if !idling && shouldIdle {
+		log.Infof("[%s] switched to idle interval, last query: %s", p.Name, time.Unix(lastQuery, 0))
+		p.StatusSet("Idling", true)
+		idling = true
+	}
+	return idling
 }
 
 // StatusSet updates a status map and takes care about the logging.
@@ -704,11 +707,11 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(p.Status["BytesReceived"].(int)))
 	p.PeerLock.Unlock()
 
+	if len(resBytes) == 0 || (string(resBytes[0]) != "{" && string(resBytes[0]) != "[") {
+		err = errors.New(strings.TrimSpace(string(resBytes)))
+		return nil, &PeerError{msg: err.Error(), kind: ResponseError}
+	}
 	if req.OutputFormat == "wrapped_json" {
-		if len(resBytes) == 0 || string(resBytes[0]) != "{" {
-			err = errors.New(strings.TrimSpace(string(resBytes)))
-			return nil, &PeerError{msg: err.Error(), kind: ResponseError}
-		}
 		wrappedResult := make(map[string]json.RawMessage)
 		err = json.Unmarshal(resBytes, &wrappedResult)
 		if err != nil {
@@ -716,10 +719,6 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 		}
 		err = json.Unmarshal(wrappedResult["data"], &result)
 	} else {
-		if len(resBytes) == 0 || string(resBytes[0]) != "[" {
-			err = errors.New(strings.TrimSpace(string(resBytes)))
-			return nil, &PeerError{msg: err.Error(), kind: ResponseError}
-		}
 		err = json.Unmarshal(resBytes, &result)
 	}
 
