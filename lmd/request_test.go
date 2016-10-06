@@ -237,7 +237,7 @@ func TestRequestStats(t *testing.T) {
 		t.Error(err)
 	}
 
-	res, err = peer.QueryString("GET hosts\nStats: sum latency\nStats: avg latency\nStats: min has_been_checked\nStats: max execution_time\n")
+	res, err = peer.QueryString("GET hosts\nStats: sum latency\nStats: avg latency\nStats: min has_been_checked\nStats: max execution_time\nStats: name !=\n")
 
 	if err = assertEq(1.7066228389833, res[0][0]); err != nil {
 		t.Error(err)
@@ -249,6 +249,9 @@ func TestRequestStats(t *testing.T) {
 		t.Error(err)
 	}
 	if err = assertEq(4.031151, res[0][3]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(float64(12), res[0][4]); err != nil {
 		t.Error(err)
 	}
 

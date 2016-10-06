@@ -192,7 +192,7 @@ func (f *Filter) strValue() (str string) {
 func (f *Filter) ApplyValue(val float64, count int) {
 	switch f.StatsType {
 	case Counter:
-		f.Stats++
+		f.Stats += float64(count)
 		break
 	case Average:
 		fallthrough
