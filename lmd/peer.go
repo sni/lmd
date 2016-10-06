@@ -1360,7 +1360,7 @@ func SpinUpPeers(peers []string) {
 }
 
 // BuildLocalResponseData returnss the result data for a given request
-func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) *[][]interface{} {
+func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (*[][]interface{}, *[]Filter) {
 	req := res.Request
 	numPerRow := len(*indexes)
 	log.Tracef("BuildLocalResponseData: %s", p.Name)
@@ -1372,7 +1372,7 @@ func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) *[][]interf
 	if table == nil || (p.Status["PeerStatus"].(PeerStatus) == PeerStatusDown && !table.Virtual) {
 		res.Failed[p.ID] = fmt.Sprintf("%v", p.Status["LastError"])
 		p.PeerLock.Unlock()
-		return nil
+		return nil, nil
 	}
 	p.PeerLock.Unlock()
 
@@ -1387,13 +1387,13 @@ func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) *[][]interf
 	}
 
 	if len(data) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	return p.gatherResultRows(res, table, &data, numPerRow, indexes)
 }
 
-func (p *Peer) gatherResultRows(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) *[][]interface{} {
+func (p *Peer) gatherResultRows(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) (*[][]interface{}, *[]Filter) {
 	req := res.Request
 	refs := p.Tables[req.Table].Refs
 	statsLen := len(res.Request.Stats)
@@ -1403,6 +1403,8 @@ func (p *Peer) gatherResultRows(res *Response, table *Table, data *[][]interface
 	// if there is no sort header or sort by name only,
 	// we can drastically reduce the result set by applying the limit here already
 	limit := optimizeResultLimit(req, table)
+
+	localStats := createLocalStatsCopy(&req.Stats)
 
 	found := 0
 Rows:
@@ -1422,7 +1424,7 @@ Rows:
 				// counter must match their filter
 				if s.StatsType != Counter || p.MatchRowFilter(table, &refs, inputRowLen, s, &row, j) {
 					val := p.GetRowValue(s.Column.Index, &row, j, table, &refs, inputRowLen)
-					s.ApplyValue(&val)
+					localStats[i].ApplyValue(numberToFloat(val), 1)
 				}
 			}
 			continue Rows
@@ -1456,9 +1458,19 @@ Rows:
 	}
 	res.ResultTotal += found
 
-	return &result
+	return &result, &localStats
 }
 
+func createLocalStatsCopy(stats *[]Filter) []Filter {
+	localStats := make([]Filter, len(*stats))
+	for i, s := range *stats {
+		localStats[i].StatsType = s.StatsType
+		if s.StatsType == Min {
+			localStats[i].Stats = -1
+		}
+	}
+	return localStats
+}
 func optimizeResultLimit(req *Request, table *Table) (limit int) {
 	if req.Limit > 0 && table.IsDefaultSortOrder(&req.Sort) {
 		limit = req.Limit

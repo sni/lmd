@@ -189,7 +189,7 @@ func (f *Filter) strValue() (str string) {
 }
 
 // ApplyValue add the given value to this stats filter
-func (f *Filter) ApplyValue(val *interface{}) {
+func (f *Filter) ApplyValue(val float64, count int) {
 	switch f.StatsType {
 	case Counter:
 		f.Stats++
@@ -197,22 +197,24 @@ func (f *Filter) ApplyValue(val *interface{}) {
 	case Average:
 		fallthrough
 	case Sum:
-		f.Stats += numberToFloat(*val)
+		f.Stats += val
 		break
 	case Min:
-		value := numberToFloat(*val)
+		value := val
 		if f.Stats > value || f.Stats == -1 {
 			f.Stats = value
 		}
 		break
 	case Max:
-		value := numberToFloat(*val)
+		value := val
 		if f.Stats < value {
 			f.Stats = value
 		}
 		break
+	default:
+		panic("not implemented stats type")
 	}
-	f.StatsCount++
+	f.StatsCount += count
 }
 
 // ParseFilter parses a single line into a filter object.
