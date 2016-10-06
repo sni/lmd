@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"fmt"
+	"syscall"
+	"testing"
+)
 
 func BenchmarkSingleFilter(b *testing.B) {
 	b.StopTimer()
@@ -139,6 +143,15 @@ func BenchmarkTacStats_1k_svc_10Peer(b *testing.B) {
 }
 
 func BenchmarkTacStats_1k_svc_100Peer(b *testing.B) {
+	var rLimit syscall.Rlimit
+	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+	if err != nil {
+		b.Skip("skipping test, cannot fetch open files limit.")
+	}
+	if rLimit.Cur < 1000 {
+		b.Skip(fmt.Sprintf("skipping test, open files limit too low: %d", rLimit.Cur))
+	}
+
 	b.StopTimer()
 	peer := StartTestPeer(100, 10, 10)
 	peer.PauseUpdates()
@@ -156,6 +169,15 @@ func BenchmarkTacStats_1k_svc_100Peer(b *testing.B) {
 }
 
 func BenchmarkTacStats_5k_svc_500Peer(b *testing.B) {
+	var rLimit syscall.Rlimit
+	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+	if err != nil {
+		b.Skip("skipping test, cannot fetch open files limit.")
+	}
+	if rLimit.Cur < 1000 {
+		b.Skip(fmt.Sprintf("skipping test, open files limit too low: %d", rLimit.Cur))
+	}
+
 	b.StopTimer()
 	peer := StartTestPeer(500, 10, 10)
 	peer.PauseUpdates()
