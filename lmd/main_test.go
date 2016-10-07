@@ -13,6 +13,9 @@ func TestMainFunc(t *testing.T) {
 	peer := StartTestPeer(1, 0, 0)
 
 	res, err := peer.QueryString("GET backends\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err = assertEq("peer_key", res[0][0]); err != nil {
 		t.Fatal(err)
 	}
