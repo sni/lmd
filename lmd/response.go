@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -342,11 +343,10 @@ func (res *Response) Send(c net.Conn) (size int, err error) {
 }
 
 // JSON converts the response into a json structure
-func (res *Response) JSON() (resBytes []byte, err error) {
+func (res *Response) JSON() ([]byte, error) {
 	if res.Error != nil {
 		log.Warnf("client error: %s", res.Error.Error())
-		resBytes = []byte(res.Error.Error())
-		return
+		return []byte(res.Error.Error()), nil
 	}
 
 	outputFormat := res.Request.OutputFormat
@@ -354,52 +354,50 @@ func (res *Response) JSON() (resBytes []byte, err error) {
 		outputFormat = "json"
 	}
 
+	buf := new(bytes.Buffer)
+	enc := json.NewEncoder(buf)
+
 	if outputFormat == "wrapped_json" {
-		resBytes = append(resBytes, []byte("{\"data\":")...)
+		buf.Write([]byte("{\"data\":"))
 	}
 
-	resBytes = append(resBytes, []byte("[")...)
+	buf.Write([]byte("["))
 	// add optional columns header as first row
 	if res.Request.SendColumnsHeader {
 		cols := make([]interface{}, len(res.Request.Columns)+len(res.Request.Stats))
 		for i, v := range res.Request.Columns {
 			cols[i] = v
 		}
-		rowBytes, jerr := json.Marshal(cols)
-		if jerr != nil {
-			log.Errorf("json error: %s in column header: %v", jerr.Error(), cols)
-			err = jerr
-			return
+		err := enc.Encode(cols)
+		if err != nil {
+			log.Errorf("json error: %s in column header: %v", err.Error(), cols)
+			return nil, err
 		}
-		resBytes = append(resBytes, rowBytes...)
 	}
 	// append result row by row
 	if outputFormat == "wrapped_json" || outputFormat == "json" {
 		for i, row := range res.Result {
-			rowBytes, jerr := json.Marshal(row)
-			if jerr != nil {
-				log.Errorf("json error: %s in row: %v", jerr.Error(), row)
-				err = jerr
-				return
-			}
 			if i == 0 {
 				if res.Request.SendColumnsHeader {
-					resBytes = append(resBytes, []byte(",\n")...)
+					buf.Write([]byte(",\n"))
 				}
 			} else {
-				resBytes = append(resBytes, []byte(",\n")...)
+				buf.Write([]byte(",\n"))
 			}
-			resBytes = append(resBytes, rowBytes...)
+			err := enc.Encode(row)
+			if err != nil {
+				log.Errorf("json error: %s in row: %v", err.Error(), row)
+				return nil, err
+			}
 		}
-		resBytes = append(resBytes, []byte("]")...)
+		buf.Write([]byte("]"))
 	}
 	if outputFormat == "wrapped_json" {
-		resBytes = append(resBytes, []byte("\n,\"failed\":")...)
-		failBytes, _ := json.Marshal(res.Failed)
-		resBytes = append(resBytes, failBytes...)
-		resBytes = append(resBytes, []byte(fmt.Sprintf("\n,\"total\":%d}", res.ResultTotal))...)
+		buf.Write([]byte("\n,\"failed\":"))
+		enc.Encode(res.Failed)
+		buf.Write([]byte(fmt.Sprintf("\n,\"total\":%d}", res.ResultTotal)))
 	}
-	return
+	return buf.Bytes(), nil
 }
 
 // BuildLocalResponse builds local data table result for all selected peers
