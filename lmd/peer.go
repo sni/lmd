@@ -713,7 +713,7 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 
 	if len(resBytes) == 0 || (string(resBytes[0]) != "{" && string(resBytes[0]) != "[") {
 		err = errors.New(strings.TrimSpace(string(resBytes)))
-		return nil, &PeerError{msg: err.Error(), kind: ResponseError}
+		return nil, &PeerError{msg: "json structure must begin with { or [. Got:\n" + err.Error(), kind: ResponseError}
 	}
 	if req.OutputFormat == "wrapped_json" {
 		wrappedResult := make(map[string]json.RawMessage)
@@ -1213,9 +1213,6 @@ func (p *Peer) GetVirtRowValue(col Column, row *[]interface{}, rowNum int, table
 // WaitCondition waits for a given condition.
 // It returns true if the wait timed out or false if the condition matched successfully.
 func (p *Peer) WaitCondition(req *Request) bool {
-	if req.WaitTrigger == "" {
-		return false
-	}
 	c := make(chan struct{})
 	go func() {
 		// make sure we log panics properly
@@ -1394,7 +1391,9 @@ func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (*[][]inter
 	}
 
 	// if a WaitTrigger is supplied, wait max ms till the condition is true
-	p.WaitCondition(req)
+	if req.WaitTrigger != "" {
+		p.WaitCondition(req)
+	}
 
 	p.DataLock.RLock()
 	defer p.DataLock.RUnlock()

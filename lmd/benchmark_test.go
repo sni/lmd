@@ -1,10 +1,33 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"syscall"
 	"testing"
 )
+
+func BenchmarkQuery(b *testing.B) {
+	b.StopTimer()
+	peer := StartTestPeer(1, 100, 1000)
+	peer.PauseUpdates()
+
+	testPeerShutdownChannel := make(chan bool)
+	mockPeer := NewPeer(Connection{Source: []string{"mock0.sock"}, Name: "Mock", ID: "mock0id"}, TestPeerWaitGroup, testPeerShutdownChannel)
+	req, _, _ := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nResponseHeader: fixed16")))
+
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		_, err := mockPeer.query(req)
+		if err != nil {
+			panic(err.Error())
+		}
+	}
+	b.StopTimer()
+
+	StopTestPeer(peer)
+}
 
 func BenchmarkSingleFilter(b *testing.B) {
 	b.StopTimer()
