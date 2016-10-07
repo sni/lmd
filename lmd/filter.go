@@ -497,7 +497,7 @@ func matchNumberFilter(op Operator, valueA float64, valueB float64) bool {
 		}
 		break
 	default:
-		log.Errorf("not implemented op: %v", op)
+		log.Warnf("not implemented op: %v", op)
 		return false
 	}
 	return false
@@ -565,7 +565,7 @@ func matchStringValueOperator(op Operator, valueA *interface{}, valueB *string, 
 			return true
 		}
 	default:
-		log.Errorf("not implemented op: %v", op)
+		log.Warnf("not implemented op: %v", op)
 		return false
 	}
 	return false
@@ -600,7 +600,7 @@ func matchStringListFilter(filter *Filter, value *interface{}) bool {
 		}
 		return true
 	}
-	log.Errorf("not implemented op: %v", filter.Operator)
+	log.Warnf("not implemented op: %v", filter.Operator)
 	return false
 }
 
@@ -633,7 +633,7 @@ func matchIntListFilter(filter *Filter, value *interface{}) bool {
 		}
 		return true
 	}
-	log.Errorf("not implemented op: %v", filter.Operator)
+	log.Warnf("not implemented op: %v", filter.Operator)
 	return false
 }
 
