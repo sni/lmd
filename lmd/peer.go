@@ -163,6 +163,8 @@ func (p *Peer) Start() {
 	p.StatusSet("Updating", true)
 	log.Infof("[%s] starting connection", p.Name)
 	go func() {
+		// make sure we log panics properly
+		defer logPanicExit()
 		p.updateLoop()
 		p.StatusSet("Updating", false)
 		p.waitGroup.Done()
@@ -1214,6 +1216,9 @@ func (p *Peer) WaitCondition(req *Request) bool {
 	}
 	c := make(chan struct{})
 	go func() {
+		// make sure we log panics properly
+		defer logPanicExit()
+
 		table := p.Tables[req.Table].Table
 		refs := p.Tables[req.Table].Refs
 		for {
@@ -1236,9 +1241,17 @@ func (p *Peer) WaitCondition(req *Request) bool {
 				// trigger update for all, wait conditions are run against the last object
 				// but multiple commands may have been sent
 				if req.Table == "hosts" {
-					go p.UpdateDeltaTableHosts("")
+					go func() {
+						// make sure we log panics properly
+						defer logPanicExit()
+						p.UpdateDeltaTableHosts("")
+					}()
 				} else if req.Table == "services" {
-					go p.UpdateDeltaTableServices("")
+					go func() {
+						// make sure we log panics properly
+						defer logPanicExit()
+						p.UpdateDeltaTableServices("")
+					}()
 				}
 				close(c)
 				return
@@ -1346,6 +1359,9 @@ func SpinUpPeers(peers []string) {
 		p := DataStore[id]
 		waitgroup.Add(1)
 		go func(peer Peer, wg *sync.WaitGroup) {
+			// make sure we log panics properly
+			defer logPanicExit()
+
 			defer wg.Done()
 			p.StatusSet("Idling", false)
 			log.Infof("[%s] switched back to normal update interval", peer.Name)

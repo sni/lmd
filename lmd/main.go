@@ -25,6 +25,8 @@ import (
 	"syscall"
 	"time"
 
+	"runtime/debug"
+
 	"github.com/BurntSushi/toml"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -126,6 +128,9 @@ func main() {
 	setFlags()
 	checkFlags()
 
+	// make sure we log panics properly
+	defer logPanicExit()
+
 	for {
 		exitCode := mainLoop(mainSignalChannel)
 		if exitCode > 0 {
@@ -175,7 +180,11 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 
 	// start local listeners
 	for _, listen := range GlobalConfig.Listen {
-		go LocalListener(listen, waitGroupListener, shutdownChannel)
+		go func(listen string) {
+			// make sure we log panics properly
+			defer logPanicExit()
+			LocalListener(listen, waitGroupListener, shutdownChannel)
+		}(listen)
 	}
 
 	// start remote connections
@@ -215,6 +224,8 @@ func checkFlags() {
 	if flagProfile != "" {
 		runtime.SetBlockProfileRate(10)
 		go func() {
+			// make sure we log panics properly
+			defer logPanicExit()
 			http.ListenAndServe(flagProfile, http.DefaultServeMux)
 		}()
 	}
@@ -390,4 +401,12 @@ func ReadConfig(files []string) (conf Config) {
 	promPeerUpdateInterval.Set(float64(conf.Updateinterval))
 
 	return
+}
+
+func logPanicExit() {
+	if r := recover(); r != nil {
+		log.Errorf("Panic: %s", r)
+		log.Errorf("%s", debug.Stack())
+		os.Exit(1)
+	}
 }

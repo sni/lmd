@@ -142,6 +142,9 @@ func initPrometheus() (prometheusListener net.Listener) {
 		var err error
 		prometheusListener, err = net.Listen("tcp", GlobalConfig.ListenPrometheus)
 		go func() {
+			// make sure we log panics properly
+			defer logPanicExit()
+
 			if err != nil {
 				log.Fatalf("starting prometheus exporter failed: %s", err)
 			}

@@ -80,6 +80,9 @@ func (req *Request) SendPeerCommands() (err error) {
 			continue
 		}
 		go func(peer Peer) {
+			// make sure we log panics properly
+			defer logPanicExit()
+
 			commandRequest := &Request{
 				Command: req.Command,
 			}
@@ -148,6 +151,11 @@ func LocalListener(listen string, waitGroup *sync.WaitGroup, shutdownChannel cha
 			return
 		}
 
-		go QueryServer(fd)
+		go func() {
+			// make sure we log panics properly
+			defer logPanicExit()
+
+			QueryServer(fd)
+		}()
 	}
 }

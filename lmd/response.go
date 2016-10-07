@@ -434,6 +434,9 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) (err err
 
 		waitgroup.Add(1)
 		go func(peer Peer, wg *sync.WaitGroup) {
+			// make sure we log panics properly
+			defer logPanicExit()
+
 			log.Debugf("[%s] starting local data computation", p.Name)
 			defer wg.Done()
 
@@ -493,6 +496,9 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table, column
 
 		waitgroup.Add(1)
 		go func(peer Peer, wg *sync.WaitGroup) {
+			// make sure we log panics properly
+			defer logPanicExit()
+
 			log.Debugf("[%s] starting passthrough request", p.Name)
 			defer wg.Done()
 			passthroughRequest := &Request{
