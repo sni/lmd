@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Jeffail/gabs"
 )
 
 var reResponseHeader = regexp.MustCompile(`^(\d+)\s+(\d+)$`)
@@ -722,7 +724,16 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 		}
 		err = json.Unmarshal(wrappedResult["data"], &result)
 	} else {
-		err = json.Unmarshal(*resBytes, &result)
+		jsonParsed, jErr := gabs.ParseJSON(*resBytes)
+		if jErr != nil {
+			err = jErr
+			return
+		}
+		rows := jsonParsed.Data().([]interface{})
+		result = make([][]interface{}, len(rows))
+		for i, row := range rows {
+			result[i] = row.([]interface{})
+		}
 	}
 
 	if err != nil {

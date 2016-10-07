@@ -13,6 +13,7 @@ deps: dump
 	go get -u github.com/mgutz/ansi
 	go get -u golang.org/x/tools/cmd/goimports
 	go get -u github.com/prometheus/client_golang/prometheus
+	go get -u github.com/Jeffail/gabs
 
 dump:
 	if [ $(shell grep -rc Dump $(LAMPDDIR)/*.go | grep -v :0 | grep -v $(LAMPDDIR)/dump.go | wc -l) -ne 0 ]; then \
