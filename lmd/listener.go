@@ -87,7 +87,7 @@ func (req *Request) SendPeerCommands() (err error) {
 				Command: req.Command,
 			}
 			peer.PeerLock.Lock()
-			peer.Status["LastQuery"] = time.Now()
+			peer.Status["LastQuery"] = time.Now().Unix()
 			if peer.Status["Idling"].(bool) {
 				peer.Status["Idling"] = false
 				log.Infof("[%s] switched back to normal update interval", peer.Name)
@@ -95,7 +95,7 @@ func (req *Request) SendPeerCommands() (err error) {
 			peer.PeerLock.Unlock()
 			peer.Query(commandRequest)
 			// schedule immediate update
-			peer.StatusSet("LastUpdate", time.Now().Unix() - GlobalConfig.Updateinterval)
+			peer.StatusSet("LastUpdate", time.Now().Unix()-GlobalConfig.Updateinterval)
 		}(p)
 	}
 	return
