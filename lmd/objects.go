@@ -728,6 +728,8 @@ func NewCommentsTable() (t *Table) {
 	t.AddColumn("type", StaticUpdate, IntCol, "The type of the comment: 1 is host, 2 is service")
 	t.AddColumn("host_name", StaticUpdate, StringCol, "Host name")
 	t.AddColumn("service_description", StaticUpdate, StringCol, "Description of the service (also used as key)")
+	t.AddColumn("host_contacts", StaticUpdate, StringListCol, "A list of all contacts of the host, either direct or via a contact group")
+	t.AddColumn("service_contacts", StaticUpdate, StringListCol, "A list of all contacts of the service, either direct or via a contact group")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
@@ -748,9 +750,10 @@ func NewDowntimesTable() (t *Table) {
 	t.AddColumn("start_time", StaticUpdate, IntCol, "The start time of the downtime as UNIX timestamp")
 	t.AddColumn("triggered_by", StaticUpdate, IntCol, "The id of the downtime this downtime was triggered by or 0 if it was not triggered by another downtime")
 	t.AddColumn("type", StaticUpdate, IntCol, "The type of the downtime: 0 if it is active, 1 if it is pending")
-
 	t.AddColumn("host_name", StaticUpdate, StringCol, "Host name")
 	t.AddColumn("service_description", StaticUpdate, StringCol, "Description of the service (also used as key)")
+	t.AddColumn("host_contacts", StaticUpdate, StringListCol, "A list of all contacts of the host, either direct or via a contact group")
+	t.AddColumn("service_contacts", StaticUpdate, StringListCol, "A list of all contacts of the service, either direct or via a contact group")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
