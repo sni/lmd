@@ -19,11 +19,13 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+var testLogLevel = "Error"
+
 func init() {
 	// make tests faster if the listener does not wait that long to shutdown
 	acceptInterval = 30 * time.Millisecond
 
-	InitLogging(&Config{LogLevel: "Panic", LogFile: "stderr"})
+	InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
 
 	TestPeerWaitGroup = &sync.WaitGroup{}
 
@@ -182,7 +184,7 @@ var TestPeerWaitGroup *sync.WaitGroup
 
 func StartMockMainLoop(sockets []string) {
 	var testConfig = `
-Loglevel = "Panic"
+Loglevel = "` + testLogLevel + `"
 Listen = ["test.sock"]
 ListenPrometheus = ":50999"
 
