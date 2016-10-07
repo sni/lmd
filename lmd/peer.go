@@ -713,7 +713,7 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 
 	if len(resBytes) == 0 || (string(resBytes[0]) != "{" && string(resBytes[0]) != "[") {
 		err = errors.New(strings.TrimSpace(string(resBytes)))
-		return nil, &PeerError{msg: "json structure must begin with { or [. Got:\n" + err.Error(), kind: ResponseError}
+		return nil, &PeerError{msg: err.Error(), kind: ResponseError}
 	}
 	if req.OutputFormat == "wrapped_json" {
 		wrappedResult := make(map[string]json.RawMessage)
@@ -735,7 +735,7 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 	return
 }
 
-func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn, connType string) (buf bytes.Buffer, err error) {
+func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn, connType string) (buf *bytes.Buffer, err error) {
 	// http connections
 	if connType == "http" {
 		var res []byte
@@ -747,7 +747,7 @@ func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn
 		if req.Command != "" {
 			return
 		}
-		buf = *(bytes.NewBuffer(res))
+		buf = bytes.NewBuffer(res)
 		return
 	}
 
@@ -766,7 +766,8 @@ func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn
 	if req.Command != "" {
 		return
 	}
-	io.Copy(&buf, conn)
+	buf = new(bytes.Buffer)
+	io.Copy(buf, conn)
 	return
 }
 
