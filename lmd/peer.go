@@ -247,13 +247,15 @@ func (p *Peer) updateIdleStatus() bool {
 	lastQuery := p.Status["LastQuery"].(int64)
 	idling := p.Status["Idling"].(bool)
 	p.PeerLock.RUnlock()
+	lastQueryStr := time.Unix(lastQuery, 0).String()
 	if lastQuery == 0 && lastMainRestart < now-GlobalConfig.IdleTimeout {
 		shouldIdle = true
+		lastQueryStr = "never"
 	} else if lastQuery > 0 && lastQuery < now-GlobalConfig.IdleTimeout {
 		shouldIdle = true
 	}
 	if !idling && shouldIdle {
-		log.Infof("[%s] switched to idle interval, last query: %s", p.Name, time.Unix(lastQuery, 0))
+		log.Infof("[%s] switched to idle interval, last query: %s", p.Name, lastQueryStr)
 		p.StatusSet("Idling", true)
 		idling = true
 	}
@@ -1365,10 +1367,15 @@ func SpinUpPeers(peers []string) {
 			defer wg.Done()
 			p.StatusSet("Idling", false)
 			log.Infof("[%s] switched back to normal update interval", peer.Name)
-			log.Debugf("[%s] spin up update", peer.Name)
+			if peer.StatusGet("PeerStatus").(PeerStatus) == PeerStatusUp {
+				log.Debugf("[%s] spin up update", peer.Name)
 			peer.UpdateObjectByType(Objects.Tables["timeperiods"])
 			peer.UpdateDeltaTables()
-			log.Debugf("[%s] spin up update done", peer.Name)
+				log.Debugf("[%s] spin up update done", peer.Name)
+			} else {
+				// force new update sooner
+				peer.StatusSet("LastUpdate", time.Now().Unix() - GlobalConfig.Updateinterval)
+			}
 		}(p, waitgroup)
 	}
 	waitTimeout(waitgroup, 5)
