@@ -705,7 +705,10 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 		}
 		*resBytes = (*resBytes)[16:]
 	}
+	return p.parseResult(req, resBytes)
+}
 
+func (p *Peer) parseResult(req *Request, resBytes *[]byte) (result [][]interface{}, err error) {
 	p.PeerLock.Lock()
 	p.Status["BytesReceived"] = p.Status["BytesReceived"].(int) + len(*resBytes)
 	log.Debugf("[%s] got %s answer: size: %d kB", p.Name, req.Table, len(*resBytes)/1024)
@@ -726,8 +729,7 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 	} else {
 		jsonParsed, jErr := gabs.ParseJSON(*resBytes)
 		if jErr != nil {
-			err = jErr
-			return
+			return nil, &PeerError{msg: jErr.Error(), kind: ResponseError}
 		}
 		rows := jsonParsed.Data().([]interface{})
 		result = make([][]interface{}, len(rows))
