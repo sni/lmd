@@ -73,19 +73,17 @@ func NewResponse(req *Request) (res *Response, err error) {
 
 		// spin up required?
 		p.PeerLock.RLock()
-		if !table.PassthroughOnly && p.Status["Idling"].(bool) && len(table.DynamicColCacheIndexes) > 0 {
+		if p.Status["Idling"].(bool) && len(table.DynamicColCacheIndexes) > 0 {
 			spinUpPeers = append(spinUpPeers, id)
 		}
 		p.PeerLock.RUnlock()
 	}
 
-	if len(spinUpPeers) > 0 {
-		SpinUpPeers(spinUpPeers)
-	}
-
 	// only use the first backend when requesting table or columns table
 	if table.Name == "tables" || table.Name == "columns" {
 		selectedPeers = []string{DataStoreOrder[0]}
+	} else if !table.PassthroughOnly && len(spinUpPeers) > 0 {
+		SpinUpPeers(spinUpPeers)
 	}
 
 	if table.PassthroughOnly {
@@ -99,13 +97,6 @@ func NewResponse(req *Request) (res *Response, err error) {
 		if err != nil {
 			return
 		}
-		/*
-			for _, id := range selectedPeers {
-				p := DataStore[id]
-				p.BuildLocalResponseData(res, req, &indexes)
-				log.Tracef("BuildLocalResponseData done: %s", p.Name)
-			}
-		*/
 	}
 	if res.Result == nil {
 		res.Result = make([][]interface{}, 0)
@@ -413,7 +404,6 @@ func (res *Response) JSON() (resBytes []byte, err error) {
 
 // BuildLocalResponse builds local data table result for all selected peers
 func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) (err error) {
-	//req := res.Request
 	res.Result = make([][]interface{}, 0)
 
 	waitgroup := &sync.WaitGroup{}
@@ -422,15 +412,14 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) (err err
 	for _, id := range peers {
 		p := DataStore[id]
 
-		p.PeerLock.RLock()
-		if p.Status["PeerStatus"].(PeerStatus) == PeerStatusDown {
+		p.StatusSet("LastQuery", time.Now().Unix())
+
+		if !p.isOnline() {
 			resultLock.Lock()
-			res.Failed[p.ID] = fmt.Sprintf("%v", p.Status["LastError"])
+			res.Failed[p.ID] = fmt.Sprintf("%v", p.StatusGet("LastError"))
 			resultLock.Unlock()
-			p.PeerLock.RUnlock()
 			continue
 		}
-		p.PeerLock.RUnlock()
 
 		waitgroup.Add(1)
 		go func(peer Peer, wg *sync.WaitGroup) {

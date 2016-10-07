@@ -1369,12 +1369,12 @@ func SpinUpPeers(peers []string) {
 			log.Infof("[%s] switched back to normal update interval", peer.Name)
 			if peer.StatusGet("PeerStatus").(PeerStatus) == PeerStatusUp {
 				log.Debugf("[%s] spin up update", peer.Name)
-			peer.UpdateObjectByType(Objects.Tables["timeperiods"])
-			peer.UpdateDeltaTables()
+				peer.UpdateObjectByType(Objects.Tables["timeperiods"])
+				peer.UpdateDeltaTables()
 				log.Debugf("[%s] spin up update done", peer.Name)
 			} else {
 				// force new update sooner
-				peer.StatusSet("LastUpdate", time.Now().Unix() - GlobalConfig.Updateinterval)
+				peer.StatusSet("LastUpdate", time.Now().Unix()-GlobalConfig.Updateinterval)
 			}
 		}(p, waitgroup)
 	}
@@ -1387,21 +1387,17 @@ func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (*[][]inter
 	req := res.Request
 	numPerRow := len(*indexes)
 	log.Tracef("BuildLocalResponseData: %s", p.Name)
-	p.DataLock.RLock()
-	defer p.DataLock.RUnlock()
 	table := p.Tables[req.Table].Table
-	p.PeerLock.Lock()
-	p.Status["LastQuery"] = time.Now().Unix()
-	if table == nil || (p.Status["PeerStatus"].(PeerStatus) == PeerStatusDown && !table.Virtual) {
-		res.Failed[p.ID] = fmt.Sprintf("%v", p.Status["LastError"])
-		p.PeerLock.Unlock()
+	if table == nil || (!p.isOnline() && !table.Virtual) {
+		res.Failed[p.ID] = fmt.Sprintf("%v", p.StatusGet("LastError"))
 		return nil, nil
 	}
-	p.PeerLock.Unlock()
 
 	// if a WaitTrigger is supplied, wait max ms till the condition is true
 	p.WaitCondition(req)
 
+	p.DataLock.RLock()
+	defer p.DataLock.RUnlock()
 	data := p.Tables[req.Table].Data
 
 	// get data for special tables
@@ -1414,6 +1410,15 @@ func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (*[][]inter
 	}
 
 	return p.gatherResultRows(res, table, &data, numPerRow, indexes)
+}
+
+// isOnline returns true if this peer is online and has data
+func (p *Peer) isOnline() bool {
+	status := p.StatusGet("PeerStatus").(PeerStatus)
+	if status == PeerStatusUp || status == PeerStatusWarning {
+		return true
+	}
+	return false
 }
 
 func (p *Peer) gatherResultRows(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) (*[][]interface{}, *[]Filter) {
