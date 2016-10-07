@@ -684,7 +684,7 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 	peerAddr := p.Status["PeerAddr"].(string)
 	p.PeerLock.Unlock()
 
-	buf, err := p.sendTo(req, query, peerAddr, conn, connType)
+	resBytes, err := p.sendTo(req, query, peerAddr, conn, connType)
 	if err != nil {
 		return nil, err
 	}
@@ -693,41 +693,40 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 	}
 
 	if log.IsV(3) {
-		log.Tracef("[%s] result: %s", p.Name, string(buf.Bytes()))
+		log.Tracef("[%s] result: %s", p.Name, string(*resBytes))
 	}
 
-	resBytes := buf.Bytes()
 	if req.ResponseFixed16 {
-		err = p.CheckResponseHeader(&resBytes)
+		err = p.CheckResponseHeader(resBytes)
 		if err != nil {
 			return nil, &PeerError{msg: err.Error(), kind: ResponseError}
 		}
-		resBytes = resBytes[16:]
+		*resBytes = (*resBytes)[16:]
 	}
 
 	p.PeerLock.Lock()
-	p.Status["BytesReceived"] = p.Status["BytesReceived"].(int) + len(resBytes)
-	log.Debugf("[%s] got %s answer: size: %d kB", p.Name, req.Table, len(resBytes)/1024)
+	p.Status["BytesReceived"] = p.Status["BytesReceived"].(int) + len(*resBytes)
+	log.Debugf("[%s] got %s answer: size: %d kB", p.Name, req.Table, len(*resBytes)/1024)
 	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(p.Status["BytesReceived"].(int)))
 	p.PeerLock.Unlock()
 
-	if len(resBytes) == 0 || (string(resBytes[0]) != "{" && string(resBytes[0]) != "[") {
-		err = errors.New(strings.TrimSpace(string(resBytes)))
+	if len(*resBytes) == 0 || (string((*resBytes)[0]) != "{" && string((*resBytes)[0]) != "[") {
+		err = errors.New(strings.TrimSpace(string(*resBytes)))
 		return nil, &PeerError{msg: err.Error(), kind: ResponseError}
 	}
 	if req.OutputFormat == "wrapped_json" {
 		wrappedResult := make(map[string]json.RawMessage)
-		err = json.Unmarshal(resBytes, &wrappedResult)
+		err = json.Unmarshal(*resBytes, &wrappedResult)
 		if err != nil {
 			return nil, &PeerError{msg: err.Error(), kind: ResponseError}
 		}
 		err = json.Unmarshal(wrappedResult["data"], &result)
 	} else {
-		err = json.Unmarshal(resBytes, &result)
+		err = json.Unmarshal(*resBytes, &result)
 	}
 
 	if err != nil {
-		log.Errorf("[%s] json string: %s", p.Name, string(buf.Bytes()))
+		log.Errorf("[%s] json string: %s", p.Name, string(*resBytes))
 		log.Errorf("[%s] json error: %s", p.Name, err.Error())
 		return nil, &PeerError{msg: err.Error(), kind: ResponseError}
 	}
@@ -735,20 +734,18 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 	return
 }
 
-func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn, connType string) (buf *bytes.Buffer, err error) {
+func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn, connType string) (*[]byte, error) {
 	// http connections
 	if connType == "http" {
-		var res []byte
-		res, err = p.HTTPQuery(peerAddr, query)
+		res, err := p.HTTPQuery(peerAddr, query)
 		if err != nil {
-			return
+			return nil, err
 		}
 		// commands do not send anything back
 		if req.Command != "" {
-			return
+			return nil, nil
 		}
-		buf = bytes.NewBuffer(res)
-		return
+		return &res, nil
 	}
 
 	// tcp/unix connections
@@ -764,11 +761,12 @@ func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn
 	}
 	// commands do not send anything back
 	if req.Command != "" {
-		return
+		return nil, nil
 	}
-	buf = new(bytes.Buffer)
+	buf := new(bytes.Buffer)
 	io.Copy(buf, conn)
-	return
+	bytes := buf.Bytes()
+	return &bytes, nil
 }
 
 // Query sends a livestatus request from a request object.
