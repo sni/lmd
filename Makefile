@@ -5,7 +5,7 @@ MAKE:=make
 SHELL:=bash
 GOVERSION:=$(shell go version | awk '{print $$3}' | sed 's/^go\([0-9]\.[0-9]\).*/\1/')
 
-all: build fmt deps
+all: deps fmt build
 
 deps: dump
 	go get -u github.com/BurntSushi/toml
