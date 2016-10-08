@@ -1447,10 +1447,12 @@ func (p *Peer) gatherResultRows(res *Response, table *Table, data *[][]interface
 
 	found := 0
 Rows:
-	for j, row := range *data {
+	for j := range *data {
+		row := &((*data)[j])
 		// does our filter match?
-		for _, f := range res.Request.Filter {
-			if !p.MatchRowFilter(table, &refs, inputRowLen, &f, &row, j) {
+		for i := range req.Filter {
+			f := &(req.Filter[i])
+			if !p.MatchRowFilter(table, &refs, inputRowLen, f, row, j) {
 				continue Rows
 			}
 		}
@@ -1460,14 +1462,14 @@ Rows:
 		for k, i := range *(indexes) {
 			if i < 0 {
 				// virtual columns
-				resRow[k] = p.GetRowValue(res.Columns[k].RefIndex, &row, j, table, &refs, inputRowLen)
+				resRow[k] = p.GetRowValue(res.Columns[k].RefIndex, row, j, table, &refs, inputRowLen)
 			} else {
 				// check if this is a reference column
 				// reference columns come after the non-ref columns
 				if i >= inputRowLen {
-					resRow[k] = p.GetRowValue(table.Columns[i].Index, &row, j, table, &refs, inputRowLen)
+					resRow[k] = p.GetRowValue(table.Columns[i].Index, row, j, table, &refs, inputRowLen)
 				} else {
-					resRow[k] = row[i]
+					resRow[k] = (*row)[i]
 				}
 			}
 			// fill null values with something useful
@@ -1495,21 +1497,28 @@ func (p *Peer) gatherStatsResult(res *Response, table *Table, data *[][]interfac
 	localStats := createLocalStatsCopy(&req.Stats)
 
 Rows:
-	for j, row := range *data {
+	for j := range *data {
+		row := &((*data)[j])
 		// does our filter match?
-		for _, f := range res.Request.Filter {
-			if !p.MatchRowFilter(table, &refs, inputRowLen, &f, &row, j) {
+		for i := range req.Filter {
+			f := &(req.Filter[i])
+			if !p.MatchRowFilter(table, &refs, inputRowLen, f, row, j) {
 				continue Rows
 			}
 		}
 
 		// count stats
-		for i := range res.Request.Stats {
-			s := &(res.Request.Stats[i])
+		for i := range req.Stats {
+			s := &(req.Stats[i])
 			// avg/sum/min/max are passed through, they dont have filter
 			// counter must match their filter
-			if s.StatsType != Counter || p.MatchRowFilter(table, &refs, inputRowLen, s, &row, j) {
-				val := p.GetRowValue(s.Column.Index, &row, j, table, &refs, inputRowLen)
+			if s.StatsType == Counter {
+				if p.MatchRowFilter(table, &refs, inputRowLen, s, row, j) {
+					localStats[i].Stats++
+					localStats[i].StatsCount++
+				}
+			} else {
+				val := p.GetRowValue(s.Column.Index, row, j, table, &refs, inputRowLen)
 				localStats[i].ApplyValue(numberToFloat(val), 1)
 			}
 		}
@@ -1542,8 +1551,9 @@ func optimizeResultLimit(req *Request, table *Table) (limit int) {
 func (p *Peer) MatchRowFilter(table *Table, refs *map[string][][]interface{}, inputRowLen int, filter *Filter, row *[]interface{}, rowNum int) bool {
 	// recursive group filter
 	if len(filter.Filter) > 0 {
-		for _, f := range filter.Filter {
-			subresult := p.MatchRowFilter(table, refs, inputRowLen, &f, row, rowNum)
+		for i := range filter.Filter {
+			f := &(filter.Filter[i])
+			subresult := p.MatchRowFilter(table, refs, inputRowLen, f, row, rowNum)
 			if !subresult && filter.GroupOperator == And {
 				return false
 			}
