@@ -1420,7 +1420,10 @@ func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (*[][]inter
 		return nil, nil
 	}
 
-	return p.gatherResultRows(res, table, &data, numPerRow, indexes)
+	if len(res.Request.Stats) > 0 {
+		return p.gatherStatsResult(res, table, &data, numPerRow, indexes)
+	}
+	return p.gatherResultRows(res, table, &data, numPerRow, indexes), &req.Stats
 }
 
 // isOnline returns true if this peer is online and has data
@@ -1432,18 +1435,15 @@ func (p *Peer) isOnline() bool {
 	return false
 }
 
-func (p *Peer) gatherResultRows(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) (*[][]interface{}, *[]Filter) {
+func (p *Peer) gatherResultRows(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) *[][]interface{} {
 	req := res.Request
 	refs := p.Tables[req.Table].Refs
-	statsLen := len(res.Request.Stats)
 	inputRowLen := len((*data)[0])
 	result := make([][]interface{}, 0)
 
 	// if there is no sort header or sort by name only,
 	// we can drastically reduce the result set by applying the limit here already
 	limit := optimizeResultLimit(req, table)
-
-	localStats := createLocalStatsCopy(&req.Stats)
 
 	found := 0
 Rows:
@@ -1453,20 +1453,6 @@ Rows:
 			if !p.MatchRowFilter(table, &refs, inputRowLen, &f, &row, j) {
 				continue Rows
 			}
-		}
-
-		// count stats
-		if statsLen > 0 {
-			for i := range res.Request.Stats {
-				s := &(res.Request.Stats[i])
-				// avg/sum/min/max are passed through, they dont have filter
-				// counter must match their filter
-				if s.StatsType != Counter || p.MatchRowFilter(table, &refs, inputRowLen, s, &row, j) {
-					val := p.GetRowValue(s.Column.Index, &row, j, table, &refs, inputRowLen)
-					localStats[i].ApplyValue(numberToFloat(val), 1)
-				}
-			}
-			continue Rows
 		}
 
 		// build result row
@@ -1496,6 +1482,38 @@ Rows:
 		}
 	}
 	res.ResultTotal += found
+
+	return &result
+}
+
+func (p *Peer) gatherStatsResult(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) (*[][]interface{}, *[]Filter) {
+	req := res.Request
+	refs := p.Tables[req.Table].Refs
+	inputRowLen := len((*data)[0])
+	result := make([][]interface{}, 0)
+
+	localStats := createLocalStatsCopy(&req.Stats)
+
+Rows:
+	for j, row := range *data {
+		// does our filter match?
+		for _, f := range res.Request.Filter {
+			if !p.MatchRowFilter(table, &refs, inputRowLen, &f, &row, j) {
+				continue Rows
+			}
+		}
+
+		// count stats
+		for i := range res.Request.Stats {
+			s := &(res.Request.Stats[i])
+			// avg/sum/min/max are passed through, they dont have filter
+			// counter must match their filter
+			if s.StatsType != Counter || p.MatchRowFilter(table, &refs, inputRowLen, s, &row, j) {
+				val := p.GetRowValue(s.Column.Index, &row, j, table, &refs, inputRowLen)
+				localStats[i].ApplyValue(numberToFloat(val), 1)
+			}
+		}
+	}
 
 	return &result, &localStats
 }
