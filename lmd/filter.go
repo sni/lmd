@@ -467,39 +467,19 @@ func (f *Filter) MatchFilter(value *interface{}) bool {
 func matchNumberFilter(op Operator, valueA float64, valueB float64) bool {
 	switch op {
 	case Equal:
-		if valueA == valueB {
-			return true
-		}
-		break
+		return valueA == valueB
 	case Unequal:
-		if valueA != valueB {
-			return true
-		}
-		break
+		return valueA != valueB
 	case Less:
-		if valueA < valueB {
-			return true
-		}
-		break
+		return valueA < valueB
 	case LessThan:
-		if valueA <= valueB {
-			return true
-		}
-		break
+		return valueA <= valueB
 	case Greater:
-		if valueA > valueB {
-			return true
-		}
-		break
+		return valueA > valueB
 	case GreaterThan:
-		if valueA >= valueB {
-			return true
-		}
-		break
-	default:
-		log.Warnf("not implemented op: %v", op)
-		return false
+		return valueA >= valueB
 	}
+	log.Warnf("not implemented op: %v", op)
 	return false
 }
 
@@ -517,57 +497,31 @@ func matchStringValueOperator(op Operator, valueA *interface{}, valueB *string, 
 	strB := *valueB
 	switch op {
 	case Equal:
-		if strA == strB {
-			return true
-		}
+		return strA == strB
 	case Unequal:
-		if strA != strB {
-			return true
-		}
+		return strA != strB
 	case EqualNocase:
-		if strings.ToLower(strA) == strings.ToLower(strB) {
-			return true
-		}
+		return strings.ToLower(strA) == strings.ToLower(strB)
 	case UnequalNocase:
-		if strings.ToLower(strA) != strings.ToLower(strB) {
-			return true
-		}
+		return strings.ToLower(strA) != strings.ToLower(strB)
 	case RegexMatch:
-		if (*regex).MatchString(strA) {
-			return true
-		}
+		return (*regex).MatchString(strA)
 	case RegexMatchNot:
-		if (*regex).MatchString(strA) {
-			return false
-		}
+		return (*regex).MatchString(strA)
 	case RegexNoCaseMatch:
-		if (*regex).MatchString(strings.ToLower(strA)) {
-			return true
-		}
+		return (*regex).MatchString(strings.ToLower(strA))
 	case RegexNoCaseMatchNot:
-		if (*regex).MatchString(strings.ToLower(strA)) {
-			return false
-		}
+		return (*regex).MatchString(strings.ToLower(strA))
 	case Less:
-		if strA < strB {
-			return true
-		}
+		return strA < strB
 	case LessThan:
-		if strA <= strB {
-			return true
-		}
+		return strA <= strB
 	case Greater:
-		if strA > strB {
-			return true
-		}
+		return strA > strB
 	case GreaterThan:
-		if strA >= strB {
-			return true
-		}
-	default:
-		log.Warnf("not implemented op: %v", op)
-		return false
+		return strA >= strB
 	}
+	log.Warnf("not implemented op: %v", op)
 	return false
 }
 
@@ -576,15 +530,9 @@ func matchStringListFilter(filter *Filter, value *interface{}) bool {
 	listLen := list.Len()
 	switch filter.Operator {
 	case Equal:
-		if filter.StrValue == "" && listLen == 0 {
-			return true
-		}
-		return false
+		return filter.StrValue == "" && listLen == 0
 	case Unequal:
-		if filter.StrValue == "" && listLen != 0 {
-			return true
-		}
-		return false
+		return filter.StrValue == "" && listLen != 0
 	case GreaterThan:
 		for i := 0; i < listLen; i++ {
 			if filter.StrValue == list.Index(i).Interface().(string) {
@@ -609,15 +557,9 @@ func matchIntListFilter(filter *Filter, value *interface{}) bool {
 	listLen := list.Len()
 	switch filter.Operator {
 	case Equal:
-		if filter.StrValue == "" && listLen == 0 {
-			return true
-		}
-		return false
+		return filter.StrValue == "" && listLen == 0
 	case Unequal:
-		if filter.StrValue == "" && listLen != 0 {
-			return true
-		}
-		return false
+		return filter.StrValue == "" && listLen != 0
 	case GreaterThan:
 		for i := 0; i < listLen; i++ {
 			if filter.FloatValue == numberToFloat(list.Index(i).Interface()) {

@@ -1541,7 +1541,6 @@ func (p *Peer) MatchRowFilter(table *Table, refs *map[string][][]interface{}, in
 	// normal field filter
 	if filter.Column.Index < inputRowLen {
 		// directly access the row value
-		//value = (*row)[filter.Column.Index]
 		return (filter.MatchFilter(&((*row)[filter.Column.Index])))
 	}
 	value := p.GetRowValue(filter.Column.Index, row, rowNum, table, refs, inputRowLen)
