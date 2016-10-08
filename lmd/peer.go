@@ -576,7 +576,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 		Table:           table.Name,
 		ResponseFixed16: true,
 		OutputFormat:    "json",
-		FilterStr:       "Stats: id !=\nStats: max id\n",
+		FilterStr:       "Stats: id != -1\nStats: max id\n",
 	}
 	res, err := p.Query(req)
 	if err != nil {
