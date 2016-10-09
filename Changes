@@ -6,6 +6,7 @@ next:
           - use faster json library to decode results
           - fix crash when sending commands
           - fix sending results for half-populated pending sites
+          - fix putting sites offline when http returns broken pipe error
           - log panics properly
 
 0.0.3    Thu Oct  6 13:26:11 CEST 2016

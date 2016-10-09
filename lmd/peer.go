@@ -750,7 +750,7 @@ func (p *Peer) parseResult(req *Request, resBytes *[]byte) (result [][]interface
 func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn, connType string) (*[]byte, error) {
 	// http connections
 	if connType == "http" {
-		res, err := p.HTTPQuery(peerAddr, query)
+		res, err := p.HTTPQueryWithRetrys(peerAddr, query, 2)
 		if err != nil {
 			return nil, err
 		}
@@ -1288,6 +1288,23 @@ func (p *Peer) WaitCondition(req *Request) bool {
 		close(c)
 		return true // timed out
 	}
+}
+
+// HTTPQueryWithRetrys calls HTTPQuery with given amount of retries.
+func (p *Peer) HTTPQueryWithRetrys(peerAddr string, query string, retries int) (res []byte, err error) {
+	res, err = p.HTTPQuery(peerAddr, query)
+
+	// retry on broken pipe errors
+	for retry := 1; retry <= retries && err != nil; retry++ {
+		if strings.HasPrefix(err.Error(), "remote site returned rc: 0 - ERROR: broken pipe.") {
+			time.Sleep(1 * time.Second)
+			res, err = p.HTTPQuery(peerAddr, query)
+			if err == nil {
+				log.Debugf("[%s] site returned successful result after %d retries", p.Name, retry)
+			}
+		}
+	}
+	return
 }
 
 // HTTPQuery sends a query over http to a Thruk backend.
