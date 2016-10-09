@@ -531,7 +531,8 @@ func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated
 	index3 := table.GetColumn("acknowledged").Index
 	data := p.Tables[table.Name].Data
 	missing := make(map[float64]bool)
-	for i, row := range res {
+	for i := range res {
+		row := res[i]
 		if row[0].(float64) != data[i][index1].(float64) {
 			missing[row[0].(float64)] = true
 		} else if row[1].(float64) != data[i][index2].(float64) {
@@ -733,8 +734,8 @@ func (p *Peer) parseResult(req *Request, resBytes *[]byte) (result [][]interface
 		}
 		rows := jsonParsed.Data().([]interface{})
 		result = make([][]interface{}, len(rows))
-		for i, row := range rows {
-			result[i] = row.([]interface{})
+		for i := range rows {
+			result[i] = rows[i].([]interface{})
 		}
 	}
 
@@ -1438,9 +1439,9 @@ func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (*[][]inter
 	}
 
 	if len(res.Request.Stats) > 0 {
-		return p.gatherStatsResult(res, table, &data, numPerRow, indexes)
+		return nil, p.gatherStatsResult(res, table, &data, numPerRow, indexes)
 	}
-	return p.gatherResultRows(res, table, &data, numPerRow, indexes), &req.Stats
+	return p.gatherResultRows(res, table, &data, numPerRow, indexes), nil
 }
 
 // isOnline returns true if this peer is online and has data
@@ -1505,11 +1506,10 @@ Rows:
 	return &result
 }
 
-func (p *Peer) gatherStatsResult(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) (*[][]interface{}, *[]Filter) {
+func (p *Peer) gatherStatsResult(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) *[]Filter {
 	req := res.Request
 	refs := p.Tables[req.Table].Refs
 	inputRowLen := len((*data)[0])
-	result := make([][]interface{}, 0)
 
 	localStats := createLocalStatsCopy(&req.Stats)
 
@@ -1541,12 +1541,13 @@ Rows:
 		}
 	}
 
-	return &result, &localStats
+	return &localStats
 }
 
 func createLocalStatsCopy(stats *[]Filter) []Filter {
 	localStats := make([]Filter, len(*stats))
-	for i, s := range *stats {
+	for i := range *stats {
+		s := &((*stats)[i])
 		localStats[i].StatsType = s.StatsType
 		if s.StatsType == Min {
 			localStats[i].Stats = -1

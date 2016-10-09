@@ -429,16 +429,18 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) (err err
 
 			result, stats := p.BuildLocalResponseData(res, indexes)
 			log.Tracef("[%s] result ready", p.Name)
+			resultLock.Lock()
 			if result != nil {
-				resultLock.Lock()
 				// data results rows
 				res.Result = append(res.Result, (*result)...)
+			} else if stats != nil {
 				// apply stats querys
-				for i, s := range *stats {
+				for i := range *stats {
+					s := (*stats)[i]
 					res.Request.Stats[i].ApplyValue(s.Stats, s.StatsCount)
 				}
-				resultLock.Unlock()
 			}
+			resultLock.Unlock()
 		}(p, waitgroup)
 	}
 	log.Tracef("waiting...")
