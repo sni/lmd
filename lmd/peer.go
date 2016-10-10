@@ -1196,7 +1196,7 @@ func (p *Peer) GetVirtRowValue(col Column, row *[]interface{}, rowNum int, table
 		switch col.Name {
 		case "last_state_change_order":
 			// return last_state_change or program_start
-			lastStateChange := numberToFloat((*row)[table.ColumnsIndex["last_state_change"]])
+			lastStateChange := numberToFloat(&((*row)[table.ColumnsIndex["last_state_change"]]))
 			if lastStateChange == 0 {
 				value = p.Status["ProgramStart"]
 			} else {
@@ -1205,7 +1205,8 @@ func (p *Peer) GetVirtRowValue(col Column, row *[]interface{}, rowNum int, table
 			break
 		case "host_last_state_change_order":
 			// return last_state_change or program_start
-			lastStateChange := numberToFloat(p.GetRowValue(table.GetColumn("host_last_state_change").Index, row, rowNum, table, refs, inputRowLen))
+			val := p.GetRowValue(table.GetColumn("host_last_state_change").Index, row, rowNum, table, refs, inputRowLen)
+			lastStateChange := numberToFloat(&val)
 			if lastStateChange == 0 {
 				value = p.Status["ProgramStart"]
 			} else {
@@ -1215,7 +1216,7 @@ func (p *Peer) GetVirtRowValue(col Column, row *[]interface{}, rowNum int, table
 		case "state_order":
 			// return 4 instead of 2, which makes critical come first
 			// this way we can use this column to sort by state
-			state := numberToFloat((*row)[table.ColumnsIndex["state"]])
+			state := numberToFloat(&((*row)[table.ColumnsIndex["state"]]))
 			if state == 2 {
 				value = 4
 			} else {
@@ -1560,7 +1561,7 @@ Rows:
 				}
 			} else {
 				val := p.GetRowValue(s.Column.Index, row, j, table, &refs, inputRowLen)
-				localStats[i].ApplyValue(numberToFloat(val), 1)
+				localStats[i].ApplyValue(numberToFloat(&val), 1)
 			}
 		}
 	}

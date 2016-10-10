@@ -121,8 +121,8 @@ func (res Response) Less(i, j int) bool {
 		case IntCol:
 			fallthrough
 		case FloatCol:
-			valueA := numberToFloat(res.Result[i][s.Index])
-			valueB := numberToFloat(res.Result[j][s.Index])
+			valueA := numberToFloat(&(res.Result[i][s.Index]))
+			valueB := numberToFloat(&(res.Result[j][s.Index]))
 			if valueA == valueB {
 				continue
 			}

@@ -437,11 +437,7 @@ func ParseFilterOp(header string, value string, line *string, stack *[]Filter) (
 
 // MatchFilter returns true if the given filter matches the given value.
 func (f *Filter) MatchFilter(value *interface{}) bool {
-	colType := f.Column.Type
-	if colType == VirtCol {
-		colType = VirtKeyMap[f.Column.Name].Type
-	}
-	switch colType {
+	switch f.Column.Type {
 	case StringCol:
 		return matchStringFilter(f, value)
 	case CustomVarCol:
@@ -454,11 +450,16 @@ func (f *Filter) MatchFilter(value *interface{}) bool {
 		if v, ok := (*value).(float64); ok {
 			return matchNumberFilter(f.Operator, v, f.FloatValue)
 		}
-		return matchNumberFilter(f.Operator, numberToFloat(*value), f.FloatValue)
+		return matchNumberFilter(f.Operator, numberToFloat(value), f.FloatValue)
 	case StringListCol:
 		return matchStringListFilter(f, value)
 	case IntListCol:
 		return matchIntListFilter(f, value)
+	case VirtCol:
+		// run MatchFilter with a copy of this filter but replace the type
+		filter := *f
+		filter.Column.Type = VirtKeyMap[f.Column.Name].Type
+		return (filter.MatchFilter(value))
 	}
 	log.Panicf("not implemented filter type: %v", f.Column.Type)
 	return false
@@ -562,14 +563,16 @@ func matchIntListFilter(filter *Filter, value *interface{}) bool {
 		return filter.StrValue == "" && listLen != 0
 	case GreaterThan:
 		for i := 0; i < listLen; i++ {
-			if filter.FloatValue == numberToFloat(list.Index(i).Interface()) {
+			val := list.Index(i).Interface()
+			if filter.FloatValue == numberToFloat(&val) {
 				return true
 			}
 		}
 		return false
 	case GroupContainsNot:
 		for i := 0; i < listLen; i++ {
-			if filter.FloatValue == numberToFloat(list.Index(i).Interface()) {
+			val := list.Index(i).Interface()
+			if filter.FloatValue == numberToFloat(&val) {
 				return false
 			}
 		}
@@ -588,8 +591,8 @@ func matchCustomVarFilter(filter *Filter, value *interface{}) bool {
 	return matchStringValueOperator(filter.Operator, &val, &filter.StrValue, filter.Regexp)
 }
 
-func numberToFloat(in interface{}) float64 {
-	switch v := in.(type) {
+func numberToFloat(in *interface{}) float64 {
+	switch v := (*in).(type) {
 	case float64:
 		return v
 	case int:
