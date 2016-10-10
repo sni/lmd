@@ -40,7 +40,7 @@ func TestMainFunc(t *testing.T) {
 		"GET backends\nResponseHeader: fixed16\nSort: bytes_send asc\nSort: bytes_received desc\n\n",
 	}
 	for _, str := range testRequestStrings {
-		res, err := peer.QueryString(str)
+		res, err = peer.QueryString(str)
 		if err != nil {
 			t.Fatal(err)
 		}

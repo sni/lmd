@@ -150,13 +150,13 @@ COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web2;1473627610`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(size, 87); err != nil {
+	if err = assertEq(size, 87); err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(req.Command, "COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web1;1473627610"); err != nil {
+	if err = assertEq(req.Command, "COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web1;1473627610"); err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(req.Backends[0], "mockid0"); err != nil {
+	if err = assertEq(req.Backends[0], "mockid0"); err != nil {
 		t.Fatal(err)
 	}
 	req, size, err = NewRequest(buf)
@@ -233,7 +233,7 @@ func TestRequestStats(t *testing.T) {
 	}
 
 	res, err := peer.QueryString("GET hosts\nColumns: name latency\n\n")
-	if err := assertEq(12, len(res)); err != nil {
+	if err = assertEq(12, len(res)); err != nil {
 		t.Error(err)
 	}
 
@@ -273,7 +273,7 @@ func TestRequestRefs(t *testing.T) {
 	peer := StartTestPeer(1, 0, 0)
 
 	res1, err := peer.QueryString("GET hosts\nColumns: name latency check_command\nLimit: 1\n\n")
-	if err := assertEq(1, len(res1)); err != nil {
+	if err = assertEq(1, len(res1)); err != nil {
 		t.Error(err)
 	}
 

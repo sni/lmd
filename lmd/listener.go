@@ -52,17 +52,17 @@ func QueryServer(c net.Conn) error {
 				if req.Table == "log" {
 					c.SetDeadline(time.Now().Add(time.Duration(60) * time.Second))
 				}
-				response, err := req.GetResponse()
-				if err != nil {
-					(&Response{Code: 400, Request: req, Error: err}).Send(c)
-					return err
+				response, rErr := req.GetResponse()
+				if rErr != nil {
+					(&Response{Code: 400, Request: req, Error: rErr}).Send(c)
+					return rErr
 				}
 
-				size, err := response.Send(c)
+				size, sErr := response.Send(c)
 				duration := time.Since(t1)
 				log.Infof("incoming %s request from %s to %s finished in %s, size: %.3f kB", req.Table, remote, c.LocalAddr().String(), duration.String(), float64(size)/1024)
-				if err != nil {
-					return err
+				if sErr != nil {
+					return sErr
 				}
 			}
 		}

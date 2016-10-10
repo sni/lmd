@@ -415,9 +415,9 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	if filterStr == "" {
 		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.Status["LastUpdate"].(int64) - UpdateAdditionalDelta))
 		// no filter means regular delta update, so lets check if all last_check dates match
-		ok, err := p.UpdateDeltaTableFullScan(&table, filterStr)
-		if ok || err != nil {
-			return err
+		ok, uErr := p.UpdateDeltaTableFullScan(&table, filterStr)
+		if ok || uErr != nil {
+			return uErr
 		}
 	}
 	req := &Request{
@@ -458,9 +458,9 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	if filterStr == "" {
 		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.Status["LastUpdate"].(int64) - UpdateAdditionalDelta))
 		// no filter means regular delta update, so lets check if all last_check dates match
-		ok, err := p.UpdateDeltaTableFullScan(&table, filterStr)
-		if ok || err != nil {
-			return err
+		ok, uErr := p.UpdateDeltaTableFullScan(&table, filterStr)
+		if ok || uErr != nil {
+			return uErr
 		}
 	}
 	req := &Request{
@@ -763,8 +763,11 @@ func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn
 	}
 
 	// tcp/unix connections
+	// set read timeout
 	conn.SetDeadline(time.Now().Add(time.Duration(GlobalConfig.NetTimeout) * time.Second))
 	fmt.Fprintf(conn, "%s", query)
+
+	// close write part of connection
 	switch c := conn.(type) {
 	case *net.TCPConn:
 		c.CloseWrite()
@@ -777,6 +780,8 @@ func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn
 	if req.Command != "" {
 		return nil, nil
 	}
+
+	// read result from connection into result buffer
 	buf := new(bytes.Buffer)
 	io.Copy(buf, conn)
 	bytes := buf.Bytes()
