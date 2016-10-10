@@ -108,7 +108,8 @@ func (d *DataTable) AddItem(row *[]interface{}) {
 
 // RemoveItem removes an entry from a datatable.
 func (d *DataTable) RemoveItem(row []interface{}) {
-	for i, r := range d.Data {
+	for i := range d.Data {
+		r := d.Data[i]
 		if fmt.Sprintf("%p", r) == fmt.Sprintf("%p", row) {
 			d.Data = append(d.Data[:i], d.Data[i+1:]...)
 			delete(d.Index, fmt.Sprintf("%v", r[d.Table.GetColumn("id").Index]))
@@ -434,7 +435,8 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	p.DataLock.Lock()
 	nameindex := p.Tables[table.Name].Index
 	fieldIndex := len(keys) - 1
-	for _, resRow := range res {
+	for i := range res {
+		resRow := res[i]
 		dataRow := nameindex[resRow[fieldIndex].(string)]
 		for j, k := range indexes {
 			dataRow[k] = resRow[j]
@@ -478,7 +480,8 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	nameindex := p.Tables[table.Name].Index
 	fieldIndex1 := len(keys) - 2
 	fieldIndex2 := len(keys) - 1
-	for _, resRow := range res {
+	for i := range res {
+		resRow := res[i]
 		dataRow := nameindex[resRow[fieldIndex1].(string)+";"+resRow[fieldIndex2].(string)]
 		for j, k := range indexes {
 			dataRow[k] = resRow[j]
@@ -612,7 +615,8 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	idIndex := p.Tables[table.Name].Index
 	missingIds := []string{}
 	resIndex := make(map[string]bool)
-	for _, resRow := range res {
+	for i := range res {
+		resRow := res[i]
 		id := fmt.Sprintf("%v", resRow[0])
 		_, ok := idIndex[id]
 		if !ok {
@@ -651,7 +655,8 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 		}
 		p.DataLock.Lock()
 		data := p.Tables[table.Name]
-		for _, resRow := range res {
+		for i := range res {
+			resRow := res[i]
 			id := fmt.Sprintf("%v", resRow[fieldIndex])
 			idIndex[id] = resRow
 			data.AddItem(&resRow)
@@ -1004,7 +1009,8 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 		fieldName := refCol.Name
 		refs[fieldName] = make([][]interface{}, len(res))
 		RefByName := p.Tables[fieldName].Index
-		for i, row := range res {
+		for i := range res {
+			row := res[i]
 			refs[fieldName][i] = RefByName[row[refCol.RefIndex].(string)]
 			if RefByName[row[refCol.RefIndex].(string)] == nil {
 				panic("ref not found: " + row[refCol.RefIndex].(string))
@@ -1028,7 +1034,8 @@ func (p *Peer) createIndexAndFlags(table *Table, res *[][]interface{}, index *ma
 	// create host lookup indexes
 	if table.Name == "hosts" {
 		indexField := table.ColumnsIndex["name"]
-		for _, row := range *res {
+		for i := range *res {
+			row := (*res)[i]
 			(*index)[row[indexField].(string)] = row
 		}
 		promHostCount.WithLabelValues(p.Name).Set(float64(len((*res))))
@@ -1037,7 +1044,8 @@ func (p *Peer) createIndexAndFlags(table *Table, res *[][]interface{}, index *ma
 	if table.Name == "services" {
 		indexField1 := table.ColumnsIndex["host_name"]
 		indexField2 := table.ColumnsIndex["description"]
-		for _, row := range *res {
+		for i := range *res {
+			row := (*res)[i]
 			(*index)[row[indexField1].(string)+";"+row[indexField2].(string)] = row
 		}
 		promServiceCount.WithLabelValues(p.Name).Set(float64(len((*res))))
@@ -1045,7 +1053,8 @@ func (p *Peer) createIndexAndFlags(table *Table, res *[][]interface{}, index *ma
 	// create downtime / comment id lookup indexes
 	if table.Name == "comments" || table.Name == "downtimes" {
 		indexField := table.ColumnsIndex["id"]
-		for _, row := range *res {
+		for i := range *res {
+			row := (*res)[i]
 			(*index)[fmt.Sprintf("%v", row[indexField])] = row
 		}
 	}
@@ -1092,7 +1101,8 @@ func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error)
 		p.updateTimeperiodsData(&table, res, indexes)
 	} else {
 		p.DataLock.Lock()
-		for i, row := range res {
+		for i := range res {
+			row := res[i]
 			for j, k := range indexes {
 				data[i][k] = row[j]
 			}
@@ -1122,7 +1132,8 @@ func (p *Peer) updateTimeperiodsData(table *Table, res [][]interface{}, indexes 
 	nameIndex := table.ColumnsIndex["name"]
 	p.DataLock.Lock()
 	data := p.Tables[table.Name].Data
-	for i, row := range res {
+	for i := range res {
+		row := res[i]
 		for j, k := range indexes {
 			if data[i][k] != row[j] {
 				changedTimeperiods[data[i][nameIndex].(string)] = data[i][k].(float64)
@@ -1560,7 +1571,7 @@ Rows:
 func createLocalStatsCopy(stats *[]Filter) []Filter {
 	localStats := make([]Filter, len(*stats))
 	for i := range *stats {
-		s := &((*stats)[i])
+		s := (*stats)[i]
 		localStats[i].StatsType = s.StatsType
 		if s.StatsType == Min {
 			localStats[i].Stats = -1

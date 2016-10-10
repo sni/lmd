@@ -125,8 +125,8 @@ func (op *Operator) String() string {
 // String converts a filter back to its string representation.
 func (f *Filter) String(prefix string) (str string) {
 	if len(f.Filter) > 0 {
-		for _, sub := range f.Filter {
-			str += sub.String(prefix)
+		for i := range f.Filter {
+			str += f.Filter[i].String(prefix)
 		}
 		str += fmt.Sprintf("%s%s: %d\n", prefix, f.GroupOperator.String(), len(f.Filter))
 		return
