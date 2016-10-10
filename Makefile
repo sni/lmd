@@ -25,7 +25,7 @@ dump:
 	rm -f $(LAMPDDIR)/dump.go.bak
 
 build: dump
-	cd $(LAMPDDIR) && go build -ldflags "-X main.Build=$(shell git rev-parse --short HEAD)"
+	cd $(LAMPDDIR) && go build -ldflags "-s -w -X main.Build=$(shell git rev-parse --short HEAD)"
 
 debugbuild: deps fmt
 	cd $(LAMPDDIR) && go build -race -ldflags "-X main.Build=$(shell git rev-parse --short HEAD)"
