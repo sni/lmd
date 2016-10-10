@@ -783,7 +783,15 @@ func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn
 
 	// read result from connection into result buffer
 	buf := new(bytes.Buffer)
-	io.Copy(buf, conn)
+	for {
+		_, err := io.CopyN(buf, conn, 65536)
+		if err != nil {
+			if err != io.EOF {
+				return nil, err
+			}
+			break
+		}
+	}
 	bytes := buf.Bytes()
 	return &bytes, nil
 }
