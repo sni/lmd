@@ -5,20 +5,21 @@ LMD - Livestatus Multitool Daemon
 [![Go Report Card](https://goreportcard.com/badge/github.com/sni/lmd)](https://goreportcard.com/report/github.com/sni/lmd)
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](http://www.gnu.org/licenses/gpl-3.0)
 
+
 What is this
 ============
 
 LMD fetches Livestatus data from one or multiple sources and provides:
 
-- A Livestatus api for those sources
-- A cache which makes livestatus querys a lot faster than requesting them directly from the remote sources.
-- A enhanced livestatus api with more useful output formats and sorting
-- Aggregated livestatus results for multiple backends
-- A Prometheus exporter for livestatus based metrics for Nagios, Icinga, Shinken and Naemon
+- A combined Livestatus API for those sources.
+- A cache which makes Livestatus queries a lot faster than requesting them directly from the remote sources.
+- A enhanced Livestatus API with more useful output formats and sorting. See list below.
+- Aggregated Livestatus results for multiple backends.
+- A Prometheus exporter for Livestatus based metrics for Nagios, Icinga, Shinken and Naemon.
 
 So basically this is a "Livestatus In / Livestatus Out" daemon. Its main purpose is to
-provide the backend handling of the [Thruk Monitoring Gui](http://www.thruk.org) to a native
-compiled fast daemon, but it works for everything which requires livestatus.
+provide the backend handling of the [Thruk Monitoring Gui](http://www.thruk.org) in a native
+compiled fast daemon, but it works for everything which requires Livestatus.
 
 <img src="docs/Architecture.png" alt="Architecture" style="width: 600px;"/>
 
@@ -30,10 +31,13 @@ How does it work
 
 After starting LMD, it fetches all tables via Livestatus API from all
 configured remote backends. It then polls periodically all dynamic parts of the
-objects, like host status or plugin or downtime status. When there are no
-incoming connections to LMD, it switches into the idle mode with a slower poll
-interval. As soon as the first client requests some data, LMD will do a spin
-up and run a synchronous update and change back to the normal poll interval.
+objects, like host status, plugin output or downtime status.
+
+When there are no incoming connections to LMD, it switches into the idle mode
+with a slower poll interval. As soon as the first client requests some data,
+LMD will do a spin up and run a synchronous update (with small timeout) and
+change back to the normal poll interval.
+
 
 Usage
 =====
@@ -65,7 +69,7 @@ There are several different connection types.
 
 ### TCP Livestatus  ###
 
-Remote livestatus connections via tcp can be defined as:
+Remote Livestatus connections via tcp can be defined as:
 
 ```
     [[Connections]]
@@ -81,7 +85,7 @@ If the source is a cluster, you can specify multiple addresses like
 
 ### Unix Socket Livestatus  ###
 
-Local unix sockets livestatus connections can be defined as:
+Local unix sockets Livestatus connections can be defined as:
 
 ```
     [[Connections]]
@@ -91,19 +95,21 @@ Local unix sockets livestatus connections can be defined as:
 ```
 
 
-Additional Livestatus Header
-============================
+What is different in LMD
+========================
+
+There are some new/changed Livestatus query headers:
 
 ### Output Format ###
 
 The default OutputFormat is `wrapped_json` but `json` is also supported.
 
 The `wrapped_json` format will put the normal `json` result in a hash with
-some more keys:
+some more extra meta data:
 
-    - data: the original result
-    - total: the number of matches in the result set _before_ the limit and offset applied
-    - failed: a hash of backends which could not be retrieved
+    - data: the original result.
+    - total: the number of matches in the result set _before_ the limit and offset applied.
+    - failed: a hash of backends which have errored for some reason.
 
 ### Response Header ###
 
@@ -146,14 +152,19 @@ ex.:
 
 Resource Usage
 ==============
-The improved performance comes at a price of course. The following numbers should give you a rough idea on what to expect:
-An example installation with 200.000 services at a 3 second update interval uses around 1.5gB of memory and 200kByte/s of bandwith.
-This makes an average of 7kB memory and 1Byte/s of bandwitdh usage per service.
+The improved performance comes at a price of course. The following numbers
+should give you a rough idea on what to expect: An example installation with
+200.000 services at a 3 second update interval uses around 1.5gB of memory and
+200kByte/s of bandwith.  This makes an average of 7kB memory and 1Byte/s of
+bandwitdh usage per service.
 
-However your milage may vary, these number heavily depend on the size of the plugin output and the check interval of your services.
-Use the Prometheus exporter to create nice graphs to see how your environment differs.
+However your milage may vary, these number heavily depend on the size of the
+plugin output and the check interval of your services.  Use the Prometheus
+exporter to create nice graphs to see how your environment differs.
 
-Btw, changing the update interval to 30 seconds does not reduce the used bandwith, you just have to update many services every 30 seconds than small packages every 3 seconds.
+Btw, changing the update interval to 30 seconds does not reduce the used
+bandwith, you just have to update many services every 30 seconds than small
+packages every 3 seconds.
 
 
 Ideas
@@ -161,8 +172,9 @@ Ideas
 
 Some ideas may or may not be implemented in the future
 
-- Cluster the daemon itself to spread out the load, only one last reduce
-  would be required to combine the result from all cluster partners
-- Add transparent and half-transparent mode which just handles the map/reduce without cache
+- Cluster the daemon itself to spread out the load, only one last map/reduce
+  would be required to combine the result from all cluster partners.
+- Add transparent and half-transparent mode which just handles the map/reduce without cache.
+  This is implemented for log table and commands anyway already. Just requires an additional header.
 - Cache last 24h of logfiles to speed up most logfile requests
 - Add REST interface
