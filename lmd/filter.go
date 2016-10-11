@@ -508,11 +508,11 @@ func matchStringValueOperator(op Operator, valueA *interface{}, valueB *string, 
 	case RegexMatch:
 		return (*regex).MatchString(strA)
 	case RegexMatchNot:
-		return (*regex).MatchString(strA)
+		return !(*regex).MatchString(strA)
 	case RegexNoCaseMatch:
 		return (*regex).MatchString(strings.ToLower(strA))
 	case RegexNoCaseMatchNot:
-		return (*regex).MatchString(strings.ToLower(strA))
+		return !(*regex).MatchString(strings.ToLower(strA))
 	case Less:
 		return strA < strB
 	case LessThan:

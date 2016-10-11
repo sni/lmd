@@ -1,6 +1,9 @@
 This file documents the revision history for the Livestatus Multitool Daemon
 
 
+next
+          - fix issue with inverted regular expression filter
+
 1.0.0    Tue Oct 11 00:06:03 CEST 2016
           - add missing columns in downtimes/comments in order to filter by contacts
           - use faster json library to decode results

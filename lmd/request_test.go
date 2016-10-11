@@ -225,6 +225,44 @@ func TestResponseErrorsFunc(t *testing.T) {
 	StopTestPeer(peer)
 }
 
+func TestRequestNestedFilter(t *testing.T) {
+	peer := StartTestPeer(1, 0, 0)
+
+	if err := assertEq(1, len(DataStore)); err != nil {
+		t.Error(err)
+	}
+
+	query := `GET services
+Columns: host_name description state peer_key
+Filter: description ~~ session
+Filter: display_name ~~ session
+Or: 2
+Filter: description !~~ database
+Filter: display_name !~~ database
+And: 2
+And: 2
+Limit: 100
+Offset: 0
+Sort: host_name asc
+Sort: description asc
+OutputFormat: wrapped_json
+ResponseHeader: fixed16
+`
+	res, err := peer.QueryString(query)
+	if err = assertEq(3, len(res)); err != nil {
+		t.Error(err)
+	}
+
+	if err = assertEq("tomcat", res[0][0]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq("session_active", res[0][1]); err != nil {
+		t.Error(err)
+	}
+
+	StopTestPeer(peer)
+}
+
 func TestRequestStats(t *testing.T) {
 	peer := StartTestPeer(1, 0, 0)
 
