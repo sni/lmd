@@ -280,6 +280,14 @@ func (p *Peer) StatusGet(key string) interface{} {
 	return value
 }
 
+// ScheduleImmediateUpdate resets all update timer so the next updateloop iteration
+// will performan an update.
+func (p *Peer) ScheduleImmediateUpdate() {
+	p.StatusSet("LastUpdate", time.Now().Unix()-GlobalConfig.Updateinterval)
+	p.StatusSet("LastFullServiceUpdate", time.Now().Unix()-MinFullScanInterval)
+	p.StatusSet("LastFullHostUpdate", time.Now().Unix()-MinFullScanInterval)
+}
+
 // InitAllTables creates all tables for this peer.
 // It returns true if the import was successful or false otherwise.
 func (p *Peer) InitAllTables() bool {
@@ -1277,19 +1285,7 @@ func (p *Peer) WaitCondition(req *Request) bool {
 			if p.MatchRowFilter(table, &refs, len(obj), &req.WaitCondition[0], &obj, 0) {
 				// trigger update for all, wait conditions are run against the last object
 				// but multiple commands may have been sent
-				if req.Table == "hosts" {
-					go func() {
-						// make sure we log panics properly
-						defer logPanicExit()
-						p.UpdateDeltaTableHosts("")
-					}()
-				} else if req.Table == "services" {
-					go func() {
-						// make sure we log panics properly
-						defer logPanicExit()
-						p.UpdateDeltaTableServices("")
-					}()
-				}
+				p.ScheduleImmediateUpdate()
 				close(c)
 				return
 			}

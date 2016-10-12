@@ -36,16 +36,22 @@ func QueryServer(c net.Conn) error {
 			(&Response{Code: 400, Request: &Request{}, Error: err}).Send(c)
 			return err
 		}
-		for _, req := range reqs {
+		commandsByPeer := make(map[string][]string)
+		for i, req := range reqs {
+			if i > 0 {
+				t1 = time.Now()
+			}
 			if req.Command != "" {
-				// commands do not send anything back
-				err = req.SendPeerCommands()
-				duration := time.Since(t1)
-				log.Infof("incoming command request from %s to %s finished in %s", remote, c.LocalAddr().String(), duration.String())
-				if err != nil {
-					return err
+				for _, pID := range req.BackendsMap {
+					commandsByPeer[pID] = append(commandsByPeer[pID], strings.TrimSpace(req.Command))
 				}
 			} else {
+				// send all pending commands so far
+				if len(commandsByPeer) > 0 {
+					SendCommands(&commandsByPeer)
+					commandsByPeer = make(map[string][]string)
+					log.Infof("incoming command request from %s to %s finished in %s", remote, c.LocalAddr().String(), time.Since(t1))
+				}
 				if req.WaitTrigger != "" {
 					c.SetDeadline(time.Now().Add(time.Duration(req.WaitTimeout+1000) * time.Millisecond))
 				}
@@ -67,24 +73,29 @@ func QueryServer(c net.Conn) error {
 			}
 		}
 
+		// send all remaining commands
+		if len(commandsByPeer) > 0 {
+			SendCommands(&commandsByPeer)
+			log.Infof("incoming command request from %s to %s finished in %s", remote, c.LocalAddr().String(), time.Since(t1))
+		}
+
 		return err
 	}
 }
 
-// SendPeerCommands sends commands for this request to all selected remote sites.
+// SendCommands sends commands for this request to all selected remote sites.
 // It returns any error encountered.
-func (req *Request) SendPeerCommands() (err error) {
-	for _, p := range DataStore {
-		_, ok := req.BackendsMap[p.ID]
-		if !ok {
-			continue
-		}
+func SendCommands(commandsByPeer *map[string][]string) {
+	wg := &sync.WaitGroup{}
+	for pID := range *commandsByPeer {
+		p := DataStore[pID]
+		wg.Add(1)
 		go func(peer Peer) {
 			// make sure we log panics properly
+			defer wg.Done()
 			defer logPanicExit()
-
 			commandRequest := &Request{
-				Command: req.Command,
+				Command: strings.Join((*commandsByPeer)[peer.ID], "\n\n"),
 			}
 			peer.PeerLock.Lock()
 			peer.Status["LastQuery"] = time.Now().Unix()
@@ -93,11 +104,18 @@ func (req *Request) SendPeerCommands() (err error) {
 				log.Infof("[%s] switched back to normal update interval", peer.Name)
 			}
 			peer.PeerLock.Unlock()
-			peer.Query(commandRequest)
+			_, err := peer.Query(commandRequest)
+			if err != nil {
+				log.Warnf("[%s] sending command failed: %s", peer.ID, err.Error())
+			}
+			log.Infof("[%s] send %d commands successfully.", peer.Name, len((*commandsByPeer)[peer.ID]))
+
 			// schedule immediate update
-			peer.StatusSet("LastUpdate", time.Now().Unix()-GlobalConfig.Updateinterval)
+			peer.ScheduleImmediateUpdate()
 		}(p)
 	}
+	// Wait up to 10 seconds for all commands being sent
+	waitTimeout(wg, 10)
 	return
 }
 
