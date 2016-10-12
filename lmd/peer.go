@@ -1266,12 +1266,24 @@ func (p *Peer) WaitCondition(req *Request) bool {
 
 		table := p.Tables[req.Table].Table
 		refs := p.Tables[req.Table].Refs
+		var lastUpdate int64
 		for {
 			select {
 			case <-c:
 				// canceled
 				return
 			default:
+			}
+			// waiting for final update
+			if lastUpdate > 0 {
+				curUpdate := p.StatusGet("LastUpdate").(int64)
+				// wait up to WaitTimeout till the update is complete
+				if curUpdate > lastUpdate {
+					close(c)
+					return
+				}
+				time.Sleep(time.Millisecond * 200)
+				continue
 			}
 			// get object to watch
 			var obj []interface{}
@@ -1286,8 +1298,8 @@ func (p *Peer) WaitCondition(req *Request) bool {
 				// trigger update for all, wait conditions are run against the last object
 				// but multiple commands may have been sent
 				p.ScheduleImmediateUpdate()
-				close(c)
-				return
+				lastUpdate = p.StatusGet("LastUpdate").(int64)
+				continue
 			}
 			time.Sleep(time.Millisecond * 200)
 			if req.Table == "hosts" {
