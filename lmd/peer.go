@@ -679,7 +679,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 
 // query sends the request to a remote livestatus.
 // It returns the unmarshaled result and any error encountered.
-func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
+func (p *Peer) query(req *Request) ([][]interface{}, error) {
 	conn, connType, err := p.GetConnection()
 	if err != nil {
 		return nil, err
@@ -705,7 +705,7 @@ func (p *Peer) query(req *Request) (result [][]interface{}, err error) {
 		return nil, err
 	}
 	if req.Command != "" {
-		return
+		return nil, nil
 	}
 
 	if log.IsV(3) {
@@ -805,8 +805,8 @@ func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn
 			break
 		}
 	}
-	bytes := buf.Bytes()
-	return &bytes, nil
+	res := buf.Bytes()
+	return &res, nil
 }
 
 // Query sends a livestatus request from a request object.
@@ -1229,6 +1229,24 @@ func (p *Peer) GetVirtRowValue(col Column, row *[]interface{}, rowNum int, table
 				value = 4
 			} else {
 				value = state
+			}
+			break
+		case "has_long_plugin_output":
+			// return 1 if there is long_plugin_output
+			val := (*row)[table.ColumnsIndex["long_plugin_output"]].(string)
+			if val != "" {
+				value = 1
+			} else {
+				value = 0
+			}
+			break
+		case "host_has_long_plugin_output":
+			// return 1 if there is long_plugin_output
+			val := p.GetRowValue(table.GetColumn("long_plugin_output").Index, row, rowNum, table, refs, inputRowLen).(string)
+			if val != "" {
+				value = 1
+			} else {
+				value = 0
 			}
 			break
 		default:

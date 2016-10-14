@@ -150,6 +150,14 @@ ex.:
     Sort: name desc
 
 
+### Additional Columns ###
+
+  - peer_key: id of the backend where this object belongs too (all tables)
+  - peer_name: name of the backend where this object belongs too (all tables)
+  - has_long_plugin_output: flag if there is long_plugin_output or not (hosts/services table)
+
+
+
 Resource Usage
 ==============
 The improved performance comes at a price of course. The following numbers

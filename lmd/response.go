@@ -35,6 +35,7 @@ var VirtKeyMap = map[string]VirtKeyMapTupel{
 	"response_time":           {Index: -12, Key: "ReponseTime", Type: FloatCol},
 	"state_order":             {Index: -13, Key: "", Type: IntCol},
 	"last_state_change_order": {Index: -14, Key: "", Type: IntCol},
+	"has_long_plugin_output":  {Index: -15, Key: "", Type: IntCol},
 }
 
 // Response contains the livestatus response data as long with some meta data

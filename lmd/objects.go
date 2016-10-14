@@ -581,6 +581,7 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
 	t.AddColumn("last_state_change_order", RefNoUpdate, VirtCol, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked.")
+	t.AddColumn("has_long_plugin_output", RefNoUpdate, VirtCol, "Flag wether this host has long_plugin_output or not")
 	return
 }
 
@@ -694,6 +695,7 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
 	t.AddColumn("last_state_change_order", RefNoUpdate, VirtCol, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked.")
 	t.AddColumn("state_order", RefNoUpdate, VirtCol, "The service state suitable for sorting. Unknown and Critical state are switched.")
+	t.AddColumn("has_long_plugin_output", RefNoUpdate, VirtCol, "Flag wether this service has long_plugin_output or not")
 	return
 }
 
