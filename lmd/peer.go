@@ -1540,6 +1540,11 @@ Rows:
 				} else {
 					resRow[k] = (*row)[i]
 				}
+
+				// sanitize broken custom var data
+				if table.Columns[i].Type == CustomVarCol {
+					resRow[k] = interfaceToCustomVarHash(&resRow[k])
+				}
 			}
 			// fill null values with something useful
 			if resRow[k] == nil {

@@ -527,12 +527,19 @@ func matchStringValueOperator(op Operator, valueA *interface{}, valueB *string, 
 }
 
 func matchStringListFilter(filter *Filter, value *interface{}) bool {
+	if(*value == nil) {
+		*value = make([]string, 0)
+	}
 	list := reflect.ValueOf(*value)
 	listLen := list.Len()
 	switch filter.Operator {
 	case Equal:
+		// used to match for empty lists, like: contacts = ""
+		// return true if the list is empty
 		return filter.StrValue == "" && listLen == 0
 	case Unequal:
+		// used to match for any entry in lists, like: contacts != ""
+		// return true if the list is not empty
 		return filter.StrValue == "" && listLen != 0
 	case GreaterThan:
 		for i := 0; i < listLen; i++ {
@@ -554,6 +561,9 @@ func matchStringListFilter(filter *Filter, value *interface{}) bool {
 }
 
 func matchIntListFilter(filter *Filter, value *interface{}) bool {
+	if(*value == nil) {
+		*value = make([]float64, 0)
+	}
 	list := reflect.ValueOf(*value)
 	listLen := list.Len()
 	switch filter.Operator {
@@ -583,12 +593,38 @@ func matchIntListFilter(filter *Filter, value *interface{}) bool {
 }
 
 func matchCustomVarFilter(filter *Filter, value *interface{}) bool {
-	custommap := (*value).(map[string]interface{})
-	val, ok := custommap[filter.CustomTag]
+	custommap := interfaceToCustomVarHash(value)
+	val, ok := (*custommap)[filter.CustomTag]
 	if !ok {
 		val = ""
 	}
 	return matchStringValueOperator(filter.Operator, &val, &filter.StrValue, filter.Regexp)
+}
+
+// interfaceToCustomVarHash converts an interface to a hashmap
+//
+// usually custom variables come in the form of a simple hash:
+// {key: value}
+// however icinga2 sends a list which can be any of:
+// [], [null], [[key, value]]
+//
+func interfaceToCustomVarHash(in *interface{}) (*map[string]interface{}) {
+	if custommap, ok := (*in).(map[string]interface{}); ok {
+		return(&custommap)
+	}
+	if customlist, ok := (*in).([]interface{}); ok {
+		val := make(map[string]interface{})
+		for _, tupelInterface := range customlist {
+			if tupel, ok := tupelInterface.([]interface{}); ok {
+				if len(tupel) == 2 {
+					val[strings.ToUpper(tupel[0].(string))] = tupel[1].(string)
+				}
+			}
+		}
+		return(&val)
+	}
+	val := make(map[string]interface{})
+	return &val
 }
 
 func numberToFloat(in *interface{}) float64 {
