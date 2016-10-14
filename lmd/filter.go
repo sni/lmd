@@ -48,6 +48,7 @@ type Filter struct {
 	FloatValue float64
 	Regexp     *regexp.Regexp
 	CustomTag  string
+	IsEmpty    bool
 
 	// or a group of filters
 	Filter        []Filter
@@ -271,6 +272,9 @@ func (f *Filter) setFilterValue(col *Column, strVal string, line *string) (err e
 	if colType == VirtCol {
 		colType = VirtKeyMap[col.Name].Type
 	}
+	if strVal == "" {
+		f.IsEmpty = true
+	}
 	switch colType {
 	case IntListCol:
 		fallthrough
@@ -278,7 +282,7 @@ func (f *Filter) setFilterValue(col *Column, strVal string, line *string) (err e
 		fallthrough
 	case IntCol:
 		filtervalue, cerr := strconv.Atoi(strVal)
-		if cerr != nil {
+		if cerr != nil && !f.IsEmpty {
 			err = fmt.Errorf("bad request: could not convert %s to integer from filter: %s", strVal, *line)
 			return
 		}
@@ -286,7 +290,7 @@ func (f *Filter) setFilterValue(col *Column, strVal string, line *string) (err e
 		break
 	case FloatCol:
 		filtervalue, cerr := strconv.ParseFloat(strVal, 64)
-		if cerr != nil {
+		if cerr != nil && !f.IsEmpty {
 			err = fmt.Errorf("bad request: could not convert %s to float from filter: %s", strVal, *line)
 			return
 		}
@@ -447,6 +451,9 @@ func (f *Filter) MatchFilter(value *interface{}) bool {
 	case IntCol:
 		fallthrough
 	case FloatCol:
+		if f.IsEmpty {
+			return matchEmptyFilter(f.Operator)
+		}
 		if v, ok := (*value).(float64); ok {
 			return matchNumberFilter(f.Operator, v, f.FloatValue)
 		}
@@ -479,6 +486,25 @@ func matchNumberFilter(op Operator, valueA float64, valueB float64) bool {
 		return valueA > valueB
 	case GreaterThan:
 		return valueA >= valueB
+	}
+	log.Warnf("not implemented op: %v", op)
+	return false
+}
+
+func matchEmptyFilter(op Operator) bool {
+	switch op {
+	case Equal:
+		return false
+	case Unequal:
+		return true
+	case Less:
+		return false
+	case LessThan:
+		return false
+	case Greater:
+		return true
+	case GreaterThan:
+		return true
 	}
 	log.Warnf("not implemented op: %v", op)
 	return false
@@ -527,7 +553,7 @@ func matchStringValueOperator(op Operator, valueA *interface{}, valueB *string, 
 }
 
 func matchStringListFilter(filter *Filter, value *interface{}) bool {
-	if(*value == nil) {
+	if *value == nil {
 		*value = make([]string, 0)
 	}
 	list := reflect.ValueOf(*value)
@@ -561,16 +587,16 @@ func matchStringListFilter(filter *Filter, value *interface{}) bool {
 }
 
 func matchIntListFilter(filter *Filter, value *interface{}) bool {
-	if(*value == nil) {
+	if *value == nil {
 		*value = make([]float64, 0)
 	}
 	list := reflect.ValueOf(*value)
 	listLen := list.Len()
 	switch filter.Operator {
 	case Equal:
-		return filter.StrValue == "" && listLen == 0
+		return filter.IsEmpty && listLen == 0
 	case Unequal:
-		return filter.StrValue == "" && listLen != 0
+		return filter.IsEmpty && listLen != 0
 	case GreaterThan:
 		for i := 0; i < listLen; i++ {
 			val := list.Index(i).Interface()
@@ -608,9 +634,9 @@ func matchCustomVarFilter(filter *Filter, value *interface{}) bool {
 // however icinga2 sends a list which can be any of:
 // [], [null], [[key, value]]
 //
-func interfaceToCustomVarHash(in *interface{}) (*map[string]interface{}) {
+func interfaceToCustomVarHash(in *interface{}) *map[string]interface{} {
 	if custommap, ok := (*in).(map[string]interface{}); ok {
-		return(&custommap)
+		return (&custommap)
 	}
 	if customlist, ok := (*in).([]interface{}); ok {
 		val := make(map[string]interface{})
@@ -621,7 +647,7 @@ func interfaceToCustomVarHash(in *interface{}) (*map[string]interface{}) {
 				}
 			}
 		}
-		return(&val)
+		return (&val)
 	}
 	val := make(map[string]interface{})
 	return &val

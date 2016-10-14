@@ -5,6 +5,7 @@ next
           - wait for the next update to complete after a WaitTrigger query
           - send commands in a single bulk request
           - add new column has_long_plugin_output for hosts/services
+          - better handling of empty values in filters
           - make custom variables filter work with icinga2 style json
           - fix issue with inverted regular expression filter
 
