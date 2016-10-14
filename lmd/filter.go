@@ -455,7 +455,21 @@ func (f *Filter) MatchFilter(value *interface{}) bool {
 			return matchEmptyFilter(f.Operator)
 		}
 		if v, ok := (*value).(float64); ok {
-			return matchNumberFilter(f.Operator, v, f.FloatValue)
+			// inline matchNumberFilter
+			switch f.Operator {
+			case Equal:
+				return v == f.FloatValue
+			case Unequal:
+				return v != f.FloatValue
+			case Less:
+				return v < f.FloatValue
+			case LessThan:
+				return v <= f.FloatValue
+			case Greater:
+				return v > f.FloatValue
+			case GreaterThan:
+				return v >= f.FloatValue
+			}
 		}
 		return matchNumberFilter(f.Operator, numberToFloat(value), f.FloatValue)
 	case StringListCol:
