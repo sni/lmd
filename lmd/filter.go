@@ -156,6 +156,10 @@ func (f *Filter) String(prefix string) (str string) {
 }
 
 func (f *Filter) strValue() (str string) {
+	if f.IsEmpty {
+		str = ""
+		return
+	}
 	var value string
 	colType := f.Column.Type
 	if colType == VirtCol {

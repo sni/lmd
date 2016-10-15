@@ -30,6 +30,7 @@ func TestRequestHeader(t *testing.T) {
 		"GET hosts\nColumns: name comments\nFilter: comments >= 1\n\n",
 		"GET hosts\nColumns: name contact_groups\nFilter: contact_groups >= test\n\n",
 		"GET hosts\nColumns: name\nFilter: last_check >= 123456789\n\n",
+		"GET hosts\nColumns: name\nFilter: last_check =\n\n",
 	}
 	for _, str := range testRequestStrings {
 		buf := bufio.NewReader(bytes.NewBufferString(str))
