@@ -1223,6 +1223,7 @@ func (p *Peer) GetVirtRowValue(col Column, row *[]interface{}, rowNum int, table
 	return nil
 }
 
+// GetVirtRowComputedValue returns a computed virtual value for the given column.
 func (p *Peer) GetVirtRowComputedValue(col Column, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}, inputRowLen int) (value interface{}) {
 	switch col.Name {
 	case "last_state_change_order":
