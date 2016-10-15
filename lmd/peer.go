@@ -1201,58 +1201,7 @@ func (p *Peer) GetVirtRowValue(col Column, row *[]interface{}, rowNum int, table
 	value, ok := p.Status[VirtKeyMap[col.Name].Key]
 	p.PeerLock.RUnlock()
 	if !ok {
-		switch col.Name {
-		case "last_state_change_order":
-			// return last_state_change or program_start
-			lastStateChange := numberToFloat(&((*row)[table.ColumnsIndex["last_state_change"]]))
-			if lastStateChange == 0 {
-				value = p.Status["ProgramStart"]
-			} else {
-				value = lastStateChange
-			}
-			break
-		case "host_last_state_change_order":
-			// return last_state_change or program_start
-			val := p.GetRowValue(table.GetColumn("host_last_state_change").Index, row, rowNum, table, refs, inputRowLen)
-			lastStateChange := numberToFloat(&val)
-			if lastStateChange == 0 {
-				value = p.Status["ProgramStart"]
-			} else {
-				value = lastStateChange
-			}
-			break
-		case "state_order":
-			// return 4 instead of 2, which makes critical come first
-			// this way we can use this column to sort by state
-			state := numberToFloat(&((*row)[table.ColumnsIndex["state"]]))
-			if state == 2 {
-				value = 4
-			} else {
-				value = state
-			}
-			break
-		case "has_long_plugin_output":
-			// return 1 if there is long_plugin_output
-			val := (*row)[table.ColumnsIndex["long_plugin_output"]].(string)
-			if val != "" {
-				value = 1
-			} else {
-				value = 0
-			}
-			break
-		case "host_has_long_plugin_output":
-			// return 1 if there is long_plugin_output
-			val := p.GetRowValue(table.GetColumn("long_plugin_output").Index, row, rowNum, table, refs, inputRowLen).(string)
-			if val != "" {
-				value = 1
-			} else {
-				value = 0
-			}
-			break
-		default:
-			log.Panicf("cannot handle virtual column: %s", col.Name)
-			break
-		}
+		value = p.GetVirtRowComputedValue(col, row, rowNum, table, refs, inputRowLen)
 	}
 	colType := VirtKeyMap[col.Name].Type
 	switch colType {
@@ -1272,6 +1221,62 @@ func (p *Peer) GetVirtRowValue(col Column, row *[]interface{}, rowNum int, table
 		log.Panicf("not implemented")
 	}
 	return nil
+}
+
+func (p *Peer) GetVirtRowComputedValue(col Column, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}, inputRowLen int) (value interface{}) {
+	switch col.Name {
+	case "last_state_change_order":
+		// return last_state_change or program_start
+		lastStateChange := numberToFloat(&((*row)[table.ColumnsIndex["last_state_change"]]))
+		if lastStateChange == 0 {
+			value = p.Status["ProgramStart"]
+		} else {
+			value = lastStateChange
+		}
+		break
+	case "host_last_state_change_order":
+		// return last_state_change or program_start
+		val := p.GetRowValue(table.GetColumn("host_last_state_change").Index, row, rowNum, table, refs, inputRowLen)
+		lastStateChange := numberToFloat(&val)
+		if lastStateChange == 0 {
+			value = p.Status["ProgramStart"]
+		} else {
+			value = lastStateChange
+		}
+		break
+	case "state_order":
+		// return 4 instead of 2, which makes critical come first
+		// this way we can use this column to sort by state
+		state := numberToFloat(&((*row)[table.ColumnsIndex["state"]]))
+		if state == 2 {
+			value = 4
+		} else {
+			value = state
+		}
+		break
+	case "has_long_plugin_output":
+		// return 1 if there is long_plugin_output
+		val := (*row)[table.ColumnsIndex["long_plugin_output"]].(string)
+		if val != "" {
+			value = 1
+		} else {
+			value = 0
+		}
+		break
+	case "host_has_long_plugin_output":
+		// return 1 if there is long_plugin_output
+		val := p.GetRowValue(table.GetColumn("long_plugin_output").Index, row, rowNum, table, refs, inputRowLen).(string)
+		if val != "" {
+			value = 1
+		} else {
+			value = 0
+		}
+		break
+	default:
+		log.Panicf("cannot handle virtual column: %s", col.Name)
+		break
+	}
+	return
 }
 
 // WaitCondition waits for a given condition.

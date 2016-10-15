@@ -291,7 +291,7 @@ func (f *Filter) setFilterValue(col *Column, strVal string, line *string) (err e
 			return
 		}
 		f.FloatValue = float64(filtervalue)
-		break
+		return
 	case FloatCol:
 		filtervalue, cerr := strconv.ParseFloat(strVal, 64)
 		if cerr != nil && !f.IsEmpty {
@@ -299,7 +299,7 @@ func (f *Filter) setFilterValue(col *Column, strVal string, line *string) (err e
 			return
 		}
 		f.FloatValue = filtervalue
-		break
+		return
 	case CustomVarCol:
 		vars := strings.SplitN(strVal, " ", 2)
 		if len(vars) < 2 {
@@ -308,15 +308,14 @@ func (f *Filter) setFilterValue(col *Column, strVal string, line *string) (err e
 		}
 		f.StrValue = vars[1]
 		f.CustomTag = vars[0]
-		break
+		return
 	case StringListCol:
 		fallthrough
 	case StringCol:
 		f.StrValue = strVal
-		break
-	default:
-		log.Panicf("not implemented column type: %v", colType)
+		return
 	}
+	log.Panicf("not implemented column type: %v", colType)
 	return
 }
 
