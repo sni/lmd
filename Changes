@@ -1,7 +1,7 @@
 This file documents the revision history for the Livestatus Multitool Daemon
 
 
-next
+1.0.1    Sat Oct 15 12:14:49 CEST 2016
           - wait for the next update to complete after a WaitTrigger query
           - send commands in a single bulk request
           - add new column has_long_plugin_output for hosts/services
