@@ -1525,6 +1525,12 @@ Rows:
 				continue Rows
 			}
 		}
+		found++
+		// check if we have enough result rows already
+		// we still need to count how many result we would have...
+		if limit > 0 && found > limit {
+			continue Rows
+		}
 
 		// build result row
 		resRow := make([]interface{}, numPerRow)
@@ -1540,24 +1546,25 @@ Rows:
 				} else {
 					resRow[k] = (*row)[i]
 				}
-
-				// sanitize broken custom var data
-				if table.Columns[i].Type == CustomVarCol {
-					resRow[k] = interfaceToCustomVarHash(&resRow[k])
-				}
 			}
 			// fill null values with something useful
 			if resRow[k] == nil {
 				resRow[k] = table.Columns[i].GetEmptyValue()
 			}
 		}
-		found++
-		// check if we have enough result rows already
-		if limit == 0 || found <= limit {
-			result = append(result, resRow)
-		}
+		result = append(result, resRow)
 	}
 	res.ResultTotal += found
+
+	// sanitize broken custom var data from icinga2
+	for _, i := range *(indexes) {
+		if i > 0 && table.Columns[i].Type == CustomVarCol {
+			for k := range result {
+				resRow := &(result[k])
+				(*resRow)[i] = interfaceToCustomVarHash(&(*resRow)[i])
+			}
+		}
+	}
 
 	return &result
 }
