@@ -660,7 +660,11 @@ func interfaceToCustomVarHash(in *interface{}) *map[string]interface{} {
 		for _, tupelInterface := range customlist {
 			if tupel, ok := tupelInterface.([]interface{}); ok {
 				if len(tupel) == 2 {
-					val[strings.ToUpper(tupel[0].(string))] = tupel[1].(string)
+					if s, ok := tupel[1].(string); ok {
+						val[strings.ToUpper(tupel[0].(string))] = s
+					} else {
+						val[strings.ToUpper(tupel[0].(string))] = fmt.Sprintf("%v", tupel[1])
+					}
 				}
 			}
 		}
