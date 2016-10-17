@@ -1,6 +1,10 @@
 This file documents the revision history for the Livestatus Multitool Daemon
 
 
+next:
+          - add new column last_query/idling for backends table
+          - fix custom variables handling with icinga2 backend
+
 1.0.1    Sat Oct 15 12:14:49 CEST 2016
           - wait for the next update to complete after a WaitTrigger query
           - send commands in a single bulk request

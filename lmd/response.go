@@ -36,6 +36,8 @@ var VirtKeyMap = map[string]VirtKeyMapTupel{
 	"state_order":             {Index: -13, Key: "", Type: IntCol},
 	"last_state_change_order": {Index: -14, Key: "", Type: IntCol},
 	"has_long_plugin_output":  {Index: -15, Key: "", Type: IntCol},
+	"idling":                  {Index: -16, Key: "Idling", Type: IntCol},
+	"last_query":              {Index: -17, Key: "LastQuery", Type: TimeCol},
 }
 
 // Response contains the livestatus response data as long with some meta data
@@ -411,7 +413,9 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) (err err
 	for _, id := range peers {
 		p := DataStore[id]
 
-		p.StatusSet("LastQuery", time.Now().Unix())
+		if res.Request.Table != "tables" && res.Request.Table != "columns" && res.Request.Table != "backends" {
+			p.StatusSet("LastQuery", time.Now().Unix())
+		}
 
 		if !p.isOnline() {
 			resultLock.Lock()

@@ -359,6 +359,8 @@ func NewBackendsTable(name string) (t *Table) {
 	t.AddColumn("last_update", RefNoUpdate, VirtCol, "Timestamp of last update")
 	t.AddColumn("last_online", RefNoUpdate, VirtCol, "Timestamp when peer was last online")
 	t.AddColumn("response_time", RefNoUpdate, VirtCol, "Duration of last update in seconds")
+	t.AddColumn("idling", RefNoUpdate, VirtCol, "Idle status of this backend (0 - Not idling, 1 - idling)")
+	t.AddColumn("last_query", RefNoUpdate, VirtCol, "Timestamp of the last incoming request")
 
 	return
 }

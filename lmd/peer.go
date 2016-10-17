@@ -1208,7 +1208,7 @@ func (p *Peer) GetVirtRowValue(col Column, row *[]interface{}, rowNum int, table
 	case IntCol:
 		fallthrough
 	case FloatCol:
-		fallthrough
+		return numberToFloat(&value)
 	case StringCol:
 		return value
 	case TimeCol:
