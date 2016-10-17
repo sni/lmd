@@ -49,6 +49,7 @@ type Peer struct {
 	Tables          map[string]DataTable
 	Status          map[string]interface{}
 	ErrorCount      int
+	ErrorLogged     bool
 	waitGroup       *sync.WaitGroup
 	shutdownChannel chan bool
 	Config          Connection
@@ -207,6 +208,7 @@ func (p *Peer) updateLoop() {
 				p.PeerLock.RLock()
 				lastUpdate := p.Status["LastUpdate"].(int64)
 				lastFullUpdate := p.Status["LastFullUpdate"].(int64)
+				lastStatus := p.Status["PeerStatus"].(PeerStatus)
 				p.PeerLock.RUnlock()
 
 				idling := p.updateIdleStatus()
@@ -219,7 +221,14 @@ func (p *Peer) updateLoop() {
 				} else if now < lastUpdate+GlobalConfig.Updateinterval {
 					break
 				}
-				if !ok {
+
+				// set last update timestamp, otherwise we would retry the connection every 500ms instead
+				// of the update interval
+				p.StatusSet("LastUpdate", time.Now().Unix())
+
+				// run full update if the site was down.
+				// run update if it was just a short outage
+				if !ok && lastStatus != PeerStatusWarning {
 					ok = p.InitAllTables()
 					lastTimeperiodUpdateMinute = currentMinute
 					break
@@ -329,6 +338,7 @@ func (p *Peer) InitAllTables() bool {
 		p.Status["LastError"] = ""
 		p.Status["LastOnline"] = time.Now().Unix()
 		p.ErrorCount = 0
+		p.ErrorLogged = false
 		p.Status["PeerStatus"] = PeerStatusUp
 		p.PeerLock.Unlock()
 	}
@@ -362,6 +372,11 @@ func (p *Peer) UpdateAllTables() bool {
 	}
 	duration := time.Since(t1)
 	p.PeerLock.Lock()
+	if p.Status["PeerStatus"].(PeerStatus) != PeerStatusUp {
+		log.Infof("[%s] site soft recovered from short outage", p.Name)
+	}
+	p.ErrorCount = 0
+	p.ErrorLogged = false
 	p.Status["ReponseTime"] = duration.Seconds()
 	p.Status["LastUpdate"] = time.Now().Unix()
 	p.Status["LastFullUpdate"] = time.Now().Unix()
@@ -399,11 +414,23 @@ func (p *Peer) UpdateDeltaTables() bool {
 
 	duration := time.Since(t1)
 	if err != nil {
-		log.Infof("[%s] updating objects failed after: %s: %s", p.Name, duration.String(), err.Error())
+		if !p.ErrorLogged {
+			log.Infof("[%s] updating objects failed after: %s: %s", p.Name, duration.String(), err.Error())
+			p.ErrorLogged = true
+		} else {
+			log.Debugf("[%s] updating objects failed after: %s: %s", p.Name, duration.String(), err.Error())
+		}
 		return false
 	}
 	log.Debugf("[%s] delta update complete in: %s", p.Name, duration.String())
 	p.PeerLock.Lock()
+	if p.Status["PeerStatus"].(PeerStatus) != PeerStatusUp {
+		log.Infof("[%s] site soft recovered from short outage", p.Name)
+		p.Status["PeerStatus"] = PeerStatusUp
+		p.Status["LastError"] = ""
+		p.ErrorCount = 0
+		p.ErrorLogged = false
+	}
 	p.Status["LastUpdate"] = time.Now().Unix()
 	p.Status["LastOnline"] = time.Now().Unix()
 	p.Status["ReponseTime"] = duration.Seconds()
