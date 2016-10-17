@@ -331,21 +331,26 @@ func (p *Peer) InitAllTables() bool {
 
 	if p.Status["PeerStatus"].(PeerStatus) != PeerStatusUp {
 		// Reset errors
-		p.PeerLock.Lock()
-		if p.Status["PeerStatus"].(PeerStatus) == PeerStatusDown {
+		if p.StatusGet("PeerStatus").(PeerStatus) == PeerStatusDown {
 			log.Infof("[%s] site is back online", p.Name)
 		}
-		p.Status["LastError"] = ""
-		p.Status["LastOnline"] = time.Now().Unix()
-		p.ErrorCount = 0
-		p.ErrorLogged = false
-		p.Status["PeerStatus"] = PeerStatusUp
-		p.PeerLock.Unlock()
+		p.resetErrors()
 	}
 	promPeerUpdates.WithLabelValues(p.Name).Inc()
 	promPeerUpdateDuration.WithLabelValues(p.Name).Set(duration.Seconds())
 
 	return true
+}
+
+// resetErrors reset the error counter after the site has recovered
+func (p *Peer) resetErrors() {
+	p.PeerLock.Lock()
+	p.Status["LastError"] = ""
+	p.Status["LastOnline"] = time.Now().Unix()
+	p.ErrorCount = 0
+	p.ErrorLogged = false
+	p.Status["PeerStatus"] = PeerStatusUp
+	p.PeerLock.Unlock()
 }
 
 // UpdateAllTables runs a full update on all dynamic values for all tables which have dynamic updated columns.
@@ -371,18 +376,14 @@ func (p *Peer) UpdateAllTables() bool {
 		return p.InitAllTables()
 	}
 	duration := time.Since(t1)
-	p.PeerLock.Lock()
-	if p.Status["PeerStatus"].(PeerStatus) != PeerStatusUp {
+	if p.StatusGet("PeerStatus").(PeerStatus) != PeerStatusUp {
 		log.Infof("[%s] site soft recovered from short outage", p.Name)
 	}
-	p.ErrorCount = 0
-	p.ErrorLogged = false
+	p.resetErrors()
+	p.PeerLock.Lock()
 	p.Status["ReponseTime"] = duration.Seconds()
 	p.Status["LastUpdate"] = time.Now().Unix()
 	p.Status["LastFullUpdate"] = time.Now().Unix()
-	p.Status["LastOnline"] = time.Now().Unix()
-	p.Status["PeerStatus"] = PeerStatusUp
-	p.Status["LastError"] = ""
 	p.PeerLock.Unlock()
 	log.Infof("[%s] update complete in: %s", p.Name, duration.String())
 	promPeerUpdates.WithLabelValues(p.Name).Inc()
@@ -423,16 +424,12 @@ func (p *Peer) UpdateDeltaTables() bool {
 		return false
 	}
 	log.Debugf("[%s] delta update complete in: %s", p.Name, duration.String())
-	p.PeerLock.Lock()
-	if p.Status["PeerStatus"].(PeerStatus) != PeerStatusUp {
+	if p.StatusGet("PeerStatus").(PeerStatus) != PeerStatusUp {
 		log.Infof("[%s] site soft recovered from short outage", p.Name)
-		p.Status["PeerStatus"] = PeerStatusUp
-		p.Status["LastError"] = ""
-		p.ErrorCount = 0
-		p.ErrorLogged = false
 	}
+	p.resetErrors()
+	p.PeerLock.Lock()
 	p.Status["LastUpdate"] = time.Now().Unix()
-	p.Status["LastOnline"] = time.Now().Unix()
 	p.Status["ReponseTime"] = duration.Seconds()
 	p.PeerLock.Unlock()
 	promPeerUpdates.WithLabelValues(p.Name).Inc()
