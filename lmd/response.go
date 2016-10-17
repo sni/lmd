@@ -429,7 +429,7 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) (err err
 			// make sure we log panics properly
 			defer logPanicExit()
 
-			log.Debugf("[%s] starting local data computation", p.Name)
+			log.Tracef("[%s] starting local data computation", p.Name)
 			defer wg.Done()
 
 			result, stats := p.BuildLocalResponseData(res, indexes)
