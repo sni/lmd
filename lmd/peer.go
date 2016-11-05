@@ -1587,11 +1587,11 @@ Rows:
 	res.ResultTotal += found
 
 	// sanitize broken custom var data from icinga2
-	for _, i := range *(indexes) {
+	for j, i := range *(indexes) {
 		if i > 0 && table.Columns[i].Type == CustomVarCol {
 			for k := range result {
 				resRow := &(result[k])
-				(*resRow)[i] = interfaceToCustomVarHash(&(*resRow)[i])
+				(*resRow)[j] = interfaceToCustomVarHash(&(*resRow)[j])
 			}
 		}
 	}
