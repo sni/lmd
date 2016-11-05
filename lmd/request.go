@@ -61,6 +61,7 @@ type SortField struct {
 	Name      string
 	Direction SortDirection
 	Index     int
+	Args      string
 }
 
 // GroupOperator is the operator used to combine multiple filter or stats header.
@@ -382,10 +383,19 @@ func parseIntHeader(field *int, header string, value string, minValue int) (err 
 }
 
 func parseSortHeader(field *[]*SortField, value string) (err error) {
-	tmp := strings.SplitN(value, " ", 2)
+	args := ""
+	tmp := strings.SplitN(value, " ", 3)
 	if len(tmp) < 2 {
-		err = errors.New("bad request: invalid sort header, must be Sort: <field> <asc|desc>")
+		err = errors.New("bad request: invalid sort header, must be 'Sort: <field> <asc|desc>' or 'Sort: custom_variables <name> <asc|desc>'")
 		return
+	}
+	if len(tmp) == 3 {
+		if tmp[0] != "custom_variables" {
+			err = errors.New("bad request: invalid sort header, must be 'Sort: <field> <asc|desc>' or 'Sort: custom_variables <name> <asc|desc>'")
+			return
+		}
+		args = strings.ToUpper(tmp[1])
+		tmp[1] = tmp[2]
 	}
 	var direction SortDirection
 	switch strings.ToLower(tmp[1]) {
@@ -399,7 +409,7 @@ func parseSortHeader(field *[]*SortField, value string) (err error) {
 		err = errors.New("bad request: unrecognized sort direction, must be asc or desc")
 		return
 	}
-	*field = append(*field, &SortField{Name: strings.ToLower(tmp[0]), Direction: direction})
+	*field = append(*field, &SortField{Name: strings.ToLower(tmp[0]), Direction: direction, Args: args})
 	return
 }
 

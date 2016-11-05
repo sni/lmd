@@ -3,6 +3,7 @@ This file documents the revision history for the Livestatus Multitool Daemon
 
 next:
           - recover without recreating objects on short outages
+          - add sorting by custom variables
           - add new column last_query/idling for backends table
           - fix custom variables handling with icinga2 backend
 

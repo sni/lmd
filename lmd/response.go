@@ -153,6 +153,20 @@ func (res Response) Less(i, j int) bool {
 		case IntListCol:
 			// not implemented
 			return s.Direction == Asc
+		case CustomVarCol:
+			if s1, ok := ((*(res.Result[i][s.Index]).(*map[string]interface{}))[s.Args]).(string); ok {
+				if s2, ok := ((*(res.Result[j][s.Index]).(*map[string]interface{}))[s.Args]).(string); ok {
+					if s1 == s2 {
+						continue
+					}
+					if s.Direction == Asc {
+						return s1 < s2
+					}
+					return s1 > s2
+				}
+			}
+			// not implemented
+			return s.Direction == Asc
 		}
 		panic(fmt.Sprintf("sorting not implemented for type %d", Type))
 	}

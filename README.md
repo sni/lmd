@@ -142,12 +142,17 @@ The sort header can be used to sort the results by one or more columns.
 Multiple sort header can be used.
 
     Sort: <column name> <asc/desc>
+    
+Sorting by custom variables is possible like this:
+
+    Sort: custom_variables <name> <asc/desc>
 
 ex.:
 
     GET hosts
     Sort: state asc
     Sort: name desc
+    Sort: custom_variables WORKER asc
 
 
 ### Additional Columns ###

@@ -89,6 +89,16 @@ func TestRequestHeaderSort(t *testing.T) {
 	}
 }
 
+func TestRequestHeaderSortCust(t *testing.T) {
+	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name custom_variables\nSort: custom_variables TEST asc\n"))
+	req, _, _ := NewRequest(buf)
+	table, _ := Objects.Tables[req.Table]
+	req.BuildResponseIndexes(&table)
+	if err := assertEq(SortField{Name: "custom_variables", Direction: Asc, Index: 1, Args: "TEST"}, *req.Sort[0]); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRequestHeaderFilter1(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: name != test\n"))
 	req, _, _ := NewRequest(buf)
@@ -193,9 +203,9 @@ func TestResponseErrorsFunc(t *testing.T) {
 		{"GET hosts\nLimit: -1", "bad request: limit must be a positive number"},
 		{"GET hosts\nOffset: x", "bad request: offset must be a positive number"},
 		{"GET hosts\nOffset: -1", "bad request: offset must be a positive number"},
-		{"GET hosts\nSort: 1", "bad request: invalid sort header, must be Sort: <field> <asc|desc>"},
+		{"GET hosts\nSort: 1", "bad request: invalid sort header, must be 'Sort: <field> <asc|desc>' or 'Sort: custom_variables <name> <asc|desc>'"},
 		{"GET hosts\nSort: name none", "bad request: unrecognized sort direction, must be asc or desc"},
-		{"GET hosts\nSort: name", "bad request: invalid sort header, must be Sort: <field> <asc|desc>"},
+		{"GET hosts\nSort: name", "bad request: invalid sort header, must be 'Sort: <field> <asc|desc>' or 'Sort: custom_variables <name> <asc|desc>'"},
 		{"GET hosts\nColumns: name\nSort: state asc", "bad request: sort column state not in result set"},
 		{"GET hosts\nResponseheader: none", "bad request: unrecognized responseformat, only fixed16 is supported"},
 		{"GET hosts\nOutputFormat: csv: none", "bad request: unrecognized outputformat, only json and wrapped_json is supported"},
