@@ -1,7 +1,7 @@
 This file documents the revision history for the Livestatus Multitool Daemon
 
 
-next:
+1.0.2    Sat Nov  5 22:34:40 CET 2016
           - recover without recreating objects on short outages
           - add sorting by custom variables
           - add new column last_query/idling for backends table
