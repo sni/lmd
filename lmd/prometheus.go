@@ -36,8 +36,8 @@ var (
 		[]string{"listen"},
 	)
 
-	promPeerUpdateInterval = prometheus.NewCounter(
-		prometheus.CounterOpts{
+	promPeerUpdateInterval = prometheus.NewGauge(
+		prometheus.GaugeOpts{
 			Namespace: NAME,
 			Subsystem: "peer",
 			Name:      "update_interval",
@@ -62,8 +62,8 @@ var (
 		},
 		[]string{"peer"},
 	)
-	promPeerBytesSend = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	promPeerBytesSend = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
 			Namespace: NAME,
 			Subsystem: "peer",
 			Name:      "sent_bytes",
@@ -71,8 +71,8 @@ var (
 		},
 		[]string{"peer"},
 	)
-	promPeerBytesReceived = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	promPeerBytesReceived = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
 			Namespace: NAME,
 			Subsystem: "peer",
 			Name:      "received_bytes",
@@ -89,8 +89,8 @@ var (
 		},
 		[]string{"peer"},
 	)
-	promPeerUpdateDuration = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	promPeerUpdateDuration = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
 			Namespace: NAME,
 			Subsystem: "peer",
 			Name:      "update_duration_seconds",
