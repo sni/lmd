@@ -390,7 +390,7 @@ func parseSortHeader(field *[]*SortField, value string) (err error) {
 		return
 	}
 	if len(tmp) == 3 {
-		if tmp[0] != "custom_variables" {
+		if tmp[0] != "custom_variables" && tmp[0] != "host_custom_variables" {
 			err = errors.New("bad request: invalid sort header, must be 'Sort: <field> <asc|desc>' or 'Sort: custom_variables <name> <asc|desc>'")
 			return
 		}
