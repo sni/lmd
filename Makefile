@@ -7,7 +7,7 @@ GOVERSION:=$(shell go version | awk '{print $$3}' | sed 's/^go\([0-9]\.[0-9]\).*
 
 all: deps fmt build
 
-deps: dump
+deps: versioncheck dump
 	go get -u github.com/BurntSushi/toml
 	go get -u github.com/kdar/factorlog
 	go get -u github.com/mgutz/ansi
@@ -86,6 +86,14 @@ fmt:
 	cd $(LAMPDDIR) && goimports -w .
 	cd $(LAMPDDIR) && go tool vet -all -shadow -assign -atomic -bool -composites -copylocks -nilfunc -rangeloops -unsafeptr -unreachable .
 	cd $(LAMPDDIR) && gofmt -w -s .
+
+versioncheck:
+	@[ $$(echo "$(GOVERSION)" | tr -d ".") -gt 15 ] || { \
+		echo "**** ERROR:"; \
+		echo "**** LMD requires at least golang version 1.5 or higher"; \
+		echo "**** this is: $$(go version)"; \
+		exit 1; \
+	}
 
 lint:
 	#
