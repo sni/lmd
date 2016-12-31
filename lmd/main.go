@@ -164,6 +164,10 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 		log.Fatalf("no connections defined")
 	}
 
+	if len(GlobalConfig.Listen) == 0 {
+		log.Fatalf("no listeners defined")
+	}
+
 	if flagProfile != "" {
 		log.Warnf("pprof profiler listening at %s", flagProfile)
 	}
@@ -385,6 +389,9 @@ func PrintVersion() {
 // ReadConfig reads all config files.
 // It returns a Config object.
 func ReadConfig(files []string) (conf Config) {
+	// combine listeners from all files
+	var allListeners []string
+
 	for _, configFile := range files {
 		if _, err := os.Stat(configFile); err != nil {
 			fmt.Fprintf(os.Stderr, "ERROR: could not load configuration from %s: %s\nuse --help to see all options.\n", configFile, err.Error())
@@ -393,10 +400,12 @@ func ReadConfig(files []string) (conf Config) {
 		if _, err := toml.DecodeFile(configFile, &conf); err != nil {
 			panic(err)
 		}
+		allListeners = append(allListeners, conf.Listen...)
 	}
 	if flagLogFile != "" {
 		conf.LogFile = flagLogFile
 	}
+	conf.Listen = allListeners
 
 	promPeerUpdateInterval.Set(float64(conf.Updateinterval))
 
