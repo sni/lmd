@@ -8,16 +8,27 @@ GOVERSION:=$(shell go version | awk '{print $$3}' | sed 's/^go\([0-9]\.[0-9]\).*
 all: deps fmt build
 
 deps: versioncheck dump
+	go get github.com/BurntSushi/toml
+	go get github.com/kdar/factorlog
+	go get github.com/mgutz/ansi
+	go get golang.org/x/tools/cmd/goimports
+	go get github.com/prometheus/client_golang/prometheus
+	go get github.com/Jeffail/gabs
+
+updatedeps: versioncheck
 	go get -u github.com/BurntSushi/toml
 	go get -u github.com/kdar/factorlog
 	go get -u github.com/mgutz/ansi
 	go get -u golang.org/x/tools/cmd/goimports
 	go get -u github.com/prometheus/client_golang/prometheus
 	go get -u github.com/Jeffail/gabs
+	go get -u github.com/davecgh/go-spew/spew
+
+
 
 dump:
 	if [ $(shell grep -rc Dump $(LAMPDDIR)/*.go | grep -v :0 | grep -v $(LAMPDDIR)/dump.go | wc -l) -ne 0 ]; then \
-		go get -u github.com/davecgh/go-spew/spew; \
+		go get github.com/davecgh/go-spew/spew; \
 		sed -i.bak 's/\/\/ +build.*/\/\/ build with debug functions/' $(LAMPDDIR)/dump.go; \
 	else \
 		sed -i.bak 's/\/\/ build.*/\/\/ +build ignore/' $(LAMPDDIR)/dump.go; \
