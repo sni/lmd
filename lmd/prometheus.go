@@ -138,6 +138,7 @@ var (
 )
 
 func initPrometheus() (prometheusListener net.Listener) {
+	// TODO: implement TLS support
 	if GlobalConfig.ListenPrometheus != "" {
 		var err error
 		prometheusListener, err = net.Listen("tcp", GlobalConfig.ListenPrometheus)

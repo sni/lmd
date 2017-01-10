@@ -1,8 +1,10 @@
 package main
 
 import (
+	"crypto/tls"
 	"errors"
 	"net"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -119,20 +121,30 @@ func SendCommands(commandsByPeer *map[string][]string) {
 	return
 }
 
-// LocalListener starts a local tcp/unix listening socket.
+// LocalListener starts a listening socket.
 func LocalListener(listen string, waitGroup *sync.WaitGroup, shutdownChannel chan bool) {
 	defer waitGroup.Done()
 	waitGroup.Add(1)
-	connType := "unix"
-	if strings.Contains(listen, ":") {
-		connType = "tcp"
+	if strings.HasPrefix(listen, "https://") {
+		listen = strings.TrimPrefix(listen, "https://")
+		LocalListenerHTTP("https", listen, waitGroup, shutdownChannel)
+	} else if strings.HasPrefix(listen, "http://") {
+		listen = strings.TrimPrefix(listen, "http://")
+		LocalListenerHTTP("http", listen, waitGroup, shutdownChannel)
+	} else if strings.Contains(listen, ":") {
+		LocalListenerLivestatus("tcp", listen, waitGroup, shutdownChannel)
 	} else {
 		// remove stale sockets on start
 		if _, err := os.Stat(listen); err == nil {
 			log.Warnf("removing stale socket: %s", listen)
 			os.Remove(listen)
 		}
+		LocalListenerLivestatus("unix", listen, waitGroup, shutdownChannel)
 	}
+}
+
+// LocalListenerLivestatus starts a listening socket with livestatus protocol.
+func LocalListenerLivestatus(connType string, listen string, waitGroup *sync.WaitGroup, shutdownChannel chan bool) {
 	l, err := net.Listen(connType, listen)
 	if err != nil {
 		log.Fatalf("listen error: %s", err.Error())
@@ -174,4 +186,43 @@ func LocalListener(listen string, waitGroup *sync.WaitGroup, shutdownChannel cha
 			QueryServer(fd)
 		}()
 	}
+}
+
+// LocalListenerHTTP starts a listening socket with http protocol.
+func LocalListenerHTTP(httpType string, listen string, waitGroup *sync.WaitGroup, shutdownChannel chan bool) {
+	var l net.Listener
+	if httpType == "https" {
+		cer, err := tls.LoadX509KeyPair(GlobalConfig.TLSCertificate, GlobalConfig.TLSKey)
+		if err != nil {
+			log.Fatalf("failed to initialize tls %s", err.Error())
+		}
+		config := &tls.Config{Certificates: []tls.Certificate{cer}}
+		ln, err := tls.Listen("tcp", listen, config)
+		if err != nil {
+			log.Fatalf("listen error: %s", err.Error())
+			return
+		}
+		l = ln
+	} else {
+		ln, err := net.Listen("tcp", listen)
+		if err != nil {
+			log.Fatalf("listen error: %s", err.Error())
+			return
+		}
+		l = ln
+	}
+
+	log.Infof("listening for rest querys on %s", listen)
+	defer l.Close()
+
+	go func() {
+		select {
+		case <-shutdownChannel:
+			log.Infof("stopping listening on %s", listen)
+			l.Close()
+			return
+		}
+	}()
+
+	http.Serve(l, nil)
 }
