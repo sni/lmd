@@ -224,5 +224,11 @@ func LocalListenerHTTP(httpType string, listen string, waitGroup *sync.WaitGroup
 		}
 	}()
 
-	http.Serve(l, nil)
+	router, err := initializeHTTPServer()
+	if err != nil {
+		log.Fatalf("error initializing http server: %s", err.Error())
+		return
+	}
+	http.Serve(l, router)
 }
+

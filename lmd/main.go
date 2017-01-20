@@ -135,10 +135,6 @@ func main() {
 	defer logPanicExit()
 
 	// TODO: make rest api not return prometheus metrics, handler are shared right now!
-	// TODO: move to rest_v1.go
-	http.HandleFunc("/v1/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Hello, %q\n", html.EscapeString(r.URL.Path))
-	})
 
 	for {
 		exitCode := mainLoop(mainSignalChannel)
