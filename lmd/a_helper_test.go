@@ -232,8 +232,8 @@ func StartTestPeer(numPeers int, numHosts int, numServices int) (peer *Peer) {
 	// wait till backend is available
 	retries := 0
 	for {
-		res, err := peer.QueryString("GET backends\nColumns: status last_error\nResponseHeader: fixed16\n\n")
-		if err == nil && len(res) > 0 && len(res[0]) > 0 && res[0][0].(float64) == 0 {
+		res, err := peer.QueryString("GET backends\nColumns: status last_error\nFilter: status = 0\nResponseHeader: fixed16\n\n")
+		if err == nil && len(res) == len(sockets) && len(res[0]) > 0 && res[0][0].(float64) == 0 {
 			break
 		}
 		// recheck every 100ms
