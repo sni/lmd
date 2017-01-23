@@ -19,13 +19,12 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
-
-	"runtime/debug"
 
 	"github.com/BurntSushi/toml"
 	"github.com/prometheus/client_golang/prometheus"

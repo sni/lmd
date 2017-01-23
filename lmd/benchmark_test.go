@@ -3,15 +3,13 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"fmt"
-	"syscall"
 	"testing"
 )
 
 func BenchmarkQuery(b *testing.B) {
 	b.StopTimer()
 	peer := StartTestPeer(1, 100, 1000)
-	peer.PauseUpdates()
+	PauseTestPeers(peer)
 
 	testPeerShutdownChannel := make(chan bool)
 	mockPeer := NewPeer(Connection{Source: []string{"mock0.sock"}, Name: "Mock", ID: "mock0id"}, TestPeerWaitGroup, testPeerShutdownChannel)
@@ -32,7 +30,7 @@ func BenchmarkQuery(b *testing.B) {
 func BenchmarkSingleFilter(b *testing.B) {
 	b.StopTimer()
 	peer := StartTestPeer(1, 0, 0)
-	peer.PauseUpdates()
+	PauseTestPeers(peer)
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -49,7 +47,7 @@ func BenchmarkSingleFilter(b *testing.B) {
 func BenchmarkSingleFilter_1k_svc__1Peer(b *testing.B) {
 	b.StopTimer()
 	peer := StartTestPeer(1, 100, 1000)
-	peer.PauseUpdates()
+	PauseTestPeers(peer)
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -66,7 +64,7 @@ func BenchmarkSingleFilter_1k_svc__1Peer(b *testing.B) {
 func BenchmarkSingleFilter_1k_svc_10Peer(b *testing.B) {
 	b.StopTimer()
 	peer := StartTestPeer(10, 10, 100)
-	peer.PauseUpdates()
+	PauseTestPeers(peer)
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -83,7 +81,7 @@ func BenchmarkSingleFilter_1k_svc_10Peer(b *testing.B) {
 func BenchmarkMultiFilter(b *testing.B) {
 	b.StopTimer()
 	peer := StartTestPeer(1, 0, 0)
-	peer.PauseUpdates()
+	PauseTestPeers(peer)
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -100,7 +98,7 @@ func BenchmarkMultiFilter(b *testing.B) {
 func BenchmarkSimpleStats(b *testing.B) {
 	b.StopTimer()
 	peer := StartTestPeer(1, 0, 0)
-	peer.PauseUpdates()
+	PauseTestPeers(peer)
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -117,7 +115,7 @@ func BenchmarkSimpleStats(b *testing.B) {
 func BenchmarkTacStats(b *testing.B) {
 	b.StopTimer()
 	peer := StartTestPeer(1, 0, 0)
-	peer.PauseUpdates()
+	PauseTestPeers(peer)
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -134,7 +132,7 @@ func BenchmarkTacStats(b *testing.B) {
 func BenchmarkTacStats_1k_svc__1Peer(b *testing.B) {
 	b.StopTimer()
 	peer := StartTestPeer(1, 100, 1000)
-	peer.PauseUpdates()
+	PauseTestPeers(peer)
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -151,7 +149,7 @@ func BenchmarkTacStats_1k_svc__1Peer(b *testing.B) {
 func BenchmarkTacStats_1k_svc_10Peer(b *testing.B) {
 	b.StopTimer()
 	peer := StartTestPeer(10, 10, 100)
-	peer.PauseUpdates()
+	PauseTestPeers(peer)
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -166,18 +164,11 @@ func BenchmarkTacStats_1k_svc_10Peer(b *testing.B) {
 }
 
 func BenchmarkTacStats_1k_svc_100Peer(b *testing.B) {
-	var rLimit syscall.Rlimit
-	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
-	if err != nil {
-		b.Skip("skipping test, cannot fetch open files limit.")
-	}
-	if rLimit.Cur < 1000 {
-		b.Skip(fmt.Sprintf("skipping test, open files limit too low: %d", rLimit.Cur))
-	}
+	CheckOpenFilesLimit(b, 2000)
 
 	b.StopTimer()
 	peer := StartTestPeer(100, 10, 10)
-	peer.PauseUpdates()
+	PauseTestPeers(peer)
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -192,18 +183,11 @@ func BenchmarkTacStats_1k_svc_100Peer(b *testing.B) {
 }
 
 func BenchmarkTacStats_5k_svc_500Peer(b *testing.B) {
-	var rLimit syscall.Rlimit
-	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
-	if err != nil {
-		b.Skip("skipping test, cannot fetch open files limit.")
-	}
-	if rLimit.Cur < 1000 {
-		b.Skip(fmt.Sprintf("skipping test, open files limit too low: %d", rLimit.Cur))
-	}
+	CheckOpenFilesLimit(b, 2000)
 
 	b.StopTimer()
 	peer := StartTestPeer(500, 10, 10)
-	peer.PauseUpdates()
+	PauseTestPeers(peer)
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -220,7 +204,7 @@ func BenchmarkTacStats_5k_svc_500Peer(b *testing.B) {
 func BenchmarkServicelistLimit_1k_svc__1Peer(b *testing.B) {
 	b.StopTimer()
 	peer := StartTestPeer(1, 100, 1000)
-	peer.PauseUpdates()
+	PauseTestPeers(peer)
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -237,7 +221,7 @@ func BenchmarkServicelistLimit_1k_svc__1Peer(b *testing.B) {
 func BenchmarkServicelistLimit_1k_svc_10Peer(b *testing.B) {
 	b.StopTimer()
 	peer := StartTestPeer(10, 10, 100)
-	peer.PauseUpdates()
+	PauseTestPeers(peer)
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {

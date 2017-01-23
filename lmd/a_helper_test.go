@@ -1,20 +1,18 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"os"
 	"reflect"
 	"regexp"
 	"sync"
-	"time"
-
 	"syscall"
-
-	"io"
-
-	"encoding/json"
+	"testing"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
@@ -256,4 +254,22 @@ func StopTestPeer(peer *Peer) {
 	peer.QueryString("COMMAND [0] MOCK_EXIT")
 	// wait till all has stoped
 	waitTimeout(TestPeerWaitGroup, 5*time.Second)
+}
+
+func PauseTestPeers(peer *Peer) {
+	peer.PauseUpdates()
+	for _, p := range DataStore {
+		p.PauseUpdates()
+	}
+}
+
+func CheckOpenFilesLimit(b *testing.B, minimum uint64) {
+	var rLimit syscall.Rlimit
+	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+	if err != nil {
+		b.Skip("skipping test, cannot fetch open files limit.")
+	}
+	if rLimit.Cur < minimum {
+		b.Skip(fmt.Sprintf("skipping test, open files limit too low, need at least %d, current: %d", minimum, rLimit.Cur))
+	}
 }
