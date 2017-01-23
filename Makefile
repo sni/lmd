@@ -99,7 +99,7 @@ fmt:
 	cd $(LAMPDDIR) && gofmt -w -s .
 
 versioncheck:
-	@[ $$(echo "$(GOVERSION)" | tr -d ".") -gt 15 ] || { \
+	@[ "$(GOVERSION)" = "devel" -o $$(echo "$(GOVERSION)" | tr -d ".") -ge 15 ] || { \
 		echo "**** ERROR:"; \
 		echo "**** LMD requires at least golang version 1.5 or higher"; \
 		echo "**** this is: $$(go version)"; \
@@ -112,7 +112,7 @@ lint:
 	# see https://github.com/golang/lint/ for details.
 	# Only works with Go 1.6 or up.
 	#
-	[ $$(echo "$(GOVERSION)" | tr -d ".") -lt 16 ] || { \
+	[ "$(GOVERSION)" = "devel" -o $$(echo "$(GOVERSION)" | tr -d ".") -lt 16 ] || { \
 		go get -u github.com/golang/lint/golint; \
 		cd $(LAMPDDIR) && golint -set_exit_status .; \
 	}
