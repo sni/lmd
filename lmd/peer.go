@@ -198,13 +198,14 @@ func (p *Peer) updateLoop() {
 		ok := p.InitAllTables()
 		lastTimeperiodUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
 
-		c := time.Tick(500 * time.Millisecond)
+		ticker := time.NewTicker(500 * time.Millisecond)
 		for {
 			select {
 			case <-p.shutdownChannel:
 				log.Debugf("[%s] stopping...", p.Name)
+				ticker.Stop()
 				return
-			case <-c:
+			case <-ticker.C:
 				p.PeerLock.RLock()
 				lastUpdate := p.Status["LastUpdate"].(int64)
 				lastFullUpdate := p.Status["LastFullUpdate"].(int64)
