@@ -194,67 +194,59 @@ func (p *Peer) Stop() {
 // updateLoop is the main loop updating this peer.
 // It does not return till triggered by the shutdownChannel.
 func (p *Peer) updateLoop() {
+	ok := p.InitAllTables()
+	lastTimeperiodUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
+
+	ticker := time.NewTicker(500 * time.Millisecond)
 	for {
-		ok := p.InitAllTables()
-		lastTimeperiodUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
+		select {
+		case <-p.shutdownChannel:
+			log.Debugf("[%s] stopping...", p.Name)
+			ticker.Stop()
+			return
+		case <-ticker.C:
+			p.PeerLock.RLock()
+			lastUpdate := p.Status["LastUpdate"].(int64)
+			lastFullUpdate := p.Status["LastFullUpdate"].(int64)
+			lastStatus := p.Status["PeerStatus"].(PeerStatus)
+			p.PeerLock.RUnlock()
 
-		c := time.Tick(500 * time.Millisecond)
-		for {
-			select {
-			case <-p.shutdownChannel:
-				log.Debugf("[%s] stopping...", p.Name)
-				return
-			case <-c:
-				p.PeerLock.RLock()
-				lastUpdate := p.Status["LastUpdate"].(int64)
-				lastFullUpdate := p.Status["LastFullUpdate"].(int64)
-				lastStatus := p.Status["PeerStatus"].(PeerStatus)
-				p.PeerLock.RUnlock()
-
-				idling := p.updateIdleStatus()
-				now := time.Now().Unix()
-				currentMinute, _ := strconv.Atoi(time.Now().Format("4"))
-
-				if idling {
-					if now < lastUpdate+GlobalConfig.IdleInterval {
-						break
-					}
-				} else {
-					// update timeperiods every full minute except when idling
-					if ok && lastTimeperiodUpdateMinute != currentMinute {
-						log.Debugf("[%s] updating timeperiods and host/servicegroup statistics", p.Name)
-						p.UpdateObjectByType(Objects.Tables["timeperiods"])
-						p.UpdateObjectByType(Objects.Tables["hostgroups"])
-						p.UpdateObjectByType(Objects.Tables["servicegroups"])
-						lastTimeperiodUpdateMinute = currentMinute
-					}
-
-					if now < lastUpdate+GlobalConfig.Updateinterval {
-						break
-					}
-				}
-
-				// set last update timestamp, otherwise we would retry the connection every 500ms instead
-				// of the update interval
-				p.StatusSet("LastUpdate", time.Now().Unix())
-
-				// run full update if the site was down.
-				// run update if it was just a short outage
-				if !ok && lastStatus != PeerStatusWarning {
-					ok = p.InitAllTables()
-					lastTimeperiodUpdateMinute = currentMinute
+			idling := p.updateIdleStatus()
+			now := time.Now().Unix()
+			currentMinute, _ := strconv.Atoi(time.Now().Format("4"))
+			if idling {
+				if now < lastUpdate+GlobalConfig.IdleInterval {
 					break
 				}
-
-				// full update interval
-				if !idling && GlobalConfig.FullUpdateInterval > 0 && now > lastFullUpdate+GlobalConfig.FullUpdateInterval {
-					ok = p.UpdateAllTables()
-					break
-				}
-
-				ok = p.UpdateDeltaTables()
+			} else if now < lastUpdate+GlobalConfig.Updateinterval {
 				break
 			}
+
+			// set last update timestamp, otherwise we would retry the connection every 500ms instead
+			// of the update interval
+			p.StatusSet("LastUpdate", time.Now().Unix())
+
+			// run full update if the site was down.
+			// run update if it was just a short outage
+			if !ok && lastStatus != PeerStatusWarning {
+				ok = p.InitAllTables()
+				lastTimeperiodUpdateMinute = currentMinute
+				break
+			}
+
+			// full update interval
+			if !idling && GlobalConfig.FullUpdateInterval > 0 && now > lastFullUpdate+GlobalConfig.FullUpdateInterval {
+				ok = p.UpdateAllTables()
+				break
+			}
+
+			if lastTimeperiodUpdateMinute != currentMinute {
+				p.UpdateObjectByType(Objects.Tables["timeperiods"])
+				lastTimeperiodUpdateMinute = currentMinute
+			}
+
+			ok = p.UpdateDeltaTables()
+			break
 		}
 	}
 }
