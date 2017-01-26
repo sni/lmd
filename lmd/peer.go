@@ -218,8 +218,19 @@ func (p *Peer) updateLoop() {
 				if now < lastUpdate+GlobalConfig.IdleInterval {
 					break
 				}
-			} else if now < lastUpdate+GlobalConfig.Updateinterval {
-				break
+			} else {
+				// update timeperiods every full minute except when idling
+				if ok && lastTimeperiodUpdateMinute != currentMinute {
+					log.Debugf("[%s] updating timeperiods and host/servicegroup statistics", p.Name)
+					p.UpdateObjectByType(Objects.Tables["timeperiods"])
+					p.UpdateObjectByType(Objects.Tables["hostgroups"])
+					p.UpdateObjectByType(Objects.Tables["servicegroups"])
+					lastTimeperiodUpdateMinute = currentMinute
+				}
+
+				if now < lastUpdate+GlobalConfig.Updateinterval {
+					break
+				}
 			}
 
 			// set last update timestamp, otherwise we would retry the connection every 500ms instead
@@ -238,11 +249,6 @@ func (p *Peer) updateLoop() {
 			if !idling && GlobalConfig.FullUpdateInterval > 0 && now > lastFullUpdate+GlobalConfig.FullUpdateInterval {
 				ok = p.UpdateAllTables()
 				break
-			}
-
-			if lastTimeperiodUpdateMinute != currentMinute {
-				p.UpdateObjectByType(Objects.Tables["timeperiods"])
-				lastTimeperiodUpdateMinute = currentMinute
 			}
 
 			ok = p.UpdateDeltaTables()
