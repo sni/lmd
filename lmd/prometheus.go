@@ -149,7 +149,9 @@ func initPrometheus() (prometheusListener net.Listener) {
 			if err != nil {
 				log.Fatalf("starting prometheus exporter failed: %s", err)
 			}
-			http.Serve(prometheusListener, nil)
+			mux := http.NewServeMux()
+			mux.Handle("/metrics", prometheus.Handler())
+			http.Serve(prometheusListener, mux)
 		}()
 		log.Infof("serving prometheus metrics at %s/metrics", GlobalConfig.ListenPrometheus)
 	}

@@ -29,7 +29,6 @@ import (
 	"html"
 
 	"github.com/BurntSushi/toml"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 // Build contains the current git commit id
@@ -109,8 +108,6 @@ var lastMainRestart = time.Now().Unix()
 func init() {
 	InitObjects()
 	mainSignalChannel = make(chan os.Signal)
-	http.Handle("/metrics", prometheus.Handler())
-
 }
 
 func setFlags() {
@@ -133,8 +130,6 @@ func main() {
 
 	// make sure we log panics properly
 	defer logPanicExit()
-
-	// TODO: make rest api not return prometheus metrics, handler are shared right now!
 
 	for {
 		exitCode := mainLoop(mainSignalChannel)
