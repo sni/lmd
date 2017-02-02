@@ -238,7 +238,11 @@ func StartTestPeer(numPeers int, numHosts int, numServices int) (peer *Peer) {
 		time.Sleep(100 * time.Millisecond)
 		retries++
 		if retries > 30 {
-			panic("backend never came online: " + err.Error())
+			if err != nil {
+				panic("backend never came online: " + err.Error())
+			} else {
+				panic("backend never came online")
+			}
 		}
 	}
 
