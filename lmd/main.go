@@ -151,6 +151,7 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 
 	lastMainRestart = time.Now().Unix()
 	shutdownChannel := make(chan bool)
+	waitGroupInit := &sync.WaitGroup{}
 	waitGroupListener := &sync.WaitGroup{}
 	waitGroupPeers := &sync.WaitGroup{}
 
@@ -183,6 +184,7 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	initializeHTTPClient()
 
 	// start local listeners
+	waitGroupInit.Add(len(GlobalConfig.Listen))
 	for _, listen := range GlobalConfig.Listen {
 		go func(listen string) {
 			// make sure we log panics properly
