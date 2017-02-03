@@ -261,9 +261,9 @@ func StopTestPeer(peer *Peer) {
 }
 
 func PauseTestPeers(peer *Peer) {
-	peer.PauseUpdates()
+	peer.Stop()
 	for _, p := range DataStore {
-		p.PauseUpdates()
+		p.Stop()
 	}
 }
 

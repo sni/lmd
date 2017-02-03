@@ -55,6 +55,7 @@ type Peer struct {
 	ErrorLogged     bool
 	waitGroup       *sync.WaitGroup
 	shutdownChannel chan bool
+	stopChannel     chan bool
 	Config          Connection
 	Flags           OptionalFlags
 }
@@ -135,6 +136,7 @@ func NewPeer(config Connection, waitGroup *sync.WaitGroup, shutdownChannel chan 
 		ErrorCount:      0,
 		waitGroup:       waitGroup,
 		shutdownChannel: shutdownChannel,
+		stopChannel:     make(chan bool),
 		PeerLock:        new(sync.RWMutex),
 		DataLock:        new(sync.RWMutex),
 		Config:          config,
@@ -180,18 +182,12 @@ func (p *Peer) Start() {
 	return
 }
 
-// PauseUpdates stops the updateLoop. Restart with Start() again.
-func (p *Peer) PauseUpdates() {
-	if p.StatusGet("Updating").(bool) {
-		p.shutdownChannel <- true
-	}
-}
-
-// Stop stops this peer.
+// Stop stops this peer. Restart with Start() again.
 func (p *Peer) Stop() {
 	// Pause and Stop is basically them, both just stop the updateLoop
-	p.PauseUpdates()
-	close(p.shutdownChannel)
+	if p.StatusGet("Updating").(bool) {
+		p.stopChannel <- true
+	}
 }
 
 func (p *Peer) countFromServer(name string, queryCondition string) (count int) {
@@ -226,6 +222,10 @@ func (p *Peer) updateLoop() {
 	for {
 		select {
 		case <-p.shutdownChannel:
+			log.Debugf("[%s] stopping...", p.Name)
+			ticker.Stop()
+			return
+		case <-p.stopChannel:
 			log.Debugf("[%s] stopping...", p.Name)
 			ticker.Stop()
 			return
