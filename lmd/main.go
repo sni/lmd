@@ -18,6 +18,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"regexp"
 	"runtime"
 	"runtime/debug"
 	"strconv"
@@ -54,6 +55,7 @@ type Connection struct {
 // Config defines the available configuration options from supplied config files.
 type Config struct {
 	Listen              []string
+	Nodes               []string
 	TLSCertificate      string
 	TLSKey              string
 	Updateinterval      int64
@@ -87,6 +89,9 @@ func (c *configFiles) Set(value string) error {
 	*c = append(*c, value)
 	return nil
 }
+
+// Nodes
+var NodeAccessor *Nodes
 
 // GlobalConfig contains the global configuration (after config files have been parsed)
 var GlobalConfig Config
@@ -189,12 +194,12 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 		go func(listen string) {
 			// make sure we log panics properly
 			defer logPanicExit()
-			LocalListener(listen, waitGroupListener, shutdownChannel)
+			LocalListener(listen, waitGroupInit, waitGroupListener, shutdownChannel)
 		}(listen)
 	}
 
 	// start remote connections
-	initializePeers(&GlobalConfig, waitGroupPeers, waitGroupListener, shutdownChannel)
+	initializePeers(&GlobalConfig, waitGroupPeers, waitGroupInit, waitGroupListener, shutdownChannel)
 
 	once.Do(PrintVersion)
 
@@ -207,17 +212,44 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	}
 }
 
-func initializePeers(GlobalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGroupListener *sync.WaitGroup, shutdownChannel chan bool) {
+func initializePeers(GlobalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGroupInit *sync.WaitGroup, waitGroupListener *sync.WaitGroup, shutdownChannel chan bool) {
+	// Node address pattern (http://*:1234)
+	var nodeAddressPattern string
+	rx := regexp.MustCompile("^(https?)://(.*?):(.*)")
+	for _, listen := range GlobalConfig.Listen {
+		parts := rx.FindStringSubmatch(listen)
+		if len(parts) != 4 {
+			continue
+		}
+		nodeAddressPattern = parts[1] + "://" + "*" + ":" + parts[3]
+		nodeAddressPattern += "/v1/query"
+	}
+
+	// Create Peer objects
+	var backends []string
 	for _, c := range GlobalConfig.Connections {
+		backends = append(backends, c.ID)
 		p := NewPeer(c, waitGroupPeers, shutdownChannel)
 		_, Exists := DataStore[c.ID]
 		if Exists {
 			log.Fatalf("Duplicate id in connection list: %s", c.ID)
 		}
 		DataStore[c.ID] = *p
-		p.Start()
 		DataStoreOrder = append(DataStoreOrder, c.ID)
+		// peer started later in node redistribution routine
 	}
+
+	// Node accessor
+	NodeAccessor = &Nodes{
+		NodeIPs:         GlobalConfig.Nodes,
+		Backends:        backends,
+		HTTPClient:      netClient,
+		AddressPattern:  nodeAddressPattern,
+		waitGroupInit:   waitGroupInit,
+		shutdownChannel: shutdownChannel,
+	}
+	NodeAccessor.Initialize()
+
 }
 
 func checkFlags() {
