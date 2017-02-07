@@ -4,6 +4,7 @@ This file documents the revision history for the Livestatus Multitool Daemon
 next:
           - use listeners from all config files instead of only the last config file
           - add num_hosts_* columns to host-, servicegroups
+          - display better error message if http site is down
 
 1.0.2    Sat Nov  5 22:34:40 CET 2016
           - recover without recreating objects on short outages

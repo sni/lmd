@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -21,6 +22,7 @@ import (
 
 var reResponseHeader = regexp.MustCompile(`^(\d+)\s+(\d+)$`)
 var reHTTPTooOld = regexp.MustCompile(`Can.t locate object method`)
+var reHTTPOMDError = regexp.MustCompile(`<h1>(OMD:.*?)</h1>`)
 var reShinkenVersion = regexp.MustCompile(`-shinken$`)
 
 const (
@@ -1411,19 +1413,8 @@ func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) 
 	if err != nil {
 		return
 	}
-	if response.StatusCode != 200 {
-		err = &PeerError{msg: fmt.Sprintf("http request failed: %s", response.Status), kind: ResponseError}
-		io.Copy(ioutil.Discard, response.Body)
-		response.Body.Close()
-		return
-	}
-	contents, hErr := ioutil.ReadAll(response.Body)
-	io.Copy(ioutil.Discard, response.Body)
-	response.Body.Close()
-	if hErr != nil {
-		err = hErr
-		return
-	}
+	contents, err := ExtractHTTPResponse(response)
+
 	if len(contents) < 1 || contents[0] != '{' {
 		if len(contents) > 50 {
 			contents = contents[:50]
@@ -1463,6 +1454,26 @@ func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) 
 		res = []byte(v)
 	} else {
 		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %v", result), kind: ResponseError}
+	}
+	return
+}
+
+// ExtractHTTPResponse returns the content of a HTTP request.
+func ExtractHTTPResponse(response *http.Response) (contents []byte, err error) {
+	contents, hErr := ioutil.ReadAll(response.Body)
+	io.Copy(ioutil.Discard, response.Body)
+	response.Body.Close()
+	if hErr != nil {
+		err = hErr
+		return
+	}
+	if response.StatusCode != 200 {
+		matched := reHTTPOMDError.FindStringSubmatch(string(contents))
+		if len(matched) > 1 {
+			err = &PeerError{msg: fmt.Sprintf("http request failed: %s - %s", response.Status, matched[1]), kind: ResponseError}
+		} else {
+			err = &PeerError{msg: fmt.Sprintf("http request failed: %s", response.Status), kind: ResponseError}
+		}
 	}
 	return
 }
