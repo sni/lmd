@@ -52,8 +52,11 @@ func (n *Nodes) Initialize() {
 }
 
 func (n *Nodes) Start() {
-	//Nothing to do if running in single mode
+	//Start all peers once in single mode
 	if !n.IsClustered() {
+		for _, peer := range DataStore {
+			peer.Start()
+		}
 		return
 	}
 
