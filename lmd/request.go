@@ -355,7 +355,7 @@ func (req *Request) GetResponse() (*Response, error) {
 				requestData["filterstr"] = req.FilterStr
 			}
 
-			//TODO stats
+			// TODO stats
 
 			// Limit
 			// An upper limit is used to make sorting possible TODO test
@@ -382,8 +382,8 @@ func (req *Request) GetResponse() (*Response, error) {
 				requestData["sort"] = sort
 			}
 
-			//TODO add more data?
-			//TODO if sort or range: keep upper limit, ignore lower limit
+			// TODO add more data?
+			// TODO if sort or range: keep upper limit, ignore lower limit
 			// rows 100-200: get 1-200
 
 			// Callback

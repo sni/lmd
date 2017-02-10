@@ -31,7 +31,7 @@ type Nodes struct {
 }
 
 func (n *Nodes) Initialize() {
-	//Default values
+	// Default values
 	if n.loopInterval == 0 {
 		n.loopInterval = 10
 	}
@@ -39,7 +39,7 @@ func (n *Nodes) Initialize() {
 		n.heartbeatTimeout = 3
 	}
 
-	//Generate identifier
+	// Generate identifier
 	ownIdentifier := &n.ID
 	*ownIdentifier = strconv.FormatInt(time.Now().Unix(), 10)
 	u, err := uuid.NewV4()
@@ -47,13 +47,13 @@ func (n *Nodes) Initialize() {
 		*ownIdentifier += ":" + u.String()
 	}
 
-	//Start loop
+	// Start loop
 	n.Start()
 
 }
 
 func (n *Nodes) Start() {
-	//Start all peers once in single mode
+	// Start all peers once in single mode
 	if !n.IsClustered() {
 		for _, peer := range DataStore {
 			peer.Start()
@@ -61,13 +61,13 @@ func (n *Nodes) Start() {
 		return
 	}
 
-	//Wait for own listener(s) to initialize
+	// Wait for own listener(s) to initialize
 	n.waitGroupInit.Wait()
 
-	//Send first heartbeat (who am I) and wait for it to finish
+	// Send first heartbeat (who am I) and wait for it to finish
 	n.heartbeat()
 
-	//Start loop in background
+	// Start loop in background
 	go func() {
 		n.loop()
 	}()
@@ -95,8 +95,8 @@ func (n *Nodes) loop() {
 }
 
 func (n *Nodes) heartbeat() {
-	//Send request to all nodes
-	//First heartbeat (initializing) detects and assigns own ip.
+	// Send request to all nodes
+	// First heartbeat (initializing) detects and assigns own ip.
 	wg := sync.WaitGroup{}
 	ownIdentifier := n.ID
 	if ownIdentifier == "" {
@@ -107,7 +107,7 @@ func (n *Nodes) heartbeat() {
 	initializing := n.OwnIP == ""
 	for _, node := range n.NodeIPs {
 		if !initializing && node == n.OwnIP {
-			//Skip this node unless we're initializing
+			// Skip this node unless we're initializing
 			continue
 		}
 		requestData := make(map[string]interface{})
@@ -116,14 +116,14 @@ func (n *Nodes) heartbeat() {
 		wg.Add(1)
 		go func(wg *sync.WaitGroup, node string) {
 			callback := func(responseData interface{}) {
-				//Parse response
+				// Parse response
 				dataMap, ok := responseData.(map[string]interface{})
 				log.Tracef("got response from %s", node)
 				if !ok {
 					return
 				}
 				responseIdentifier := dataMap["identifier"]
-				//Check whose response it is
+				// Check whose response it is
 				if responseIdentifier == ownIdentifier {
 					if initializing {
 						n.OwnIP = node
@@ -140,18 +140,18 @@ func (n *Nodes) heartbeat() {
 	}
 	timeout := n.heartbeatTimeout
 	if waitTimeout(&wg, time.Duration(timeout)*time.Second) {
-		//Not all nodes have responded, but that's ok
+		// Not all nodes have responded, but that's ok
 		log.Debugf("node timeout")
 		if initializing && n.OwnIP == "" {
-			//This node has not responded
-			//This is an error. At this point, we don't know who we are.
-			//This could happen if our ip is missing from the config
-			//or if the local firewall is blocking traffic.
+			// This node has not responded
+			// This is an error. At this point, we don't know who we are.
+			// This could happen if our ip is missing from the config
+			// or if the local firewall is blocking traffic.
 			panic("timeout while initializing nodes (own ip missing from config?)")
 		}
 	}
 
-	//Check if list of nodes has changed
+	// Check if list of nodes has changed
 	nodesUnchanged := len(newOnlineIPs) == len(n.onlineIPs)
 	if initializing {
 		nodesUnchanged = false
@@ -173,7 +173,7 @@ func (n *Nodes) heartbeat() {
 }
 
 func (n *Nodes) redistribute() {
-	//Nodes and backends
+	// Nodes and backends
 	numberBackends := len(n.Backends)
 	allNodes := n.NodeIPs
 	nodeOnline := make([]bool, len(allNodes))
@@ -191,16 +191,16 @@ func (n *Nodes) redistribute() {
 			ownIndex = i
 		}
 		if node == n.OwnIP || isOnline {
-			//availableNodes[i] = node
+			// availableNodes[i] = node
 			nodeOnline[i] = true
 			numberAvailableNodes++
 		}
 	}
 
-	//Assign items to nodes
-	assignedNumberBackends := make([]int, numberAllNodes) //for each node
+	// Assign items to nodes
+	assignedNumberBackends := make([]int, numberAllNodes) // for each node
 	if numberAvailableNodes >= numberBackends {
-		//No node has more than one backend
+		// No node has more than one backend
 		for i, _ := range allNodes {
 			if nodeOnline[i] {
 				assignedNumberBackends[i] = 1
@@ -223,14 +223,14 @@ func (n *Nodes) redistribute() {
 		}
 	}
 
-	//List backends that we're responsible for
-	assignedBackends := make([][]string, numberAllNodes) //for each node
+	// List backends that we're responsible for
+	assignedBackends := make([][]string, numberAllNodes) // for each node
 	nodeBackends := make(map[string][]string)
 	distributedCount := 0
 	numberAssignedBackends := 0
 	for i, number := range assignedNumberBackends {
 		numberAssignedBackends += number
-		if number != 0 { //number == 0 means no backends for that node
+		if number != 0 { // number == 0 means no backends for that node
 			list := make([]string, number)
 			for i := 0; i < number; i++ {
 				list[i] = n.Backends[distributedCount+i]
@@ -243,11 +243,11 @@ func (n *Nodes) redistribute() {
 	n.nodeBackends = nodeBackends
 	ourBackends := assignedBackends[ownIndex]
 
-	//Determine backends this node is now (not anymore) responsible for
+	// Determine backends this node is now (not anymore) responsible for
 	var addBackends []string
 	var rmvBackends []string
 	for _, backend := range n.Backends {
-		//Check if assigned now
+		// Check if assigned now
 		assignedNow := false
 		for _, newBackend := range ourBackends {
 			if newBackend == backend {
@@ -255,7 +255,7 @@ func (n *Nodes) redistribute() {
 			}
 		}
 
-		//Check if assigned previously
+		// Check if assigned previously
 		assignedBefore := false
 		for _, oldBackend := range n.assignedBackends {
 			if oldBackend == backend {
@@ -263,7 +263,7 @@ func (n *Nodes) redistribute() {
 			}
 		}
 
-		//Compare
+		// Compare
 		if assignedNow && !assignedBefore {
 			addBackends = append(addBackends, backend)
 		} else if assignedBefore && !assignedNow {
@@ -271,14 +271,14 @@ func (n *Nodes) redistribute() {
 		}
 	}
 
-	//Store assigned backends
+	// Store assigned backends
 	n.assignedBackends = ourBackends
 
-	//Start/stop backends
+	// Start/stop backends
 	for _, oldBackend := range rmvBackends {
 		peer := DataStore[oldBackend]
 		peer.Stop()
-		peer.Clear() //TODO
+		peer.Clear()
 	}
 	for _, newBackend := range addBackends {
 		peer := DataStore[newBackend]
@@ -289,7 +289,7 @@ func (n *Nodes) redistribute() {
 
 // URL returns the HTTP address of the specified node.
 func (n *Nodes) URL(node string) string {
-	//Insanity check
+	// Check if node exists
 	exists := false
 	for _, currentNode := range n.NodeIPs {
 		if currentNode == node {
@@ -303,8 +303,8 @@ func (n *Nodes) URL(node string) string {
 		panic(fmt.Sprintf("could not determine node address pattern"))
 	}
 
-	//Address
-	listenAddress := n.AddressPattern //http://*:1234
+	// Address
+	listenAddress := n.AddressPattern // http://*:1234
 	nodeAddress := strings.Replace(listenAddress, "*", node, 1)
 
 	return nodeAddress
@@ -321,21 +321,21 @@ func (n *Nodes) IsOurBackend(backend string) bool {
 }
 
 func (n *Nodes) SendQuery(node string, name string, parameters map[string]interface{}, callback func(interface{})) error {
-	//Prepare request data
+	// Prepare request data
 	requestData := make(map[string]interface{})
 	for key, value := range parameters {
 		requestData[key] = value
 	}
-	requestData["_name"] = name //requested function
+	requestData["_name"] = name // requested function
 
-	//Encode request data
+	// Encode request data
 	contentType := "application/json"
 	rawRequest, err := json.Marshal(requestData)
 	if err != nil {
 		return err
 	}
 
-	//Send node request
+	// Send node request
 	nodeURL := n.URL(node)
 	res, err := n.HTTPClient.Post(nodeURL, contentType, bytes.NewBuffer(rawRequest))
 	if err != nil {
@@ -348,12 +348,12 @@ func (n *Nodes) SendQuery(node string, name string, parameters map[string]interf
 		return err
 	}
 
-	//Trigger callback
+	// Trigger callback
 	defer res.Body.Close()
 	decoder := json.NewDecoder(res.Body)
 	var responseData interface{}
 	if err := decoder.Decode(&responseData); err != nil {
-		//Parsing response failed
+		// Parsing response failed
 		log.Tracef("%s", err.Error())
 		return err
 	}
