@@ -4,53 +4,37 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"reflect"
 
 	"github.com/julienschmidt/httprouter"
 )
 
-type HTTPRequest struct {
-	Table   string
-	Filter  []interface{}
-	Offset  int
-	Limit   int
-	Sort    []interface{}
-	Columns []string
-	Debug   bool
-}
-
 type HTTPServerController struct {
 }
 
-func (c *HTTPServerController) errorOutput(text string, w http.ResponseWriter) {
+func (c *HTTPServerController) errorOutput(err error, w http.ResponseWriter) {
 	j := make(map[string]interface{})
-	j["error"] = text //TODO err.Error() //TODO
+	j["error"] = err.Error()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadRequest)
 	json.NewEncoder(w).Encode(j)
 }
 
-func (c *HTTPServerController) index(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (c *HTTPServerController) index(w http.ResponseWriter, request *http.Request, ps httprouter.Params) {
 	fmt.Fprintf(w, "LMD %s\n", VERSION)
 }
 
-func (c *HTTPServerController) table(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map[string]interface{}) {
 	w.Header().Set("Content-Type", "application/json")
-
-	//Check if table exists
-	table_name := ps.ByName("name")
-	if _, exists := Objects.Tables[table_name]; !exists {
-		c.errorOutput(fmt.Sprintf("table not found: %s", table_name), w)
-		return
-	}
 
 	//TODO passthru requests (?)
 
-	//Parse additional query parameters
-	decoder := json.NewDecoder(r.Body)
-	httpRequest := &HTTPRequest{Table: table_name}
-	if err := decoder.Decode(&httpRequest); err == nil {
-		//Query parameters provided
+	// Requested table (name)
+	table_name := requestData["table"].(string)
+
+	//Check if table exists
+	if _, exists := Objects.Tables[table_name]; !exists {
+		c.errorOutput(fmt.Errorf("table not found: %s", table_name), w)
+		return
 	}
 
 	//New request object for specified table
@@ -58,78 +42,110 @@ func (c *HTTPServerController) table(w http.ResponseWriter, r *http.Request, ps 
 	req.Table = table_name
 
 	//Offset
-	if httpRequest.Offset != 0 {
-		req.Offset = httpRequest.Offset
+	if val, ok := requestData["offset"]; ok {
+		req.Offset = int(val.(float64))
 	}
 
 	//Limit
-	if httpRequest.Limit != 0 {
-		req.Limit = httpRequest.Limit
+	if val, ok := requestData["limit"]; ok {
+		req.Limit = int(val.(float64))
 	}
 
 	//Filter
-	if reflect.TypeOf(httpRequest.Filter).Kind() == reflect.Slice {
-		for _, line := range httpRequest.Filter {
-			if reflect.TypeOf(line).Kind() == reflect.String {
-				value, _ := line.(string)
-				err := ParseFilter(value, &value, httpRequest.Table, &req.Filter) //filter.go
-				if err != nil {
-					c.errorOutput(err.Error(), w)
-					return
-				}
-			}
+	var requestDataFilter []interface{}
+	if val, ok := requestData["filter"]; ok {
+		lines, ok := val.([]interface{})
+		if ok {
+			requestDataFilter = lines
 		}
 	}
-
-	//Sort
-	if reflect.TypeOf(httpRequest.Sort).Kind() == reflect.Slice {
-		for _, line := range httpRequest.Sort {
-			fmt.Printf("checking sort <%s>...\n", line)
-			if reflect.TypeOf(line).Kind() == reflect.String {
-				value, _ := line.(string)
-				err := parseSortHeader(&req.Sort, value) //request.go
-				if err != nil {
-					c.errorOutput(err.Error(), w)
-					return
-				}
-			}
-		}
+	if val, ok := requestData["filterstr"]; ok {
+		requestDataFilter = append(requestDataFilter, val.(string))
 	}
-
-	//Columns
-	if len(httpRequest.Columns) > 0 {
-		req.Columns = httpRequest.Columns
-	}
-
-	//Fetch backend data
-	req.ExpandRequestedBackends() //ParseRequests()
-
-	//Debug output //TODO
-	if httpRequest.Debug {
-		if j, _ := json.Marshal(req); true {
-			fmt.Fprintf(w, "%s", j) //TODO debugging only
+	for _, line := range requestDataFilter {
+		value := line.(string)
+		err := ParseFilter(value, &value, table_name, &req.Filter) //filter.go
+		if err != nil {
+			c.errorOutput(err, w)
 			return
 		}
 	}
 
+	//Sort
+	var requestDataSort []interface{}
+	if val, ok := requestData["sort"]; ok {
+		lines, ok := val.([]interface{})
+		if ok {
+			requestDataSort = lines
+		}
+	}
+	for _, line := range requestDataSort {
+		value := line.(string)
+		err := parseSortHeader(&req.Sort, value) //request.go
+		if err != nil {
+			c.errorOutput(err, w)
+			return
+		}
+	}
+
+	//Columns
+	var columns []string
+	if val, ok := requestData["columns"]; ok {
+		for _, column := range val.([]interface{}) {
+			columns = append(columns, column.(string))
+		}
+	}
+	req.Columns = columns
+
+	//Backends
+	var backends []string
+	if val, ok := requestData["backends"]; ok {
+		for _, backend := range val.([]interface{}) {
+			backends = append(backends, backend.(string))
+		}
+	}
+	req.Backends = backends
+
+	//Fetch backend data
+	req.ExpandRequestedBackends() //ParseRequests()
+
 	//Ask request object to send query, get response
 	res, err := req.GetResponse()
 	if err != nil {
-		c.errorOutput(err.Error(), w)
+		c.errorOutput(err, w)
 		return
 	}
 
 	//Send JSON
 	j, err := res.JSON()
 	if err != nil {
-		c.errorOutput(err.Error(), w)
+		c.errorOutput(err, w)
 		return
 	}
 	fmt.Fprintf(w, "%s", j)
 
 }
 
-func (c *HTTPServerController) ping(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (c *HTTPServerController) table(w http.ResponseWriter, request *http.Request, ps httprouter.Params) {
+	//Read request data
+	requestData := make(map[string]interface{})
+	defer request.Body.Close()
+	decoder := json.NewDecoder(request.Body)
+	if err := decoder.Decode(&requestData); err != nil {
+		c.errorOutput(fmt.Errorf("request not understood"), w)
+		return
+	}
+
+	//Use table name defined in rest request
+	table_name := ps.ByName("name")
+	if table_name != "" {
+		requestData["table"] = table_name
+	}
+
+	c.queryTable(w, requestData)
+}
+
+func (c *HTTPServerController) ping(w http.ResponseWriter, request *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 
 	//Response data
@@ -141,16 +157,16 @@ func (c *HTTPServerController) ping(w http.ResponseWriter, r *http.Request, ps h
 	json.NewEncoder(w).Encode(j)
 }
 
-func (c *HTTPServerController) query(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (c *HTTPServerController) query(w http.ResponseWriter, request *http.Request, ps httprouter.Params) {
 	//Read request data
-	contentType := r.Header.Get("Content-Type")
+	contentType := request.Header.Get("Content-Type")
 	requestData := make(map[string]interface{})
-	defer r.Body.Close()
+	defer request.Body.Close()
 	if contentType == "application/json" {
-		decoder := json.NewDecoder(r.Body)
+		decoder := json.NewDecoder(request.Body)
 		err := decoder.Decode(&requestData)
 		if err != nil {
-			c.errorOutput(fmt.Sprintf("request not understood"), w)
+			c.errorOutput(fmt.Errorf("request not understood"), w)
 			return
 		}
 	}
@@ -160,9 +176,11 @@ func (c *HTTPServerController) query(w http.ResponseWriter, r *http.Request, ps 
 
 	switch requestedFunction {
 	case "ping":
-		c.ping(w, r, ps)
+		c.ping(w, request, ps)
+	case "table":
+		c.queryTable(w, requestData)
 	default:
-		c.errorOutput(fmt.Sprintf("unknown request: %s", requestedFunction), w)
+		c.errorOutput(fmt.Errorf("unknown request: %s", requestedFunction), w)
 	}
 }
 

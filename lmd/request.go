@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // Request defines a livestatus request object.
@@ -292,7 +293,170 @@ func (req *Request) VerifyRequestIntegrity() (err error) {
 // It returns the Response object and any error encountered.
 func (req *Request) GetResponse() (*Response, error) {
 	log.Tracef("GetResponse")
-	return (NewResponse(req))
+
+	// Determine if request for this node only (if backends specified)
+	allBackendsRequested := len(req.Backends) == 0
+	isForOurBackends := false // request for our own backends only
+	if !allBackendsRequested {
+		isForOurBackends = true
+		for _, backend := range req.Backends {
+			isOurs := NodeAccessor.IsOurBackend(backend)
+			isForOurBackends = isForOurBackends && isOurs
+		}
+	}
+
+	// Distribute request if necessary
+	if NodeAccessor.IsClustered() && !isForOurBackends {
+		// Cluster mode (don't send request, send sub-requests, build response)
+		var wg sync.WaitGroup
+		nodeBackends := NodeAccessor.nodeBackends
+		datasets := make(chan [][]interface{}, len(nodeBackends))
+		for node, nodeBackends := range nodeBackends {
+			// Limit to requested backends if necessary
+			// nodeBackends: all backends handled by current node
+			var subBackends []string // backends for current sub-request
+			for _, nodeBackend := range nodeBackends {
+				isRequested := allBackendsRequested
+				for _, requestedBackend := range req.Backends {
+					if requestedBackend == nodeBackend {
+						isRequested = true
+					}
+				}
+				if isRequested {
+					subBackends = append(subBackends, nodeBackend)
+				}
+			}
+
+			// Skip node if it doesn't have relevant backends
+			if len(subBackends) == 0 {
+				datasets <- [][]interface{}{}
+				continue
+			}
+
+			// Create sub-request
+			requestData := make(map[string]interface{})
+			if req.Table != "" {
+				requestData["table"] = req.Table
+			}
+
+			// Set backends for this sub-request
+			requestData["backends"] = subBackends
+
+			// Columns
+			if len(req.Columns) != 0 {
+				requestData["columns"] = req.Columns
+			}
+
+			// Filter
+			if len(req.Filter) != 0 {
+				requestData["filter"] = req.Filter
+			}
+			if req.FilterStr != "" {
+				requestData["filterstr"] = req.FilterStr
+			}
+
+			//TODO stats
+
+			// Limit
+			// An upper limit is used to make sorting possible TODO test
+			// Offset is 0 for sub-request (sorting) TODO test
+			if req.Limit != 0 {
+				requestData["limit"] = req.Limit + req.Offset
+			}
+
+			// Sort order
+			if len(req.Sort) != 0 {
+				var sort []string
+				for _, sortField := range req.Sort {
+					var line string
+					var direction string
+					switch sortField.Direction {
+					case Desc:
+						direction = "desc"
+					case Asc:
+						direction = "asc"
+					}
+					line = sortField.Name + " " + direction
+					sort = append(sort, line)
+				}
+				requestData["sort"] = sort
+			}
+
+			//TODO add more data?
+			//TODO if sort or range: keep upper limit, ignore lower limit
+			// rows 100-200: get 1-200
+
+			// Callback
+			callback := func(responseData interface{}) {
+				defer wg.Done()
+
+				// Parse data (rows)
+				rowsVariants, ok := responseData.([]interface{})
+				if !ok {
+					return
+				}
+				rows := make([][]interface{}, len(rowsVariants))
+				for i, rowVariant := range rowsVariants {
+					rowVariants, ok := rowVariant.([]interface{})
+					if !ok {
+						return
+					}
+					for _, variant := range rowVariants {
+						if _, ok := variant.(string); !ok {
+							return
+						}
+					}
+					rows[i] = rowVariants
+				}
+
+				// Keep rows
+				datasets <- rows
+			}
+
+			// Send query to node
+			wg.Add(1)
+			err := NodeAccessor.SendQuery(node, "table", requestData, callback)
+			if err != nil {
+				return nil, nil
+			}
+
+		}
+
+		// Wait for all requests
+		// TODO timeout
+		wg.Wait()
+		close(datasets)
+
+		// Double-check that we have the right number of datasets
+		if len(datasets) != len(nodeBackends) {
+			return nil, nil
+		}
+
+		// Build response object
+		res := &Response{Request: req}
+		table, _ := Objects.Tables[req.Table]
+		_, columns, err := req.BuildResponseIndexes(&table)
+		if err != nil {
+			return nil, nil
+		}
+		res.Columns = columns
+
+		// Merge data
+		for currentRows := range datasets {
+			res.Result = append(res.Result, currentRows...)
+		}
+
+		// Process results
+		// This also applies sort/offset/limit settings
+		res.PostProcessing()
+
+		return res, nil
+	} else {
+		// Single mode (send request and return response)
+		// Or sub-request in cluster mode
+		// Or request for our backends only
+		return (NewResponse(req))
+	}
 }
 
 // ParseRequestHeaderLine parses a single request line

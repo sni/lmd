@@ -113,8 +113,10 @@ func (d *DataTable) AddItem(row *[]interface{}) {
 
 // RemoveItem removes an entry from a datatable.
 func (d *DataTable) RemoveItem(row []interface{}) {
+	fmt.Println("removeitem...", row, fmt.Sprintf("%p", row))
 	for i := range d.Data {
 		r := d.Data[i]
+		fmt.Println("#", i, r, fmt.Sprintf("%p", r))
 		if fmt.Sprintf("%p", r) == fmt.Sprintf("%p", row) {
 			d.Data = append(d.Data[:i], d.Data[i+1:]...)
 			delete(d.Index, fmt.Sprintf("%v", r[d.Table.GetColumn("id").Index]))
@@ -182,9 +184,8 @@ func (p *Peer) Start() {
 	return
 }
 
-// Stop stops this peer. Restart with Start() again.
+// Stop stops this peer. Restart with Start()
 func (p *Peer) Stop() {
-	// Pause and Stop is basically them, both just stop the updateLoop
 	if p.StatusGet("Updating").(bool) {
 		p.stopChannel <- true
 	}
@@ -210,6 +211,10 @@ func (p *Peer) hasChanged() (changed bool) {
 	changed = changed || (counter != len(p.Tables["services"].Data))
 
 	return
+}
+
+func (p *Peer) Clear() {
+	p.Tables = make(map[string]DataTable)
 }
 
 // updateLoop is the main loop updating this peer.

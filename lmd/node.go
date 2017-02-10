@@ -21,6 +21,7 @@ type Nodes struct {
 	onlineIPs        []string
 	Backends         []string
 	assignedBackends []string
+	nodeBackends     map[string][]string
 	HTTPClient       *http.Client
 	AddressPattern   string
 	waitGroupInit    *sync.WaitGroup
@@ -176,7 +177,7 @@ func (n *Nodes) redistribute() {
 	numberBackends := len(n.Backends)
 	allNodes := n.NodeIPs
 	nodeOnline := make([]bool, len(allNodes))
-	numberAllNodes := len(n.NodeIPs)
+	numberAllNodes := len(allNodes)
 	numberAvailableNodes := 0
 	ownIndex := -1
 	for i, node := range allNodes {
@@ -224,22 +225,22 @@ func (n *Nodes) redistribute() {
 
 	//List backends that we're responsible for
 	assignedBackends := make([][]string, numberAllNodes) //for each node
+	nodeBackends := make(map[string][]string)
 	distributedCount := 0
 	numberAssignedBackends := 0
 	for i, number := range assignedNumberBackends {
 		numberAssignedBackends += number
-		if number != 0 {
+		if number != 0 { //number == 0 means no backends for that node
 			list := make([]string, number)
 			for i := 0; i < number; i++ {
 				list[i] = n.Backends[distributedCount+i]
 			}
 			distributedCount += number
 			assignedBackends[i] = list
+			nodeBackends[allNodes[i]] = list
 		}
 	}
-	if numberAssignedBackends != numberBackends {
-		panic(fmt.Sprintf("programmer error: assigned %d out of %d backends", numberAssignedBackends, numberBackends))
-	}
+	n.nodeBackends = nodeBackends
 	ourBackends := assignedBackends[ownIndex]
 
 	//Determine backends this node is now (not anymore) responsible for
@@ -276,8 +277,8 @@ func (n *Nodes) redistribute() {
 	//Start/stop backends
 	for _, oldBackend := range rmvBackends {
 		peer := DataStore[oldBackend]
-		peer.Stop() //TODO fix (this should not stop the http server)
-		//TODO peer.Clear()
+		peer.Stop()
+		peer.Clear() //TODO
 	}
 	for _, newBackend := range addBackends {
 		peer := DataStore[newBackend]
@@ -307,6 +308,16 @@ func (n *Nodes) URL(node string) string {
 	nodeAddress := strings.Replace(listenAddress, "*", node, 1)
 
 	return nodeAddress
+}
+
+func (n *Nodes) IsOurBackend(backend string) bool {
+	ourBackends := n.assignedBackends
+	for _, ourBackend := range ourBackends {
+		if ourBackend == backend {
+			return true
+		}
+	}
+	return false
 }
 
 func (n *Nodes) SendQuery(node string, name string, parameters map[string]interface{}, callback func(interface{})) error {
@@ -340,7 +351,7 @@ func (n *Nodes) SendQuery(node string, name string, parameters map[string]interf
 	//Trigger callback
 	defer res.Body.Close()
 	decoder := json.NewDecoder(res.Body)
-	responseData := make(map[string]interface{})
+	var responseData interface{}
 	if err := decoder.Decode(&responseData); err != nil {
 		//Parsing response failed
 		log.Tracef("%s", err.Error())
