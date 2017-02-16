@@ -342,13 +342,8 @@ func (n *Nodes) SendQuery(node string, name string, parameters map[string]interf
 		log.Tracef("error sending query (%s) to node (%s): %s", name, node, err.Error())
 		return err
 	}
-	if res.StatusCode != 200 {
-		err := errors.New(fmt.Sprintf("node request failed: %s (code %d)", name, res.StatusCode))
-		log.Tracef("%s", err.Error())
-		return err
-	}
 
-	// Trigger callback
+	// Read response data
 	defer res.Body.Close()
 	decoder := json.NewDecoder(res.Body)
 	var responseData interface{}
@@ -357,6 +352,21 @@ func (n *Nodes) SendQuery(node string, name string, parameters map[string]interf
 		log.Tracef("%s", err.Error())
 		return err
 	}
+
+	// Abort on error
+	if res.StatusCode != 200 {
+		var err error
+		m, _ := responseData.(map[string]interface{})
+		if v, ok := m["error"]; ok {
+			err = fmt.Errorf(v.(string))
+		} else {
+			err = errors.New(fmt.Sprintf("node request failed: %s (code %d)", name, res.StatusCode))
+		}
+		log.Tracef("%s", err.Error())
+		return err
+	}
+
+	// Trigger callback
 	go func() {
 		log.Tracef("calling callback for query (%s)", name)
 		callback(responseData)

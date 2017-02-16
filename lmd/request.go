@@ -307,6 +307,14 @@ func (req *Request) GetResponse() (*Response, error) {
 
 	// Distribute request if necessary
 	if NodeAccessor.IsClustered() && !isForOurBackends {
+		// Columns for sub-requests
+		// Define request columns if not specified
+		table, _ := Objects.Tables[req.Table]
+		_, resultColumns, err := req.BuildResponseIndexes(&table)
+		if err != nil {
+			return nil, err
+		}
+
 		// Cluster mode (don't send request, send sub-requests, build response)
 		var wg sync.WaitGroup
 		nodeBackends := NodeAccessor.nodeBackends
@@ -342,9 +350,15 @@ func (req *Request) GetResponse() (*Response, error) {
 			// Set backends for this sub-request
 			requestData["backends"] = subBackends
 
+			// No header row
+			requestData["sendcolumnsheader"] = false
+
 			// Columns
+			// Columns need to be defined or else response will add them
 			if len(req.Columns) != 0 {
 				requestData["columns"] = req.Columns
+			} else {
+				panic("columns undefined for dispatched request")
 			}
 
 			// Filter
@@ -382,10 +396,6 @@ func (req *Request) GetResponse() (*Response, error) {
 				requestData["sort"] = sort
 			}
 
-			// TODO add more data?
-			// TODO if sort or range: keep upper limit, ignore lower limit
-			// rows 100-200: get 1-200
-
 			// Callback
 			callback := func(responseData interface{}) {
 				defer wg.Done()
@@ -401,11 +411,6 @@ func (req *Request) GetResponse() (*Response, error) {
 					if !ok {
 						return
 					}
-					for _, variant := range rowVariants {
-						if _, ok := variant.(string); !ok {
-							return
-						}
-					}
 					rows[i] = rowVariants
 				}
 
@@ -417,7 +422,7 @@ func (req *Request) GetResponse() (*Response, error) {
 			wg.Add(1)
 			err := NodeAccessor.SendQuery(node, "table", requestData, callback)
 			if err != nil {
-				return nil, nil
+				return nil, err
 			}
 
 		}
@@ -429,17 +434,13 @@ func (req *Request) GetResponse() (*Response, error) {
 
 		// Double-check that we have the right number of datasets
 		if len(datasets) != len(nodeBackends) {
-			return nil, nil
+			err := fmt.Errorf("got %d instead of %d datasets", len(datasets), len(nodeBackends))
+			return nil, err
 		}
 
 		// Build response object
 		res := &Response{Request: req}
-		table, _ := Objects.Tables[req.Table]
-		_, columns, err := req.BuildResponseIndexes(&table)
-		if err != nil {
-			return nil, nil
-		}
-		res.Columns = columns
+		res.Columns = resultColumns
 
 		// Merge data
 		for currentRows := range datasets {

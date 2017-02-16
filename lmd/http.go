@@ -36,8 +36,16 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 	}
 
 	// New request object for specified table
-	req := &Request{SendColumnsHeader: false}
+	req := &Request{}
 	req.Table = table_name
+
+	// Send header row by default
+	req.SendColumnsHeader = true
+	if val, ok := requestData["sendcolumnsheader"]; ok {
+		if enableHeader, ok := val.(bool); ok {
+			req.SendColumnsHeader = enableHeader
+		}
+	}
 
 	// Offset
 	if val, ok := requestData["offset"]; ok {
