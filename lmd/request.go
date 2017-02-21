@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Request defines a livestatus request object.
@@ -428,8 +429,11 @@ func (req *Request) GetResponse() (*Response, error) {
 		}
 
 		// Wait for all requests
-		// TODO timeout
-		wg.Wait()
+		timeout := 10
+		if waitTimeout(&wg, time.Duration(timeout)*time.Second) {
+			err := fmt.Errorf("timeout waiting for partner nodes")
+			return nil, err
+		}
 		close(datasets)
 
 		// Double-check that we have the right number of datasets
