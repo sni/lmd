@@ -187,6 +187,7 @@ func (p *Peer) Start() {
 // Stop stops this peer. Restart with Start()
 func (p *Peer) Stop() {
 	if p.StatusGet("Updating").(bool) {
+		log.Infof("[%s] stopping connection", p.Name)
 		p.stopChannel <- true
 	}
 }
