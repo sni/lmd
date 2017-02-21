@@ -65,9 +65,6 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 			requestDataFilter = lines
 		}
 	}
-	if val, ok := requestData["filterstr"]; ok {
-		requestDataFilter = append(requestDataFilter, val.(string))
-	}
 	for _, line := range requestDataFilter {
 		value := line.(string)
 		err := ParseFilter(value, &value, table_name, &req.Filter) // filter.go
