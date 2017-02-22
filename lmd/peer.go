@@ -221,8 +221,19 @@ func (p *Peer) Clear() {
 // updateLoop is the main loop updating this peer.
 // It does not return till triggered by the shutdownChannel.
 func (p *Peer) updateLoop() {
-	ok := p.InitAllTables()
-	lastTimeperiodUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
+	var ok bool
+	var lastTimeperiodUpdateMinute int
+	if value, gotLastValue := p.Status["LastUpdateOK"]; gotLastValue {
+		// Get last update state
+		ok = *value.(*bool)
+		lastTimeperiodUpdateMinute = *p.Status["LastTimeperiodUpdateMinute"].(*int)
+	} else {
+		// First run, initialize tables
+		ok = p.InitAllTables()
+		lastTimeperiodUpdateMinute, _ = strconv.Atoi(time.Now().Format("4"))
+	}
+	p.Status["LastUpdateOK"] = &ok
+	p.Status["LastTimeperiodUpdateMinute"] = &lastTimeperiodUpdateMinute
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	for {
