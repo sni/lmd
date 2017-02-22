@@ -112,7 +112,7 @@ func (n *Nodes) heartbeat() {
 		}
 		requestData := make(map[string]interface{})
 		requestData["identifier"] = ownIdentifier
-		log.Debugf("pinging node %s...", node)
+		log.Tracef("pinging node %s...", node)
 		wg.Add(1)
 		go func(wg *sync.WaitGroup, node string) {
 			callback := func(responseData interface{}) {
@@ -131,7 +131,7 @@ func (n *Nodes) heartbeat() {
 					}
 				} else {
 					newOnlineIPs = append(newOnlineIPs, node)
-					log.Debugf("found partner node: %s", node)
+					log.Tracef("found partner node: %s", node)
 				}
 				wg.Done()
 			}
@@ -141,7 +141,7 @@ func (n *Nodes) heartbeat() {
 	timeout := n.heartbeatTimeout
 	if waitTimeout(&wg, time.Duration(timeout)*time.Second) {
 		// Not all nodes have responded, but that's ok
-		log.Debugf("node timeout")
+		log.Tracef("node timeout")
 		if initializing && n.OwnIP == "" {
 			// This node has not responded
 			// This is an error. At this point, we don't know who we are.
@@ -164,8 +164,10 @@ func (n *Nodes) heartbeat() {
 			}
 		}
 	}
+
+	// Redistribute backends
 	if !nodesUnchanged {
-		log.Debugf("list of available partner nodes has changed")
+		log.Tracef("list of available partner nodes has changed")
 		n.onlineIPs = newOnlineIPs
 		n.redistribute()
 	}
