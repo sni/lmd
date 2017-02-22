@@ -164,7 +164,7 @@ func LocalListenerLivestatus(connType string, listen string, waitGroupInit *sync
 
 		select {
 		case <-shutdownChannel:
-			log.Infof("stopping listening on %s", listen)
+			log.Infof("stopping listener on %s", listen)
 			if connType == "unix" {
 				os.Remove(listen)
 			}
@@ -221,7 +221,7 @@ func LocalListenerHTTP(httpType string, listen string, waitGroupInit *sync.WaitG
 	go func() {
 		select {
 		case <-shutdownChannel:
-			log.Infof("stopping listening on %s", listen)
+			log.Infof("stopping listener on %s", listen)
 			l.Close()
 		}
 	}()

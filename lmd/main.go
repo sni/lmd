@@ -52,6 +52,15 @@ type Connection struct {
 	RemoteName string
 }
 
+func (c *Connection) Equals(other *Connection) bool {
+	equal := c.ID == other.ID
+	equal = equal && c.Name == other.Name
+	equal = equal && c.Auth == other.Auth
+	equal = equal && c.RemoteName == other.RemoteName
+	equal = equal && strings.Join(c.Source, ":") == strings.Join(other.Source, ":")
+	return equal
+}
+
 // Config defines the available configuration options from supplied config files.
 type Config struct {
 	Listen              []string
@@ -113,6 +122,8 @@ var lastMainRestart = time.Now().Unix()
 func init() {
 	InitObjects()
 	mainSignalChannel = make(chan os.Signal)
+	DataStore = make(map[string]Peer)
+	DataStoreOrder = make([]string, 0)
 }
 
 func setFlags() {
@@ -178,10 +189,6 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 		log.Warnf("pprof profiler listening at %s", flagProfile)
 	}
 
-	// Set the backends to be used.
-	DataStore = make(map[string]Peer)
-	DataStoreOrder = make([]string, 0)
-
 	// initialize prometheus
 	prometheusListener := initPrometheus()
 
@@ -225,18 +232,50 @@ func initializePeers(GlobalConfig *Config, waitGroupPeers *sync.WaitGroup, waitG
 		nodeAddressPattern += "/v1/query"
 	}
 
-	// Create Peer objects
+	// Get rid of obsolete peers (removed from config)
+	for id := range DataStore {
+		found := false // id exists
+		for _, c := range GlobalConfig.Connections {
+			if c.ID == id {
+				found = true
+			}
+		}
+		if !found {
+			delete(DataStore, id)
+		}
+	}
+
+	// Create/set Peer objects
+	DataStoreOrder = nil
 	var backends []string
 	for _, c := range GlobalConfig.Connections {
-		backends = append(backends, c.ID)
-		p := NewPeer(c, waitGroupPeers, shutdownChannel)
-		_, Exists := DataStore[c.ID]
-		if Exists {
-			log.Fatalf("Duplicate id in connection list: %s", c.ID)
+		// Keep peer if connection settings unchanged
+		var p *Peer
+		if v, ok := DataStore[c.ID]; ok {
+			if c.Equals(&v.Config) {
+				p = &v
+				p.waitGroup = waitGroupPeers
+				p.shutdownChannel = shutdownChannel
+			}
 		}
+
+		// Create new peer otherwise
+		if p == nil {
+			p = NewPeer(c, waitGroupPeers, shutdownChannel)
+		}
+
+		// Check for duplicate id
+		for _, b := range backends {
+			if b == c.ID {
+				log.Fatalf("Duplicate id in connection list: %s", c.ID)
+			}
+		}
+		backends = append(backends, c.ID)
+
+		// Put new or modified peer in map
 		DataStore[c.ID] = *p
 		DataStoreOrder = append(DataStoreOrder, c.ID)
-		// peer started later in node redistribution routine
+		// Peer started later in node redistribution routine
 	}
 
 	// Node accessor
