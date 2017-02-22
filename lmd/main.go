@@ -241,6 +241,7 @@ func initializePeers(GlobalConfig *Config, waitGroupPeers *sync.WaitGroup, waitG
 
 	// Node accessor
 	NodeAccessor = &Nodes{
+		PeerMap:         &DataStore,
 		NodeIPs:         GlobalConfig.Nodes,
 		Backends:        backends,
 		HTTPClient:      netClient,
@@ -355,7 +356,7 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		if prometheusListener != nil {
 			prometheusListener.Close()
 		}
-		log.Infof("got sigint, quiting")
+		log.Infof("got sigint, quitting")
 		// wait one second which should be enough for the listeners
 		waitTimeout(waitGroupListener, time.Second)
 		if flagPidfile != "" {

@@ -15,6 +15,7 @@ import (
 )
 
 type Nodes struct {
+	PeerMap          *map[string]Peer
 	NodeIPs          []string
 	OwnIP            string
 	ID               string
@@ -55,7 +56,7 @@ func (n *Nodes) Initialize() {
 func (n *Nodes) Start() {
 	// Start all peers once in single mode
 	if !n.IsClustered() {
-		for _, peer := range DataStore {
+		for _, peer := range *n.PeerMap {
 			peer.Start()
 		}
 		return
@@ -278,12 +279,12 @@ func (n *Nodes) redistribute() {
 
 	// Start/stop backends
 	for _, oldBackend := range rmvBackends {
-		peer := DataStore[oldBackend]
+		peer := (*n.PeerMap)[oldBackend]
 		peer.Stop()
 		peer.Clear()
 	}
 	for _, newBackend := range addBackends {
-		peer := DataStore[newBackend]
+		peer := (*n.PeerMap)[newBackend]
 		peer.Start()
 	}
 
