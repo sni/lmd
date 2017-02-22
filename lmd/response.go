@@ -243,6 +243,10 @@ func (res *Response) CalculateFinalStats() {
 	}
 	res.Result = make([][]interface{}, 1)
 	res.Result[0] = make([]interface{}, len(res.Request.Stats))
+	if res.Request.SendStatsData {
+		res.Result = append(res.Result, []interface{}{})
+		res.Result[1] = make([]interface{}, len(res.Request.Stats))
+	}
 	for i, s := range res.Request.Stats {
 		switch s.StatsType {
 		case Counter:
@@ -270,6 +274,11 @@ func (res *Response) CalculateFinalStats() {
 		}
 		if s.StatsCount == 0 {
 			res.Result[0][i] = 0
+		}
+
+		if res.Request.SendStatsData {
+			res.Result[0][i] = s.Stats
+			res.Result[1][i] = s.StatsCount
 		}
 	}
 }
@@ -374,10 +383,14 @@ func (res *Response) JSON() ([]byte, error) {
 		buf.Write([]byte("{\"data\":"))
 	}
 
+	// enable header row for regular requests, not for stats requests
+	isStatsRequest := len(res.Request.Stats) != 0
+	sendColumnsHeader := res.Request.SendColumnsHeader && !isStatsRequest
+
 	buf.Write([]byte("["))
 	// add optional columns header as first row
-	if res.Request.SendColumnsHeader {
-		cols := make([]interface{}, len(res.Request.Columns)+len(res.Request.Stats))
+	if sendColumnsHeader {
+		cols := make([]interface{}, len(res.Request.Columns))
 		for i, v := range res.Request.Columns {
 			cols[i] = v
 		}
@@ -391,7 +404,7 @@ func (res *Response) JSON() ([]byte, error) {
 	if outputFormat == "wrapped_json" || outputFormat == "json" {
 		for i, row := range res.Result {
 			if i == 0 {
-				if res.Request.SendColumnsHeader {
+				if sendColumnsHeader {
 					buf.Write([]byte(",\n"))
 				}
 			} else {

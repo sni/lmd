@@ -42,8 +42,8 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 	// Send header row by default
 	req.SendColumnsHeader = true
 	if val, ok := requestData["sendcolumnsheader"]; ok {
-		if enableHeader, ok := val.(bool); ok {
-			req.SendColumnsHeader = enableHeader
+		if enable, ok := val.(bool); ok {
+			req.SendColumnsHeader = enable
 		}
 	}
 
@@ -71,6 +71,28 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 		if err != nil {
 			c.errorOutput(err, w)
 			return
+		}
+	}
+
+	// Stats
+	var requestDataStats []interface{}
+	if val, ok := requestData["stats"]; ok {
+		lines, ok := val.([]interface{})
+		if ok {
+			requestDataStats = lines
+		}
+	}
+	for _, line := range requestDataStats {
+		value := line.(string)
+		err := ParseStats(value, &value, table_name, &req.Stats) // filter.go
+		if err != nil {
+			c.errorOutput(err, w)
+			return
+		}
+	}
+	if val, ok := requestData["sendstatsdata"]; ok {
+		if enable, ok := val.(bool); ok {
+			req.SendStatsData = enable
 		}
 	}
 

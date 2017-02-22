@@ -29,6 +29,7 @@ type Request struct {
 	Backends          []string
 	BackendsMap       map[string]string
 	SendColumnsHeader bool
+	SendStatsData     bool
 	WaitTimeout       int
 	WaitTrigger       string
 	WaitCondition     []Filter
@@ -316,6 +317,9 @@ func (req *Request) GetResponse() (*Response, error) {
 			return nil, err
 		}
 
+		// Type of request
+		isStatsRequest := len(req.Stats) != 0
+
 		// Cluster mode (don't send request, send sub-requests, build response)
 		var wg sync.WaitGroup
 		nodeBackends := NodeAccessor.nodeBackends
@@ -374,6 +378,18 @@ func (req *Request) GetResponse() (*Response, error) {
 					filterLines = append(filterLines, req.FilterStr)
 				}
 				requestData["filter"] = filterLines
+			}
+
+			// Stats
+			if isStatsRequest {
+				var statsLines []string
+				for _, stats := range req.Stats {
+					var line string
+					line = stats.String()
+					statsLines = append(statsLines, line)
+				}
+				requestData["stats"] = statsLines
+				requestData["sendstatsdata"] = true
 			}
 
 			// Limit
@@ -452,7 +468,17 @@ func (req *Request) GetResponse() (*Response, error) {
 
 		// Merge data
 		for currentRows := range datasets {
-			res.Result = append(res.Result, currentRows...)
+			if isStatsRequest {
+				// Stats request
+				// Value (sum), count (number of elements)
+				for i := range currentRows[0] {
+					value, count := currentRows[0][i].(float64), int(currentRows[1][i].(float64))
+					req.Stats[i].ApplyValue(value, count)
+				}
+			} else {
+				// Regular request
+				res.Result = append(res.Result, currentRows...)
+			}
 		}
 
 		// Process results
