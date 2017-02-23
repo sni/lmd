@@ -8,6 +8,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+// HTTPServerController is the container object for the rest interface's server.
 type HTTPServerController struct {
 }
 
@@ -27,17 +28,17 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 	w.Header().Set("Content-Type", "application/json")
 
 	// Requested table (name)
-	table_name := requestData["table"].(string)
+	tableName := requestData["table"].(string)
 
 	// Check if table exists
-	if _, exists := Objects.Tables[table_name]; !exists {
-		c.errorOutput(fmt.Errorf("table not found: %s", table_name), w)
+	if _, exists := Objects.Tables[tableName]; !exists {
+		c.errorOutput(fmt.Errorf("table not found: %s", tableName), w)
 		return
 	}
 
 	// New request object for specified table
 	req := &Request{}
-	req.Table = table_name
+	req.Table = tableName
 
 	// Send header row by default
 	req.SendColumnsHeader = true
@@ -67,7 +68,7 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 	}
 	for _, line := range requestDataFilter {
 		value := line.(string)
-		err := ParseFilter(value, &value, table_name, &req.Filter) // filter.go
+		err := ParseFilter(value, &value, tableName, &req.Filter) // filter.go
 		if err != nil {
 			c.errorOutput(err, w)
 			return
@@ -84,7 +85,7 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 	}
 	for _, line := range requestDataStats {
 		value := line.(string)
-		err := ParseStats(value, &value, table_name, &req.Stats) // filter.go
+		err := ParseStats(value, &value, tableName, &req.Stats) // filter.go
 		if err != nil {
 			c.errorOutput(err, w)
 			return
@@ -173,9 +174,9 @@ func (c *HTTPServerController) table(w http.ResponseWriter, request *http.Reques
 	}
 
 	// Use table name defined in rest request
-	table_name := ps.ByName("name")
-	if table_name != "" {
-		requestData["table"] = table_name
+	tableName := ps.ByName("name")
+	if tableName != "" {
+		requestData["table"] = tableName
 	}
 
 	c.queryTable(w, requestData)
@@ -185,7 +186,7 @@ func (c *HTTPServerController) ping(w http.ResponseWriter, request *http.Request
 	w.Header().Set("Content-Type", "application/json")
 
 	// Response data
-	id := NodeAccessor.ID
+	id := nodeAccessor.ID
 	j := make(map[string]interface{})
 	j["identifier"] = id
 

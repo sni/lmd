@@ -184,7 +184,7 @@ func (p *Peer) Start() {
 	return
 }
 
-// Stop stops this peer. Restart with Start()
+// Stop stops this peer. Restart with Start.
 func (p *Peer) Stop() {
 	if p.StatusGet("Updating").(bool) {
 		log.Infof("[%s] stopping connection", p.Name)
@@ -214,12 +214,13 @@ func (p *Peer) hasChanged() (changed bool) {
 	return
 }
 
+// Clear resets the data table.
 func (p *Peer) Clear() {
 	p.Tables = make(map[string]DataTable)
 }
 
 // updateLoop is the main loop updating this peer.
-// It does not return till triggered by the shutdownChannel.
+// It does not return till triggered by the shutdownChannel or by the internal stopChannel.
 func (p *Peer) updateLoop() {
 	var ok bool
 	var lastTimeperiodUpdateMinute int

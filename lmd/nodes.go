@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -14,23 +13,53 @@ import (
 	"github.com/nu7hatch/gouuid"
 )
 
+// Nodes is the cluster management object.
 type Nodes struct {
 	PeerMap          *map[string]Peer
 	NodeIPs          []string
+	AddressPattern   string
 	OwnIP            string
 	ID               string
-	onlineIPs        []string
-	Backends         []string
-	assignedBackends []string
-	nodeBackends     map[string][]string
 	HTTPClient       *http.Client
-	AddressPattern   string
-	waitGroupInit    *sync.WaitGroup
-	shutdownChannel  chan bool
+	WaitGroupInit    *sync.WaitGroup
+	ShutdownChannel  chan bool
 	loopInterval     int
 	heartbeatTimeout int
+	backends         []string
+	onlineIPs        []string
+	assignedBackends []string
+	nodeBackends     map[string][]string
+	stopChannel      chan bool
 }
 
+// NewNodes creates a new cluster manager.
+func NewNodes(ips []string, pattern string, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) *Nodes {
+	n := &Nodes{
+		AddressPattern:  pattern,
+		WaitGroupInit:   waitGroupInit,
+		ShutdownChannel: shutdownChannel,
+		stopChannel:     make(chan bool),
+	}
+	n.PeerMap = &DataStore
+	for id := range *n.PeerMap {
+		n.backends = append(n.backends, id)
+	}
+	for _, ip := range ips {
+		n.NodeIPs = append(n.NodeIPs, ip)
+	}
+	n.HTTPClient = netClient
+
+	return n
+}
+
+// IsClustered checks if cluster mode is enabled.
+func (n *Nodes) IsClustered() bool {
+	return len(n.NodeIPs) > 1
+}
+
+// Initialize generates the node's identifier and identifies this node.
+// In single mode, it starts all peers.
+// In cluster mode, the peers are started later, while the loop is running.
 func (n *Nodes) Initialize() {
 	// Default values
 	if n.loopInterval == 0 {
@@ -48,56 +77,69 @@ func (n *Nodes) Initialize() {
 		*ownIdentifier += ":" + u.String()
 	}
 
-	// Start loop
-	n.Start()
+	// Wait for own listener(s) to initialize
+	n.WaitGroupInit.Wait()
 
-}
-
-func (n *Nodes) Start() {
-	// Start all peers once in single mode
+	// Start all peers in single mode
 	if !n.IsClustered() {
 		for _, peer := range *n.PeerMap {
 			peer.Start()
 		}
-		return
 	}
 
-	// Wait for own listener(s) to initialize
-	n.waitGroupInit.Wait()
+	// Send first ping (detect own ip) and wait for it to finish
+	// This needs to be done before the loop is started.
+	if n.IsClustered() {
+		n.checkNodeAvailability()
+	}
 
-	// Send first heartbeat (who am I) and wait for it to finish
-	n.heartbeat()
+}
+
+// Start starts the loop that periodically checks which nodes are online.
+// Does nothing in single mode.
+func (n *Nodes) Start() {
+	// Do nothing in single mode
+	if !n.IsClustered() {
+		return
+	}
 
 	// Start loop in background
 	go func() {
 		n.loop()
 	}()
-
 }
 
-func (n *Nodes) IsClustered() bool {
-	return len(n.NodeIPs) > 1
+// Stop stops the loop.
+// Partner nodes won't be pinged automatically anymore.
+func (n *Nodes) Stop() {
+	n.stopChannel <- true
 }
 
+// loop triggers periodic checks until stopped.
 func (n *Nodes) loop() {
 	interval := n.loopInterval
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	for {
 
 		select {
-		case <-n.shutdownChannel:
+		case <-n.ShutdownChannel:
+			ticker.Stop()
+			return
+		case <-n.stopChannel:
 			ticker.Stop()
 			return
 		case <-ticker.C:
-			n.heartbeat()
+			n.checkNodeAvailability()
 
 		}
 	}
 }
 
-func (n *Nodes) heartbeat() {
+// checkNodeAvailability pings all partner nodes to determine which ones are online.
+// When called for the first time during initialization, it also identifies this node.
+func (n *Nodes) checkNodeAvailability() {
 	// Send request to all nodes
-	// First heartbeat (initializing) detects and assigns own ip.
+	// First ping (initializing) detects and assigns own ip.
 	wg := sync.WaitGroup{}
 	ownIdentifier := n.ID
 	if ownIdentifier == "" {
@@ -175,9 +217,11 @@ func (n *Nodes) heartbeat() {
 
 }
 
+// redistribute assigns the peers to the available nodes.
+// It starts peers assigned to this node and stops other peers.
 func (n *Nodes) redistribute() {
 	// Nodes and backends
-	numberBackends := len(n.Backends)
+	numberBackends := len(n.backends)
 	allNodes := n.NodeIPs
 	nodeOnline := make([]bool, len(allNodes))
 	numberAllNodes := len(allNodes)
@@ -204,14 +248,14 @@ func (n *Nodes) redistribute() {
 	assignedNumberBackends := make([]int, numberAllNodes) // for each node
 	if numberAvailableNodes >= numberBackends {
 		// No node has more than one backend
-		for i, _ := range allNodes {
+		for i := range allNodes {
 			if nodeOnline[i] {
 				assignedNumberBackends[i] = 1
 			}
 		}
 	} else {
 		first := true
-		for i, _ := range allNodes {
+		for i := range allNodes {
 			if !nodeOnline[i] {
 				continue
 			}
@@ -236,7 +280,7 @@ func (n *Nodes) redistribute() {
 		if number != 0 { // number == 0 means no backends for that node
 			list := make([]string, number)
 			for i := 0; i < number; i++ {
-				list[i] = n.Backends[distributedCount+i]
+				list[i] = n.backends[distributedCount+i]
 			}
 			distributedCount += number
 			assignedBackends[i] = list
@@ -249,7 +293,7 @@ func (n *Nodes) redistribute() {
 	// Determine backends this node is now (not anymore) responsible for
 	var addBackends []string
 	var rmvBackends []string
-	for _, backend := range n.Backends {
+	for _, backend := range n.backends {
 		// Check if assigned now
 		assignedNow := false
 		for _, newBackend := range ourBackends {
@@ -313,6 +357,7 @@ func (n *Nodes) URL(node string) string {
 	return nodeAddress
 }
 
+// IsOurBackend checks if backend is managed by this node.
 func (n *Nodes) IsOurBackend(backend string) bool {
 	ourBackends := n.assignedBackends
 	for _, ourBackend := range ourBackends {
@@ -323,6 +368,9 @@ func (n *Nodes) IsOurBackend(backend string) bool {
 	return false
 }
 
+// SendQuery sends a query to a node.
+// It will be sent as http request; name is the api function to be called.
+// The returned data will be passed to the callback.
 func (n *Nodes) SendQuery(node string, name string, parameters map[string]interface{}, callback func(interface{})) error {
 	// Prepare request data
 	requestData := make(map[string]interface{})
@@ -363,7 +411,7 @@ func (n *Nodes) SendQuery(node string, name string, parameters map[string]interf
 		if v, ok := m["error"]; ok {
 			err = fmt.Errorf(v.(string))
 		} else {
-			err = errors.New(fmt.Sprintf("node request failed: %s (code %d)", name, res.StatusCode))
+			err = fmt.Errorf("node request failed: %s (code %d)", name, res.StatusCode)
 		}
 		log.Tracef("%s", err.Error())
 		return err

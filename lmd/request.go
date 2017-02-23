@@ -302,196 +302,198 @@ func (req *Request) GetResponse() (*Response, error) {
 	if !allBackendsRequested {
 		isForOurBackends = true
 		for _, backend := range req.Backends {
-			isOurs := NodeAccessor.IsOurBackend(backend)
+			isOurs := nodeAccessor.IsOurBackend(backend)
 			isForOurBackends = isForOurBackends && isOurs
 		}
 	}
 
-	// Distribute request if necessary
-	if NodeAccessor.IsClustered() && !isForOurBackends {
-		// Columns for sub-requests
-		// Define request columns if not specified
-		table, _ := Objects.Tables[req.Table]
-		_, resultColumns, err := req.BuildResponseIndexes(&table)
-		if err != nil {
-			return nil, err
-		}
-
-		// Type of request
-		isStatsRequest := len(req.Stats) != 0
-
-		// Cluster mode (don't send request, send sub-requests, build response)
-		var wg sync.WaitGroup
-		nodeBackends := NodeAccessor.nodeBackends
-		datasets := make(chan [][]interface{}, len(nodeBackends))
-		for node, nodeBackends := range nodeBackends {
-			// Limit to requested backends if necessary
-			// nodeBackends: all backends handled by current node
-			var subBackends []string // backends for current sub-request
-			for _, nodeBackend := range nodeBackends {
-				isRequested := allBackendsRequested
-				for _, requestedBackend := range req.Backends {
-					if requestedBackend == nodeBackend {
-						isRequested = true
-					}
-				}
-				if isRequested {
-					subBackends = append(subBackends, nodeBackend)
-				}
-			}
-
-			// Skip node if it doesn't have relevant backends
-			if len(subBackends) == 0 {
-				datasets <- [][]interface{}{}
-				continue
-			}
-
-			// Create sub-request
-			requestData := make(map[string]interface{})
-			if req.Table != "" {
-				requestData["table"] = req.Table
-			}
-
-			// Set backends for this sub-request
-			requestData["backends"] = subBackends
-
-			// No header row
-			requestData["sendcolumnsheader"] = false
-
-			// Columns
-			// Columns need to be defined or else response will add them
-			if len(req.Columns) != 0 {
-				requestData["columns"] = req.Columns
-			} else {
-				panic("columns undefined for dispatched request")
-			}
-
-			// Filter
-			if len(req.Filter) != 0 || req.FilterStr != "" {
-				var filterLines []string
-				for _, filter := range req.Filter {
-					var line string
-					line = filter.String()
-					filterLines = append(filterLines, line)
-				}
-				if req.FilterStr != "" {
-					filterLines = append(filterLines, req.FilterStr)
-				}
-				requestData["filter"] = filterLines
-			}
-
-			// Stats
-			if isStatsRequest {
-				var statsLines []string
-				for _, stats := range req.Stats {
-					var line string
-					line = stats.String()
-					statsLines = append(statsLines, line)
-				}
-				requestData["stats"] = statsLines
-				requestData["sendstatsdata"] = true
-			}
-
-			// Limit
-			// An upper limit is used to make sorting possible
-			// Offset is 0 for sub-request (sorting)
-			if req.Limit != 0 {
-				requestData["limit"] = req.Limit + req.Offset
-			}
-
-			// Sort order
-			if len(req.Sort) != 0 {
-				var sort []string
-				for _, sortField := range req.Sort {
-					var line string
-					var direction string
-					switch sortField.Direction {
-					case Desc:
-						direction = "desc"
-					case Asc:
-						direction = "asc"
-					}
-					line = sortField.Name + " " + direction
-					sort = append(sort, line)
-				}
-				requestData["sort"] = sort
-			}
-
-			// Callback
-			callback := func(responseData interface{}) {
-				defer wg.Done()
-
-				// Parse data (rows)
-				rowsVariants, ok := responseData.([]interface{})
-				if !ok {
-					return
-				}
-				rows := make([][]interface{}, len(rowsVariants))
-				for i, rowVariant := range rowsVariants {
-					rowVariants, ok := rowVariant.([]interface{})
-					if !ok {
-						return
-					}
-					rows[i] = rowVariants
-				}
-
-				// Keep rows
-				datasets <- rows
-			}
-
-			// Send query to node
-			wg.Add(1)
-			err := NodeAccessor.SendQuery(node, "table", requestData, callback)
-			if err != nil {
-				return nil, err
-			}
-
-		}
-
-		// Wait for all requests
-		timeout := 10
-		if waitTimeout(&wg, time.Duration(timeout)*time.Second) {
-			err := fmt.Errorf("timeout waiting for partner nodes")
-			return nil, err
-		}
-		close(datasets)
-
-		// Double-check that we have the right number of datasets
-		if len(datasets) != len(nodeBackends) {
-			err := fmt.Errorf("got %d instead of %d datasets", len(datasets), len(nodeBackends))
-			return nil, err
-		}
-
-		// Build response object
-		res := &Response{Request: req}
-		res.Columns = resultColumns
-
-		// Merge data
-		for currentRows := range datasets {
-			if isStatsRequest {
-				// Stats request
-				// Value (sum), count (number of elements)
-				for i := range currentRows[0] {
-					value, count := currentRows[0][i].(float64), int(currentRows[1][i].(float64))
-					req.Stats[i].ApplyValue(value, count)
-				}
-			} else {
-				// Regular request
-				res.Result = append(res.Result, currentRows...)
-			}
-		}
-
-		// Process results
-		// This also applies sort/offset/limit settings
-		res.PostProcessing()
-
-		return res, nil
-	} else {
+	// Run single request if possible
+	if !nodeAccessor.IsClustered() || isForOurBackends {
 		// Single mode (send request and return response)
 		// Or sub-request in cluster mode
 		// Or request for our backends only
 		return (NewResponse(req))
 	}
+
+	// Distribute request
+
+	// Columns for sub-requests
+	// Define request columns if not specified
+	table, _ := Objects.Tables[req.Table]
+	_, resultColumns, err := req.BuildResponseIndexes(&table)
+	if err != nil {
+		return nil, err
+	}
+
+	// Type of request
+	isStatsRequest := len(req.Stats) != 0
+
+	// Cluster mode (don't send request, send sub-requests, build response)
+	var wg sync.WaitGroup
+	nodeBackends := nodeAccessor.nodeBackends
+	datasets := make(chan [][]interface{}, len(nodeBackends))
+	for node, nodeBackends := range nodeBackends {
+		// Limit to requested backends if necessary
+		// nodeBackends: all backends handled by current node
+		var subBackends []string // backends for current sub-request
+		for _, nodeBackend := range nodeBackends {
+			isRequested := allBackendsRequested
+			for _, requestedBackend := range req.Backends {
+				if requestedBackend == nodeBackend {
+					isRequested = true
+				}
+			}
+			if isRequested {
+				subBackends = append(subBackends, nodeBackend)
+			}
+		}
+
+		// Skip node if it doesn't have relevant backends
+		if len(subBackends) == 0 {
+			datasets <- [][]interface{}{}
+			continue
+		}
+
+		// Create sub-request
+		requestData := make(map[string]interface{})
+		if req.Table != "" {
+			requestData["table"] = req.Table
+		}
+
+		// Set backends for this sub-request
+		requestData["backends"] = subBackends
+
+		// No header row
+		requestData["sendcolumnsheader"] = false
+
+		// Columns
+		// Columns need to be defined or else response will add them
+		if len(req.Columns) != 0 {
+			requestData["columns"] = req.Columns
+		} else {
+			panic("columns undefined for dispatched request")
+		}
+
+		// Filter
+		if len(req.Filter) != 0 || req.FilterStr != "" {
+			var filterLines []string
+			for _, filter := range req.Filter {
+				var line string
+				line = filter.String()
+				filterLines = append(filterLines, line)
+			}
+			if req.FilterStr != "" {
+				filterLines = append(filterLines, req.FilterStr)
+			}
+			requestData["filter"] = filterLines
+		}
+
+		// Stats
+		if isStatsRequest {
+			var statsLines []string
+			for _, stats := range req.Stats {
+				var line string
+				line = stats.String()
+				statsLines = append(statsLines, line)
+			}
+			requestData["stats"] = statsLines
+			requestData["sendstatsdata"] = true
+		}
+
+		// Limit
+		// An upper limit is used to make sorting possible
+		// Offset is 0 for sub-request (sorting)
+		if req.Limit != 0 {
+			requestData["limit"] = req.Limit + req.Offset
+		}
+
+		// Sort order
+		if len(req.Sort) != 0 {
+			var sort []string
+			for _, sortField := range req.Sort {
+				var line string
+				var direction string
+				switch sortField.Direction {
+				case Desc:
+					direction = "desc"
+				case Asc:
+					direction = "asc"
+				}
+				line = sortField.Name + " " + direction
+				sort = append(sort, line)
+			}
+			requestData["sort"] = sort
+		}
+
+		// Callback
+		callback := func(responseData interface{}) {
+			defer wg.Done()
+
+			// Parse data (rows)
+			rowsVariants, ok := responseData.([]interface{})
+			if !ok {
+				return
+			}
+			rows := make([][]interface{}, len(rowsVariants))
+			for i, rowVariant := range rowsVariants {
+				rowVariants, ok := rowVariant.([]interface{})
+				if !ok {
+					return
+				}
+				rows[i] = rowVariants
+			}
+
+			// Keep rows
+			datasets <- rows
+		}
+
+		// Send query to node
+		wg.Add(1)
+		err := nodeAccessor.SendQuery(node, "table", requestData, callback)
+		if err != nil {
+			return nil, err
+		}
+
+	}
+
+	// Wait for all requests
+	timeout := 10
+	if waitTimeout(&wg, time.Duration(timeout)*time.Second) {
+		err := fmt.Errorf("timeout waiting for partner nodes")
+		return nil, err
+	}
+	close(datasets)
+
+	// Double-check that we have the right number of datasets
+	if len(datasets) != len(nodeBackends) {
+		err := fmt.Errorf("got %d instead of %d datasets", len(datasets), len(nodeBackends))
+		return nil, err
+	}
+
+	// Build response object
+	res := &Response{Request: req}
+	res.Columns = resultColumns
+
+	// Merge data
+	for currentRows := range datasets {
+		if isStatsRequest {
+			// Stats request
+			// Value (sum), count (number of elements)
+			for i := range currentRows[0] {
+				value, count := currentRows[0][i].(float64), int(currentRows[1][i].(float64))
+				req.Stats[i].ApplyValue(value, count)
+			}
+		} else {
+			// Regular request
+			res.Result = append(res.Result, currentRows...)
+		}
+	}
+
+	// Process results
+	// This also applies sort/offset/limit settings
+	res.PostProcessing()
+
+	return res, nil
 }
 
 // ParseRequestHeaderLine parses a single request line

@@ -52,6 +52,7 @@ type Connection struct {
 	RemoteName string
 }
 
+// Equals checks if two connection objects are identical.
 func (c *Connection) Equals(other *Connection) bool {
 	equal := c.ID == other.ID
 	equal = equal && c.Name == other.Name
@@ -99,8 +100,8 @@ func (c *configFiles) Set(value string) error {
 	return nil
 }
 
-// Nodes
-var NodeAccessor *Nodes
+// nodeAccessor manages cluster nodes and starts/stops peers.
+var nodeAccessor *Nodes
 
 // GlobalConfig contains the global configuration (after config files have been parsed)
 var GlobalConfig Config
@@ -221,6 +222,7 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 
 func initializePeers(GlobalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGroupInit *sync.WaitGroup, waitGroupListener *sync.WaitGroup, shutdownChannel chan bool) {
 	// Node address pattern (http://*:1234)
+	// Pattern will be used to communicate with partner nodes
 	var nodeAddressPattern string
 	rx := regexp.MustCompile("^(https?)://(.*?):(.*)")
 	for _, listen := range GlobalConfig.Listen {
@@ -279,16 +281,11 @@ func initializePeers(GlobalConfig *Config, waitGroupPeers *sync.WaitGroup, waitG
 	}
 
 	// Node accessor
-	NodeAccessor = &Nodes{
-		PeerMap:         &DataStore,
-		NodeIPs:         GlobalConfig.Nodes,
-		Backends:        backends,
-		HTTPClient:      netClient,
-		AddressPattern:  nodeAddressPattern,
-		waitGroupInit:   waitGroupInit,
-		shutdownChannel: shutdownChannel,
-	}
-	NodeAccessor.Initialize()
+	var nodeIPs []string
+	nodeIPs = GlobalConfig.Nodes
+	nodeAccessor = NewNodes(nodeIPs, nodeAddressPattern, waitGroupInit, shutdownChannel)
+	nodeAccessor.Initialize() // starts peers in single mode
+	nodeAccessor.Start()      // nodes loop starts/stops peers in cluster mode
 
 }
 
