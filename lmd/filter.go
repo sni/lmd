@@ -124,12 +124,12 @@ func (op *Operator) String() string {
 }
 
 // String converts a filter back to its string representation.
-func (f *Filter) String() (str string) {
+func (f *Filter) String(prefix string) (str string) {
 	if len(f.Filter) > 0 {
 		for i := range f.Filter {
-			str += f.Filter[i].String()
+			str += f.Filter[i].String(prefix)
 		}
-		str += fmt.Sprintf("%s: %d\n", f.GroupOperator.String(), len(f.Filter))
+		str += fmt.Sprintf("%s%s: %d\n", prefix, f.GroupOperator.String(), len(f.Filter))
 		return
 	}
 
@@ -140,13 +140,16 @@ func (f *Filter) String() (str string) {
 
 	switch f.StatsType {
 	case NoStats:
-		str = fmt.Sprintf("%s %s%s", f.Column.Name, f.Operator.String(), strVal)
+		if prefix == "" {
+			prefix = "Filter"
+		}
+		str = fmt.Sprintf("%s: %s %s%s\n", prefix, f.Column.Name, f.Operator.String(), strVal)
 		break
 	case Counter:
-		str = fmt.Sprintf("%s %s%s", f.Column.Name, f.Operator.String(), strVal)
+		str = fmt.Sprintf("Stats: %s %s%s\n", f.Column.Name, f.Operator.String(), strVal)
 		break
 	default:
-		str = fmt.Sprintf("%s %s", f.StatsType.String(), f.Column.Name)
+		str = fmt.Sprintf("Stats: %s %s\n", f.StatsType.String(), f.Column.Name)
 		break
 	}
 	return

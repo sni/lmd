@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/julienschmidt/httprouter"
 )
@@ -59,36 +60,58 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 	}
 
 	// Filter
-	var requestDataFilter []interface{}
+	// String in livestatus syntax
 	if val, ok := requestData["filter"]; ok {
-		lines, ok := val.([]interface{})
-		if ok {
-			requestDataFilter = lines
+		// Get filter lines, e.g., "Filter: col = val", "Or: 2"
+		var filterLines []string
+		if lines, ok := val.([]interface{}); ok {
+			for _, line := range lines {
+				filterLine := "Filter: " + line.(string) + "\n"
+				filterLines = append(filterLines, filterLine)
+			}
 		}
-	}
-	for _, line := range requestDataFilter {
-		value := line.(string)
-		err := ParseFilter(value, &value, tableName, &req.Filter) // filter.go
-		if err != nil {
-			c.errorOutput(err, w)
-			return
+		if strVal, ok := val.(string); ok {
+			filterLines = strings.Split(strVal, "\n")
+		}
+
+		// Parse and store filter
+		for _, filterLine := range filterLines {
+			filterLine = strings.TrimSpace(filterLine)
+			if filterLine == "" {
+				continue
+			}
+			if err := req.ParseRequestHeaderLine(&filterLine); err != nil {
+				c.errorOutput(err, w)
+				return
+			}
 		}
 	}
 
 	// Stats
-	var requestDataStats []interface{}
+	// String in livestatus syntax
 	if val, ok := requestData["stats"]; ok {
-		lines, ok := val.([]interface{})
-		if ok {
-			requestDataStats = lines
+		// Get stats lines, e.g., "Stats: col = val", "Or: 2"
+		var statsLines []string
+		if lines, ok := val.([]interface{}); ok {
+			for _, line := range lines {
+				statsLine := "Stats: " + line.(string) + "\n"
+				statsLines = append(statsLines, statsLine)
+			}
 		}
-	}
-	for _, line := range requestDataStats {
-		value := line.(string)
-		err := ParseStats(value, &value, tableName, &req.Stats) // filter.go
-		if err != nil {
-			c.errorOutput(err, w)
-			return
+		if strVal, ok := val.(string); ok {
+			statsLines = strings.Split(strVal, "\n")
+		}
+
+		// Parse and store stats
+		for _, statsLine := range statsLines {
+			statsLine = strings.TrimSpace(statsLine)
+			if statsLine == "" {
+				continue
+			}
+			if err := req.ParseRequestHeaderLine(&statsLine); err != nil {
+				c.errorOutput(err, w)
+				return
+			}
 		}
 	}
 	if val, ok := requestData["sendstatsdata"]; ok {

@@ -157,20 +157,20 @@ func (req *Request) String() (str string) {
 		str += fmt.Sprintf("Offset: %d\n", req.Offset)
 	}
 	for _, f := range req.Filter {
-		str += "Filter: " + f.String() + "\n"
+		str += f.String("")
 	}
 	if req.FilterStr != "" {
 		str += req.FilterStr
 	}
 	for _, s := range req.Stats {
-		str += "Stats: " + s.String() + "\n"
+		str += s.String("Stats")
 	}
 	if req.WaitTrigger != "" {
 		str += fmt.Sprintf("WaitTrigger: %s\n", req.WaitTrigger)
 		str += fmt.Sprintf("WaitObject: %s\n", req.WaitObject)
 		str += fmt.Sprintf("WaitTimeout: %d\n", req.WaitTimeout)
 		for _, f := range req.WaitCondition {
-			str += "WaitCondition: " + f.String() + "\n"
+			str += f.String("WaitCondition")
 		}
 	}
 	for _, s := range req.Sort {
@@ -376,27 +376,23 @@ func (req *Request) GetResponse() (*Response, error) {
 
 		// Filter
 		if len(req.Filter) != 0 || req.FilterStr != "" {
-			var filterLines []string
-			for _, filter := range req.Filter {
-				var line string
-				line = filter.String()
-				filterLines = append(filterLines, line)
+			var str string
+			for _, f := range req.Filter {
+				str += f.String("")
 			}
 			if req.FilterStr != "" {
-				filterLines = append(filterLines, req.FilterStr)
+				str += req.FilterStr
 			}
-			requestData["filter"] = filterLines
+			requestData["filter"] = str
 		}
 
 		// Stats
 		if isStatsRequest {
-			var statsLines []string
-			for _, stats := range req.Stats {
-				var line string
-				line = stats.String()
-				statsLines = append(statsLines, line)
+			var str string
+			for _, f := range req.Stats {
+				str += f.String("Stats")
 			}
-			requestData["stats"] = statsLines
+			requestData["stats"] = str
 			requestData["sendstatsdata"] = true
 		}
 
