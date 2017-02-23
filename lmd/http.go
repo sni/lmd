@@ -122,6 +122,17 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 	}
 	req.Columns = columns
 
+	// Format
+	if val, ok := requestData["outputformat"]; ok {
+		if str, ok := val.(string); ok {
+			err := parseOutputFormat(&req.OutputFormat, str)
+			if err != nil {
+				c.errorOutput(err, w)
+				return
+			}
+		}
+	}
+
 	// Backends
 	var backends []string
 	if val, ok := requestData["backends"]; ok {
