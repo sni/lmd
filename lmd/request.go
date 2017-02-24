@@ -328,10 +328,11 @@ func (req *Request) GetResponse() (*Response, error) {
 	// Type of request
 	isStatsRequest := len(req.Stats) != 0
 
-	// Cluster mode (don't send request, send sub-requests, build response)
+	// Cluster mode (don't send this request; send sub-requests, build response)
 	var wg sync.WaitGroup
 	nodeBackends := nodeAccessor.nodeBackends
-	datasets := make(chan [][]interface{}, len(nodeBackends))
+	collectedDatasets := make(chan [][]interface{}, len(nodeBackends))
+	collectedFailedHashes := make(chan map[string]interface{}, len(nodeBackends))
 	for node, nodeBackends := range nodeBackends {
 		// Limit to requested backends if necessary
 		// nodeBackends: all backends handled by current node
@@ -350,7 +351,8 @@ func (req *Request) GetResponse() (*Response, error) {
 
 		// Skip node if it doesn't have relevant backends
 		if len(subBackends) == 0 {
-			datasets <- [][]interface{}{}
+			collectedDatasets <- [][]interface{}{}
+			collectedFailedHashes <- map[string]interface{}{}
 			continue
 		}
 
@@ -421,12 +423,27 @@ func (req *Request) GetResponse() (*Response, error) {
 			requestData["sort"] = sort
 		}
 
+		// Get hash with metadata in addition to table rows
+		requestData["outputformat"] = "wrapped_json"
+
 		// Callback
 		callback := func(responseData interface{}) {
 			defer wg.Done()
 
-			// Parse data (rows)
-			rowsVariants, ok := responseData.([]interface{})
+			// Hash containing metadata in addition to rows
+			hash, ok := responseData.(map[string]interface{})
+			if !ok {
+				return
+			}
+
+			// Hash containing error messages
+			failedHash, ok := hash["failed"].(map[string]interface{})
+			if !ok {
+				return
+			}
+
+			// Parse data (table rows)
+			rowsVariants, ok := hash["data"].([]interface{})
 			if !ok {
 				return
 			}
@@ -439,8 +456,9 @@ func (req *Request) GetResponse() (*Response, error) {
 				rows[i] = rowVariants
 			}
 
-			// Keep rows
-			datasets <- rows
+			// Collect data
+			collectedDatasets <- rows
+			collectedFailedHashes <- failedHash
 		}
 
 		// Send query to node
@@ -458,20 +476,21 @@ func (req *Request) GetResponse() (*Response, error) {
 		err := fmt.Errorf("timeout waiting for partner nodes")
 		return nil, err
 	}
-	close(datasets)
+	close(collectedDatasets)
 
 	// Double-check that we have the right number of datasets
-	if len(datasets) != len(nodeBackends) {
-		err := fmt.Errorf("got %d instead of %d datasets", len(datasets), len(nodeBackends))
+	if len(collectedDatasets) != len(nodeBackends) {
+		err := fmt.Errorf("got %d instead of %d datasets", len(collectedDatasets), len(nodeBackends))
 		return nil, err
 	}
 
 	// Build response object
 	res := &Response{Request: req}
 	res.Columns = resultColumns
+	res.Failed = make(map[string]string)
 
 	// Merge data
-	for currentRows := range datasets {
+	for currentRows := range collectedDatasets {
 		if isStatsRequest {
 			// Stats request
 			// Value (sum), count (number of elements)
@@ -482,6 +501,11 @@ func (req *Request) GetResponse() (*Response, error) {
 		} else {
 			// Regular request
 			res.Result = append(res.Result, currentRows...)
+			currentFailedHash := <-collectedFailedHashes
+			for id, val := range currentFailedHash {
+				str, _ := val.(string)
+				res.Failed[id] = str
+			}
 		}
 	}
 
