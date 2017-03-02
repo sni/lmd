@@ -16,7 +16,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 	"github.com/Jeffail/gabs"
 )
 
@@ -24,6 +23,7 @@ var reResponseHeader = regexp.MustCompile(`^(\d+)\s+(\d+)$`)
 var reHTTPTooOld = regexp.MustCompile(`Can.t locate object method`)
 var reHTTPOMDError = regexp.MustCompile(`<h1>(OMD:.*?)</h1>`)
 var reShinkenVersion = regexp.MustCompile(`-shinken$`)
+var reIcingaVersion = regexp.MustCompile(`^r[\d\.-]+$`)
 
 const (
 	// UpdateAdditionalDelta is the number of seconds to add to the last_check filter on delta updates
@@ -193,6 +193,31 @@ func (p *Peer) Stop() {
 	close(p.shutdownChannel)
 }
 
+func (p *Peer) countFromServer(name string, queryCondition string) (count int) {
+	err, res := p.QueryString("GET "+name+"\nStats: "+queryCondition+"\n\n") 
+	count, e := strconv.Atoi(fmt.Sprintf("%s",res))
+	if e!=nil {
+		log.Debugf("problems getting count for %s (err: %s, res: %s): %s\n", name, err, res, e)
+		count = -1
+	} 
+	return
+}
+
+func (p *Peer) hasChanged() (changed bool) {
+	changed = false
+	tablenames := []string {"commands", "comments", "contactgroups", "contacts", "downtimes", "hostgroups", "hosts", "servicegroups", "services", "timeperiods"}
+	for _, name := range tablenames {
+		counter := p.countFromServer(name, "name >= .*")
+		if counter<0  {
+			counter = p.countFromServer(name, "host_name >= .*")
+		}
+		changed = changed || (counter!=len(p.Tables[name].Data))
+		log.Debugf("%s: %d / %d\n", name, counter, len(p.Tables[name].Data))
+	}
+	log.Debugf("changed: %s\n", changed)
+	return
+}
+
 // updateLoop is the main loop updating this peer.
 // It does not return till triggered by the shutdownChannel.
 func (p *Peer) updateLoop() {
@@ -228,6 +253,13 @@ func (p *Peer) updateLoop() {
 					p.UpdateObjectByType(Objects.Tables["hostgroups"])
 					p.UpdateObjectByType(Objects.Tables["servicegroups"])
 					lastTimeperiodUpdateMinute = currentMinute
+					if p.Flags&IcingaOnly == IcingaOnly {
+						if p.hasChanged() {
+							log.Debugf("running icinga and got a change - will re-init the tables ...\n")
+							ok = p.InitAllTables()
+							lastTimeperiodUpdateMinute = currentMinute
+						}
+					}
 				}
 
 				if now < lastUpdate+GlobalConfig.Updateinterval {
@@ -1097,7 +1129,7 @@ func (p *Peer) createIndexAndFlags(table *Table, res *[][]interface{}, index *ma
 			(*index)[fmt.Sprintf("%v", row[indexField])] = row
 		}
 	}
-	// is this a shinken backend?
+	// is this a shinken or icinga backend?
 	if table.Name == "status" && len((*res)) > 0 {
 		row := (*res)[0]
 		matched := reShinkenVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))
@@ -1105,7 +1137,12 @@ func (p *Peer) createIndexAndFlags(table *Table, res *[][]interface{}, index *ma
 			p.PeerLock.Lock()
 			p.Flags |= ShinkenOnly
 			p.PeerLock.Unlock()
-		}
+		} 
+		if len(reIcingaVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))) > 0 {
+			p.PeerLock.Lock()
+			p.Flags |= IcingaOnly
+			p.PeerLock.Unlock()
+		} 
 	}
 }
 

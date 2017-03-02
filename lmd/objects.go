@@ -88,6 +88,9 @@ const (
 
 	// ShinkenOnly flag is set if the remote site is a shinken installation.
 	ShinkenOnly
+
+	// IcingaOnly flag is set if the remote site is a shinken installation.
+	IcingaOnly
 )
 
 // GetEmptyValue returns an empty placeholder representation for the given column type
@@ -608,7 +611,7 @@ func NewHostgroupsTable() (t *Table) {
 	t.AddColumn("num_services_unknown", DynamicUpdate, IntCol, "The total number of unknown services of the hostgroup")
 	t.AddColumn("num_services_pending", DynamicUpdate, IntCol, "The total number of pending services of the hostgroup")
 	t.AddColumn("worst_host_state", DynamicUpdate, IntCol, "The worst host state of the hostgroup")
-	t.AddColumn("worst_service_state", DynamicUpdate, IntCol, "The worst service state of the hostgroup")
+	t.AddColumn("worst_services_state", DynamicUpdate, IntCol, "The worst service state of the hostgroup")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
