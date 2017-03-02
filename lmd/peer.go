@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Jeffail/gabs"
 	"io"
 	"io/ioutil"
 	"net"
@@ -16,7 +17,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"github.com/Jeffail/gabs"
 )
 
 var reResponseHeader = regexp.MustCompile(`^(\d+)\s+(\d+)$`)
@@ -194,23 +194,23 @@ func (p *Peer) Stop() {
 }
 
 func (p *Peer) countFromServer(name string, queryCondition string) (count int) {
-	err, res := p.QueryString("GET "+name+"\nStats: "+queryCondition+"\n\n") 
-	count, e := strconv.Atoi(fmt.Sprintf("%s",res))
-	if e!=nil {
+	_, res := p.QueryString("GET " + name + "\nStats: " + queryCondition + "\n\n")
+	count, e := strconv.Atoi(fmt.Sprintf("%s", res))
+	if e != nil {
 		count = -1
-	} 
+	}
 	return
 }
 
 func (p *Peer) hasChanged() (changed bool) {
 	changed = false
-	tablenames := []string {"commands", "contactgroups", "contacts", "hostgroups", "hosts", "servicegroups", "services", "timeperiods"}
+	tablenames := []string{"commands", "contactgroups", "contacts", "hostgroups", "hosts", "servicegroups", "services", "timeperiods"}
 	for _, name := range tablenames {
 		counter := p.countFromServer(name, "name >= .*")
-		if counter<0  {
+		if counter < 0 {
 			counter = p.countFromServer(name, "host_name >= .*")
 		}
-		changed = changed || (counter!=len(p.Tables[name].Data))
+		changed = changed || (counter != len(p.Tables[name].Data))
 	}
 	return
 }
@@ -1132,12 +1132,12 @@ func (p *Peer) createIndexAndFlags(table *Table, res *[][]interface{}, index *ma
 			p.PeerLock.Lock()
 			p.Flags |= ShinkenOnly
 			p.PeerLock.Unlock()
-		} 
+		}
 		if len(reIcingaVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))) > 0 {
 			p.PeerLock.Lock()
 			p.Flags |= Icinga2Only
 			p.PeerLock.Unlock()
-		} 
+		}
 	}
 }
 
