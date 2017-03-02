@@ -197,7 +197,6 @@ func (p *Peer) countFromServer(name string, queryCondition string) (count int) {
 	err, res := p.QueryString("GET "+name+"\nStats: "+queryCondition+"\n\n") 
 	count, e := strconv.Atoi(fmt.Sprintf("%s",res))
 	if e!=nil {
-		log.Debugf("problems getting count for %s (err: %s, res: %s): %s\n", name, err, res, e)
 		count = -1
 	} 
 	return
@@ -205,16 +204,14 @@ func (p *Peer) countFromServer(name string, queryCondition string) (count int) {
 
 func (p *Peer) hasChanged() (changed bool) {
 	changed = false
-	tablenames := []string {"commands", "comments", "contactgroups", "contacts", "downtimes", "hostgroups", "hosts", "servicegroups", "services", "timeperiods"}
+	tablenames := []string {"commands", "contactgroups", "contacts", "hostgroups", "hosts", "servicegroups", "services", "timeperiods"}
 	for _, name := range tablenames {
 		counter := p.countFromServer(name, "name >= .*")
 		if counter<0  {
 			counter = p.countFromServer(name, "host_name >= .*")
 		}
 		changed = changed || (counter!=len(p.Tables[name].Data))
-		log.Debugf("%s: %d / %d\n", name, counter, len(p.Tables[name].Data))
 	}
-	log.Debugf("changed: %s\n", changed)
 	return
 }
 
@@ -253,9 +250,8 @@ func (p *Peer) updateLoop() {
 					p.UpdateObjectByType(Objects.Tables["hostgroups"])
 					p.UpdateObjectByType(Objects.Tables["servicegroups"])
 					lastTimeperiodUpdateMinute = currentMinute
-					if p.Flags&IcingaOnly == IcingaOnly {
+					if p.Flags&Icinga2Only == Icinga2Only {
 						if p.hasChanged() {
-							log.Debugf("running icinga and got a change - will re-init the tables ...\n")
 							ok = p.InitAllTables()
 							lastTimeperiodUpdateMinute = currentMinute
 						}
