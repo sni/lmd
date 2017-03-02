@@ -253,7 +253,6 @@ func (p *Peer) updateLoop() {
 					if p.Flags&Icinga2Only == Icinga2Only {
 						if p.hasChanged() {
 							ok = p.InitAllTables()
-							lastTimeperiodUpdateMinute = currentMinute
 						}
 					}
 				}
@@ -1136,7 +1135,7 @@ func (p *Peer) createIndexAndFlags(table *Table, res *[][]interface{}, index *ma
 		} 
 		if len(reIcingaVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))) > 0 {
 			p.PeerLock.Lock()
-			p.Flags |= IcingaOnly
+			p.Flags |= Icinga2Only
 			p.PeerLock.Unlock()
 		} 
 	}
