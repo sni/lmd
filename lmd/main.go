@@ -221,17 +221,16 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 }
 
 func initializePeers(GlobalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGroupInit *sync.WaitGroup, waitGroupListener *sync.WaitGroup, shutdownChannel chan bool) {
-	// Node address pattern (http://*:1234)
-	// Pattern will be used to communicate with partner nodes
-	var nodeAddressPattern string
+	// This node's http address (http://*:1234), to be used as address pattern
+	var nodeListenAddress string
 	rx := regexp.MustCompile("^(https?)://(.*?):(.*)")
 	for _, listen := range GlobalConfig.Listen {
 		parts := rx.FindStringSubmatch(listen)
 		if len(parts) != 4 {
 			continue
 		}
-		nodeAddressPattern = parts[1] + "://" + "*" + ":" + parts[3]
-		nodeAddressPattern += "/v1/query"
+		nodeListenAddress = listen
+		break
 	}
 
 	// Get rid of obsolete peers (removed from config)
@@ -281,9 +280,9 @@ func initializePeers(GlobalConfig *Config, waitGroupPeers *sync.WaitGroup, waitG
 	}
 
 	// Node accessor
-	var nodeIPs []string
-	nodeIPs = GlobalConfig.Nodes
-	nodeAccessor = NewNodes(nodeIPs, nodeAddressPattern, waitGroupInit, shutdownChannel)
+	var nodeAddresses []string
+	nodeAddresses = GlobalConfig.Nodes
+	nodeAccessor = NewNodes(nodeAddresses, nodeListenAddress, waitGroupInit, shutdownChannel)
 	nodeAccessor.Initialize() // starts peers in single mode
 	nodeAccessor.Start()      // nodes loop starts/stops peers in cluster mode
 

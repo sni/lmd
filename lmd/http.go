@@ -232,7 +232,7 @@ func (c *HTTPServerController) query(w http.ResponseWriter, request *http.Reques
 	}
 
 	// Request type (requested api function)
-	requestedFunction := requestData["_name"].(string)
+	requestedFunction, _ := requestData["_name"].(string)
 
 	switch requestedFunction {
 	case "ping":
@@ -251,11 +251,11 @@ func initializeHTTPRouter() (handler http.Handler, err error) {
 	controller := &HTTPServerController{}
 
 	// Routes
-	router.GET("/v1", controller.index)
-	router.GET("/v1/table/:name", controller.table)
-	router.POST("/v1/table/:name", controller.table)
-	router.POST("/v1/ping", controller.ping)
-	router.POST("/v1/query", controller.query)
+	router.GET("/", controller.index)
+	router.GET("/table/:name", controller.table)
+	router.POST("/table/:name", controller.table)
+	router.POST("/ping", controller.ping)
+	router.POST("/query", controller.query)
 
 	handler = router
 	return

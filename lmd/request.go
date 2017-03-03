@@ -333,7 +333,8 @@ func (req *Request) GetResponse() (*Response, error) {
 	nodeBackends := nodeAccessor.nodeBackends
 	collectedDatasets := make(chan [][]interface{}, len(nodeBackends))
 	collectedFailedHashes := make(chan map[string]interface{}, len(nodeBackends))
-	for node, nodeBackends := range nodeBackends {
+	for nodeID, nodeBackends := range nodeBackends {
+		node := nodeAccessor.Node(nodeID)
 		// Limit to requested backends if necessary
 		// nodeBackends: all backends handled by current node
 		var subBackends []string // backends for current sub-request

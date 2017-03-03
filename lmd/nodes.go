@@ -5,20 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/nu7hatch/gouuid"
 )
 
+var reNodeAddress = regexp.MustCompile(`^(https?)?(://)?(.*?)(:(\d+))?(/.*)?$`)
+
 // Nodes is the cluster management object.
 type Nodes struct {
 	PeerMap          *map[string]Peer
-	NodeIPs          []string
-	AddressPattern   string
-	OwnIP            string
 	ID               string
 	HTTPClient       *http.Client
 	WaitGroupInit    *sync.WaitGroup
@@ -26,35 +25,105 @@ type Nodes struct {
 	loopInterval     int
 	heartbeatTimeout int
 	backends         []string
-	onlineIPs        []string
+	thisNode         *NodeAddress
+	nodeAddresses    []*NodeAddress
+	onlineNodes      []*NodeAddress
 	assignedBackends []string
 	nodeBackends     map[string][]string
 	stopChannel      chan bool
 }
 
+// NodeAddress contains the ip of a node (plus url/port, if necessary)
+type NodeAddress struct {
+	id   string
+	ip   string
+	port int
+	url  string
+	isMe bool
+}
+
+// HumanIdentifier returns the node address.
+// If the node has been discovered, its id is prepended.
+func (a *NodeAddress) HumanIdentifier() string {
+	var human string
+	human = fmt.Sprintf("%s:%d", a.ip, a.port)
+	if a.id != "" {
+		human = fmt.Sprintf("[%s] %s", a.id, human)
+	}
+	return human // :)
+}
+
 // NewNodes creates a new cluster manager.
-func NewNodes(ips []string, pattern string, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) *Nodes {
+func NewNodes(addresses []string, listen string, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) *Nodes {
 	n := &Nodes{
-		AddressPattern:  pattern,
 		WaitGroupInit:   waitGroupInit,
 		ShutdownChannel: shutdownChannel,
 		stopChannel:     make(chan bool),
 	}
 	n.PeerMap = &DataStore
+	n.HTTPClient = netClient
 	for id := range *n.PeerMap {
 		n.backends = append(n.backends, id)
 	}
-	for _, ip := range ips {
-		n.NodeIPs = append(n.NodeIPs, ip)
+	partsListen := reNodeAddress.FindStringSubmatch(listen)
+	for _, address := range addresses {
+		parts := reNodeAddress.FindStringSubmatch(address)
+		nodeAddress := &NodeAddress{}
+		var ip, port, url string
+		if parts[1] != "" && parts[2] != "" { // "http", "://"
+			// HTTP address
+			ip = parts[3]
+			port = parts[5]
+			if port == "" {
+				port = partsListen[5]
+			}
+			url = address
+		} else {
+			// IP or TCP address
+			ip = parts[3]
+			port = parts[5]
+			if port == "" {
+				port = partsListen[5]
+			}
+			url = partsListen[1] + partsListen[2] // "http://"
+			url += ip + ":" + port
+		}
+		if url[len(url)-1] != '/' {
+			url += "/" // url must end in a slash
+		}
+		nodeAddress.ip = ip
+		nodeAddress.port, _ = strconv.Atoi(port)
+		nodeAddress.url = url
+		for _, otherNodeAddress := range n.nodeAddresses {
+			if otherNodeAddress.url == nodeAddress.url {
+				log.Fatalf("Duplicate node url: %s", nodeAddress.url)
+			}
+		}
+		n.nodeAddresses = append(n.nodeAddresses, nodeAddress)
 	}
-	n.HTTPClient = netClient
 
 	return n
 }
 
 // IsClustered checks if cluster mode is enabled.
 func (n *Nodes) IsClustered() bool {
-	return len(n.NodeIPs) > 1
+	return len(n.nodeAddresses) > 1
+}
+
+// Node returns the NodeAddress object for the specified node id.
+func (n *Nodes) Node(id string) NodeAddress {
+	var nodeAddress NodeAddress
+	for _, otherNodeAddress := range n.nodeAddresses {
+		if otherNodeAddress.id != "" && otherNodeAddress.id == id {
+			nodeAddress = *otherNodeAddress
+			break
+		}
+	}
+	if nodeAddress.id == "" {
+		// Not found
+		nodeAddress.id = id
+	}
+	return nodeAddress
 }
 
 // Initialize generates the node's identifier and identifies this node.
@@ -82,7 +151,8 @@ func (n *Nodes) Initialize() {
 
 	// Start all peers in single mode
 	if !n.IsClustered() {
-		for _, peer := range *n.PeerMap {
+		for id := range *n.PeerMap {
+			peer := (*n.PeerMap)[id]
 			peer.Start()
 		}
 	}
@@ -138,54 +208,72 @@ func (n *Nodes) loop() {
 // checkNodeAvailability pings all partner nodes to determine which ones are online.
 // When called for the first time during initialization, it also identifies this node.
 func (n *Nodes) checkNodeAvailability() {
-	// Send request to all nodes
-	// First ping (initializing) detects and assigns own ip.
+	// Send ping to all nodes
+	// First ping (initializing) detects and assigns own address.
 	wg := sync.WaitGroup{}
 	ownIdentifier := n.ID
 	if ownIdentifier == "" {
-		panic("own node id undefined")
+		panic("not initialized")
 	}
-	var newOnlineIPs []string
-	newOnlineIPs = append(newOnlineIPs, n.OwnIP)
-	initializing := n.OwnIP == ""
-	for _, node := range n.NodeIPs {
-		if !initializing && node == n.OwnIP {
+	var newOnlineNodes []*NodeAddress
+	initializing := n.thisNode == nil
+	if !initializing {
+		newOnlineNodes = append(newOnlineNodes, n.thisNode)
+	}
+	for _, node := range n.nodeAddresses {
+		if !initializing && node.isMe {
 			// Skip this node unless we're initializing
 			continue
 		}
 		requestData := make(map[string]interface{})
 		requestData["identifier"] = ownIdentifier
-		log.Tracef("pinging node %s...", node)
+		log.Tracef("pinging node %s...", node.HumanIdentifier())
 		wg.Add(1)
-		go func(wg *sync.WaitGroup, node string) {
+		go func(wg *sync.WaitGroup, node *NodeAddress) {
 			callback := func(responseData interface{}) {
 				// Parse response
 				dataMap, ok := responseData.(map[string]interface{})
-				log.Tracef("got response from %s", node)
+				log.Tracef("got response from %s", node.HumanIdentifier())
 				if !ok {
 					return
 				}
-				responseIdentifier := dataMap["identifier"]
+
+				// Node id
+				responseIdentifier := dataMap["identifier"].(string)
+				if node.id == "" {
+					node.id = responseIdentifier
+				} else if node.id != responseIdentifier {
+					log.Infof("partner node %s restarted", node.HumanIdentifier())
+					delete(n.nodeBackends, node.id)
+					node.id = responseIdentifier
+				}
+
 				// Check whose response it is
 				if responseIdentifier == ownIdentifier {
+					// This node
 					if initializing {
-						n.OwnIP = node
-						log.Debugf("identified this node as %s", node)
+						n.thisNode = node
+						node.isMe = true
+						newOnlineNodes = append(newOnlineNodes, node)
+						log.Debugf("identified this node as %s", node.HumanIdentifier())
 					}
 				} else {
-					newOnlineIPs = append(newOnlineIPs, node)
-					log.Tracef("found partner node: %s", node)
+					// Partner node
+					newOnlineNodes = append(newOnlineNodes, node)
+					log.Tracef("discovered partner node: %s", node.HumanIdentifier())
 				}
 				wg.Done()
 			}
-			n.SendQuery(node, "ping", requestData, callback)
+			n.SendQuery(*node, "ping", requestData, callback)
 		}(&wg, node)
 	}
+
+	// Handle timeout
 	timeout := n.heartbeatTimeout
 	if waitTimeout(&wg, time.Duration(timeout)*time.Second) {
 		// Not all nodes have responded, but that's ok
 		log.Tracef("node timeout")
-		if initializing && n.OwnIP == "" {
+		if initializing && n.thisNode == nil {
 			// This node has not responded
 			// This is an error. At this point, we don't know who we are.
 			// This could happen if our ip is missing from the config
@@ -194,26 +282,9 @@ func (n *Nodes) checkNodeAvailability() {
 		}
 	}
 
-	// Check if list of nodes has changed
-	nodesUnchanged := len(newOnlineIPs) == len(n.onlineIPs)
-	if initializing {
-		nodesUnchanged = false
-	}
-	if nodesUnchanged {
-		for i, v := range n.onlineIPs {
-			if newOnlineIPs[i] != v {
-				nodesUnchanged = false
-				break
-			}
-		}
-	}
-
 	// Redistribute backends
-	if !nodesUnchanged {
-		log.Tracef("list of available partner nodes has changed")
-		n.onlineIPs = newOnlineIPs
-		n.redistribute()
-	}
+	n.onlineNodes = newOnlineNodes
+	n.redistribute()
 
 }
 
@@ -222,23 +293,22 @@ func (n *Nodes) checkNodeAvailability() {
 func (n *Nodes) redistribute() {
 	// Nodes and backends
 	numberBackends := len(n.backends)
-	allNodes := n.NodeIPs
+	allNodes := n.nodeAddresses
 	nodeOnline := make([]bool, len(allNodes))
 	numberAllNodes := len(allNodes)
 	numberAvailableNodes := 0
 	ownIndex := -1
 	for i, node := range allNodes {
 		isOnline := false
-		for _, otherNode := range n.onlineIPs {
-			if otherNode == node {
+		for _, otherNode := range n.onlineNodes {
+			if otherNode.url == node.url {
 				isOnline = true
 			}
 		}
-		if node == n.OwnIP {
+		if node.isMe {
 			ownIndex = i
 		}
-		if node == n.OwnIP || isOnline {
-			// availableNodes[i] = node
+		if isOnline {
 			nodeOnline[i] = true
 			numberAvailableNodes++
 		}
@@ -249,9 +319,10 @@ func (n *Nodes) redistribute() {
 	if numberAvailableNodes >= numberBackends {
 		// No node has more than one backend
 		for i := range allNodes {
-			if nodeOnline[i] {
-				assignedNumberBackends[i] = 1
+			if !nodeOnline[i] {
+				continue
 			}
+			assignedNumberBackends[i] = 1
 		}
 	} else {
 		first := true
@@ -284,7 +355,8 @@ func (n *Nodes) redistribute() {
 			}
 			distributedCount += number
 			assignedBackends[i] = list
-			nodeBackends[allNodes[i]] = list
+			id := allNodes[i].id
+			nodeBackends[id] = list
 		}
 	}
 	n.nodeBackends = nodeBackends
@@ -334,29 +406,6 @@ func (n *Nodes) redistribute() {
 
 }
 
-// URL returns the HTTP address of the specified node.
-func (n *Nodes) URL(node string) string {
-	// Check if node exists
-	exists := false
-	for _, currentNode := range n.NodeIPs {
-		if currentNode == node {
-			exists = true
-		}
-	}
-	if !exists {
-		panic(fmt.Sprintf("requested node does not exist: %s", node))
-	}
-	if n.AddressPattern == "" {
-		panic(fmt.Sprintf("could not determine node address pattern"))
-	}
-
-	// Address
-	listenAddress := n.AddressPattern // http://*:1234
-	nodeAddress := strings.Replace(listenAddress, "*", node, 1)
-
-	return nodeAddress
-}
-
 // IsOurBackend checks if backend is managed by this node.
 func (n *Nodes) IsOurBackend(backend string) bool {
 	ourBackends := n.assignedBackends
@@ -371,7 +420,7 @@ func (n *Nodes) IsOurBackend(backend string) bool {
 // SendQuery sends a query to a node.
 // It will be sent as http request; name is the api function to be called.
 // The returned data will be passed to the callback.
-func (n *Nodes) SendQuery(node string, name string, parameters map[string]interface{}, callback func(interface{})) error {
+func (n *Nodes) SendQuery(node NodeAddress, name string, parameters map[string]interface{}, callback func(interface{})) error {
 	// Prepare request data
 	requestData := make(map[string]interface{})
 	for key, value := range parameters {
@@ -387,8 +436,11 @@ func (n *Nodes) SendQuery(node string, name string, parameters map[string]interf
 	}
 
 	// Send node request
-	nodeURL := n.URL(node)
-	res, err := n.HTTPClient.Post(nodeURL, contentType, bytes.NewBuffer(rawRequest))
+	if node.url == "" {
+		log.Fatalf("uninitialized node address provided to SendQuery %s", node.id)
+	}
+	url := node.url + "query"
+	res, err := n.HTTPClient.Post(url, contentType, bytes.NewBuffer(rawRequest))
 	if err != nil {
 		log.Tracef("error sending query (%s) to node (%s): %s", name, node, err.Error())
 		return err
