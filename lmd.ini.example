@@ -1,7 +1,12 @@
 # Listen for incoming livestatus requests here
-# TCP or unix sockets are allowed. Multiple entrys
-# are also valid
-Listen          = ["127.0.0.1:3333", "/tmp/lmd.sock"]
+# TCP or unix sockets are allowed. Multiple entries are also valid.
+# An http address can be defined as well.
+Listen          = ["127.0.0.1:3333", "/tmp/lmd.sock", "http://*:8080"]
+
+# List of cluster nodes (cluster mode).
+# All cluster nodes must have their http server enabled (see Listen).
+# A bare ip address may be provided if the port is the same on all nodes.
+#Nodes           = ["10.0.0.1", "http://10.0.0.2:8080"]
 
 # daemon will log to stdout if no logfile is set
 #LogFile         = "lmd.log"
