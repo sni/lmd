@@ -17,7 +17,7 @@ var reNodeAddress = regexp.MustCompile(`^(https?)?(://)?(.*?)(:(\d+))?(/.*)?$`)
 
 // Nodes is the cluster management object.
 type Nodes struct {
-	PeerMap          *map[string]Peer
+	PeerMap          *map[string]*Peer
 	ID               string
 	HTTPClient       *http.Client
 	WaitGroupInit    *sync.WaitGroup
@@ -151,8 +151,7 @@ func (n *Nodes) Initialize() {
 
 	// Start all peers in single mode
 	if !n.IsClustered() {
-		for id := range *n.PeerMap {
-			peer := (*n.PeerMap)[id]
+		for _, peer := range *n.PeerMap {
 			peer.Start()
 		}
 	}

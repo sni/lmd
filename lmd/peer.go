@@ -1532,7 +1532,7 @@ func SpinUpPeers(peers []string) {
 	for _, id := range peers {
 		p := DataStore[id]
 		waitgroup.Add(1)
-		go func(peer Peer, wg *sync.WaitGroup) {
+		go func(peer *Peer, wg *sync.WaitGroup) {
 			// make sure we log panics properly
 			defer logPanicExit()
 

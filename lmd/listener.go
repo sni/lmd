@@ -92,7 +92,7 @@ func SendCommands(commandsByPeer *map[string][]string) {
 	for pID := range *commandsByPeer {
 		p := DataStore[pID]
 		wg.Add(1)
-		go func(peer Peer) {
+		go func(peer *Peer) {
 			// make sure we log panics properly
 			defer wg.Done()
 			defer logPanicExit()

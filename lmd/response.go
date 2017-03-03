@@ -448,7 +448,7 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) (err err
 		}
 
 		waitgroup.Add(1)
-		go func(peer Peer, wg *sync.WaitGroup) {
+		go func(peer *Peer, wg *sync.WaitGroup) {
 			// make sure we log panics properly
 			defer logPanicExit()
 
@@ -512,7 +512,7 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table, column
 		p.PeerLock.RUnlock()
 
 		waitgroup.Add(1)
-		go func(peer Peer, wg *sync.WaitGroup) {
+		go func(peer *Peer, wg *sync.WaitGroup) {
 			// make sure we log panics properly
 			defer logPanicExit()
 
