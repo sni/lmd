@@ -88,6 +88,9 @@ const (
 
 	// ShinkenOnly flag is set if the remote site is a shinken installation.
 	ShinkenOnly
+
+	// Icinga2Only flag is set if the remote site is a shinken installation.
+	Icinga2Only
 )
 
 // GetEmptyValue returns an empty placeholder representation for the given column type
