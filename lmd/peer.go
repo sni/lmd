@@ -204,14 +204,14 @@ func (p *Peer) countFromServer(name string, queryCondition string) (count int) {
 
 func (p *Peer) hasChanged() (changed bool) {
 	changed = false
-	tablenames := []string{"commands", "contactgroups", "contacts", "hostgroups", "hosts", "servicegroups", "services", "timeperiods"}
+	tablenames := []string{"commands", "contactgroups", "contacts", "hostgroups", "hosts", "servicegroups", "timeperiods"}
 	for _, name := range tablenames {
 		counter := p.countFromServer(name, "name >= .*")
-		if counter < 0 {
-			counter = p.countFromServer(name, "host_name >= .*")
-		}
 		changed = changed || (counter != len(p.Tables[name].Data))
 	}
+	counter := p.countFromServer("services", "host_name >= .*")
+	changed = changed || (counter != len(p.Tables["services"].Data))
+
 	return
 }
 
