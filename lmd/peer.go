@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Jeffail/gabs"
 	"io"
 	"io/ioutil"
 	"net"
@@ -17,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Jeffail/gabs"
 )
 
 var reResponseHeader = regexp.MustCompile(`^(\d+)\s+(\d+)$`)
@@ -206,10 +207,10 @@ func (p *Peer) hasChanged() (changed bool) {
 	changed = false
 	tablenames := []string{"commands", "contactgroups", "contacts", "hostgroups", "hosts", "servicegroups", "timeperiods"}
 	for _, name := range tablenames {
-		counter := p.countFromServer(name, "name >= .*")
+		counter := p.countFromServer(name, "name !=")
 		changed = changed || (counter != len(p.Tables[name].Data))
 	}
-	counter := p.countFromServer("services", "host_name >= .*")
+	counter := p.countFromServer("services", "host_name !=")
 	changed = changed || (counter != len(p.Tables["services"].Data))
 
 	return
@@ -250,11 +251,8 @@ func (p *Peer) updateLoop() {
 					p.UpdateObjectByType(Objects.Tables["hostgroups"])
 					p.UpdateObjectByType(Objects.Tables["servicegroups"])
 					lastTimeperiodUpdateMinute = currentMinute
-					if p.Flags&Icinga2Only == Icinga2Only {
-						if p.hasChanged() {
-							ok = p.InitAllTables()
-						}
-					}
+
+					p.checkIcinga2Reload()
 				}
 
 				if now < lastUpdate+GlobalConfig.Updateinterval {
@@ -1732,4 +1730,11 @@ func (p *Peer) MatchRowFilter(table *Table, refs *map[string][][]interface{}, in
 	}
 	value := p.GetRowValue(filter.Column.Index, row, rowNum, table, refs, inputRowLen)
 	return (filter.MatchFilter(&value))
+}
+
+func (p *Peer) checkIcinga2Reload() bool {
+	if p.Flags&Icinga2Only == Icinga2Only && p.hasChanged() {
+		return (p.InitAllTables())
+	}
+	return (true)
 }
