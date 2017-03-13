@@ -408,7 +408,7 @@ func (res *Response) JSON() ([]byte, error) {
 					buf.Write([]byte(",\n"))
 				}
 			} else {
-				buf.Write([]byte(",\n"))
+				buf.Write([]byte(","))
 			}
 			err := enc.Encode(row)
 			if err != nil {
