@@ -373,7 +373,7 @@ func (req *Request) GetResponse() (*Response, error) {
 		// Columns need to be defined or else response will add them
 		if len(req.Columns) != 0 {
 			requestData["columns"] = req.Columns
-		} else {
+		} else if !isStatsRequest {
 			panic("columns undefined for dispatched request")
 		}
 
