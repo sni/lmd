@@ -1191,9 +1191,13 @@ func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error)
 		// check for changed timeperiods, because we have to update the linked hosts and services as well
 		p.updateTimeperiodsData(&table, res, indexes)
 	} else {
+		indexLength := len(indexes)
 		p.DataLock.Lock()
 		for i := range res {
 			row := res[i]
+			if len(row) < indexLength {
+				err = fmt.Errorf("response list has wrong size, got %d and expexted %d", len(row), indexLength)
+			}
 			for j, k := range indexes {
 				data[i][k] = row[j]
 			}
