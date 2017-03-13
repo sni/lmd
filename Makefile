@@ -5,26 +5,28 @@ MAKE:=make
 SHELL:=bash
 GOVERSION:=$(shell go version | awk '{print $$3}' | sed 's/^go\([0-9]\.[0-9]\).*/\1/')
 
+EXTERNAL_DEPS = \
+	github.com/BurntSushi/toml \
+	github.com/kdar/factorlog \
+	github.com/mgutz/ansi \
+	golang.org/x/tools/cmd/goimports \
+	github.com/prometheus/client_golang/prometheus \
+	github.com/Jeffail/gabs \
+	github.com/julienschmidt/httprouter \
+	github.com/nu7hatch/gouuid \
+
+
 all: deps fmt build
 
 deps: versioncheck dump
-	go get github.com/BurntSushi/toml
-	go get github.com/kdar/factorlog
-	go get github.com/mgutz/ansi
-	go get golang.org/x/tools/cmd/goimports
-	go get github.com/prometheus/client_golang/prometheus
-	go get github.com/Jeffail/gabs
+	set -e; for DEP in $(EXTERNAL_DEPS); do \
+		go get $$DEP; \
+	done
 
 updatedeps: versioncheck
-	go get -u github.com/BurntSushi/toml
-	go get -u github.com/kdar/factorlog
-	go get -u github.com/mgutz/ansi
-	go get -u golang.org/x/tools/cmd/goimports
-	go get -u github.com/prometheus/client_golang/prometheus
-	go get -u github.com/Jeffail/gabs
-	go get -u github.com/davecgh/go-spew/spew
-
-
+	set -e; for DEP in $(EXTERNAL_DEPS); do \
+		go get -u $$DEP; \
+	done
 
 dump:
 	if [ $(shell grep -rc Dump $(LAMPDDIR)/*.go | grep -v :0 | grep -v $(LAMPDDIR)/dump.go | wc -l) -ne 0 ]; then \

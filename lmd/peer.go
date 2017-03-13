@@ -113,7 +113,6 @@ func (d *DataTable) AddItem(row *[]interface{}) {
 
 // RemoveItem removes an entry from a datatable.
 func (d *DataTable) RemoveItem(row []interface{}) {
-	fmt.Println("removeitem...", row, fmt.Sprintf("%p", row))
 	for i := range d.Data {
 		r := d.Data[i]
 		fmt.Println("#", i, r, fmt.Sprintf("%p", r))

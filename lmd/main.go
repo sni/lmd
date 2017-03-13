@@ -26,8 +26,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	"runtime/debug"
-	"html"
 
 	"github.com/BurntSushi/toml"
 )
