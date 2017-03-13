@@ -1197,6 +1197,7 @@ func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error)
 			row := res[i]
 			if len(row) < indexLength {
 				err = fmt.Errorf("response list has wrong size, got %d and expexted %d", len(row), indexLength)
+		        return
 			}
 			for j, k := range indexes {
 				data[i][k] = row[j]
