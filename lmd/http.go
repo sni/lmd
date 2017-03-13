@@ -37,134 +37,11 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 		return
 	}
 
-	// New request object for specified table
-	req := &Request{}
-	req.Table = tableName
-
-	// Send header row by default
-	req.SendColumnsHeader = true
-	if val, ok := requestData["sendcolumnsheader"]; ok {
-		if enable, ok := val.(bool); ok {
-			req.SendColumnsHeader = enable
-		}
+	req, err := parseRequestDataToRequest(requestData)
+	if err != nil {
+		c.errorOutput(err, w)
+		return
 	}
-
-	// Offset
-	if val, ok := requestData["offset"]; ok {
-		req.Offset = int(val.(float64))
-	}
-
-	// Limit
-	if val, ok := requestData["limit"]; ok {
-		req.Limit = int(val.(float64))
-	}
-
-	// Filter
-	// String in livestatus syntax
-	if val, ok := requestData["filter"]; ok {
-		// Get filter lines, e.g., "Filter: col = val", "Or: 2"
-		var filterLines []string
-		if lines, ok := val.([]interface{}); ok {
-			for _, line := range lines {
-				filterLine := "Filter: " + line.(string) + "\n"
-				filterLines = append(filterLines, filterLine)
-			}
-		}
-		if strVal, ok := val.(string); ok {
-			filterLines = strings.Split(strVal, "\n")
-		}
-
-		// Parse and store filter
-		for _, filterLine := range filterLines {
-			filterLine = strings.TrimSpace(filterLine)
-			if filterLine == "" {
-				continue
-			}
-			if err := req.ParseRequestHeaderLine(&filterLine); err != nil {
-				c.errorOutput(err, w)
-				return
-			}
-		}
-	}
-
-	// Stats
-	// String in livestatus syntax
-	if val, ok := requestData["stats"]; ok {
-		// Get stats lines, e.g., "Stats: col = val", "Or: 2"
-		var statsLines []string
-		if lines, ok := val.([]interface{}); ok {
-			for _, line := range lines {
-				statsLine := "Stats: " + line.(string) + "\n"
-				statsLines = append(statsLines, statsLine)
-			}
-		}
-		if strVal, ok := val.(string); ok {
-			statsLines = strings.Split(strVal, "\n")
-		}
-
-		// Parse and store stats
-		for _, statsLine := range statsLines {
-			statsLine = strings.TrimSpace(statsLine)
-			if statsLine == "" {
-				continue
-			}
-			if err := req.ParseRequestHeaderLine(&statsLine); err != nil {
-				c.errorOutput(err, w)
-				return
-			}
-		}
-	}
-	if val, ok := requestData["sendstatsdata"]; ok {
-		if enable, ok := val.(bool); ok {
-			req.SendStatsData = enable
-		}
-	}
-
-	// Sort
-	var requestDataSort []interface{}
-	if val, ok := requestData["sort"]; ok {
-		lines, ok := val.([]interface{})
-		if ok {
-			requestDataSort = lines
-		}
-	}
-	for _, line := range requestDataSort {
-		value := line.(string)
-		err := parseSortHeader(&req.Sort, value) // request.go
-		if err != nil {
-			c.errorOutput(err, w)
-			return
-		}
-	}
-
-	// Columns
-	var columns []string
-	if val, ok := requestData["columns"]; ok {
-		for _, column := range val.([]interface{}) {
-			columns = append(columns, column.(string))
-		}
-	}
-	req.Columns = columns
-
-	// Format
-	if val, ok := requestData["outputformat"]; ok {
-		if str, ok := val.(string); ok {
-			err := parseOutputFormat(&req.OutputFormat, str)
-			if err != nil {
-				c.errorOutput(err, w)
-				return
-			}
-		}
-	}
-
-	// Backends
-	var backends []string
-	if val, ok := requestData["backends"]; ok {
-		for _, backend := range val.([]interface{}) {
-			backends = append(backends, backend.(string))
-		}
-	}
-	req.Backends = backends
 
 	// Fetch backend data
 	req.ExpandRequestedBackends() // ParseRequests()
@@ -242,6 +119,115 @@ func (c *HTTPServerController) query(w http.ResponseWriter, request *http.Reques
 	default:
 		c.errorOutput(fmt.Errorf("unknown request: %s", requestedFunction), w)
 	}
+}
+
+func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request, err error) {
+	// New request object for specified table
+	req.Table = requestData["table"].(string)
+
+	// Send header row by default
+	req.SendColumnsHeader = true
+	if val, ok := requestData["sendcolumnsheader"]; ok {
+		req.SendColumnsHeader = val.(bool)
+	}
+
+	// Offset
+	if val, ok := requestData["offset"]; ok {
+		req.Offset = int(val.(float64))
+	}
+
+	// Limit
+	if val, ok := requestData["limit"]; ok {
+		req.Limit = int(val.(float64))
+	}
+
+	// Filter String in livestatus syntax
+	if val, ok := requestData["filter"]; ok {
+		err = parseHttpFilterRequestData(req, val, "Filter")
+		if err != nil {
+			return req, err
+		}
+	}
+
+	// Stats String in livestatus syntax
+	if val, ok := requestData["stats"]; ok {
+		err = parseHttpFilterRequestData(req, val, "Stats")
+		if err != nil {
+			return req, err
+		}
+	}
+
+	if val, ok := requestData["sendstatsdata"]; ok {
+		req.SendStatsData = val.(bool)
+	}
+
+	// Sort
+	var requestDataSort []interface{}
+	if val, ok := requestData["sort"]; ok {
+		lines, ok := val.([]interface{})
+		if ok {
+			requestDataSort = lines
+		}
+	}
+	for _, line := range requestDataSort {
+		err := parseSortHeader(&req.Sort, line.(string)) // request.go
+		if err != nil {
+			return req, err
+		}
+	}
+
+	// Columns
+	var columns []string
+	if val, ok := requestData["columns"]; ok {
+		for _, column := range val.([]interface{}) {
+			columns = append(columns, column.(string))
+		}
+	}
+	req.Columns = columns
+
+	// Format
+	if val, ok := requestData["outputformat"]; ok {
+		err := parseOutputFormat(&req.OutputFormat, val.(string))
+		if err != nil {
+			return req, err
+		}
+	}
+
+	// Backends
+	var backends []string
+	if val, ok := requestData["backends"]; ok {
+		for _, backend := range val.([]interface{}) {
+			backends = append(backends, backend.(string))
+		}
+	}
+	req.Backends = backends
+	return
+}
+
+func parseHttpFilterRequestData(req *Request, val interface{}, prefix string) (err error) {
+	// Get filter lines, e.g., "Filter: col = val", "Or: 2"
+	var filterLines []string
+	if lines, ok := val.([]interface{}); ok {
+		for _, line := range lines {
+			filterLine := prefix + ": " + line.(string) + "\n"
+			filterLines = append(filterLines, filterLine)
+		}
+	}
+	if strVal, ok := val.(string); ok {
+		filterLines = strings.Split(strVal, "\n")
+	}
+
+	// Parse and store filter
+	for _, filterLine := range filterLines {
+		filterLine = strings.TrimSpace(filterLine)
+		if filterLine == "" {
+			continue
+		}
+		if err := req.ParseRequestHeaderLine(&filterLine); err != nil {
+			return err
+		}
+	}
+	return
 }
 
 func initializeHTTPRouter() (handler http.Handler, err error) {
