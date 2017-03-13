@@ -89,7 +89,7 @@ const (
 	// ShinkenOnly flag is set if the remote site is a shinken installation.
 	ShinkenOnly
 
-	// Icinga2Only flag is set if the remote site is a shinken installation.
+	// Icinga2Only flag is set if the remote site is a icinga 2 installation.
 	Icinga2Only
 )
 
