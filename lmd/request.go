@@ -296,6 +296,12 @@ func (req *Request) VerifyRequestIntegrity() (err error) {
 func (req *Request) GetResponse() (*Response, error) {
 	log.Tracef("GetResponse")
 
+	// Run single request if possible
+	if !nodeAccessor.IsClustered() {
+		// Single mode (send request and return response)
+		return (NewResponse(req))
+	}
+
 	// Determine if request for this node only (if backends specified)
 	allBackendsRequested := len(req.Backends) == 0
 	isForOurBackends := false // request for our own backends only
@@ -307,16 +313,17 @@ func (req *Request) GetResponse() (*Response, error) {
 		}
 	}
 
-	// Run single request if possible
-	if !nodeAccessor.IsClustered() || isForOurBackends {
-		// Single mode (send request and return response)
-		// Or sub-request in cluster mode
-		// Or request for our backends only
+	// Return local result if its not distributed at all
+	if isForOurBackends {
 		return (NewResponse(req))
 	}
 
 	// Distribute request
+	return (req.getDistributedResponse())
+}
 
+// getDistributedResponse builds the response from a distributed setup
+func (req *Request) getDistributedResponse() (*Response, error) {
 	// Columns for sub-requests
 	// Define request columns if not specified
 	table, _ := Objects.Tables[req.Table]
@@ -326,7 +333,7 @@ func (req *Request) GetResponse() (*Response, error) {
 	}
 
 	// Type of request
-	isStatsRequest := len(req.Stats) != 0
+	allBackendsRequested := len(req.Backends) == 0
 
 	// Cluster mode (don't send this request; send sub-requests, build response)
 	var wg sync.WaitGroup
@@ -337,95 +344,13 @@ func (req *Request) GetResponse() (*Response, error) {
 		node := nodeAccessor.Node(nodeID)
 		// Limit to requested backends if necessary
 		// nodeBackends: all backends handled by current node
-		var subBackends []string // backends for current sub-request
-		for _, nodeBackend := range nodeBackends {
-			isRequested := allBackendsRequested
-			for _, requestedBackend := range req.Backends {
-				if requestedBackend == nodeBackend {
-					isRequested = true
-				}
-			}
-			if isRequested {
-				subBackends = append(subBackends, nodeBackend)
-			}
-		}
-
+		subBackends := req.getSubBackends(allBackendsRequested, nodeBackends)
 		// Skip node if it doesn't have relevant backends
 		if len(subBackends) == 0 {
 			collectedDatasets <- [][]interface{}{}
 			collectedFailedHashes <- map[string]interface{}{}
 			continue
 		}
-
-		// Create sub-request
-		requestData := make(map[string]interface{})
-		if req.Table != "" {
-			requestData["table"] = req.Table
-		}
-
-		// Set backends for this sub-request
-		requestData["backends"] = subBackends
-
-		// No header row
-		requestData["sendcolumnsheader"] = false
-
-		// Columns
-		// Columns need to be defined or else response will add them
-		if len(req.Columns) != 0 {
-			requestData["columns"] = req.Columns
-		} else if !isStatsRequest {
-			panic("columns undefined for dispatched request")
-		}
-
-		// Filter
-		if len(req.Filter) != 0 || req.FilterStr != "" {
-			var str string
-			for _, f := range req.Filter {
-				str += f.String("")
-			}
-			if req.FilterStr != "" {
-				str += req.FilterStr
-			}
-			requestData["filter"] = str
-		}
-
-		// Stats
-		if isStatsRequest {
-			var str string
-			for _, f := range req.Stats {
-				str += f.String("Stats")
-			}
-			requestData["stats"] = str
-			requestData["sendstatsdata"] = true
-		}
-
-		// Limit
-		// An upper limit is used to make sorting possible
-		// Offset is 0 for sub-request (sorting)
-		if req.Limit != 0 {
-			requestData["limit"] = req.Limit + req.Offset
-		}
-
-		// Sort order
-		if len(req.Sort) != 0 {
-			var sort []string
-			for _, sortField := range req.Sort {
-				var line string
-				var direction string
-				switch sortField.Direction {
-				case Desc:
-					direction = "desc"
-				case Asc:
-					direction = "asc"
-				}
-				line = sortField.Name + " " + direction
-				sort = append(sort, line)
-			}
-			requestData["sort"] = sort
-		}
-
-		// Get hash with metadata in addition to table rows
-		requestData["outputformat"] = "wrapped_json"
 
 		// Callback
 		callback := func(responseData interface{}) {
@@ -462,6 +387,8 @@ func (req *Request) GetResponse() (*Response, error) {
 			collectedFailedHashes <- failedHash
 		}
 
+		requestData := req.buildDistributedRequestData(subBackends)
+
 		// Send query to node
 		wg.Add(1)
 		err := nodeAccessor.SendQuery(node, "table", requestData, callback)
@@ -485,12 +412,113 @@ func (req *Request) GetResponse() (*Response, error) {
 		return nil, err
 	}
 
+	res := req.mergeDistributedResponse(collectedDatasets, collectedFailedHashes)
+	res.Columns = resultColumns
+
+	// Process results
+	// This also applies sort/offset/limit settings
+	res.PostProcessing()
+
+	return res, nil
+}
+
+func (req *Request) getSubBackends(allBackendsRequested bool, nodeBackends []string) (subBackends []string) {
+	// nodeBackends: all backends handled by current node
+	for _, nodeBackend := range nodeBackends {
+		isRequested := allBackendsRequested
+		for _, requestedBackend := range req.Backends {
+			if requestedBackend == nodeBackend {
+				isRequested = true
+			}
+		}
+		if isRequested {
+			subBackends = append(subBackends, nodeBackend)
+		}
+	}
+	return
+}
+
+func (req *Request) buildDistributedRequestData(subBackends []string) (requestData map[string]interface{}) {
+	if req.Table != "" {
+		requestData["table"] = req.Table
+	}
+
+	// Set backends for this sub-request
+	requestData["backends"] = subBackends
+
+	// No header row
+	requestData["sendcolumnsheader"] = false
+
+	// Columns
+	// Columns need to be defined or else response will add them
+	isStatsRequest := len(req.Stats) != 0
+	if len(req.Columns) != 0 {
+		requestData["columns"] = req.Columns
+	} else if !isStatsRequest {
+		panic("columns undefined for dispatched request")
+	}
+
+	// Filter
+	if len(req.Filter) != 0 || req.FilterStr != "" {
+		var str string
+		for _, f := range req.Filter {
+			str += f.String("")
+		}
+		if req.FilterStr != "" {
+			str += req.FilterStr
+		}
+		requestData["filter"] = str
+	}
+
+	// Stats
+	if isStatsRequest {
+		var str string
+		for _, f := range req.Stats {
+			str += f.String("Stats")
+		}
+		requestData["stats"] = str
+		requestData["sendstatsdata"] = true
+	}
+
+	// Limit
+	// An upper limit is used to make sorting possible
+	// Offset is 0 for sub-request (sorting)
+	if req.Limit != 0 {
+		requestData["limit"] = req.Limit + req.Offset
+	}
+
+	// Sort order
+	if len(req.Sort) != 0 {
+		var sort []string
+		for _, sortField := range req.Sort {
+			var line string
+			var direction string
+			switch sortField.Direction {
+			case Desc:
+				direction = "desc"
+			case Asc:
+				direction = "asc"
+			}
+			line = sortField.Name + " " + direction
+			sort = append(sort, line)
+		}
+		requestData["sort"] = sort
+	}
+
+	// Get hash with metadata in addition to table rows
+	requestData["outputformat"] = "wrapped_json"
+
+	return
+}
+
+// mergeDistributedResponse returns response object with merged result from distributed requests
+func (req *Request) mergeDistributedResponse(collectedDatasets chan [][]interface{}, collectedFailedHashes chan map[string]interface{}) *Response {
 	// Build response object
 	res := &Response{Request: req}
-	res.Columns = resultColumns
 	res.Failed = make(map[string]string)
 
 	// Merge data
+	isStatsRequest := len(req.Stats) != 0
 	for currentRows := range collectedDatasets {
 		if isStatsRequest {
 			// Stats request
@@ -509,12 +537,7 @@ func (req *Request) GetResponse() (*Response, error) {
 			}
 		}
 	}
-
-	// Process results
-	// This also applies sort/offset/limit settings
-	res.PostProcessing()
-
-	return res, nil
+	return res
 }
 
 // ParseRequestHeaderLine parses a single request line
