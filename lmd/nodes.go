@@ -292,26 +292,8 @@ func (n *Nodes) checkNodeAvailability() {
 func (n *Nodes) redistribute() {
 	// Nodes and backends
 	numberBackends := len(n.backends)
+	ownIndex, nodeOnline, numberAllNodes, numberAvailableNodes := n.getOnlineNodes()
 	allNodes := n.nodeAddresses
-	nodeOnline := make([]bool, len(allNodes))
-	numberAllNodes := len(allNodes)
-	numberAvailableNodes := 0
-	ownIndex := -1
-	for i, node := range allNodes {
-		isOnline := false
-		for _, otherNode := range n.onlineNodes {
-			if otherNode.url == node.url {
-				isOnline = true
-			}
-		}
-		if node.isMe {
-			ownIndex = i
-		}
-		if isOnline {
-			nodeOnline[i] = true
-			numberAvailableNodes++
-		}
-	}
 
 	// Assign items to nodes
 	assignedNumberBackends := make([]int, numberAllNodes) // for each node
@@ -347,7 +329,8 @@ func (n *Nodes) redistribute() {
 	numberAssignedBackends := 0
 	for i, number := range assignedNumberBackends {
 		numberAssignedBackends += number
-		if number != 0 { // number == 0 means no backends for that node
+		if number != 0 {
+			// number == 0 means no backends for that node
 			list := make([]string, number)
 			for i := 0; i < number; i++ {
 				list[i] = n.backends[distributedCount+i]
@@ -361,6 +344,10 @@ func (n *Nodes) redistribute() {
 	n.nodeBackends = nodeBackends
 	ourBackends := assignedBackends[ownIndex]
 
+	n.updateBackends(ourBackends)
+}
+
+func (n *Nodes) updateBackends(ourBackends []string) {
 	// Determine backends this node is now (not anymore) responsible for
 	var addBackends []string
 	var rmvBackends []string
@@ -402,7 +389,29 @@ func (n *Nodes) redistribute() {
 		peer := (*n.PeerMap)[newBackend]
 		peer.Start()
 	}
+}
 
+func (n *Nodes) getOnlineNodes() (ownIndex int, nodeOnline []bool, numberAllNodes int, numberAvailableNodes int) {
+	allNodes := n.nodeAddresses
+	numberAllNodes = len(allNodes)
+	numberAvailableNodes = 0
+	ownIndex = -1
+	for i, node := range allNodes {
+		isOnline := false
+		for _, otherNode := range n.onlineNodes {
+			if otherNode.url == node.url {
+				isOnline = true
+			}
+		}
+		if node.isMe {
+			ownIndex = i
+		}
+		if isOnline {
+			nodeOnline[i] = true
+			numberAvailableNodes++
+		}
+	}
+	return
 }
 
 // IsOurBackend checks if backend is managed by this node.
