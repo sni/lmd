@@ -143,7 +143,7 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 
 	// Filter String in livestatus syntax
 	if val, ok := requestData["filter"]; ok {
-		err = parseHttpFilterRequestData(req, val, "Filter")
+		err = parseHTTPFilterRequestData(req, val, "Filter")
 		if err != nil {
 			return req, err
 		}
@@ -151,14 +151,13 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 
 	// Stats String in livestatus syntax
 	if val, ok := requestData["stats"]; ok {
-		err = parseHttpFilterRequestData(req, val, "Stats")
+		err = parseHTTPFilterRequestData(req, val, "Stats")
 		if err != nil {
 			return req, err
 		}
-	}
-
-	if val, ok := requestData["sendstatsdata"]; ok {
-		req.SendStatsData = val.(bool)
+		if len(req.Stats) > 0 {
+			req.SendStatsData = true
+		}
 	}
 
 	// Sort
@@ -204,7 +203,7 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 	return
 }
 
-func parseHttpFilterRequestData(req *Request, val interface{}, prefix string) (err error) {
+func parseHTTPFilterRequestData(req *Request, val interface{}, prefix string) (err error) {
 	// Get filter lines, e.g., "Filter: col = val", "Or: 2"
 	var filterLines []string
 	if lines, ok := val.([]interface{}); ok {

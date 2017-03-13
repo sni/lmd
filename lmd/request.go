@@ -477,7 +477,6 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 			str += f.String("Stats")
 		}
 		requestData["stats"] = str
-		requestData["sendstatsdata"] = true
 	}
 
 	// Limit
