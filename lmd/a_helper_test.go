@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"strings"
+
 	"github.com/BurntSushi/toml"
 )
 
@@ -180,13 +182,18 @@ func prepareTmpData(dataFolder string, numHosts int, numServices int) (tempFolde
 
 var TestPeerWaitGroup *sync.WaitGroup
 
-func StartMockMainLoop(sockets []string) {
+func StartMockMainLoop(sockets []string, extraConfig string) {
 	var testConfig = `
 Loglevel = "` + testLogLevel + `"
-Listen = ["test.sock"]
 ListenPrometheus = ":50999"
 
 `
+	testConfig += extraConfig
+	if !strings.Contains(testConfig, "Listen ") {
+		testConfig += `Listen = ["test.sock"]
+		`
+	}
+
 	for i, socket := range sockets {
 		testConfig += fmt.Sprintf("[[Connections]]\nname = \"MockCon\"\nid   = \"mockid%d\"\nsource = [\"%s\"]\n\n", i, socket)
 	}
@@ -221,7 +228,7 @@ func StartTestPeer(numPeers int, numHosts int, numServices int) (peer *Peer) {
 		listen := StartMockLivestatusSource(i, numHosts, numServices)
 		sockets = append(sockets, listen)
 	}
-	StartMockMainLoop(sockets)
+	StartMockMainLoop(sockets, "")
 
 	testPeerShutdownChannel := make(chan bool)
 	peer = NewPeer(Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
@@ -237,7 +244,7 @@ func StartTestPeer(numPeers int, numHosts int, numServices int) (peer *Peer) {
 		// recheck every 100ms
 		time.Sleep(100 * time.Millisecond)
 		retries++
-		if retries > 30 {
+		if retries > 100 {
 			if err != nil {
 				panic("backend never came online: " + err.Error())
 			} else {
