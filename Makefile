@@ -9,11 +9,9 @@ EXTERNAL_DEPS = \
 	github.com/BurntSushi/toml \
 	github.com/kdar/factorlog \
 	github.com/mgutz/ansi \
-	golang.org/x/tools/cmd/goimports \
 	github.com/prometheus/client_golang/prometheus \
 	github.com/Jeffail/gabs \
 	github.com/julienschmidt/httprouter \
-	github.com/nu7hatch/gouuid \
 
 
 all: deps fmt build
@@ -96,6 +94,7 @@ clean:
 	rm -f $(LAMPDDIR)/coverage.html
 
 fmt:
+	go get -u golang.org/x/tools/cmd/goimports
 	cd $(LAMPDDIR) && goimports -w .
 	cd $(LAMPDDIR) && go tool vet -all -shadow -assign -atomic -bool -composites -copylocks -nilfunc -rangeloops -unsafeptr -unreachable .
 	cd $(LAMPDDIR) && gofmt -w -s .

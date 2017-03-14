@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,8 +10,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/nu7hatch/gouuid"
 )
 
 var reNodeAddress = regexp.MustCompile(`^(https?)?(://)?(.*?)(:(\d+))?(/.*)?$`)
@@ -141,10 +140,7 @@ func (n *Nodes) Initialize() {
 	// Generate identifier
 	ownIdentifier := &n.ID
 	*ownIdentifier = strconv.FormatInt(time.Now().Unix(), 10)
-	u, err := uuid.NewV4()
-	if err == nil {
-		*ownIdentifier += ":" + u.String()
-	}
+	*ownIdentifier += ":" + generateUUID()
 
 	// Wait for own listener(s) to initialize
 	n.WaitGroupInit.Wait()
@@ -395,6 +391,7 @@ func (n *Nodes) getOnlineNodes() (ownIndex int, nodeOnline []bool, numberAllNode
 	allNodes := n.nodeAddresses
 	numberAllNodes = len(allNodes)
 	numberAvailableNodes = 0
+	nodeOnline = make([]bool, numberAllNodes)
 	ownIndex = -1
 	for i, node := range allNodes {
 		isOnline := false
@@ -484,4 +481,17 @@ func (n *Nodes) SendQuery(node NodeAddress, name string, parameters map[string]i
 	}()
 
 	return nil
+}
+
+func generateUUID() (uuid string) {
+	b := make([]byte, 16)
+	_, err := rand.Read(b)
+	if err != nil {
+		fmt.Println("Error: ", err)
+		return
+	}
+
+	uuid = fmt.Sprintf("%X-%X-%X-%X-%X", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+
+	return
 }
