@@ -1736,13 +1736,18 @@ func (p *Peer) MatchRowFilter(table *Table, refs *map[string][][]interface{}, in
 	// recursive group filter
 	if len(filter.Filter) > 0 {
 		for i := range filter.Filter {
-			f := &(filter.Filter[i])
-			subresult := p.MatchRowFilter(table, refs, inputRowLen, f, row, rowNum)
-			if !subresult && filter.GroupOperator == And {
-				return false
-			}
-			if subresult && filter.GroupOperator == Or {
-				return true
+			subresult := p.MatchRowFilter(table, refs, inputRowLen, &(filter.Filter[i]), row, rowNum)
+			switch filter.GroupOperator {
+			case And:
+				// if all conditions must match and we failed already, exit early
+				if !subresult {
+					return false
+				}
+			case Or:
+				// if only one condition must match and we got that already, exit early
+				if subresult {
+					return true
+				}
 			}
 		}
 		// if this is an AND filter and we did not return yet, this means all have matched.
