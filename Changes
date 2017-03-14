@@ -6,6 +6,7 @@ next:
           - add num_hosts_* columns to host-, servicegroups
           - display better error message if http site is down
           - icinga 2 peers automatically reload after changes through their api (Magnus Norden)
+          - add cluster mode
 
 1.0.2    Sat Nov  5 22:34:40 CET 2016
           - recover without recreating objects on short outages

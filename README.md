@@ -95,6 +95,20 @@ Local unix sockets Livestatus connections can be defined as:
 ```
 
 
+Cluster Mode
+============
+It is possible to operate LMD in a cluster mode which means multiple LMDs connect to a network and share the resources.
+All backend connections will be split up and divided upon all cluster nodes. Incoming requests will be forwared and merged.
+
+In order to setup cluster operations, you need to add a http(s) listener and a list of nodes.
+All nodes should share the same configuration file.
+
+```
+Listen  = ["/var/tmp/lmd.sock", "http://*:8080"]
+Nodes   = ["http://10.0.0.1:8080", "http://10.0.0.2:8080"]
+```
+
+
 What is different in LMD
 ========================
 
@@ -185,9 +199,6 @@ Ideas
 
 Some ideas may or may not be implemented in the future
 
-- Cluster the daemon itself to spread out the load, only one last map/reduce
-  would be required to combine the result from all cluster partners.
 - Add transparent and half-transparent mode which just handles the map/reduce without cache.
   This is implemented for log table and commands anyway already. Just requires an additional header.
 - Cache last 24h of logfiles to speed up most logfile requests
-- Add REST interface
