@@ -1734,8 +1734,9 @@ func optimizeResultLimit(req *Request, table *Table) (limit int) {
 // MatchRowFilter returns true if the given filter matches the given datarow.
 func (p *Peer) MatchRowFilter(table *Table, refs *map[string][][]interface{}, inputRowLen int, filter *Filter, row *[]interface{}, rowNum int) bool {
 	// recursive group filter
-	if len(filter.Filter) > 0 {
-		for i := range filter.Filter {
+	len := len(filter.Filter)
+	if len > 0 {
+		for i := 0; i < len; i++ {
 			subresult := p.MatchRowFilter(table, refs, inputRowLen, &(filter.Filter[i]), row, rowNum)
 			switch filter.GroupOperator {
 			case And:

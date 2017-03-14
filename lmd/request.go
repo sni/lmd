@@ -91,7 +91,6 @@ func (op *GroupOperator) String() string {
 
 var reRequestAction = regexp.MustCompile(`^GET ([a-z]+)$`)
 var reRequestCommand = regexp.MustCompile(`^COMMAND (\[\d+\].*)$`)
-var reRequestHeader = regexp.MustCompile(`^(\w+):\s*(.*)$`)
 
 // ParseRequest reads from a connection and returns a single requests.
 // It returns a the requests and any errors encountered.
@@ -542,64 +541,63 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan [][]interfac
 // ParseRequestHeaderLine parses a single request line
 // It returns any error encountered.
 func (req *Request) ParseRequestHeaderLine(line *string) (err error) {
-	matched := reRequestHeader.FindStringSubmatch(*line)
-	if len(matched) != 3 {
+	matched := strings.SplitN(*line, ": ", 2)
+	if len(matched) != 2 {
 		err = fmt.Errorf("bad request header: %s", *line)
 		return
 	}
-	header := strings.ToLower(matched[1])
-	value := matched[2]
+	matched[0] = strings.ToLower(matched[0])
 
-	switch header {
+	switch matched[0] {
 	case "filter":
-		err = ParseFilter(value, line, req.Table, &req.Filter)
+		err = ParseFilter(matched[1], line, req.Table, &req.Filter)
 		return
 	case "and":
 		fallthrough
 	case "or":
-		err = ParseFilterOp(header, value, line, &req.Filter)
+		err = ParseFilterOp(matched[0], matched[1], line, &req.Filter)
 		return
 	case "stats":
-		err = ParseStats(value, line, req.Table, &req.Stats)
+		err = ParseStats(matched[1], line, req.Table, &req.Stats)
 		return
 	case "statsand":
-		err = parseStatsOp("and", value, line, &req.Stats)
+		err = parseStatsOp("and", matched[1], line, &req.Stats)
 		return
 	case "statsor":
-		err = parseStatsOp("or", value, line, &req.Stats)
+		err = parseStatsOp("or", matched[1], line, &req.Stats)
 		return
 	case "sort":
-		err = parseSortHeader(&req.Sort, value)
+		err = parseSortHeader(&req.Sort, matched[1])
 		return
 	case "limit":
-		err = parseIntHeader(&req.Limit, header, value, 1)
+		err = parseIntHeader(&req.Limit, matched[0], matched[1], 1)
 		return
 	case "offset":
-		err = parseIntHeader(&req.Offset, header, value, 0)
+		err = parseIntHeader(&req.Offset, matched[0], matched[1], 0)
 		return
 	case "backends":
-		req.Backends = strings.Split(value, " ")
+		req.Backends = strings.Split(matched[1], " ")
 		return
 	case "columns":
-		req.Columns = strings.Split(value, " ")
+		req.Columns = strings.Split(matched[1], " ")
 		return
 	case "responseheader":
-		err = parseResponseHeader(&req.ResponseFixed16, value)
+		err = parseResponseHeader(&req.ResponseFixed16, matched[1])
 		return
 	case "outputformat":
-		err = parseOutputFormat(&req.OutputFormat, value)
+		err = parseOutputFormat(&req.OutputFormat, matched[1])
 		return
 	case "waittimeout":
-		err = parseIntHeader(&req.WaitTimeout, header, value, 1)
+		err = parseIntHeader(&req.WaitTimeout, matched[0], matched[1], 1)
 		return
 	case "waittrigger":
-		req.WaitTrigger = value
+		req.WaitTrigger = matched[1]
 		return
 	case "waitobject":
-		req.WaitObject = value
+		req.WaitObject = matched[1]
 		return
 	case "waitcondition":
-		err = ParseFilter(value, line, req.Table, &req.WaitCondition)
+		err = ParseFilter(matched[1], line, req.Table, &req.WaitCondition)
 		return
 	default:
 		err = fmt.Errorf("bad request: unrecognized header %s", *line)
