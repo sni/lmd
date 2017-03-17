@@ -1,47 +1,50 @@
 package main
 
 import (
-	"syscall"
 	"testing"
-	"time"
 )
 
 func TestNodeManager(t *testing.T) {
-	addresses := []string{"localhost:1234", "localhost:5678"}
-	StartMockMainLoop(addresses, `
+	extraConfig := `
 		Listen = ['test.sock', 'http://*:8901']
-		Nodes = ['http://127.0.0.1:8901', 'http://127.0.0.2:8901']
-	`)
-
-	// wait till backend is available
-	retries := 0
-	for {
-		if nodeAccessor != nil && nodeAccessor.thisNode != nil {
-			break
-		}
-		// recheck every 50ms
-		time.Sleep(50 * time.Millisecond)
-		retries++
-		if retries > 60 {
-			panic("nodeAccessor never came online")
-		}
-	}
+		Nodes = ['http://127.0.0.1:8901', 'http://127.0.0.2:8902']
+	`
+	peer := StartTestPeerExtra(4, 10, 10, extraConfig)
 
 	if nodeAccessor == nil {
-		t.Fatalf("nodeAccessor is nil")
+		t.Fatalf("nodeAccessor should not be nil")
 	}
 	if err := assertEq(nodeAccessor.IsClustered(), true); err != nil {
-		t.Fatalf("Nodes are clustered")
+		t.Fatalf("Nodes are not clustered")
 	}
 	if nodeAccessor.thisNode == nil {
-		t.Fatalf("thisNode is nil")
+		t.Fatalf("thisNode should not be nil")
 	}
 	if !(nodeAccessor.thisNode.HumanIdentifier() != "") {
 		t.Fatalf("got a name")
 	}
 
-	// shutdown mainloop
-	nodeAccessor.Stop()
-	mainSignalChannel <- syscall.SIGTERM
-	waitTimeout(TestPeerWaitGroup, 5*time.Second)
+	// test host request
+	res, err := peer.QueryString("GET hosts\nColumns: name peer_key state\n\n")
+	if err != nil {
+		t.Fatalf("request error should be nil")
+	}
+
+	if err = assertEq(len(res), 40); err != nil {
+		t.Fatalf("result contains 40 hosts")
+	}
+
+	// test host stats request
+	res, err = peer.QueryString("GET hosts\nStats: name !=\nStats: avg latency\nStats: sum latency\n\n")
+	if err != nil {
+		t.Fatalf("request error should be nil")
+	}
+	if err = assertEq(res[0][1], 0.24065613746999998); err != nil {
+		t.Fatalf("host stats average")
+	}
+	if err = assertEq(res[0][2], 9.6262454988); err != nil {
+		t.Fatalf("host stats sum")
+	}
+
+	StopTestPeer(peer)
 }
