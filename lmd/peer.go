@@ -364,6 +364,7 @@ func (p *Peer) InitAllTables() bool {
 		t := Objects.Tables[n]
 		_, err = p.CreateObjectByType(&t)
 		if err != nil {
+			log.Debugf("[%s] creating initial objects failed in table %s: %s", p.Name, t.Name, err.Error())
 			return false
 		}
 	}
