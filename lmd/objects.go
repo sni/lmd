@@ -382,6 +382,7 @@ func NewColumnsTable(name string) (t *Table) {
 // NewStatusTable returns a new status table
 func NewStatusTable() (t *Table) {
 	t = &Table{Name: "status"}
+	t.AddColumn("program_start", DynamicUpdate, IntCol, "The time of the last program start as UNIX timestamp")
 	t.AddColumn("accept_passive_host_checks", DynamicUpdate, IntCol, "The number of host checks since program start")
 	t.AddColumn("accept_passive_service_checks", DynamicUpdate, IntCol, "The number of completed service checks since program start")
 	t.AddColumn("cached_log_messages", DynamicUpdate, IntCol, "The current number of log messages MK Livestatus keeps in memory")
@@ -411,7 +412,6 @@ func NewStatusTable() (t *Table) {
 	t.AddColumn("obsess_over_hosts", DynamicUpdate, IntCol, "Whether the core will obsess over host checks (0/1)")
 	t.AddColumn("obsess_over_services", DynamicUpdate, IntCol, "Whether the core will obsess over service checks and run the ocsp_command (0/1)")
 	t.AddColumn("process_performance_data", DynamicUpdate, IntCol, "Whether processing of performance data is activated in general (0/1)")
-	t.AddColumn("program_start", DynamicUpdate, IntCol, "The time of the last program start as UNIX timestamp")
 	t.AddColumn("program_version", StaticUpdate, StringCol, "The version of the monitoring daemon")
 	t.AddColumn("requests", DynamicUpdate, FloatCol, "The number of requests to Livestatus since program start")
 	t.AddColumn("requests_rate", DynamicUpdate, FloatCol, "The number of requests to Livestatus since program start")
