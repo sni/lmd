@@ -1,4 +1,4 @@
-// build with debug functions
+// +build ignore
 
 package main
 

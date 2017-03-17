@@ -31,7 +31,6 @@ func TestNodeManager(t *testing.T) {
 	}
 
 	if err = assertEq(len(res), 40); err != nil {
-		Dump(res)
 		t.Errorf("result contains 40 hosts")
 	}
 
