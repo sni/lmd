@@ -384,12 +384,12 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		}
 		return (0)
 	case os.Interrupt:
+		log.Infof("got sigint, quitting")
 		shutdownChannel <- true
 		close(shutdownChannel)
 		if prometheusListener != nil {
 			prometheusListener.Close()
 		}
-		log.Infof("got sigint, quitting")
 		// wait one second which should be enough for the listeners
 		waitTimeout(waitGroupListener, time.Second)
 		if flagPidfile != "" {

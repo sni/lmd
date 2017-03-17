@@ -185,7 +185,6 @@ func (n *Nodes) loop() {
 	interval := n.loopInterval
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	for {
-
 		select {
 		case <-n.ShutdownChannel:
 			ticker.Stop()

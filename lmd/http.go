@@ -123,6 +123,7 @@ func (c *HTTPServerController) query(w http.ResponseWriter, request *http.Reques
 
 func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request, err error) {
 	// New request object for specified table
+	req = &Request{}
 	req.Table = requestData["table"].(string)
 
 	// Send header row by default

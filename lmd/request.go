@@ -438,6 +438,7 @@ func (req *Request) getSubBackends(allBackendsRequested bool, nodeBackends []str
 }
 
 func (req *Request) buildDistributedRequestData(subBackends []string) (requestData map[string]interface{}) {
+	requestData = make(map[string]interface{})
 	if req.Table != "" {
 		requestData["table"] = req.Table
 	}
@@ -512,8 +513,11 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 // mergeDistributedResponse returns response object with merged result from distributed requests
 func (req *Request) mergeDistributedResponse(collectedDatasets chan [][]interface{}, collectedFailedHashes chan map[string]interface{}) *Response {
 	// Build response object
-	res := &Response{Request: req}
-	res.Failed = make(map[string]string)
+	res := &Response{
+		Code:    200,
+		Failed:  make(map[string]string),
+		Request: req,
+	}
 
 	// Merge data
 	isStatsRequest := len(req.Stats) != 0
