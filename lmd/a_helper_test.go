@@ -56,10 +56,10 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 	TestPeerWaitGroup.Add(1)
 
 	dataFolder := "../t/data"
+	tempFolder := ""
 	if numHosts > 0 || numServices > 0 {
 		// prepare data files
-		tempFolder := prepareTmpData(dataFolder, numHosts, numServices)
-		defer os.Remove(tempFolder)
+		tempFolder = prepareTmpData(dataFolder, nr, numHosts, numServices)
 		dataFolder = tempFolder
 	}
 
@@ -73,6 +73,9 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 			l.Close()
 			TestPeerWaitGroup.Done()
 			os.Remove(listen)
+			if tempFolder != "" {
+				os.RemoveAll(tempFolder)
+			}
 		}()
 		startedChannel <- true
 		for {
@@ -112,8 +115,8 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 	return
 }
 
-func prepareTmpData(dataFolder string, numHosts int, numServices int) (tempFolder string) {
-	tempFolder, err := ioutil.TempDir("", "mockdata")
+func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (tempFolder string) {
+	tempFolder, err := ioutil.TempDir("", fmt.Sprintf("mockdata%d_", nr))
 	if err != nil {
 		panic("failed to create temp data folder: " + err.Error())
 	}
@@ -205,7 +208,7 @@ ListenPrometheus = ":50999"
 	}
 
 	for i, socket := range sockets {
-		testConfig += fmt.Sprintf("[[Connections]]\nname = \"MockCon\"\nid   = \"mockid%d\"\nsource = [\"%s\"]\n\n", i, socket)
+		testConfig += fmt.Sprintf("[[Connections]]\nname = \"MockCon-%s\"\nid   = \"mockid%d\"\nsource = [\"%s\"]\n\n", socket, i, socket)
 	}
 
 	err := ioutil.WriteFile("test.ini", []byte(testConfig), 0644)
@@ -280,6 +283,9 @@ func StopTestPeer(peer *Peer) {
 	peer.QueryString("COMMAND [0] MOCK_EXIT")
 	// wait till all has stoped
 	waitTimeout(TestPeerWaitGroup, 5*time.Second)
+	// clean from global object
+	DataStore = make(map[string]*Peer)
+	DataStoreOrder = nil
 }
 
 func PauseTestPeers(peer *Peer) {
