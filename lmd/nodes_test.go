@@ -10,6 +10,7 @@ func TestNodeManager(t *testing.T) {
 		Nodes = ['http://127.0.0.1:8901', 'http://127.0.0.2:8902']
 	`
 	peer := StartTestPeerExtra(4, 10, 10, extraConfig)
+	PauseTestPeers(peer)
 
 	if nodeAccessor == nil {
 		t.Fatalf("nodeAccessor should not be nil")
