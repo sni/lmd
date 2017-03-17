@@ -128,60 +128,8 @@ func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (t
 		}
 		template, err := os.Open(fmt.Sprintf("%s/%s.json", dataFolder, name))
 		if name == "hosts" || name == "services" {
-			dat, _ := ioutil.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, name))
-			removeFirstLine := regexp.MustCompile("^200.*")
-			dat = removeFirstLine.ReplaceAll(dat, []byte{})
-			var raw = [][]interface{}{}
-			err = json.Unmarshal(dat, &raw)
-			if err != nil {
-				panic("failed to decode: " + err.Error())
-			}
-			num := len(raw)
-			last := raw[num-1]
-			newData := [][]interface{}{}
-			if name == "hosts" {
-				nameIndex := table.GetColumn("name").Index
-				for x := 1; x <= numHosts; x++ {
-					newObj := make([]interface{}, len(last))
-					copy(newObj, last)
-					newObj[nameIndex] = fmt.Sprintf("%s_%d", "testhost", x)
-					newData = append(newData, newObj)
-				}
-			}
-			if name == "services" {
-				nameIndex := table.GetColumn("host_name").Index
-				descIndex := table.GetColumn("description").Index
-				for x := 1; x <= numHosts; x++ {
-					for y := 1; y < numServices/numHosts; y++ {
-						newObj := make([]interface{}, len(last))
-						copy(newObj, last)
-						newObj[nameIndex] = fmt.Sprintf("%s_%d", "testhost", x)
-						newObj[descIndex] = fmt.Sprintf("%s_%d", "testsvc", y)
-						newData = append(newData, newObj)
-						if len(newData) == numServices {
-							break
-						}
-					}
-					if len(newData) == numServices {
-						break
-					}
-				}
-			}
-
-			buf := new(bytes.Buffer)
-			buf.Write([]byte("["))
-			for i, row := range newData {
-				enc, _ := json.Marshal(row)
-				buf.Write(enc)
-				if i < len(newData)-1 {
-					buf.Write([]byte(",\n"))
-				}
-			}
-			buf.Write([]byte("]\n"))
 			err = file.Close()
-			encoded := []byte(fmt.Sprintf("%d %11d\n", 200, len(buf.Bytes())))
-			encoded = append(encoded, buf.Bytes()...)
-			ioutil.WriteFile(fmt.Sprintf("%s/%s.json", tempFolder, name), encoded, 0644)
+			prepareTmpDataHostService(dataFolder, tempFolder, table, numHosts, numServices)
 		} else {
 			io.Copy(file, template)
 			err = file.Close()
@@ -191,6 +139,63 @@ func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (t
 		}
 	}
 	return
+}
+
+func prepareTmpDataHostService(dataFolder string, tempFolder string, table Table, numHosts int, numServices int) {
+	name := table.Name
+	dat, _ := ioutil.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, name))
+	removeFirstLine := regexp.MustCompile("^200.*")
+	dat = removeFirstLine.ReplaceAll(dat, []byte{})
+	var raw = [][]interface{}{}
+	err := json.Unmarshal(dat, &raw)
+	if err != nil {
+		panic("failed to decode: " + err.Error())
+	}
+	num := len(raw)
+	last := raw[num-1]
+	newData := [][]interface{}{}
+	if name == "hosts" {
+		nameIndex := table.GetColumn("name").Index
+		for x := 1; x <= numHosts; x++ {
+			newObj := make([]interface{}, len(last))
+			copy(newObj, last)
+			newObj[nameIndex] = fmt.Sprintf("%s_%d", "testhost", x)
+			newData = append(newData, newObj)
+		}
+	}
+	if name == "services" {
+		nameIndex := table.GetColumn("host_name").Index
+		descIndex := table.GetColumn("description").Index
+		for x := 1; x <= numHosts; x++ {
+			for y := 1; y < numServices/numHosts; y++ {
+				newObj := make([]interface{}, len(last))
+				copy(newObj, last)
+				newObj[nameIndex] = fmt.Sprintf("%s_%d", "testhost", x)
+				newObj[descIndex] = fmt.Sprintf("%s_%d", "testsvc", y)
+				newData = append(newData, newObj)
+				if len(newData) == numServices {
+					break
+				}
+			}
+			if len(newData) == numServices {
+				break
+			}
+		}
+	}
+
+	buf := new(bytes.Buffer)
+	buf.Write([]byte("["))
+	for i, row := range newData {
+		enc, _ := json.Marshal(row)
+		buf.Write(enc)
+		if i < len(newData)-1 {
+			buf.Write([]byte(",\n"))
+		}
+	}
+	buf.Write([]byte("]\n"))
+	encoded := []byte(fmt.Sprintf("%d %11d\n", 200, len(buf.Bytes())))
+	encoded = append(encoded, buf.Bytes()...)
+	ioutil.WriteFile(fmt.Sprintf("%s/%s.json", tempFolder, name), encoded, 0644)
 }
 
 var TestPeerWaitGroup *sync.WaitGroup
