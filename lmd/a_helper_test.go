@@ -138,7 +138,7 @@ func prepareTmpData(dataFolder string, numHosts int, numServices int) (tempFolde
 			newData := [][]interface{}{}
 			if name == "hosts" {
 				nameIndex := table.GetColumn("name").Index
-				for x := 1; x < numHosts; x++ {
+				for x := 1; x <= numHosts; x++ {
 					newObj := make([]interface{}, len(last))
 					copy(newObj, last)
 					newObj[nameIndex] = fmt.Sprintf("%s_%d", "testhost", x)
@@ -148,7 +148,7 @@ func prepareTmpData(dataFolder string, numHosts int, numServices int) (tempFolde
 			if name == "services" {
 				nameIndex := table.GetColumn("host_name").Index
 				descIndex := table.GetColumn("description").Index
-				for x := 1; x < numHosts; x++ {
+				for x := 1; x <= numHosts; x++ {
 					for y := 1; y < numServices/numHosts; y++ {
 						newObj := make([]interface{}, len(last))
 						copy(newObj, last)
@@ -218,17 +218,22 @@ ListenPrometheus = ":50999"
 	<-startedChannel
 }
 
-// StartTestPeer starts:
+// StartTestPeer just call StartTestPeerExtra
+func StartTestPeer(numPeers int, numHosts int, numServices int) *Peer {
+	return (StartTestPeerExtra(numPeers, numHosts, numServices, ""))
+}
+
+// StartTestPeerExtra starts:
 //  - a mock livestatus server which responds from status json
 //  - a main loop which has the mock server as backend
 // It returns a peer which the "mainloop" connection configured
-func StartTestPeer(numPeers int, numHosts int, numServices int) (peer *Peer) {
+func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig string) (peer *Peer) {
 	sockets := []string{}
 	for i := 0; i < numPeers; i++ {
 		listen := StartMockLivestatusSource(i, numHosts, numServices)
 		sockets = append(sockets, listen)
 	}
-	StartMockMainLoop(sockets, "")
+	StartMockMainLoop(sockets, extraConfig)
 
 	testPeerShutdownChannel := make(chan bool)
 	peer = NewPeer(Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
