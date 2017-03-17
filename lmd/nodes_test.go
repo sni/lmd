@@ -31,7 +31,8 @@ func TestNodeManager(t *testing.T) {
 	}
 
 	if err = assertEq(len(res), 40); err != nil {
-		t.Fatalf("result contains 40 hosts")
+		Dump(res)
+		t.Errorf("result contains 40 hosts")
 	}
 
 	// test host stats request
@@ -40,10 +41,10 @@ func TestNodeManager(t *testing.T) {
 		t.Fatalf("request error should be nil")
 	}
 	if err = assertEq(res[0][1], 0.24065613746999998); err != nil {
-		t.Fatalf("host stats average")
+		t.Errorf("host stats average")
 	}
 	if err = assertEq(res[0][2], 9.6262454988); err != nil {
-		t.Fatalf("host stats sum")
+		t.Errorf("host stats sum")
 	}
 
 	StopTestPeer(peer)

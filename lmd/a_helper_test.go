@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,12 +10,11 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
 	"time"
-
-	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -165,9 +165,19 @@ func prepareTmpData(dataFolder string, numHosts int, numServices int) (tempFolde
 				}
 			}
 
-			encoded, _ := json.Marshal(newData)
+			buf := new(bytes.Buffer)
+			buf.Write([]byte("["))
+			for i, row := range newData {
+				enc, _ := json.Marshal(row)
+				buf.Write(enc)
+				if i < len(newData)-1 {
+					buf.Write([]byte(",\n"))
+				}
+			}
+			buf.Write([]byte("]\n"))
 			err = file.Close()
-			encoded = append([]byte(fmt.Sprintf("%d %11d\n", 200, len(encoded))), encoded...)
+			encoded := []byte(fmt.Sprintf("%d %11d\n", 200, len(buf.Bytes())))
+			encoded = append(encoded, buf.Bytes()...)
 			ioutil.WriteFile(fmt.Sprintf("%s/%s.json", tempFolder, name), encoded, 0644)
 		} else {
 			io.Copy(file, template)
