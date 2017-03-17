@@ -11,6 +11,7 @@ import (
 
 func TestMainFunc(t *testing.T) {
 	peer := StartTestPeer(1, 0, 0)
+	PauseTestPeers(peer)
 
 	res, err := peer.QueryString("GET backends\n\n")
 	if err != nil {
@@ -90,6 +91,7 @@ func TestAllOps(t *testing.T) {
 		t.Skip("skipping all ops test in short mode")
 	}
 	peer := StartTestPeer(1, 0, 0)
+	PauseTestPeers(peer)
 
 	ops := []string{"=", "!=", "=~", "!=~", "~", "!~", "~~", "!~~", "<", "<=", ">", ">=", "!>="}
 	values := []string{"", " test", " 5", " 3.124", "{}"}

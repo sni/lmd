@@ -143,6 +143,7 @@ func TestRequestHeaderFilter3(t *testing.T) {
 
 func TestRequestListFilter(t *testing.T) {
 	peer := StartTestPeer(1, 0, 0)
+	PauseTestPeers(peer)
 
 	res, _ := peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
 	if err := assertEq("gearman", res[0][0]); err != nil {
@@ -189,6 +190,7 @@ type ErrorRequest struct {
 
 func TestResponseErrorsFunc(t *testing.T) {
 	peer := StartTestPeer(1, 0, 0)
+	PauseTestPeers(peer)
 
 	testRequestStrings := []ErrorRequest{
 		{"", "bad request: empty request"},
@@ -238,6 +240,7 @@ func TestResponseErrorsFunc(t *testing.T) {
 
 func TestRequestNestedFilter(t *testing.T) {
 	peer := StartTestPeer(1, 0, 0)
+	PauseTestPeers(peer)
 
 	if err := assertEq(1, len(DataStore)); err != nil {
 		t.Error(err)
@@ -276,6 +279,7 @@ ResponseHeader: fixed16
 
 func TestRequestStats(t *testing.T) {
 	peer := StartTestPeer(1, 0, 0)
+	PauseTestPeers(peer)
 
 	if err := assertEq(1, len(DataStore)); err != nil {
 		t.Error(err)
@@ -309,6 +313,7 @@ func TestRequestStats(t *testing.T) {
 
 func TestRequestStatsBroken(t *testing.T) {
 	peer := StartTestPeer(1, 0, 0)
+	PauseTestPeers(peer)
 
 	res, err := peer.QueryString("GET hosts\nStats: sum name\nStats: avg contacts\nStats: min plugin_output\n")
 	if err = assertEq(float64(0), res[0][0]); err != nil {
@@ -320,6 +325,7 @@ func TestRequestStatsBroken(t *testing.T) {
 
 func TestRequestRefs(t *testing.T) {
 	peer := StartTestPeer(1, 0, 0)
+	PauseTestPeers(peer)
 
 	res1, err := peer.QueryString("GET hosts\nColumns: name latency check_command\nLimit: 1\n\n")
 	if err = assertEq(1, len(res1)); err != nil {
