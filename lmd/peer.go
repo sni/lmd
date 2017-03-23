@@ -115,7 +115,6 @@ func (d *DataTable) AddItem(row *[]interface{}) {
 func (d *DataTable) RemoveItem(row []interface{}) {
 	for i := range d.Data {
 		r := d.Data[i]
-		fmt.Println("#", i, r, fmt.Sprintf("%p", r))
 		if fmt.Sprintf("%p", r) == fmt.Sprintf("%p", row) {
 			d.Data = append(d.Data[:i], d.Data[i+1:]...)
 			delete(d.Index, fmt.Sprintf("%v", r[d.Table.GetColumn("id").Index]))
