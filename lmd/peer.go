@@ -1471,6 +1471,9 @@ func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) 
 		return
 	}
 	contents, err := ExtractHTTPResponse(response)
+	if err != nil {
+		return
+	}
 
 	if len(contents) < 1 || contents[0] != '{' {
 		if len(contents) > 50 {
