@@ -1,6 +1,9 @@
 This file documents the revision history for the Livestatus Multitool Daemon
 
 
+next:
+          - fix empty custom variable filters
+
 1.0.3    Tue Mar 14 16:54:41 CET 2017
           - use listeners from all config files instead of only the last config file
           - add num_hosts_* columns to host-, servicegroups

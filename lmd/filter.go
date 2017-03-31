@@ -156,12 +156,15 @@ func (f *Filter) String(prefix string) (str string) {
 }
 
 func (f *Filter) strValue() (str string) {
+	colType := f.Column.Type
 	if f.IsEmpty {
 		str = ""
+		if colType == CustomVarCol {
+			str = f.CustomTag
+		}
 		return
 	}
 	var value string
-	colType := f.Column.Type
 	if colType == VirtCol {
 		colType = VirtKeyMap[f.Column.Name].Type
 	}
@@ -302,11 +305,15 @@ func (f *Filter) setFilterValue(col *Column, strVal string, line *string) (err e
 		return
 	case CustomVarCol:
 		vars := strings.SplitN(strVal, " ", 2)
-		if len(vars) < 2 {
-			err = errors.New("bad request: custom variable filter must have form \"Filter: custom_variables <op> <variable> <value>\" in " + *line)
+		if vars[0] == "" {
+			err = errors.New("bad request: custom variable filter must have form \"Filter: custom_variables <op> <variable> [<value>]\" in " + *line)
 			return
 		}
-		f.StrValue = vars[1]
+		if len(vars) == 1 {
+			f.IsEmpty = true
+		} else {
+			f.StrValue = vars[1]
+		}
 		f.CustomTag = vars[0]
 		return
 	case StringListCol:

@@ -23,6 +23,7 @@ func TestRequestHeader(t *testing.T) {
 		"GET hosts\nColumns: name\nFilter: name !~ Test\n\n",
 		"GET hosts\nColumns: name\nFilter: name !~~ test\n\n",
 		"GET hosts\nColumns: name\nFilter: custom_variables ~~ TAGS test\n\n",
+		"GET hosts\nColumns: name\nFilter: custom_variables = TAGS\n\n",
 		"GET hosts\nColumns: name\nFilter: name !=\n\n",
 		"COMMAND [123456] TEST\n\n",
 		"GET hosts\nColumns: name\nFilter: name = test\nWaitTrigger: all\nWaitObject: test\nWaitTimeout: 10000\nWaitCondition: last_check > 1473760401\n\n",
@@ -222,6 +223,7 @@ func TestResponseErrorsFunc(t *testing.T) {
 		{"GET hosts\nStats: avg none", "bad request: unrecognized column from stats: none in Stats: avg none"},
 		{"GET hosts\nFilter: name !=\nAnd: x", "bad request: and must be a positive number in: And: x"},
 		{"GET hosts\nStats: name !=\nColumns: name\n", "bad request: stats and columns cannot be mixed"},
+		{"GET hosts\nColumns: name\nFilter: custom_variables =", `bad request: custom variable filter must have form "Filter: custom_variables <op> <variable> [<value>]" in Filter: custom_variables =`},
 	}
 
 	for _, er := range testRequestStrings {
