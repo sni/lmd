@@ -603,6 +603,9 @@ func (req *Request) ParseRequestHeaderLine(line *string) (err error) {
 	case "waitcondition":
 		err = ParseFilter(matched[1], line, req.Table, &req.WaitCondition)
 		return
+	case "keepalive":
+		log.Debugf("KeepAlive header ignored")
+		return
 	default:
 		err = fmt.Errorf("bad request: unrecognized header %s", *line)
 		return
