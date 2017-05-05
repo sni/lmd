@@ -342,14 +342,16 @@ func (res *Response) Send(c net.Conn) (size int, err error) {
 	}
 	size = len(resBytes) + 1
 	if res.Request.ResponseFixed16 {
-		log.Debugf("write: %s", fmt.Sprintf("%d %11d", res.Code, size))
+		if log.IsV(3) {
+			log.Tracef("write: %s", fmt.Sprintf("%d %11d", res.Code, size))
+		}
 		_, err = c.Write([]byte(fmt.Sprintf("%d %11d\n", res.Code, size)))
 		if err != nil {
 			log.Warnf("write error: %s", err.Error())
 		}
 	}
-	if log.IsV(2) {
-		log.Debugf("write: %s", resBytes)
+	if log.IsV(3) {
+		log.Tracef("write: %s", resBytes)
 	}
 	written, err := c.Write(resBytes)
 	if err != nil {
