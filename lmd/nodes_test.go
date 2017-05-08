@@ -6,7 +6,7 @@ import (
 
 func TestNodeManager(t *testing.T) {
 	extraConfig := `
-		Listen = ['test.sock', 'http://*:8901']
+		Listen = ['test.sock', 'http://127.0.0.1:8901']
 		Nodes = ['http://127.0.0.1:8901', 'http://127.0.0.2:8902']
 	`
 	peer := StartTestPeerExtra(4, 10, 10, extraConfig)
