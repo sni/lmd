@@ -17,72 +17,106 @@ var acceptInterval = 500 * time.Millisecond
 // It returns any error encountered.
 func QueryServer(c net.Conn) error {
 	localAddr := c.LocalAddr().String()
+	keepAlive := false
 	for {
-		t1 := time.Now()
 		remote := c.RemoteAddr().String()
 		if remote == "" {
 			remote = "unknown"
 		}
-		promFrontendConnections.WithLabelValues(localAddr).Inc()
-		log.Debugf("incoming request from: %s to %s", remote, localAddr)
-		c.SetDeadline(time.Now().Add(time.Duration(10) * time.Second))
+		if !keepAlive {
+			promFrontendConnections.WithLabelValues(localAddr).Inc()
+			log.Debugf("incoming request from: %s to %s", remote, localAddr)
+			c.SetDeadline(time.Now().Add(time.Duration(10) * time.Second))
+		}
 		defer c.Close()
 
 		reqs, err := ParseRequests(c)
 		if err != nil {
+			if err, ok := err.(net.Error); ok {
+				if keepAlive {
+					log.Debugf("closing keepalive connection from %s", remote)
+				} else {
+					log.Debugf("network error from %s: %s", remote, err.Error())
+				}
+				return err
+			}
 			(&Response{Code: 400, Request: &Request{}, Error: err}).Send(c)
 			return err
 		}
-		if len(reqs) == 0 {
+		if len(reqs) > 0 {
+			keepAlive, err = ProcessRequests(reqs, c, remote)
+
+			// keep open keepalive request until either the client closes the connection or the deadline timeout is hit
+			if keepAlive {
+				log.Debugf("keepalive connection from %s, waiting for more requests", remote)
+				c.SetDeadline(time.Now().Add(time.Duration(10) * time.Second))
+				continue
+			}
+		} else if keepAlive {
+			// wait up to deadline after the last keep alive request
+			time.Sleep(100 * time.Millisecond)
+			continue
+		} else {
 			err = errors.New("bad request: empty request")
 			(&Response{Code: 400, Request: &Request{}, Error: err}).Send(c)
 			return err
 		}
-		commandsByPeer := make(map[string][]string)
-		for i, req := range reqs {
-			if i > 0 {
-				t1 = time.Now()
-			}
-			if req.Command != "" {
-				for _, pID := range req.BackendsMap {
-					commandsByPeer[pID] = append(commandsByPeer[pID], strings.TrimSpace(req.Command))
-				}
-			} else {
-				// send all pending commands so far
-				if len(commandsByPeer) > 0 {
-					SendCommands(&commandsByPeer)
-					commandsByPeer = make(map[string][]string)
-					log.Infof("incoming command request from %s to %s finished in %s", remote, c.LocalAddr().String(), time.Since(t1))
-				}
-				if req.WaitTrigger != "" {
-					c.SetDeadline(time.Now().Add(time.Duration(req.WaitTimeout+1000) * time.Millisecond))
-				}
-				if req.Table == "log" {
-					c.SetDeadline(time.Now().Add(time.Duration(60) * time.Second))
-				}
-				response, rErr := req.GetResponse()
-				if rErr != nil {
-					(&Response{Code: 400, Request: req, Error: rErr}).Send(c)
-					return rErr
-				}
-
-				size, sErr := response.Send(c)
-				duration := time.Since(t1)
-				log.Infof("incoming %s request from %s to %s finished in %s, size: %.3f kB", req.Table, remote, c.LocalAddr().String(), duration.String(), float64(size)/1024)
-				if sErr != nil {
-					return sErr
-				}
-			}
-		}
-
-		// send all remaining commands
-		if len(commandsByPeer) > 0 {
-			SendCommands(&commandsByPeer)
-			log.Infof("incoming command request from %s to %s finished in %s", remote, c.LocalAddr().String(), time.Since(t1))
-		}
 
 		return err
 	}
+}
+
+// ProcessRequests creates response for all given requests
+func ProcessRequests(reqs []*Request, c net.Conn, remote string) (bool, error) {
+	if len(reqs) == 0 {
+		return false, nil
+	}
+	commandsByPeer := make(map[string][]string)
+	for _, req := range reqs {
+		t1 := time.Now()
+		if req.Command != "" {
+			for _, pID := range req.BackendsMap {
+				commandsByPeer[pID] = append(commandsByPeer[pID], strings.TrimSpace(req.Command))
+			}
+		} else {
+			// send all pending commands so far
+			if len(commandsByPeer) > 0 {
+				SendCommands(&commandsByPeer)
+				commandsByPeer = make(map[string][]string)
+				log.Infof("incoming command request from %s to %s finished in %s", remote, c.LocalAddr().String(), time.Since(t1))
+			}
+			if req.WaitTrigger != "" {
+				c.SetDeadline(time.Now().Add(time.Duration(req.WaitTimeout+1000) * time.Millisecond))
+			}
+			if req.Table == "log" {
+				c.SetDeadline(time.Now().Add(time.Duration(60) * time.Second))
+			}
+			response, rErr := req.GetResponse()
+			if rErr != nil {
+				(&Response{Code: 400, Request: req, Error: rErr}).Send(c)
+				return false, rErr
+			}
+
+			size, sErr := response.Send(c)
+			duration := time.Since(t1)
+			log.Infof("incoming %s request from %s to %s finished in %s, size: %.3f kB", req.Table, remote, c.LocalAddr().String(), duration.String(), float64(size)/1024)
+			if sErr != nil {
+				return false, sErr
+			}
+			if !req.KeepAlive {
+				return false, nil
+			}
+		}
+	}
+
+	// send all remaining commands
+	if len(commandsByPeer) > 0 {
+		t1 := time.Now()
+		SendCommands(&commandsByPeer)
+		log.Infof("incoming command request from %s to %s finished in %s", remote, c.LocalAddr().String(), time.Since(t1))
+	}
+
+	return reqs[len(reqs)-1].KeepAlive, nil
 }
 
 // SendCommands sends commands for this request to all selected remote sites.

@@ -224,6 +224,7 @@ func TestResponseErrorsFunc(t *testing.T) {
 		{"GET hosts\nFilter: name !=\nAnd: x", "bad request: and must be a positive number in: And: x"},
 		{"GET hosts\nStats: name !=\nColumns: name\n", "bad request: stats and columns cannot be mixed"},
 		{"GET hosts\nColumns: name\nFilter: custom_variables =", `bad request: custom variable filter must have form "Filter: custom_variables <op> <variable> [<value>]" in Filter: custom_variables =`},
+		{"GET hosts\nKeepalive: broke", `bad request: must be 'on' or 'off' in Keepalive: broke`},
 	}
 
 	for _, er := range testRequestStrings {

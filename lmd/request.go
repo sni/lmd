@@ -34,6 +34,7 @@ type Request struct {
 	WaitTrigger       string
 	WaitCondition     []Filter
 	WaitObject        string
+	KeepAlive         bool
 }
 
 // SortDirection can be either Asc or Desc
@@ -182,15 +183,19 @@ func (req *Request) String() (str string) {
 // NewRequest reads a buffer and creates a new request object.
 // It returns the request as long with the number of bytes read and any error.
 func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
-	req = &Request{SendColumnsHeader: false}
+	req = &Request{SendColumnsHeader: false, KeepAlive: false}
 	firstLine, err := b.ReadString('\n')
-	if err != nil && err != io.EOF {
-		err = fmt.Errorf("bad request: %s", err.Error())
-		return
+	if err != nil {
+		// Network errors will be logged in the listener
+		if _, ok := err.(net.Error); ok {
+			req = nil
+			return
+		}
 	}
 	size += len(firstLine)
 	firstLine = strings.TrimSpace(firstLine)
-	if log.IsV(2) {
+	// probably a open connection without new data from a keepalive request
+	if log.IsV(2) && firstLine != "" {
 		log.Debugf("request: %s", firstLine)
 	}
 
@@ -604,7 +609,7 @@ func (req *Request) ParseRequestHeaderLine(line *string) (err error) {
 		err = ParseFilter(matched[1], line, req.Table, &req.WaitCondition)
 		return
 	case "keepalive":
-		log.Debugf("KeepAlive header ignored")
+		err = parseOnOff(&req.KeepAlive, line, matched[1])
 		return
 	default:
 		err = fmt.Errorf("bad request: unrecognized header %s", *line)
@@ -682,6 +687,20 @@ func parseOutputFormat(field *string, value string) (err error) {
 	default:
 		err = errors.New("bad request: unrecognized outputformat, only json and wrapped_json is supported")
 		return
+	}
+	return
+}
+
+// parseOnOff parses a on/off header
+// It returns any error encountered.
+func parseOnOff(field *bool, line *string, value string) (err error) {
+	switch value {
+	case "on":
+		*field = true
+	case "off":
+		*field = false
+	default:
+		err = fmt.Errorf("bad request: must be 'on' or 'off' in %s", *line)
 	}
 	return
 }
