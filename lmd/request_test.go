@@ -222,7 +222,6 @@ func TestResponseErrorsFunc(t *testing.T) {
 		{"GET hosts\nStats: name", "bad request: stats header, must be Stats: <field> <operator> <value> OR Stats: <sum|avg|min|max> <field>"},
 		{"GET hosts\nStats: avg none", "bad request: unrecognized column from stats: none in Stats: avg none"},
 		{"GET hosts\nFilter: name !=\nAnd: x", "bad request: and must be a positive number in: And: x"},
-		{"GET hosts\nStats: name !=\nColumns: name\n", "bad request: stats and columns cannot be mixed"},
 		{"GET hosts\nColumns: name\nFilter: custom_variables =", `bad request: custom variable filter must have form "Filter: custom_variables <op> <variable> [<value>]" in Filter: custom_variables =`},
 		{"GET hosts\nKeepalive: broke", `bad request: must be 'on' or 'off' in Keepalive: broke`},
 	}
@@ -281,33 +280,55 @@ ResponseHeader: fixed16
 }
 
 func TestRequestStats(t *testing.T) {
-	peer := StartTestPeer(1, 0, 0)
+	peer := StartTestPeer(4, 10, 10)
 	PauseTestPeers(peer)
 
-	if err := assertEq(1, len(DataStore)); err != nil {
+	if err := assertEq(4, len(DataStore)); err != nil {
 		t.Error(err)
 	}
 
 	res, err := peer.QueryString("GET hosts\nColumns: name latency\n\n")
-	if err = assertEq(12, len(res)); err != nil {
+	if err = assertEq(40, len(res)); err != nil {
 		t.Error(err)
 	}
 
 	res, err = peer.QueryString("GET hosts\nStats: sum latency\nStats: avg latency\nStats: min has_been_checked\nStats: max execution_time\nStats: name !=\n")
 
-	if err = assertEq(1.7066228389833, res[0][0]); err != nil {
+	if err = assertEq(9.6262454988, res[0][0]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(0.142218569915275, res[0][1]); err != nil {
+	if err = assertEq(0.24065613746999998, res[0][1]); err != nil {
 		t.Error(err)
 	}
 	if err = assertEq(float64(1), res[0][2]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(4.031151, res[0][3]); err != nil {
+	if err = assertEq(4.010726, res[0][3]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(float64(12), res[0][4]); err != nil {
+	if err = assertEq(float64(40), res[0][4]); err != nil {
+		t.Error(err)
+	}
+
+	StopTestPeer(peer)
+}
+
+func TestRequestStatsGroupBy(t *testing.T) {
+	peer := StartTestPeer(4, 0, 0)
+	PauseTestPeers(peer)
+
+	if err := assertEq(4, len(DataStore)); err != nil {
+		t.Error(err)
+	}
+
+	res, err := peer.QueryString("GET hosts\nColumns: name alias\nStats: avg latency\n\n")
+	if err = assertEq(12, len(res)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq("gearman;gearman", res[1][0]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(0.051033973694, res[1][1]); err != nil {
 		t.Error(err)
 	}
 

@@ -1576,7 +1576,7 @@ func SpinUpPeers(peers []string) {
 }
 
 // BuildLocalResponseData returnss the result data for a given request
-func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (*[][]interface{}, *[]Filter) {
+func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (*[][]interface{}, *map[string][]Filter) {
 	req := res.Request
 	numPerRow := len(*indexes)
 	log.Tracef("BuildLocalResponseData: %s", p.Name)
@@ -1684,12 +1684,12 @@ Rows:
 	return &result
 }
 
-func (p *Peer) gatherStatsResult(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) *[]Filter {
+func (p *Peer) gatherStatsResult(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) *map[string][]Filter {
 	req := res.Request
 	refs := p.Tables[req.Table].Refs
 	inputRowLen := len((*data)[0])
 
-	localStats := createLocalStatsCopy(&req.Stats)
+	localStats := make(map[string][]Filter)
 
 Rows:
 	for j := range *data {
@@ -1702,6 +1702,15 @@ Rows:
 			}
 		}
 
+		key := ""
+		if len(req.Columns) > 0 {
+			key = p.getStatsKey(req.Columns, table, &refs, inputRowLen, row, j)
+		}
+
+		if _, ok := localStats[key]; !ok {
+			localStats[key] = createLocalStatsCopy(&req.Stats)
+		}
+
 		// count stats
 		for i := range req.Stats {
 			s := &(req.Stats[i])
@@ -1709,12 +1718,12 @@ Rows:
 			// counter must match their filter
 			if s.StatsType == Counter {
 				if p.MatchRowFilter(table, &refs, inputRowLen, s, row, j) {
-					localStats[i].Stats++
-					localStats[i].StatsCount++
+					localStats[key][i].Stats++
+					localStats[key][i].StatsCount++
 				}
 			} else {
 				val := p.GetRowValue(s.Column.Index, row, j, table, &refs, inputRowLen)
-				localStats[i].ApplyValue(numberToFloat(&val), 1)
+				localStats[key][i].ApplyValue(numberToFloat(&val), 1)
 			}
 		}
 	}
@@ -1741,6 +1750,16 @@ func optimizeResultLimit(req *Request, table *Table) (limit int) {
 		}
 	}
 	return
+}
+
+func (p *Peer) getStatsKey(columns []string, table *Table, refs *map[string][][]interface{}, inputRowLen int, row *[]interface{}, rowNum int) string {
+	keyValues := []string{}
+	for _, columnName := range columns {
+		index := table.ColumnsIndex[columnName]
+		value := p.GetRowValue(index, row, rowNum, table, refs, inputRowLen)
+		keyValues = append(keyValues, fmt.Sprintf("%s", value))
+	}
+	return strings.Join(keyValues, ";")
 }
 
 // MatchRowFilter returns true if the given filter matches the given datarow.

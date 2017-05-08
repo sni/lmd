@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -21,6 +22,7 @@ type Request struct {
 	Filter            []Filter
 	FilterStr         string
 	Stats             []Filter
+	StatsResult       map[string][]Filter
 	Limit             int
 	Offset            int
 	Sort              []*SortField
@@ -276,10 +278,6 @@ func (req *Request) ParseRequestAction(firstLine *string) (valid bool, err error
 // VerifyRequestIntegrity checks for logical errors in the request
 // It returns any error encountered.
 func (req *Request) VerifyRequestIntegrity() (err error) {
-	if len(req.Columns) > 0 && len(req.Stats) > 0 {
-		err = errors.New("bad request: stats and columns cannot be mixed")
-		return
-	}
 	if req.WaitTrigger != "" {
 		if req.WaitObject == "" {
 			err = errors.New("bad request: WaitTrigger without WaitObject")
@@ -530,9 +528,27 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan [][]interfac
 		if isStatsRequest {
 			// Stats request
 			// Value (sum), count (number of elements)
-			for i := range currentRows[0] {
-				value, count := currentRows[0][i].(float64), int(currentRows[1][i].(float64))
-				req.Stats[i].ApplyValue(value, count)
+			hasColumns := len(req.Columns) > 0
+			if req.StatsResult == nil {
+				req.StatsResult = make(map[string][]Filter)
+			}
+			for _, row := range currentRows {
+				// apply stats querys
+				key := ""
+				if hasColumns {
+					key = row[0].(string)
+				}
+				if _, ok := req.StatsResult[key]; !ok {
+					req.StatsResult[key] = createLocalStatsCopy(&req.Stats)
+				}
+				if hasColumns {
+					row = row[1:]
+				}
+				for i := range row {
+					data := reflect.ValueOf(row[i])
+					value, count := data.Index(0).Interface().(float64), int(data.Index(1).Interface().(float64))
+					req.StatsResult[key][i].ApplyValue(value, count)
+				}
 			}
 		} else {
 			// Regular request

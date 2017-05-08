@@ -65,6 +65,8 @@ const (
 	CustomVarCol
 	// VirtCol is used for virtual columns.
 	VirtCol
+	// StringFakeSortCol is used to sort grouped stats requests
+	StringFakeSortCol
 )
 
 // Column is the definition of a single column within a table.

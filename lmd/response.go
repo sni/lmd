@@ -117,7 +117,10 @@ func (res Response) Len() int {
 // Less returns the sort result of two data rows
 func (res Response) Less(i, j int) bool {
 	for _, s := range res.Request.Sort {
-		Type := res.Columns[s.Index].Type
+		Type := StringFakeSortCol
+		if s.Index != -1 {
+			Type = res.Columns[s.Index].Type
+		}
 		switch Type {
 		case TimeCol:
 			fallthrough
@@ -163,6 +166,20 @@ func (res Response) Less(i, j int) bool {
 				return s1 < s2
 			}
 			return s1 > s2
+		case StringFakeSortCol:
+			if s1, ok := res.Result[i][0].(string); ok {
+				if s2, ok := res.Result[j][0].(string); ok {
+					if s1 == s2 {
+						continue
+					}
+					if s.Direction == Asc {
+						return s1 < s2
+					}
+					return s1 > s2
+				}
+			}
+			// not implemented
+			return s.Direction == Asc
 		}
 		panic(fmt.Sprintf("sorting not implemented for type %d", Type))
 	}
@@ -241,45 +258,73 @@ func (res *Response) CalculateFinalStats() {
 	if len(res.Request.Stats) == 0 {
 		return
 	}
-	res.Result = make([][]interface{}, 1)
-	res.Result[0] = make([]interface{}, len(res.Request.Stats))
-	if res.Request.SendStatsData {
-		res.Result = append(res.Result, []interface{}{})
-		res.Result[1] = make([]interface{}, len(res.Request.Stats))
-	}
-	for i, s := range res.Request.Stats {
-		switch s.StatsType {
-		case Counter:
-			res.Result[0][i] = s.Stats
-			break
-		case Min:
-			res.Result[0][i] = s.Stats
-			break
-		case Max:
-			res.Result[0][i] = s.Stats
-			break
-		case Sum:
-			res.Result[0][i] = s.Stats
-			break
-		case Average:
-			if s.StatsCount > 0 {
-				res.Result[0][i] = s.Stats / float64(s.StatsCount)
-			} else {
-				res.Result[0][i] = 0
-			}
-			break
-		default:
-			log.Panicf("not implemented")
-			break
-		}
-		if s.StatsCount == 0 {
-			res.Result[0][i] = 0
-		}
+	res.Result = make([][]interface{}, len(res.Request.StatsResult))
+	hasColumns := len(res.Request.Columns) > 0
 
-		if res.Request.SendStatsData {
-			res.Result[0][i] = s.Stats
-			res.Result[1][i] = s.StatsCount
+	j := 0
+	for key, stats := range res.Request.StatsResult {
+		rowSize := len(stats)
+		if hasColumns {
+			rowSize++
 		}
+		res.Result[j] = make([]interface{}, rowSize)
+		if hasColumns {
+			res.Result[j][0] = key
+		}
+		for i, s := range stats {
+			if hasColumns {
+				i++
+			}
+
+			finalStatsApply(s, &res.Result[j][i])
+
+			if res.Request.SendStatsData {
+				res.Result[j][i] = []interface{}{s.Stats, s.StatsCount}
+				continue
+			}
+
+		}
+		j++
+	}
+
+	/* sort by first column for grouped stats */
+	if hasColumns {
+		t1 := time.Now()
+		// fake sort column
+		res.Request.Sort = []*SortField{{Name: "name", Index: -1, Direction: Asc}}
+		sort.Sort(res)
+		duration := time.Since(t1)
+		log.Debugf("sorting result took %s", duration.String())
+	}
+}
+
+func finalStatsApply(s Filter, res *interface{}) {
+	switch s.StatsType {
+	case Counter:
+		*res = s.Stats
+		break
+	case Min:
+		*res = s.Stats
+		break
+	case Max:
+		*res = s.Stats
+		break
+	case Sum:
+		*res = s.Stats
+		break
+	case Average:
+		if s.StatsCount > 0 {
+			*res = s.Stats / float64(s.StatsCount)
+		} else {
+			*res = 0
+		}
+		break
+	default:
+		log.Panicf("not implemented")
+		break
+	}
+	if s.StatsCount == 0 {
+		*res = 0
 	}
 }
 
@@ -457,17 +502,26 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) (err err
 			log.Tracef("[%s] starting local data computation", p.Name)
 			defer wg.Done()
 
-			result, stats := p.BuildLocalResponseData(res, indexes)
+			result, statsResult := p.BuildLocalResponseData(res, indexes)
 			log.Tracef("[%s] result ready", p.Name)
 			resultLock.Lock()
 			if result != nil {
 				// data results rows
 				res.Result = append(res.Result, (*result)...)
-			} else if stats != nil {
+			} else if statsResult != nil {
+				if res.Request.StatsResult == nil {
+					res.Request.StatsResult = make(map[string][]Filter)
+				}
 				// apply stats querys
-				for i := range *stats {
-					s := (*stats)[i]
-					res.Request.Stats[i].ApplyValue(s.Stats, s.StatsCount)
+				for key, stats := range *statsResult {
+					if _, ok := res.Request.StatsResult[key]; !ok {
+						res.Request.StatsResult[key] = stats
+					} else {
+						for i := range stats {
+							s := stats[i]
+							res.Request.StatsResult[key][i].ApplyValue(s.Stats, s.StatsCount)
+						}
+					}
 				}
 			}
 			resultLock.Unlock()
