@@ -160,6 +160,15 @@ func NewPeer(config Connection, waitGroup *sync.WaitGroup, shutdownChannel chan 
 	p.Status["ReponseTime"] = 0
 	p.Status["Idling"] = false
 	p.Status["Updating"] = false
+
+	/* strip of trailing slashes from http backends */
+	for i, s := range p.Source {
+		for len(s) > 0 && s[len(s)-1] == '/' {
+			s = s[0 : len(s)-1]
+		}
+		p.Source[i] = s
+	}
+
 	return &p
 }
 
@@ -1011,7 +1020,7 @@ func (p *Peer) setNextAddrFromErr(err error) {
 	promPeerFailedConnections.WithLabelValues(p.Name).Inc()
 	p.PeerLock.Lock()
 	peerAddr := p.Status["PeerAddr"].(string)
-	log.Debugf("[%s] connection error %s: %s", peerAddr, p.Name, err)
+	log.Debugf("[%s] connection error %s: %s", p.Name, peerAddr, err)
 	defer p.PeerLock.Unlock()
 	p.Status["LastError"] = err.Error()
 	p.ErrorCount++
