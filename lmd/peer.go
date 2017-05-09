@@ -1576,14 +1576,14 @@ func SpinUpPeers(peers []string) {
 }
 
 // BuildLocalResponseData returnss the result data for a given request
-func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (*[][]interface{}, *map[string][]Filter) {
+func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (int, *[][]interface{}, *map[string][]Filter) {
 	req := res.Request
 	numPerRow := len(*indexes)
 	log.Tracef("BuildLocalResponseData: %s", p.Name)
 	table := p.Tables[req.Table].Table
 	if table == nil || (!p.isOnline() && !table.Virtual) {
 		res.Failed[p.ID] = fmt.Sprintf("%v", p.StatusGet("LastError"))
-		return nil, nil
+		return 0, nil, nil
 	}
 
 	// if a WaitTrigger is supplied, wait max ms till the condition is true
@@ -1601,13 +1601,14 @@ func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (*[][]inter
 	}
 
 	if len(data) == 0 {
-		return nil, nil
+		return 0, nil, nil
 	}
 
 	if len(res.Request.Stats) > 0 {
-		return nil, p.gatherStatsResult(res, table, &data, numPerRow, indexes)
+		return 0, nil, p.gatherStatsResult(res, table, &data, numPerRow, indexes)
 	}
-	return p.gatherResultRows(res, table, &data, numPerRow, indexes), nil
+	total, result := p.gatherResultRows(res, table, &data, numPerRow, indexes)
+	return total, result, nil
 }
 
 // isOnline returns true if this peer is online and has data
@@ -1619,7 +1620,7 @@ func (p *Peer) isOnline() bool {
 	return false
 }
 
-func (p *Peer) gatherResultRows(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) *[][]interface{} {
+func (p *Peer) gatherResultRows(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) (int, *[][]interface{}) {
 	req := res.Request
 	refs := p.Tables[req.Table].Refs
 	inputRowLen := len((*data)[0])
@@ -1669,7 +1670,6 @@ Rows:
 		}
 		result = append(result, resRow)
 	}
-	res.ResultTotal += found
 
 	// sanitize broken custom var data from icinga2
 	for j, i := range *(indexes) {
@@ -1681,7 +1681,7 @@ Rows:
 		}
 	}
 
-	return &result
+	return found, &result
 }
 
 func (p *Peer) gatherStatsResult(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) *map[string][]Filter {

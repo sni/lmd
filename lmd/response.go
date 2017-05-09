@@ -502,9 +502,10 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) (err err
 			log.Tracef("[%s] starting local data computation", p.Name)
 			defer wg.Done()
 
-			result, statsResult := p.BuildLocalResponseData(res, indexes)
+			total, result, statsResult := p.BuildLocalResponseData(res, indexes)
 			log.Tracef("[%s] result ready", p.Name)
 			resultLock.Lock()
+			res.ResultTotal += total
 			if result != nil {
 				// data results rows
 				res.Result = append(res.Result, (*result)...)
