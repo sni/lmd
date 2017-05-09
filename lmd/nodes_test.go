@@ -28,41 +28,41 @@ func TestNodeManager(t *testing.T) {
 	// test host request
 	res, err := peer.QueryString("GET hosts\nColumns: name peer_key state\n\n")
 	if err != nil {
-		t.Fatalf("request error should be nil")
+		t.Fatal(err)
 	}
 
 	if err = assertEq(len(res), 40); err != nil {
-		t.Errorf("result contains 40 hosts")
+		t.Error(err)
 	}
 
 	// test host stats request
 	res, err = peer.QueryString("GET hosts\nStats: name !=\nStats: avg latency\nStats: sum latency\n\n")
 	if err != nil {
-		t.Fatalf("request error should be nil")
+		t.Fatal(err)
 	}
 	if err = assertEq(int(res[0][0].(float64)), 40); err != nil {
-		t.Errorf("host stats count")
+		t.Error(err)
 	}
 	if err = assertEq(res[0][1], 0.24065613746999998); err != nil {
-		t.Errorf("host stats average")
+		t.Error(err)
 	}
 	if err = assertEq(res[0][2], 9.6262454988); err != nil {
-		t.Errorf("host stats sum")
+		t.Error(err)
 	}
 
 	// test host grouped stats request
 	res, err = peer.QueryString("GET hosts\nColumns: name alias\nStats: name !=\nStats: avg latency\nStats: sum latency\n\n")
 	if err != nil {
-		t.Fatalf("request error should be nil")
+		t.Fatal(err)
 	}
 	if err = assertEq(res[0][0], "testhost_10;tomcat"); err != nil {
-		t.Errorf("host stats group name")
+		t.Error(err)
 	}
 	if err = assertEq(res[0][1], 4.0); err != nil {
-		t.Errorf("host stats group avg")
+		t.Error(err)
 	}
 	if err = assertEq(res[0][2], 0.24065613747); err != nil {
-		t.Errorf("host stats group sum")
+		t.Error(err)
 	}
 
 	StopTestPeer(peer)
