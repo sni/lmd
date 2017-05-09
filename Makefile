@@ -47,14 +47,6 @@ test: fmt dump
 
 citest: deps
 	#
-	# Normal test cases
-	#
-	cd $(LAMPDDIR) && go test -v | ../t/test_counter.sh
-	#
-	# Benchmark tests
-	#
-	cd $(LAMPDDIR) && go test -v -bench=B\* -run=^$$ . -benchmem
-	#
 	# Checking gofmt errors
 	#
 	if [ $$(cd $(LAMPDDIR) && gofmt -s -l . | wc -l) -gt 0 ]; then \
@@ -72,6 +64,17 @@ citest: deps
 	$(MAKE) lint
 	$(MAKE) cyclo
 	$(MAKE) mispell
+	#
+	# Normal test cases
+	#
+	cd $(LAMPDDIR) && go test -v | ../t/test_counter.sh
+	#
+	# Benchmark tests
+	#
+	cd $(LAMPDDIR) && go test -v -bench=B\* -run=^$$ . -benchmem
+	#
+	# Race rondition tests
+	#
 	$(MAKE) racetest
 	#
 	# All CI tests successfull
