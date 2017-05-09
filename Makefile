@@ -66,9 +66,13 @@ citest: deps
 	# Checking TODO items
 	#
 	if grep -r TODO: lmd/; then exit 1; fi
+	#
+	# Run other subtests
+	#
 	$(MAKE) lint
 	$(MAKE) cyclo
 	$(MAKE) mispell
+	$(MAKE) racetest
 	#
 	# All CI tests successfull
 	#
