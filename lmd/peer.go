@@ -231,17 +231,22 @@ func (p *Peer) Clear() {
 func (p *Peer) updateLoop() {
 	var ok bool
 	var lastTimeperiodUpdateMinute int
+	p.PeerLock.Lock()
 	if value, gotLastValue := p.Status["LastUpdateOK"]; gotLastValue {
 		// Get last update state
 		ok = *value.(*bool)
 		lastTimeperiodUpdateMinute = *p.Status["LastTimeperiodUpdateMinute"].(*int)
+		p.PeerLock.Unlock()
 	} else {
+		p.PeerLock.Unlock()
 		// First run, initialize tables
 		ok = p.InitAllTables()
 		lastTimeperiodUpdateMinute, _ = strconv.Atoi(time.Now().Format("4"))
 	}
+	p.PeerLock.Lock()
 	p.Status["LastUpdateOK"] = &ok
 	p.Status["LastTimeperiodUpdateMinute"] = &lastTimeperiodUpdateMinute
+	p.PeerLock.Unlock()
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	for {

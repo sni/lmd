@@ -77,7 +77,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 
 		// spin up required?
 		p.PeerLock.RLock()
-		if p.Status["Idling"].(bool) && len(table.DynamicColCacheIndexes) > 0 {
+		if p.StatusGet("Idling").(bool) && len(table.DynamicColCacheIndexes) > 0 {
 			spinUpPeers = append(spinUpPeers, id)
 		}
 		p.PeerLock.RUnlock()
