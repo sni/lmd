@@ -574,6 +574,8 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("state", DynamicUpdate, IntCol, "The current state of the host (0: up, 1: down, 2: unreachable)")
 	t.AddColumn("state_type", DynamicUpdate, IntCol, "The current state of the host (0: up, 1: down, 2: unreachable)")
 
+	t.AddColumn("staleness", VirtUpdate, StringCol, "Dummy column without actual value")
+
 	// shinken specific
 	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, ShinkenOnly, "Whether the host state is an impact or not (0/1)")
 	t.AddOptColumn("source_problems", DynamicUpdate, StringListCol, ShinkenOnly, "The name of the source problems (host or service)")
@@ -697,6 +699,8 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("state", DynamicUpdate, IntCol, "The current state of the service (0: OK, 1: WARN, 2: CRITICAL, 3: UNKNOWN)")
 	t.AddColumn("state_type", DynamicUpdate, IntCol, "The current state of the service (0: OK, 1: WARN, 2: CRITICAL, 3: UNKNOWN)")
 	t.AddColumn("host_name", StaticUpdate, StringCol, "Host name")
+
+	t.AddColumn("staleness", VirtUpdate, StringCol, "Dummy column without actual value")
 
 	// shinken specific
 	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, ShinkenOnly, "Whether the host state is an impact or not (0/1)")
