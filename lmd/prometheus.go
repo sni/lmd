@@ -137,10 +137,10 @@ var (
 	)
 )
 
-func initPrometheus() (prometheusListener net.Listener) {
-	if GlobalConfig.ListenPrometheus != "" {
+func initPrometheus(LocalConfig *Config) (prometheusListener net.Listener) {
+	if LocalConfig.ListenPrometheus != "" {
 		var err error
-		prometheusListener, err = net.Listen("tcp", GlobalConfig.ListenPrometheus)
+		prometheusListener, err = net.Listen("tcp", LocalConfig.ListenPrometheus)
 		go func() {
 			// make sure we log panics properly
 			defer logPanicExit()
@@ -152,7 +152,7 @@ func initPrometheus() (prometheusListener net.Listener) {
 			mux.Handle("/metrics", prometheus.Handler())
 			http.Serve(prometheusListener, mux)
 		}()
-		log.Infof("serving prometheus metrics at %s/metrics", GlobalConfig.ListenPrometheus)
+		log.Infof("serving prometheus metrics at %s/metrics", LocalConfig.ListenPrometheus)
 	}
 	prometheus.Register(promFrontendConnections)
 	prometheus.Register(promFrontendBytesSend)

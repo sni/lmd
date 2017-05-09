@@ -58,6 +58,7 @@ type Peer struct {
 	stopChannel     chan bool
 	Config          Connection
 	Flags           OptionalFlags
+	LocalConfig     *Config
 }
 
 // PeerStatus contains the different states a peer can have
@@ -126,7 +127,7 @@ func (d *DataTable) RemoveItem(row []interface{}) {
 
 // NewPeer creates a new peer object.
 // It returns the created peer.
-func NewPeer(config Connection, waitGroup *sync.WaitGroup, shutdownChannel chan bool) *Peer {
+func NewPeer(LocalConfig *Config, config Connection, waitGroup *sync.WaitGroup, shutdownChannel chan bool) *Peer {
 	p := Peer{
 		Name:            config.Name,
 		ID:              config.ID,
@@ -140,6 +141,7 @@ func NewPeer(config Connection, waitGroup *sync.WaitGroup, shutdownChannel chan 
 		PeerLock:        new(sync.RWMutex),
 		DataLock:        new(sync.RWMutex),
 		Config:          config,
+		LocalConfig:     LocalConfig,
 	}
 	p.Status["PeerKey"] = p.ID
 	p.Status["PeerName"] = p.Name
@@ -185,7 +187,9 @@ func (p *Peer) Start() {
 		defer logPanicExit()
 		p.updateLoop()
 		p.StatusSet("Updating", false)
+		p.PeerLock.Lock()
 		p.waitGroup.Done()
+		p.PeerLock.Unlock()
 	}()
 
 	return
@@ -277,7 +281,7 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 	now := time.Now().Unix()
 	currentMinute, _ := strconv.Atoi(time.Now().Format("4"))
 	if idling {
-		if now < lastUpdate+GlobalConfig.IdleInterval {
+		if now < lastUpdate+p.LocalConfig.IdleInterval {
 			return
 		}
 	} else {
@@ -292,7 +296,7 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 			p.checkIcinga2Reload()
 		}
 
-		if now < lastUpdate+GlobalConfig.Updateinterval {
+		if now < lastUpdate+p.LocalConfig.Updateinterval {
 			return
 		}
 	}
@@ -310,7 +314,7 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 	}
 
 	// full update interval
-	if !idling && GlobalConfig.FullUpdateInterval > 0 && now > lastFullUpdate+GlobalConfig.FullUpdateInterval {
+	if !idling && p.LocalConfig.FullUpdateInterval > 0 && now > lastFullUpdate+p.LocalConfig.FullUpdateInterval {
 		*ok = p.UpdateAllTables()
 		return
 	}
@@ -327,10 +331,10 @@ func (p *Peer) updateIdleStatus() bool {
 	idling := p.Status["Idling"].(bool)
 	p.PeerLock.RUnlock()
 	lastQueryStr := time.Unix(lastQuery, 0).String()
-	if lastQuery == 0 && lastMainRestart < now-GlobalConfig.IdleTimeout {
+	if lastQuery == 0 && lastMainRestart < now-p.LocalConfig.IdleTimeout {
 		shouldIdle = true
 		lastQueryStr = "never"
-	} else if lastQuery > 0 && lastQuery < now-GlobalConfig.IdleTimeout {
+	} else if lastQuery > 0 && lastQuery < now-p.LocalConfig.IdleTimeout {
 		shouldIdle = true
 	}
 	if !idling && shouldIdle {
@@ -359,7 +363,7 @@ func (p *Peer) StatusGet(key string) interface{} {
 // ScheduleImmediateUpdate resets all update timer so the next updateloop iteration
 // will performan an update.
 func (p *Peer) ScheduleImmediateUpdate() {
-	p.StatusSet("LastUpdate", time.Now().Unix()-GlobalConfig.Updateinterval)
+	p.StatusSet("LastUpdate", time.Now().Unix()-p.LocalConfig.Updateinterval)
 	p.StatusSet("LastFullServiceUpdate", time.Now().Unix()-MinFullScanInterval)
 	p.StatusSet("LastFullHostUpdate", time.Now().Unix()-MinFullScanInterval)
 }
@@ -869,7 +873,7 @@ func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn
 
 	// tcp/unix connections
 	// set read timeout
-	conn.SetDeadline(time.Now().Add(time.Duration(GlobalConfig.NetTimeout) * time.Second))
+	conn.SetDeadline(time.Now().Add(time.Duration(p.LocalConfig.NetTimeout) * time.Second))
 	fmt.Fprintf(conn, "%s", query)
 
 	// close write part of connection
@@ -975,7 +979,7 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 		case "tcp":
 			fallthrough
 		case "unix":
-			conn, err = net.DialTimeout(connType, peerAddr, time.Duration(GlobalConfig.NetTimeout)*time.Second)
+			conn, err = net.DialTimeout(connType, peerAddr, time.Duration(p.LocalConfig.NetTimeout)*time.Second)
 			break
 		case "http":
 			// test at least basic tcp connect
@@ -997,7 +1001,7 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 					break
 				}
 			}
-			conn, err = net.DialTimeout("tcp", host, time.Duration(GlobalConfig.NetTimeout)*time.Second)
+			conn, err = net.DialTimeout("tcp", host, time.Duration(p.LocalConfig.NetTimeout)*time.Second)
 			if conn != nil {
 				conn.Close()
 			}
@@ -1048,7 +1052,7 @@ func (p *Peer) setNextAddrFromErr(err error) {
 	now := time.Now().Unix()
 	lastOnline := p.Status["LastOnline"].(int64)
 	log.Debugf("[%s] last online: %s", p.Name, time.Unix(lastOnline, 0))
-	if lastOnline < now-int64(GlobalConfig.StaleBackendTimeout) || (p.ErrorCount > numSources && lastOnline <= 0) {
+	if lastOnline < now-int64(p.LocalConfig.StaleBackendTimeout) || (p.ErrorCount > numSources && lastOnline <= 0) {
 		if p.Status["PeerStatus"].(PeerStatus) != PeerStatusDown {
 			log.Warnf("[%s] site went offline: %s", p.Name, err.Error())
 			// clear existing data from memory
@@ -1572,7 +1576,7 @@ func SpinUpPeers(peers []string) {
 				log.Debugf("[%s] spin up update done", peer.Name)
 			} else {
 				// force new update sooner
-				peer.StatusSet("LastUpdate", time.Now().Unix()-GlobalConfig.Updateinterval)
+				peer.StatusSet("LastUpdate", time.Now().Unix()-peer.LocalConfig.Updateinterval)
 			}
 		}(p, waitgroup)
 	}

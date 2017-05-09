@@ -21,10 +21,14 @@ import (
 
 var testLogLevel = "Error"
 
+// GlobalTestConfig contains the global configuration (after config files have been parsed)
+var GlobalTestConfig Config
+
 func init() {
 	// make tests faster if the listener does not wait that long to shutdown
 	acceptInterval = 30 * time.Millisecond
 
+	setDefaults(&GlobalTestConfig)
 	InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
 
 	TestPeerWaitGroup = &sync.WaitGroup{}
@@ -221,7 +225,7 @@ ListenPrometheus = "127.0.0.1:50999"
 		panic(err.Error())
 	}
 
-	toml.DecodeFile("test.ini", &GlobalConfig)
+	toml.DecodeFile("test.ini", &GlobalTestConfig)
 	mainSignalChannel = make(chan os.Signal)
 	startedChannel := make(chan bool)
 
@@ -254,7 +258,7 @@ func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig
 	StartMockMainLoop(sockets, extraConfig)
 
 	testPeerShutdownChannel := make(chan bool)
-	peer = NewPeer(Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
+	peer = NewPeer(&GlobalTestConfig, Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
 	peer.InitAllTables()
 
 	// wait till backend is available

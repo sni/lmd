@@ -101,8 +101,6 @@ func (c *configFiles) Set(value string) error {
 // nodeAccessor manages cluster nodes and starts/stops peers.
 var nodeAccessor *Nodes
 
-// GlobalConfig contains the global configuration (after config files have been parsed)
-var GlobalConfig Config
 var flagVerbose bool
 var flagVeryVerbose bool
 var flagTraceVerbose bool
@@ -159,6 +157,11 @@ func main() {
 }
 
 func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
+	LocalConfig := ReadConfig(flagConfigFile)
+	setDefaults(&LocalConfig)
+	setVerboseFlags(&LocalConfig)
+	InitLogging(&LocalConfig)
+
 	osSignalChannel := make(chan os.Signal, 1)
 	signal.Notify(osSignalChannel, syscall.SIGHUP)
 	signal.Notify(osSignalChannel, syscall.SIGTERM)
@@ -170,17 +173,11 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	waitGroupListener := &sync.WaitGroup{}
 	waitGroupPeers := &sync.WaitGroup{}
 
-	GlobalConfig = ReadConfig(flagConfigFile)
-
-	setVerboseFlags(&GlobalConfig)
-	setDefaults(&GlobalConfig)
-	InitLogging(&GlobalConfig)
-
-	if len(GlobalConfig.Connections) == 0 {
+	if len(LocalConfig.Connections) == 0 {
 		log.Fatalf("no connections defined")
 	}
 
-	if len(GlobalConfig.Listen) == 0 {
+	if len(LocalConfig.Listen) == 0 {
 		log.Fatalf("no listeners defined")
 	}
 
@@ -189,23 +186,23 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	}
 
 	// initialize prometheus
-	prometheusListener := initPrometheus()
+	prometheusListener := initPrometheus(&LocalConfig)
 
 	// initialize http client
-	initializeHTTPClient()
+	initializeHTTPClient(&LocalConfig)
 
 	// start local listeners
-	waitGroupInit.Add(len(GlobalConfig.Listen))
-	for _, listen := range GlobalConfig.Listen {
+	waitGroupInit.Add(len(LocalConfig.Listen))
+	for _, listen := range LocalConfig.Listen {
 		go func(listen string) {
 			// make sure we log panics properly
 			defer logPanicExit()
-			LocalListener(listen, waitGroupInit, waitGroupListener, shutdownChannel)
+			LocalListener(&LocalConfig, listen, waitGroupInit, waitGroupListener, shutdownChannel)
 		}(listen)
 	}
 
 	// start remote connections
-	initializePeers(&GlobalConfig, waitGroupPeers, waitGroupInit, waitGroupListener, shutdownChannel)
+	initializePeers(&LocalConfig, waitGroupPeers, waitGroupInit, waitGroupListener, shutdownChannel)
 
 	once.Do(PrintVersion)
 
@@ -218,11 +215,11 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	}
 }
 
-func initializePeers(GlobalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGroupInit *sync.WaitGroup, waitGroupListener *sync.WaitGroup, shutdownChannel chan bool) {
+func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGroupInit *sync.WaitGroup, waitGroupListener *sync.WaitGroup, shutdownChannel chan bool) {
 	// This node's http address (http://*:1234), to be used as address pattern
 	var nodeListenAddress string
 	rx := regexp.MustCompile("^(https?)://(.*?):(.*)")
-	for _, listen := range GlobalConfig.Listen {
+	for _, listen := range LocalConfig.Listen {
 		parts := rx.FindStringSubmatch(listen)
 		if len(parts) != 4 {
 			continue
@@ -234,7 +231,7 @@ func initializePeers(GlobalConfig *Config, waitGroupPeers *sync.WaitGroup, waitG
 	// Get rid of obsolete peers (removed from config)
 	for id := range DataStore {
 		found := false // id exists
-		for _, c := range GlobalConfig.Connections {
+		for _, c := range LocalConfig.Connections {
 			if c.ID == id {
 				found = true
 			}
@@ -247,20 +244,23 @@ func initializePeers(GlobalConfig *Config, waitGroupPeers *sync.WaitGroup, waitG
 	// Create/set Peer objects
 	DataStoreOrder = nil
 	var backends []string
-	for _, c := range GlobalConfig.Connections {
+	for _, c := range LocalConfig.Connections {
 		// Keep peer if connection settings unchanged
 		var p *Peer
 		if v, ok := DataStore[c.ID]; ok {
 			if c.Equals(&v.Config) {
 				p = v
+				p.PeerLock.Lock()
 				p.waitGroup = waitGroupPeers
 				p.shutdownChannel = shutdownChannel
+				p.LocalConfig = LocalConfig
+				p.PeerLock.Unlock()
 			}
 		}
 
 		// Create new peer otherwise
 		if p == nil {
-			p = NewPeer(c, waitGroupPeers, shutdownChannel)
+			p = NewPeer(LocalConfig, c, waitGroupPeers, shutdownChannel)
 		}
 
 		// Check for duplicate id
@@ -279,7 +279,7 @@ func initializePeers(GlobalConfig *Config, waitGroupPeers *sync.WaitGroup, waitG
 
 	// Node accessor
 	var nodeAddresses []string
-	nodeAddresses = GlobalConfig.Nodes
+	nodeAddresses = LocalConfig.Nodes
 	nodeAccessor = NewNodes(nodeAddresses, nodeListenAddress, waitGroupInit, shutdownChannel)
 	nodeAccessor.Initialize() // starts peers in single mode
 	nodeAccessor.Start()      // nodes loop starts/stops peers in cluster mode
@@ -332,26 +332,23 @@ func checkFlags() {
 			os.Exit(2)
 		}
 	}
-
-	// initialize configuration and check for config errors
-	GlobalConfig = ReadConfig(flagConfigFile)
 }
 
-func setVerboseFlags(GlobalConfig *Config) {
+func setVerboseFlags(LocalConfig *Config) {
 	if flagVerbose {
-		GlobalConfig.LogLevel = "Info"
+		LocalConfig.LogLevel = "Info"
 	}
 	if flagVeryVerbose {
-		GlobalConfig.LogLevel = "Debug"
+		LocalConfig.LogLevel = "Debug"
 	}
 	if flagTraceVerbose {
-		GlobalConfig.LogLevel = "Trace"
+		LocalConfig.LogLevel = "Trace"
 	}
 }
 
-func initializeHTTPClient() {
+func initializeHTTPClient(LocalConfig *Config) {
 	insecure := false
-	if GlobalConfig.SkipSSLCheck == 1 {
+	if LocalConfig.SkipSSLCheck == 1 {
 		insecure = true
 	}
 	tr := &http.Transport{

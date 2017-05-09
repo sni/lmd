@@ -156,15 +156,15 @@ func SendCommands(commandsByPeer *map[string][]string) {
 }
 
 // LocalListener starts a listening socket.
-func LocalListener(listen string, waitGroupInit *sync.WaitGroup, waitGroupDone *sync.WaitGroup, shutdownChannel chan bool) {
+func LocalListener(LocalConfig *Config, listen string, waitGroupInit *sync.WaitGroup, waitGroupDone *sync.WaitGroup, shutdownChannel chan bool) {
 	defer waitGroupDone.Done()
 	waitGroupDone.Add(1)
 	if strings.HasPrefix(listen, "https://") {
 		listen = strings.TrimPrefix(listen, "https://")
-		LocalListenerHTTP("https", listen, waitGroupInit, waitGroupDone, shutdownChannel)
+		LocalListenerHTTP(LocalConfig, "https", listen, waitGroupInit, waitGroupDone, shutdownChannel)
 	} else if strings.HasPrefix(listen, "http://") {
 		listen = strings.TrimPrefix(listen, "http://")
-		LocalListenerHTTP("http", listen, waitGroupInit, waitGroupDone, shutdownChannel)
+		LocalListenerHTTP(LocalConfig, "http", listen, waitGroupInit, waitGroupDone, shutdownChannel)
 	} else if strings.Contains(listen, ":") {
 		listen = strings.TrimPrefix(listen, "*") // * means all interfaces
 		LocalListenerLivestatus("tcp", listen, waitGroupInit, waitGroupDone, shutdownChannel)
@@ -225,14 +225,14 @@ func LocalListenerLivestatus(connType string, listen string, waitGroupInit *sync
 }
 
 // LocalListenerHTTP starts a listening socket with http protocol.
-func LocalListenerHTTP(httpType string, listen string, waitGroupInit *sync.WaitGroup, waitGroupDone *sync.WaitGroup, shutdownChannel chan bool) {
+func LocalListenerHTTP(LocalConfig *Config, httpType string, listen string, waitGroupInit *sync.WaitGroup, waitGroupDone *sync.WaitGroup, shutdownChannel chan bool) {
 	// Parse listener address
 	listen = strings.TrimPrefix(listen, "*") // * means all interfaces
 
 	// Listener
 	var l net.Listener
 	if httpType == "https" {
-		cer, err := tls.LoadX509KeyPair(GlobalConfig.TLSCertificate, GlobalConfig.TLSKey)
+		cer, err := tls.LoadX509KeyPair(LocalConfig.TLSCertificate, LocalConfig.TLSKey)
 		if err != nil {
 			log.Fatalf("failed to initialize tls %s", err.Error())
 		}
