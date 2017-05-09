@@ -166,6 +166,7 @@ func LocalListener(listen string, waitGroupInit *sync.WaitGroup, waitGroupDone *
 		listen = strings.TrimPrefix(listen, "http://")
 		LocalListenerHTTP("http", listen, waitGroupInit, waitGroupDone, shutdownChannel)
 	} else if strings.Contains(listen, ":") {
+		listen = strings.TrimPrefix(listen, "*") // * means all interfaces
 		LocalListenerLivestatus("tcp", listen, waitGroupInit, waitGroupDone, shutdownChannel)
 	} else {
 		// remove stale sockets on start
