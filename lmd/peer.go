@@ -622,9 +622,15 @@ func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated
 		return
 	}
 
+	scanColumns := []string{"last_check",
+		"scheduled_downtime_depth",
+		"acknowledged",
+		"active_checks_enabled",
+		"notifications_enabled",
+	}
 	req := &Request{
 		Table:           table.Name,
-		Columns:         []string{"last_check", "scheduled_downtime_depth", "acknowledged"},
+		Columns:         scanColumns,
 		ResponseFixed16: true,
 		OutputFormat:    "json",
 	}
@@ -633,19 +639,19 @@ func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated
 		return
 	}
 	p.DataLock.RLock()
-	index1 := table.GetColumn("last_check").Index
-	index2 := table.GetColumn("scheduled_downtime_depth").Index
-	index3 := table.GetColumn("acknowledged").Index
+	indexList := make([]int, len(scanColumns))
+	for i, name := range scanColumns {
+		indexList[i] = table.GetColumn(name).Index
+	}
 	data := p.Tables[table.Name].Data
 	missing := make(map[float64]bool)
 	for i := range res {
 		row := res[i]
-		if row[0].(float64) != data[i][index1].(float64) {
-			missing[row[0].(float64)] = true
-		} else if row[1].(float64) != data[i][index2].(float64) {
-			missing[row[0].(float64)] = true
-		} else if row[2].(float64) != data[i][index3].(float64) {
-			missing[row[0].(float64)] = true
+		for j, index := range indexList {
+			if row[j].(float64) != data[i][index].(float64) {
+				missing[row[0].(float64)] = true
+				break
+			}
 		}
 	}
 	p.DataLock.RUnlock()
