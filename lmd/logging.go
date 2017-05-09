@@ -13,7 +13,8 @@ const logFormat = "[%{Date} %{Time}][%{Severity}][%{File}:%{Line}] %{Message}"
 const logColors = "%{Color \"yellow\" \"WARN\"}%{Color \"red\" \"ERROR\"}"
 const logColorReset = "%{Color \"reset\"}"
 
-var log *factorlog.FactorLog
+// initialize standard logger which will be configured later from the configuration file options
+var log = factorlog.New(os.Stdout, factorlog.NewStdFormatter("%{Date} %{Time} %{File}:%{Line} %{Message}"))
 
 // InitLogging initializes the logging system.
 func InitLogging(conf *Config) {
@@ -37,19 +38,19 @@ func InitLogging(conf *Config) {
 	if conf.LogLevel != "" {
 		LogLevel = conf.LogLevel
 	}
-	logger := factorlog.New(targetWriter, logFormatter)
-	logger.SetVerbosity(1)
+	log.SetFormatter(logFormatter)
+	log.SetOutput(targetWriter)
+	log.SetVerbosity(1)
 	if strings.ToLower(LogLevel) == "off" {
-		logger.SetMinMaxSeverity(factorlog.StringToSeverity("PANIC"), factorlog.StringToSeverity("PANIC"))
-		logger.SetVerbosity(0)
+		log.SetMinMaxSeverity(factorlog.StringToSeverity("PANIC"), factorlog.StringToSeverity("PANIC"))
+		log.SetVerbosity(0)
 	} else {
-		logger.SetMinMaxSeverity(factorlog.StringToSeverity(strings.ToUpper(LogLevel)), factorlog.StringToSeverity("PANIC"))
+		log.SetMinMaxSeverity(factorlog.StringToSeverity(strings.ToUpper(LogLevel)), factorlog.StringToSeverity("PANIC"))
 		if strings.ToLower(LogLevel) == "trace" {
-			logger.SetVerbosity(3)
+			log.SetVerbosity(3)
 		}
 		if strings.ToLower(LogLevel) == "debug" {
-			logger.SetVerbosity(2)
+			log.SetVerbosity(2)
 		}
 	}
-	log = logger
 }
