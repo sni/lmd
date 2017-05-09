@@ -101,7 +101,7 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 				continue
 			}
 
-			if len(req.Filter) > 0 {
+			if len(req.Filter) > 0 || len(req.Stats) > 0 {
 				conn.Write([]byte("200            3\n[]\n"))
 				conn.Close()
 				continue
@@ -291,7 +291,7 @@ func StopTestPeer(peer *Peer) {
 	// stop the mock servers
 	peer.QueryString("COMMAND [0] MOCK_EXIT")
 	// wait till all has stoped
-	waitTimeout(TestPeerWaitGroup, 5*time.Second)
+	waitTimeout(TestPeerWaitGroup, 1*time.Second)
 	// clean from global object
 	DataStore = make(map[string]*Peer)
 	DataStoreOrder = nil
