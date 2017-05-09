@@ -347,8 +347,11 @@ func (req *Request) BuildResponseIndexes(table *Table) (indexes []int, columns [
 		col = strings.ToLower(col)
 		i, ok := table.ColumnsIndex[col]
 		if !ok {
-			err = errors.New("bad request: table " + req.Table + " has no column " + col)
-			return
+			if !fixBrokenClientsRequestColumn(&col, table.Name) {
+				err = errors.New("bad request: table " + req.Table + " has no column " + col)
+				return
+			}
+			i, _ = table.ColumnsIndex[col]
 		}
 		if table.Columns[i].Type == VirtCol {
 			indexes = append(indexes, VirtKeyMap[col].Index)

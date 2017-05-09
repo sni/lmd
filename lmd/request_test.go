@@ -364,3 +364,24 @@ func TestRequestRefs(t *testing.T) {
 
 	StopTestPeer(peer)
 }
+
+func TestRequestBrokenColumns(t *testing.T) {
+	peer := StartTestPeer(1, 0, 0)
+	PauseTestPeers(peer)
+
+	res, err := peer.QueryString("GET hosts\nColumns: host_name alias\nFilter: host_name = gearman\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(1, len(res)); err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("gearman", res[0][0]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq("gearman", res[0][1]); err != nil {
+		t.Error(err)
+	}
+
+	StopTestPeer(peer)
+}

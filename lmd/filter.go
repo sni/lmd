@@ -243,11 +243,16 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 		return
 	}
 
+	columnName := tmp[0]
+
 	// convert value to type of column
-	i, Ok := Objects.Tables[table].ColumnsIndex[tmp[0]]
+	i, Ok := Objects.Tables[table].ColumnsIndex[columnName]
 	if !Ok {
-		err = errors.New("bad request: unrecognized column from filter: " + tmp[0] + " in " + *line)
-		return
+		if !fixBrokenClientsRequestColumn(&columnName, table) {
+			err = errors.New("bad request: unrecognized column from filter: " + columnName + " in " + *line)
+			return
+		}
+		i, _ = Objects.Tables[table].ColumnsIndex[columnName]
 	}
 	col := Objects.Tables[table].Columns[i]
 	filter := Filter{Operator: op, Column: col}
@@ -693,4 +698,24 @@ func numberToFloat(in *interface{}) float64 {
 		}
 	}
 	return 0
+}
+
+// some broken clients request service_description instead of just description from the services table
+// be nice to them as well...
+func fixBrokenClientsRequestColumn(columnName *string, table string) bool {
+	fixedColumnName := *columnName
+
+	switch table {
+	case "services":
+		fixedColumnName = strings.TrimPrefix(fixedColumnName, "service_")
+	case "hosts":
+		fixedColumnName = strings.TrimPrefix(fixedColumnName, "host_")
+	}
+
+	if _, Ok := Objects.Tables[table].ColumnsIndex[fixedColumnName]; Ok {
+		*columnName = fixedColumnName
+		return true
+	}
+
+	return false
 }
