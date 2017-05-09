@@ -166,6 +166,10 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	signal.Notify(osSignalChannel, syscall.SIGHUP)
 	signal.Notify(osSignalChannel, syscall.SIGTERM)
 	signal.Notify(osSignalChannel, os.Interrupt)
+	signal.Notify(osSignalChannel, syscall.SIGINT)
+
+	osSignalUsrChannel := make(chan os.Signal, 1)
+	signal.Notify(osSignalUsrChannel, syscall.SIGUSR1)
 
 	lastMainRestart = time.Now().Unix()
 	shutdownChannel := make(chan bool)
@@ -207,11 +211,18 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	once.Do(PrintVersion)
 
 	// just wait till someone hits ctrl+c or we have to reload
-	select {
-	case sig := <-osSignalChannel:
-		return mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
-	case sig := <-mainSignalChannel:
-		return mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
+	for {
+		select {
+		case sig := <-osSignalChannel:
+			return mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
+		case sig := <-osSignalUsrChannel:
+			log.Infof("got signal %s", sig)
+			buf := make([]byte, 1<<16)
+			runtime.Stack(buf, true)
+			log.Infof("%s", buf)
+		case sig := <-mainSignalChannel:
+			return mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
+		}
 	}
 }
 
@@ -380,6 +391,8 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 			os.Remove(flagPidfile)
 		}
 		return (0)
+	case syscall.SIGINT:
+		fallthrough
 	case os.Interrupt:
 		log.Infof("got sigint, quitting")
 		shutdownChannel <- true
