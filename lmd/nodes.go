@@ -327,8 +327,8 @@ func (n *Nodes) redistribute() {
 		if number != 0 {
 			// number == 0 means no backends for that node
 			list := make([]string, number)
-			for i := 0; i < number; i++ {
-				list[i] = n.backends[distributedCount+i]
+			for j := 0; j < number; j++ {
+				list[j] = n.backends[distributedCount+j]
 			}
 			distributedCount += number
 			assignedBackends[i] = list
