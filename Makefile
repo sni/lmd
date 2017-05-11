@@ -64,6 +64,7 @@ citest: deps
 	$(MAKE) lint
 	$(MAKE) cyclo
 	$(MAKE) mispell
+	$(MAKE) fmt
 	#
 	# Normal test cases
 	#
