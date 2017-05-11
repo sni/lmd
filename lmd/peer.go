@@ -122,7 +122,7 @@ func (d *DataTable) RemoveItem(row []interface{}) {
 			return
 		}
 	}
-	panic("element not found")
+	log.Panicf("element not found")
 }
 
 // NewPeer creates a new peer object.
@@ -1119,28 +1119,28 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	}
 
 	// expand references, create a hash entry for each reference type, ex.: hosts
-	// and put an array containing the references (using the same index as the original row)
+	// with an array containing the references (using the same index as the original row)
 	for _, refNum := range table.RefColCacheIndexes {
 		refCol := table.Columns[refNum]
 		fieldName := refCol.Name
 		refs[fieldName] = make([][]interface{}, len(res))
-		RefByName := p.Tables[fieldName].Index
+		refByName := p.Tables[fieldName].Index
 		if refCol.Name == "services" {
 			hostnameIndex := table.ColumnsIndex["hostname_index"]
 			for i := range res {
 				row := res[i]
 				key := row[hostnameIndex].(string) + ";" + row[refCol.RefIndex].(string)
-				refs[fieldName][i] = RefByName[key]
-				if RefByName[key] == nil {
-					panic("ref not found: " + row[refCol.RefIndex].(string))
+				refs[fieldName][i] = refByName[key]
+				if refByName[key] == nil {
+					log.Panicf("%s ref not found: %s, refmap contains %d elements", table.Name, row[refCol.RefIndex].(string), len(refByName))
 				}
 			}
 		} else {
 			for i := range res {
 				row := res[i]
-				refs[fieldName][i] = RefByName[row[refCol.RefIndex].(string)]
-				if RefByName[row[refCol.RefIndex].(string)] == nil {
-					panic("ref not found: " + row[refCol.RefIndex].(string))
+				refs[fieldName][i] = refByName[row[refCol.RefIndex].(string)]
+				if refByName[row[refCol.RefIndex].(string)] == nil {
+					log.Panicf("%s ref not found: %s, refmap contains %d elements", table.Name, row[refCol.RefIndex].(string), len(refByName))
 				}
 			}
 		}
@@ -1258,7 +1258,7 @@ func (p *Peer) GetGroupByData(table *Table) (res [][]interface{}, err error) {
 			}
 		}
 	default:
-		panic("GetGroupByData not implemented for table: " + table.Name)
+		log.Panicf("GetGroupByData not implemented for table: %s", table.Name)
 	}
 	return
 }
@@ -1376,7 +1376,7 @@ func (p *Peer) GetRowValue(index int, row *[]interface{}, rowNum int, table *Tab
 		// reference columns
 		refObj := (*refs)[table.Columns[col.RefIndex].Name][rowNum]
 		if refObj == nil {
-			panic("should not happen, ref not found")
+			log.Panicf("should not happen, ref not found in table %s", table.Name)
 		}
 		if len(refObj) > col.RefColIndex {
 			return refObj[col.RefColIndex]
