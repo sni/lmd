@@ -341,7 +341,7 @@ func (req *Request) BuildResponseIndexes(table *Table) (indexes []int, columns [
 	if len(req.Columns) == 0 && len(req.Stats) == 0 {
 		req.SendColumnsHeader = true
 		for _, col := range table.Columns {
-			if col.Update == StaticUpdate || col.Update == DynamicUpdate || col.Update == VirtUpdate || col.Type == VirtCol {
+			if col.Update != RefUpdate {
 				req.Columns = append(req.Columns, col.Name)
 			}
 		}
