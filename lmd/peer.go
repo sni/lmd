@@ -1100,14 +1100,20 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 		return
 	}
 
-	// fetch remote objects
-	req := &Request{
-		Table:           table.Name,
-		Columns:         keys,
-		ResponseFixed16: true,
-		OutputFormat:    "json",
+	var res [][]interface{}
+	if table.GroupBy {
+		// calculate groupby data from local table
+		res, err = p.GetGroupByData(table)
+	} else {
+		// fetch remote objects
+		req := &Request{
+			Table:           table.Name,
+			Columns:         keys,
+			ResponseFixed16: true,
+			OutputFormat:    "json",
+		}
+		res, err = p.Query(req)
 	}
-	res, err := p.Query(req)
 	if err != nil {
 		return
 	}
@@ -1119,11 +1125,23 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 		fieldName := refCol.Name
 		refs[fieldName] = make([][]interface{}, len(res))
 		RefByName := p.Tables[fieldName].Index
-		for i := range res {
-			row := res[i]
-			refs[fieldName][i] = RefByName[row[refCol.RefIndex].(string)]
-			if RefByName[row[refCol.RefIndex].(string)] == nil {
-				panic("ref not found: " + row[refCol.RefIndex].(string))
+		if refCol.Name == "services" {
+			hostnameIndex := table.ColumnsIndex["hostname_index"]
+			for i := range res {
+				row := res[i]
+				key := row[hostnameIndex].(string) + ";" + row[refCol.RefIndex].(string)
+				refs[fieldName][i] = RefByName[key]
+				if RefByName[key] == nil {
+					panic("ref not found: " + row[refCol.RefIndex].(string))
+				}
+			}
+		} else {
+			for i := range res {
+				row := res[i]
+				refs[fieldName][i] = RefByName[row[refCol.RefIndex].(string)]
+				if RefByName[row[refCol.RefIndex].(string)] == nil {
+					panic("ref not found: " + row[refCol.RefIndex].(string))
+				}
 			}
 		}
 	}
@@ -1160,6 +1178,14 @@ func (p *Peer) createIndexAndFlags(table *Table, res *[][]interface{}, index *ma
 		}
 		promServiceCount.WithLabelValues(p.Name).Set(float64(len((*res))))
 	}
+	if table.Name == "hostgroups" || table.Name == "servicegroups" {
+		indexField := table.ColumnsIndex["name"]
+		for i := range *res {
+			row := (*res)[i]
+			(*index)[row[indexField].(string)] = row
+		}
+		promHostCount.WithLabelValues(p.Name).Set(float64(len((*res))))
+	}
 	// create downtime / comment id lookup indexes
 	if table.Name == "comments" || table.Name == "downtimes" {
 		indexField := table.ColumnsIndex["id"]
@@ -1183,6 +1209,58 @@ func (p *Peer) createIndexAndFlags(table *Table, res *[][]interface{}, index *ma
 			p.PeerLock.Unlock()
 		}
 	}
+}
+
+// GetGroupByData returns fake query result for given groupby table
+func (p *Peer) GetGroupByData(table *Table) (res [][]interface{}, err error) {
+	res = make([][]interface{}, 0)
+	switch table.Name {
+	case "hostsbygroup":
+		index1 := p.Tables["hosts"].Table.ColumnsIndex["name"]
+		index2 := p.Tables["hosts"].Table.ColumnsIndex["groups"]
+		for _, row := range p.Tables["hosts"].Data {
+			name := row[index1].(string)
+			switch v := (row[index2]).(type) {
+			case []interface{}:
+				for _, group := range v {
+					res = append(res, []interface{}{name, group})
+				}
+			}
+		}
+	case "servicesbygroup":
+		index1 := p.Tables["services"].Table.ColumnsIndex["host_name"]
+		index2 := p.Tables["services"].Table.ColumnsIndex["description"]
+		index3 := p.Tables["services"].Table.ColumnsIndex["groups"]
+		for _, row := range p.Tables["services"].Data {
+			hostName := row[index1].(string)
+			description := row[index2].(string)
+			switch v := (row[index3]).(type) {
+			case []interface{}:
+				for _, group := range v {
+					res = append(res, []interface{}{hostName, description, group})
+				}
+			}
+		}
+	case "servicesbyhostgroup":
+		index1 := p.Tables["services"].Table.ColumnsIndex["host_name"]
+		index2 := p.Tables["services"].Table.ColumnsIndex["description"]
+		index3 := p.Tables["services"].Table.ColumnsIndex["host_groups"]
+		refs := p.Tables["services"].Refs
+		for i, row := range p.Tables["services"].Data {
+			hostName := row[index1].(string)
+			description := row[index2].(string)
+			groups := p.GetRowValue(index3, &row, i, p.Tables["services"].Table, &refs, 3)
+			switch v := (groups).(type) {
+			case []interface{}:
+				for _, group := range v {
+					res = append(res, []interface{}{hostName, description, group})
+				}
+			}
+		}
+	default:
+		panic("GetGroupByData not implemented for table: " + table.Name)
+	}
+	return
 }
 
 // UpdateObjectByType updates a given table by requesting all dynamic columns from the remote peer.

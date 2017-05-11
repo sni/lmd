@@ -23,6 +23,7 @@ type Table struct {
 	RefColCacheIndexes     []int
 	PassthroughOnly        bool
 	Virtual                bool
+	GroupBy                bool
 }
 
 // UpdateType defines if and how the column is updated.
@@ -144,7 +145,7 @@ func (o *ObjectsType) GetTableColumnsData() (data [][]interface{}) {
 				colTypeName = "string"
 				break
 			default:
-				log.Panicf("type not handled: %#v", c)
+				log.Panicf("type not handled in table %s: %#v", t.Name, c)
 			}
 			row := make([]interface{}, 4)
 			row[0] = c.Name
@@ -261,10 +262,14 @@ func (t *Table) AddOptColumn(Name string, Update UpdateType, Type ColumnType, Re
 }
 
 // AddRefColumn adds a reference column.
-func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, Type ColumnType) {
+// Ref: name of the referenced table
+// Prefix: column prefix for the added columns
+// Name: column name in the referenced table
+// LocalName: column name which holds the reference value
+func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, LocalName string) {
 	_, Ok := Objects.Tables[Ref]
 	if !Ok {
-		panic("no such reference " + Ref + " from column " + Prefix + "_" + Name)
+		panic("no such reference " + Ref + " from column " + LocalName)
 	}
 
 	// virtual column containing the information required to connect the referenced object
@@ -272,7 +277,7 @@ func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, Type Column
 		Name:        Ref, // type of reference, ex.: hosts
 		Type:        RefCol,
 		Update:      RefUpdate,
-		RefIndex:    t.ColumnsIndex[Prefix+"_"+Name],        // contains the index from the local column, ex: host_name in services
+		RefIndex:    t.ColumnsIndex[LocalName],              // contains the index from the local column, ex: host_name in services
 		RefColIndex: Objects.Tables[Ref].ColumnsIndex[Name], // contains the index from the remote column, ex: name in host
 	}
 	RefIndex := t.AddColumnObject(&RefColumn)
@@ -280,8 +285,19 @@ func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, Type Column
 	// add fake columns for all columns from the referenced table
 	for _, col := range Objects.Tables[Ref].Columns {
 		if col.Name != Name {
+			// skip peer_key and such things from ref table
+			if col.Type == VirtCol {
+				continue
+			}
+			if col.Update == RefUpdate {
+				continue
+			}
+			refColName := Prefix + "_" + col.Name
+			if Prefix == "" {
+				refColName = col.Name
+			}
 			column := &Column{
-				Name:        Prefix + "_" + col.Name,
+				Name:        refColName,
 				Type:        col.Type,
 				Update:      RefNoUpdate,
 				RefIndex:    RefIndex,
@@ -315,6 +331,9 @@ func InitObjects() {
 	Objects.AddTable("comments", NewCommentsTable())
 	Objects.AddTable("downtimes", NewDowntimesTable())
 	Objects.AddTable("log", NewLogTable())
+	Objects.AddTable("hostsbygroup", NewHostsByGroupTable())
+	Objects.AddTable("servicesbygroup", NewServicesByGroupTable())
+	Objects.AddTable("servicesbyhostgroup", NewServicesByHostgroupTable())
 
 	// add some aliases
 	Objects.AddTable("sites", NewBackendsTable("sites"))
@@ -573,8 +592,7 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("scheduled_downtime_depth", DynamicUpdate, IntCol, "The number of downtimes this host is currently in")
 	t.AddColumn("state", DynamicUpdate, IntCol, "The current state of the host (0: up, 1: down, 2: unreachable)")
 	t.AddColumn("state_type", DynamicUpdate, IntCol, "The current state of the host (0: up, 1: down, 2: unreachable)")
-
-	t.AddColumn("staleness", VirtUpdate, StringCol, "Dummy column without actual value")
+	t.AddColumn("staleness", DynamicUpdate, FloatCol, "Staleness indicator for this host")
 
 	// shinken specific
 	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, ShinkenOnly, "Whether the host state is an impact or not (0/1)")
@@ -699,8 +717,7 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("state", DynamicUpdate, IntCol, "The current state of the service (0: OK, 1: WARN, 2: CRITICAL, 3: UNKNOWN)")
 	t.AddColumn("state_type", DynamicUpdate, IntCol, "The current state of the service (0: OK, 1: WARN, 2: CRITICAL, 3: UNKNOWN)")
 	t.AddColumn("host_name", StaticUpdate, StringCol, "Host name")
-
-	t.AddColumn("staleness", VirtUpdate, StringCol, "Dummy column without actual value")
+	t.AddColumn("staleness", DynamicUpdate, FloatCol, "Staleness indicator for this host")
 
 	// shinken specific
 	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, ShinkenOnly, "Whether the host state is an impact or not (0/1)")
@@ -713,7 +730,7 @@ func NewServicesTable() (t *Table) {
 	t.AddOptColumn("got_business_rule", DynamicUpdate, IntCol, ShinkenOnly, "Whether the service state is an business rule based host or not (0/1)")
 	t.AddOptColumn("parent_dependencies", DynamicUpdate, StringCol, ShinkenOnly, "List of the dependencies (logical, network or business one) of this service.")
 
-	t.AddRefColumn("hosts", "host", "name", StringCol)
+	t.AddRefColumn("hosts", "host", "name", "host_name")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
@@ -795,8 +812,7 @@ func NewDowntimesTable() (t *Table) {
 
 // NewLogTable returns a new log table
 func NewLogTable() (t *Table) {
-	t = &Table{Name: "log"}
-	t.PassthroughOnly = true
+	t = &Table{Name: "log", PassthroughOnly: true}
 
 	t.AddColumn("attempt", StaticUpdate, IntCol, "The number of the check attempt")
 	t.AddColumn("class", StaticUpdate, IntCol, "The class of the message as integer (0:info, 1:state, 2:program, 3:notification, 4:passive, 5:command)")
@@ -813,6 +829,52 @@ func NewLogTable() (t *Table) {
 	t.AddColumn("type", StaticUpdate, StringCol, "The type of the message (text before the colon), the message itself for info messages")
 	t.AddColumn("current_service_contacts", StaticUpdate, StringListCol, "A list of all contacts of the service, either direct or via a contact group")
 	t.AddColumn("current_host_contacts", StaticUpdate, StringListCol, "A list of all contacts of this host, either direct or via a contact group")
+
+	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
+	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
+	return
+}
+
+// NewHostsByGroupTable returns a new hostsbygroup table
+func NewHostsByGroupTable() (t *Table) {
+	t = &Table{Name: "hostsbygroup", GroupBy: true}
+	t.AddColumn("name", StaticUpdate, StringCol, "Host name")
+	t.AddColumn("hostgroup_name", StaticUpdate, StringCol, "Host group name")
+
+	t.AddRefColumn("hosts", "", "name", "name")
+	t.AddRefColumn("hostgroups", "hostgroup", "name", "hostgroup_name")
+
+	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
+	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
+	return
+}
+
+// NewServicesByGroupTable returns a new servicesbygroup table
+func NewServicesByGroupTable() (t *Table) {
+	t = &Table{Name: "servicesbygroup", GroupBy: true}
+	t.AddColumn("host_name", StaticUpdate, StringCol, "Host name")
+	t.AddColumn("description", StaticUpdate, StringCol, "Service description")
+	t.AddColumn("servicegroup_name", StaticUpdate, StringCol, "Service group name")
+
+	t.AddRefColumn("hosts", "host", "name", "host_name")
+	t.AddRefColumn("services", "", "description", "description")
+	t.AddRefColumn("servicegroups", "servicegroup", "name", "servicegroup_name")
+
+	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
+	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
+	return
+}
+
+// NewServicesByHostgroupTable returns a new servicesbyhostgroup table
+func NewServicesByHostgroupTable() (t *Table) {
+	t = &Table{Name: "servicesbyhostgroup", GroupBy: true}
+	t.AddColumn("host_name", StaticUpdate, StringCol, "Host name")
+	t.AddColumn("description", StaticUpdate, StringCol, "Service description")
+	t.AddColumn("hostgroup_name", StaticUpdate, StringCol, "Host group name")
+
+	t.AddRefColumn("hosts", "host", "name", "host_name")
+	t.AddRefColumn("services", "", "description", "description")
+	t.AddRefColumn("hostgroups", "hostgroup", "name", "hostgroup_name")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
