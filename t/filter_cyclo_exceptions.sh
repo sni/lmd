@@ -4,6 +4,9 @@ FOUND=0
 
 while read line
 do
+  if [[ "$line" == *"_test.go"*  ]]; then
+    continue
+  fi
   if [[ "$line" == *"matchStringValueOperator filter.go"*  ]]; then
     continue
   fi

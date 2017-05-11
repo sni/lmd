@@ -259,22 +259,20 @@ func (res *Response) CalculateFinalStats() {
 		return
 	}
 	res.Result = make([][]interface{}, len(res.Request.StatsResult))
-	hasColumns := len(res.Request.Columns) > 0
+	hasColumns := len(res.Request.Columns)
 
 	j := 0
 	for key, stats := range res.Request.StatsResult {
 		rowSize := len(stats)
-		if hasColumns {
-			rowSize++
-		}
+		rowSize += hasColumns
 		res.Result[j] = make([]interface{}, rowSize)
-		if hasColumns {
-			res.Result[j][0] = key
+		if hasColumns > 0 {
+			for i, keyPart := range strings.Split(key, ";") {
+				res.Result[j][i] = keyPart
+			}
 		}
 		for i, s := range stats {
-			if hasColumns {
-				i++
-			}
+			i += hasColumns
 
 			finalStatsApply(s, &res.Result[j][i])
 
@@ -287,14 +285,20 @@ func (res *Response) CalculateFinalStats() {
 		j++
 	}
 
-	/* sort by first column for grouped stats */
-	if hasColumns {
+	/* sort by columns for grouped stats */
+	if hasColumns > 0 {
 		t1 := time.Now()
 		// fake sort column
-		res.Request.Sort = []*SortField{{Name: "name", Index: -1, Direction: Asc}}
+		if hasColumns > 0 {
+			res.Request.Sort = []*SortField{}
+			for x := 0; x < hasColumns; x++ {
+				res.Request.Sort = append(res.Request.Sort, &SortField{Name: "name", Index: -1, Direction: Asc})
+			}
+		}
 		sort.Sort(res)
 		duration := time.Since(t1)
 		log.Debugf("sorting result took %s", duration.String())
+		res.Request.Sort = []*SortField{}
 	}
 }
 

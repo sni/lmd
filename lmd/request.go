@@ -528,21 +528,25 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan [][]interfac
 		if isStatsRequest {
 			// Stats request
 			// Value (sum), count (number of elements)
-			hasColumns := len(req.Columns) > 0
+			hasColumns := len(req.Columns)
 			if req.StatsResult == nil {
 				req.StatsResult = make(map[string][]Filter)
 			}
 			for _, row := range currentRows {
 				// apply stats querys
 				key := ""
-				if hasColumns {
-					key = row[0].(string)
+				if hasColumns > 0 {
+					keys := []string{}
+					for x := 0; x < hasColumns; x++ {
+						keys = append(keys, row[x].(string))
+					}
+					key = strings.Join(keys, ";")
 				}
 				if _, ok := req.StatsResult[key]; !ok {
 					req.StatsResult[key] = createLocalStatsCopy(&req.Stats)
 				}
-				if hasColumns {
-					row = row[1:]
+				if hasColumns > 0 {
+					row = row[hasColumns:]
 				}
 				for i := range row {
 					data := reflect.ValueOf(row[i])

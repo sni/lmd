@@ -55,13 +55,16 @@ func TestNodeManager(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq(res[0][0], "testhost_10;tomcat"); err != nil {
+	if err = assertEq(res[0][0], "testhost_1"); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(res[0][1], 4.0); err != nil {
+	if err = assertEq(res[0][1], "tomcat"); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(res[0][2], 0.24065613747); err != nil {
+	if err = assertEq(res[0][2], 4.0); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(res[0][3], 0.24065613747); err != nil {
 		t.Error(err)
 	}
 

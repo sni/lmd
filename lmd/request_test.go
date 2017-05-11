@@ -321,14 +321,28 @@ func TestRequestStatsGroupBy(t *testing.T) {
 		t.Error(err)
 	}
 
-	res, err := peer.QueryString("GET hosts\nColumns: name alias\nStats: avg latency\n\n")
+	res, err := peer.QueryString("GET hosts\nColumns: name\nStats: avg latency\n\n")
 	if err = assertEq(12, len(res)); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq("gearman;gearman", res[1][0]); err != nil {
+	if err = assertEq("gearman", res[1][0]); err != nil {
 		t.Error(err)
 	}
 	if err = assertEq(0.051033973694, res[1][1]); err != nil {
+		t.Error(err)
+	}
+
+	res, err = peer.QueryString("GET hosts\nColumns: name alias\nStats: avg latency\n\n")
+	if err = assertEq(12, len(res)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq("gearman", res[1][0]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq("gearman", res[1][1]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(0.051033973694, res[1][2]); err != nil {
 		t.Error(err)
 	}
 
