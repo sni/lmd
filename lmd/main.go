@@ -72,6 +72,7 @@ type Config struct {
 	LogFile             string
 	LogLevel            string
 	NetTimeout          int
+	ListenTimeout       int
 	ListenPrometheus    string
 	SkipSSLCheck        int
 	IdleTimeout         int64
@@ -441,6 +442,9 @@ func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 func setDefaults(conf *Config) {
 	if conf.NetTimeout <= 0 {
 		conf.NetTimeout = 30
+	}
+	if conf.ListenTimeout <= 0 {
+		conf.ListenTimeout = 60
 	}
 	if conf.Updateinterval <= 0 {
 		conf.Updateinterval = 5

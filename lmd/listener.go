@@ -18,17 +18,17 @@ var acceptInterval = 500 * time.Millisecond
 func QueryServer(c net.Conn) error {
 	localAddr := c.LocalAddr().String()
 	keepAlive := false
+	remote := c.RemoteAddr().String()
+	if remote == "" {
+		remote = "unknown"
+	}
+
 	for {
-		remote := c.RemoteAddr().String()
-		if remote == "" {
-			remote = "unknown"
-		}
 		if !keepAlive {
 			promFrontendConnections.WithLabelValues(localAddr).Inc()
 			log.Debugf("incoming request from: %s to %s", remote, localAddr)
 			c.SetDeadline(time.Now().Add(time.Duration(10) * time.Second))
 		}
-		defer c.Close()
 
 		reqs, err := ParseRequests(c)
 		if err != nil {
@@ -167,19 +167,19 @@ func LocalListener(LocalConfig *Config, listen string, waitGroupInit *sync.WaitG
 		LocalListenerHTTP(LocalConfig, "http", listen, waitGroupInit, waitGroupDone, shutdownChannel)
 	} else if strings.Contains(listen, ":") {
 		listen = strings.TrimPrefix(listen, "*") // * means all interfaces
-		LocalListenerLivestatus("tcp", listen, waitGroupInit, waitGroupDone, shutdownChannel)
+		LocalListenerLivestatus(LocalConfig, "tcp", listen, waitGroupInit, waitGroupDone, shutdownChannel)
 	} else {
 		// remove stale sockets on start
 		if _, err := os.Stat(listen); err == nil {
 			log.Warnf("removing stale socket: %s", listen)
 			os.Remove(listen)
 		}
-		LocalListenerLivestatus("unix", listen, waitGroupInit, waitGroupDone, shutdownChannel)
+		LocalListenerLivestatus(LocalConfig, "unix", listen, waitGroupInit, waitGroupDone, shutdownChannel)
 	}
 }
 
 // LocalListenerLivestatus starts a listening socket with livestatus protocol.
-func LocalListenerLivestatus(connType string, listen string, waitGroupInit *sync.WaitGroup, waitGroupDone *sync.WaitGroup, shutdownChannel chan bool) {
+func LocalListenerLivestatus(LocalConfig *Config, connType string, listen string, waitGroupInit *sync.WaitGroup, waitGroupDone *sync.WaitGroup, shutdownChannel chan bool) {
 	l, err := net.Listen(connType, listen)
 	if err != nil {
 		log.Fatalf("listen error: %s", err.Error())
@@ -197,6 +197,7 @@ func LocalListenerLivestatus(connType string, listen string, waitGroupInit *sync
 			l.SetDeadline(time.Now().Add(acceptInterval))
 		}
 
+		// check shutdown channel for shutdown requests
 		select {
 		case <-shutdownChannel:
 			log.Infof("stopping listener on %s", listen)
@@ -215,12 +216,23 @@ func LocalListenerLivestatus(connType string, listen string, waitGroupInit *sync
 			return
 		}
 
+		// process client request with a timeout
+		ch := make(chan error, 1)
 		go func() {
 			// make sure we log panics properly
 			defer logPanicExit()
 
-			QueryServer(fd)
+			ch <- QueryServer(fd)
 		}()
+		select {
+		case <-ch:
+		// request finishes normally
+		case <-time.After(time.Duration(LocalConfig.ListenTimeout) * time.Second):
+			localAddr := fd.LocalAddr().String()
+			remote := fd.RemoteAddr().String()
+			log.Warnf("client request from %s to %s timed out", remote, localAddr)
+		}
+		fd.Close()
 	}
 }
 

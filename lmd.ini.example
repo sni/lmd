@@ -8,6 +8,9 @@ Listen          = ["127.0.0.1:3333", "/tmp/lmd.sock", "http://*:8080"]
 # A bare ip address may be provided if the port is the same on all nodes.
 #Nodes           = ["10.0.0.1", "http://10.0.0.2:8080"]
 
+# Timeout for incoming client requests on `Listen` threads
+ListenTimeout = 60
+
 # daemon will log to stdout if no logfile is set
 #LogFile         = "lmd.log"
 
