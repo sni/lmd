@@ -76,11 +76,9 @@ func NewResponse(req *Request) (res *Response, err error) {
 		p := DataStore[id]
 
 		// spin up required?
-		p.PeerLock.RLock()
 		if p.StatusGet("Idling").(bool) && len(table.DynamicColCacheIndexes) > 0 {
 			spinUpPeers = append(spinUpPeers, id)
 		}
-		p.PeerLock.RUnlock()
 	}
 
 	// only use the first backend when requesting table or columns table
