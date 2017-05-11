@@ -31,7 +31,7 @@ func TestNodeManager(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err = assertEq(len(res), 40); err != nil {
+	if err = assertEq(40, len(res)); err != nil {
 		t.Error(err)
 	}
 
@@ -40,13 +40,13 @@ func TestNodeManager(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq(int(res[0][0].(float64)), 40); err != nil {
+	if err = assertEq(40, int(res[0][0].(float64))); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(res[0][1], 0.24065613746999998); err != nil {
+	if err = assertEq(0.24065613746999998, res[0][1]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(res[0][2], 9.6262454988); err != nil {
+	if err = assertEq(9.6262454988, res[0][2]); err != nil {
 		t.Error(err)
 	}
 
@@ -55,16 +55,16 @@ func TestNodeManager(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq(res[0][0], "testhost_1"); err != nil {
+	if err = assertEq("testhost_1", res[0][0]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(res[0][1], "tomcat"); err != nil {
+	if err = assertEq("tomcat", res[0][1]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(res[0][2], 4.0); err != nil {
+	if err = assertEq(4.0, res[0][2]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(res[0][3], 0.24065613747); err != nil {
+	if err = assertEq(0.24065613747, res[0][3]); err != nil {
 		t.Error(err)
 	}
 
