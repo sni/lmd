@@ -1289,6 +1289,11 @@ func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error)
 		return
 	}
 	data := p.Tables[table.Name].Data
+	if len(res) > len(data) {
+		log.Debugf("[%s] site too large number of objects, assuming backend has been restarted", p.Name)
+		restartRequired = true
+		return
+	}
 	if table.Name == "timeperiods" {
 		// check for changed timeperiods, because we have to update the linked hosts and services as well
 		p.updateTimeperiodsData(&table, res, indexes)
