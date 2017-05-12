@@ -1201,7 +1201,6 @@ func (p *Peer) createIndex(table *Table, res *[][]interface{}, index *map[string
 			row := (*res)[i]
 			(*index)[row[indexField].(string)] = row
 		}
-		promHostCount.WithLabelValues(p.Name).Set(float64(len((*res))))
 	}
 	// create downtime / comment id lookup indexes
 	if table.Name == "comments" || table.Name == "downtimes" {
