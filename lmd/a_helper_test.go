@@ -204,7 +204,6 @@ var TestPeerWaitGroup *sync.WaitGroup
 func StartMockMainLoop(sockets []string, extraConfig string) {
 	var testConfig = `
 Loglevel = "` + testLogLevel + `"
-ListenPrometheus = "127.0.0.1:50999"
 
 `
 	testConfig += extraConfig
