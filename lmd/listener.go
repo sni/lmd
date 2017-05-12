@@ -11,8 +11,6 @@ import (
 	"time"
 )
 
-var acceptInterval = 500 * time.Millisecond
-
 // QueryServer handles a single client connection.
 // It returns any error encountered.
 func QueryServer(c net.Conn) error {
@@ -161,10 +159,10 @@ func LocalListener(LocalConfig *Config, listen string, waitGroupInit *sync.WaitG
 	waitGroupDone.Add(1)
 	if strings.HasPrefix(listen, "https://") {
 		listen = strings.TrimPrefix(listen, "https://")
-		LocalListenerHTTP(LocalConfig, "https", listen, waitGroupInit, waitGroupDone, shutdownChannel)
+		LocalListenerHTTP(LocalConfig, "https", listen, waitGroupInit, shutdownChannel)
 	} else if strings.HasPrefix(listen, "http://") {
 		listen = strings.TrimPrefix(listen, "http://")
-		LocalListenerHTTP(LocalConfig, "http", listen, waitGroupInit, waitGroupDone, shutdownChannel)
+		LocalListenerHTTP(LocalConfig, "http", listen, waitGroupInit, shutdownChannel)
 	} else if strings.Contains(listen, ":") {
 		listen = strings.TrimPrefix(listen, "*") // * means all interfaces
 		LocalListenerLivestatus(LocalConfig, "tcp", listen, waitGroupInit, waitGroupDone, shutdownChannel)
@@ -186,33 +184,29 @@ func LocalListenerLivestatus(LocalConfig *Config, connType string, listen string
 		return
 	}
 	log.Infof("listening for incoming queries on %s %s", connType, listen)
+
+	// Close connection and log shutdown
+	go func() {
+		select {
+		case <-shutdownChannel:
+			log.Infof("stopping %s listener on %s", connType, listen)
+			l.Close()
+			if connType == "unix" {
+				os.Remove(listen)
+			}
+		}
+	}()
+
 	defer l.Close()
 	waitGroupInit.Done()
 
 	for {
-		if l, ok := l.(*net.TCPListener); ok {
-			l.SetDeadline(time.Now().Add(acceptInterval)) // set timeout to 0.5 seconds (10ms during tests for faster shutdowns)
-		}
-		if l, ok := l.(*net.UnixListener); ok {
-			l.SetDeadline(time.Now().Add(acceptInterval))
-		}
-
-		// check shutdown channel for shutdown requests
-		select {
-		case <-shutdownChannel:
-			log.Infof("stopping listener on %s", listen)
-			if connType == "unix" {
-				os.Remove(listen)
-			}
-			return
-		default:
-		}
 		fd, err := l.Accept()
 		if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
 			continue
 		}
 		if err != nil {
-			log.Errorf("accept error: %s", err.Error())
+			// connection closed by shutdown channel
 			return
 		}
 
@@ -237,7 +231,7 @@ func LocalListenerLivestatus(LocalConfig *Config, connType string, listen string
 }
 
 // LocalListenerHTTP starts a listening socket with http protocol.
-func LocalListenerHTTP(LocalConfig *Config, httpType string, listen string, waitGroupInit *sync.WaitGroup, waitGroupDone *sync.WaitGroup, shutdownChannel chan bool) {
+func LocalListenerHTTP(LocalConfig *Config, httpType string, listen string, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) {
 	// Parse listener address
 	listen = strings.TrimPrefix(listen, "*") // * means all interfaces
 
@@ -264,7 +258,7 @@ func LocalListenerHTTP(LocalConfig *Config, httpType string, listen string, wait
 		l = ln
 	}
 
-	// Log shutdown
+	// Close connection and log shutdown
 	go func() {
 		select {
 		case <-shutdownChannel:

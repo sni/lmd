@@ -25,9 +25,6 @@ var testLogLevel = "Error"
 var GlobalTestConfig Config
 
 func init() {
-	// make tests faster if the listener does not wait that long to shutdown
-	acceptInterval = 30 * time.Millisecond
-
 	setDefaults(&GlobalTestConfig)
 	InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
 
@@ -284,12 +281,12 @@ func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig
 }
 
 func StopTestPeer(peer *Peer) (err error) {
+	// stop the mock servers
+	peer.QueryString("COMMAND [0] MOCK_EXIT")
 	// stop the mainloop
 	mainSignalChannel <- syscall.SIGTERM
 	// stop the test peer
 	peer.Stop()
-	// stop the mock servers
-	peer.QueryString("COMMAND [0] MOCK_EXIT")
 	// wait till all has stoped
 	if waitTimeout(TestPeerWaitGroup, 10*time.Second) {
 		err = fmt.Errorf("timeout while waiting for peers to stop")
