@@ -68,6 +68,18 @@ func TestNodeManager(t *testing.T) {
 		t.Error(err)
 	}
 
+	// test host empty stats request
+	res, err = peer.QueryString("GET hosts\nFilter: check_type = 15\nStats: sum percent_state_change\nStats: min percent_state_change\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(1, len(res)); err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(float64(0), res[0][0]); err != nil {
+		t.Error(err)
+	}
+
 	if err := StopTestPeer(peer); err != nil {
 		panic(err.Error())
 	}

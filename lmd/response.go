@@ -256,8 +256,11 @@ func (res *Response) CalculateFinalStats() {
 	if len(res.Request.Stats) == 0 {
 		return
 	}
-	res.Result = make([][]interface{}, len(res.Request.StatsResult))
 	hasColumns := len(res.Request.Columns)
+	if hasColumns == 0 && len(res.Request.StatsResult) == 0 {
+		res.Request.StatsResult[""] = createLocalStatsCopy(&res.Request.Stats)
+	}
+	res.Result = make([][]interface{}, len(res.Request.StatsResult))
 
 	j := 0
 	for key, stats := range res.Request.StatsResult {
