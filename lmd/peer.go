@@ -235,22 +235,24 @@ func (p *Peer) Clear() {
 func (p *Peer) updateLoop() {
 	var ok bool
 	var lastTimeperiodUpdateMinute int
-	p.PeerLock.Lock()
+	p.PeerLock.RLock()
+	firstRun := true
 	if value, gotLastValue := p.Status["LastUpdateOK"]; gotLastValue {
-		// Get last update state
-		ok = *value.(*bool)
-		lastTimeperiodUpdateMinute = *p.Status["LastTimeperiodUpdateMinute"].(*int)
-		p.PeerLock.Unlock()
-	} else {
-		p.PeerLock.Unlock()
-		// First run, initialize tables
+		ok = value.(bool)
+		lastTimeperiodUpdateMinute = p.Status["LastTimeperiodUpdateMinute"].(int)
+		firstRun = false
+	}
+	p.PeerLock.RUnlock()
+
+	// First run, initialize tables
+	if firstRun {
 		ok = p.InitAllTables()
 		lastTimeperiodUpdateMinute, _ = strconv.Atoi(time.Now().Format("4"))
+		p.PeerLock.Lock()
+		p.Status["LastUpdateOK"] = ok
+		p.Status["LastTimeperiodUpdateMinute"] = lastTimeperiodUpdateMinute
+		p.PeerLock.Unlock()
 	}
-	p.PeerLock.Lock()
-	p.Status["LastUpdateOK"] = &ok
-	p.Status["LastTimeperiodUpdateMinute"] = &lastTimeperiodUpdateMinute
-	p.PeerLock.Unlock()
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	for {
@@ -262,6 +264,10 @@ func (p *Peer) updateLoop() {
 		case <-p.stopChannel:
 			log.Debugf("[%s] stopping...", p.Name)
 			ticker.Stop()
+			p.PeerLock.Lock()
+			p.Status["LastUpdateOK"] = ok
+			p.Status["LastTimeperiodUpdateMinute"] = lastTimeperiodUpdateMinute
+			p.PeerLock.Unlock()
 			return
 		case <-ticker.C:
 			p.periodicUpdate(&ok, &lastTimeperiodUpdateMinute)
@@ -1146,7 +1152,8 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 		}
 	}
 
-	p.createIndexAndFlags(table, &res, &index)
+	p.createIndex(table, &res, &index)
+	p.createFlags(table, &res, &index)
 
 	p.DataLock.Lock()
 	p.Tables[table.Name] = DataTable{Table: table, Data: res, Refs: refs, Index: index}
@@ -1158,7 +1165,7 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	return
 }
 
-func (p *Peer) createIndexAndFlags(table *Table, res *[][]interface{}, index *map[string][]interface{}) {
+func (p *Peer) createIndex(table *Table, res *[][]interface{}, index *map[string][]interface{}) {
 	// create host lookup indexes
 	if table.Name == "hosts" {
 		indexField := table.ColumnsIndex["name"]
@@ -1194,6 +1201,9 @@ func (p *Peer) createIndexAndFlags(table *Table, res *[][]interface{}, index *ma
 			(*index)[fmt.Sprintf("%v", row[indexField])] = row
 		}
 	}
+}
+
+func (p *Peer) createFlags(table *Table, res *[][]interface{}, index *map[string][]interface{}) {
 	// is this a shinken or icinga backend?
 	if table.Name == "status" && len((*res)) > 0 {
 		row := (*res)[0]
