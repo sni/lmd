@@ -391,25 +391,33 @@ func (p *Peer) InitAllTables() bool {
 			return false
 		}
 	}
-	p.PeerLock.Lock()
 	// this may happen if we query another lmd daemon which has no backends ready yet
-	if len(p.Tables["status"].Data) == 0 {
+	p.DataLock.RLock()
+	hasStatus := len(p.Tables["status"].Data) > 0
+	p.DataLock.RUnlock()
+	if !hasStatus {
+		p.PeerLock.Lock()
 		p.Status["PeerStatus"] = PeerStatusWarning
 		p.Status["LastError"] = "peered partner not ready yet"
 		p.PeerLock.Unlock()
 		return false
 	}
+
 	p.DataLock.RLock()
-	p.Status["ProgramStart"] = p.Tables["status"].Data[0][p.Tables["status"].Table.ColumnsIndex["program_start"]]
+	programStart := p.Tables["status"].Data[0][p.Tables["status"].Table.ColumnsIndex["program_start"]]
 	p.DataLock.RUnlock()
+
 	duration := time.Since(t1)
+	p.PeerLock.Lock()
+	p.Status["ProgramStart"] = programStart
 	p.Status["ReponseTime"] = duration.Seconds()
 	p.PeerLock.Unlock()
 	log.Infof("[%s] objects created in: %s", p.Name, duration.String())
 
-	if p.Status["PeerStatus"].(PeerStatus) != PeerStatusUp {
+	peerStatus := p.StatusGet("PeerStatus").(PeerStatus)
+	if peerStatus != PeerStatusUp {
 		// Reset errors
-		if p.StatusGet("PeerStatus").(PeerStatus) == PeerStatusDown {
+		if peerStatus == PeerStatusDown {
 			log.Infof("[%s] site is back online", p.Name)
 		}
 		p.resetErrors()
@@ -1138,7 +1146,7 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 				key := row[hostnameIndex].(string) + ";" + row[refCol.RefIndex].(string)
 				refs[fieldName][i] = refByName[key]
 				if refByName[key] == nil {
-					log.Panicf("%s ref not found: %s, refmap contains %d elements", table.Name, row[refCol.RefIndex].(string), len(refByName))
+					log.Panicf("%s '%s' ref not found from table %s, refmap contains %d elements", refCol.Name, row[refCol.RefIndex].(string), table.Name, len(refByName))
 				}
 			}
 		} else {
@@ -1146,7 +1154,7 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 				row := res[i]
 				refs[fieldName][i] = refByName[row[refCol.RefIndex].(string)]
 				if refByName[row[refCol.RefIndex].(string)] == nil {
-					log.Panicf("%s ref not found: %s, refmap contains %d elements", table.Name, row[refCol.RefIndex].(string), len(refByName))
+					log.Panicf("%s '%s' ref not found from table %s, refmap contains %d elements", refCol.Name, row[refCol.RefIndex].(string), table.Name, len(refByName))
 				}
 			}
 		}
