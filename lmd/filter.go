@@ -547,6 +547,8 @@ func matchStringValueOperator(op Operator, valueA *interface{}, valueB *string, 
 	var strA string
 	if s, ok := (*valueA).(string); ok {
 		strA = s
+	} else if *valueA == nil {
+		strA = ""
 	} else {
 		strA = fmt.Sprintf("%v", *valueA)
 	}
