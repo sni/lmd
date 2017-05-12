@@ -77,7 +77,9 @@ func TestMainFunc(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func TestMainReload(t *testing.T) {
@@ -111,7 +113,9 @@ func TestAllOps(t *testing.T) {
 		}
 	}
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func testquery(t *testing.T, peer *Peer, table, column, op, value string) {

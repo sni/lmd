@@ -151,7 +151,9 @@ func TestRequestListFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func TestRequestHeaderMultipleCommands(t *testing.T) {
@@ -237,7 +239,9 @@ func TestResponseErrorsFunc(t *testing.T) {
 		}
 	}
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func TestRequestNestedFilter(t *testing.T) {
@@ -276,7 +280,9 @@ ResponseHeader: fixed16
 		t.Error(err)
 	}
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func TestRequestStats(t *testing.T) {
@@ -310,7 +316,9 @@ func TestRequestStats(t *testing.T) {
 		t.Error(err)
 	}
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func TestRequestStatsGroupBy(t *testing.T) {
@@ -346,7 +354,9 @@ func TestRequestStatsGroupBy(t *testing.T) {
 		t.Error(err)
 	}
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func TestRequestStatsBroken(t *testing.T) {
@@ -358,7 +368,9 @@ func TestRequestStatsBroken(t *testing.T) {
 		t.Error(err)
 	}
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func TestRequestRefs(t *testing.T) {
@@ -376,7 +388,9 @@ func TestRequestRefs(t *testing.T) {
 		t.Error(err)
 	}
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func TestRequestBrokenColumns(t *testing.T) {
@@ -397,5 +411,7 @@ func TestRequestBrokenColumns(t *testing.T) {
 		t.Error(err)
 	}
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }

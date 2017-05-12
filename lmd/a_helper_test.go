@@ -74,12 +74,12 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 			panic(err.Error())
 		}
 		defer func() {
-			l.Close()
-			TestPeerWaitGroup.Done()
 			os.Remove(listen)
+			l.Close()
 			if tempFolder != "" {
 				os.RemoveAll(tempFolder)
 			}
+			TestPeerWaitGroup.Done()
 		}()
 		startedChannel <- true
 		for {
@@ -283,7 +283,7 @@ func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig
 	return
 }
 
-func StopTestPeer(peer *Peer) {
+func StopTestPeer(peer *Peer) (err error) {
 	// stop the mainloop
 	mainSignalChannel <- syscall.SIGTERM
 	// stop the test peer
@@ -291,10 +291,13 @@ func StopTestPeer(peer *Peer) {
 	// stop the mock servers
 	peer.QueryString("COMMAND [0] MOCK_EXIT")
 	// wait till all has stoped
-	waitTimeout(TestPeerWaitGroup, 1*time.Second)
+	if waitTimeout(TestPeerWaitGroup, 10*time.Second) {
+		err = fmt.Errorf("timeout while waiting for peers to stop")
+	}
 	// clean from global object
 	DataStore = make(map[string]*Peer)
 	DataStoreOrder = nil
+	return
 }
 
 func PauseTestPeers(peer *Peer) {

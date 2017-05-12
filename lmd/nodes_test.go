@@ -68,5 +68,7 @@ func TestNodeManager(t *testing.T) {
 		t.Error(err)
 	}
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }

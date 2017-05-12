@@ -24,7 +24,9 @@ func BenchmarkQuery(b *testing.B) {
 	}
 	b.StopTimer()
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func BenchmarkSingleFilter(b *testing.B) {
@@ -41,7 +43,9 @@ func BenchmarkSingleFilter(b *testing.B) {
 	}
 	b.StopTimer()
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func BenchmarkSingleFilter_1k_svc__1Peer(b *testing.B) {
@@ -58,7 +62,9 @@ func BenchmarkSingleFilter_1k_svc__1Peer(b *testing.B) {
 	}
 	b.StopTimer()
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func BenchmarkSingleFilter_1k_svc_10Peer(b *testing.B) {
@@ -75,7 +81,9 @@ func BenchmarkSingleFilter_1k_svc_10Peer(b *testing.B) {
 	}
 	b.StopTimer()
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func BenchmarkMultiFilter(b *testing.B) {
@@ -92,7 +100,9 @@ func BenchmarkMultiFilter(b *testing.B) {
 	}
 	b.StopTimer()
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func BenchmarkSimpleStats(b *testing.B) {
@@ -109,7 +119,9 @@ func BenchmarkSimpleStats(b *testing.B) {
 	}
 	b.StopTimer()
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func BenchmarkTacStats(b *testing.B) {
@@ -126,7 +138,9 @@ func BenchmarkTacStats(b *testing.B) {
 	}
 	b.StopTimer()
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func BenchmarkTacStats_1k_svc__1Peer(b *testing.B) {
@@ -143,7 +157,9 @@ func BenchmarkTacStats_1k_svc__1Peer(b *testing.B) {
 	}
 	b.StopTimer()
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func BenchmarkTacStats_1k_svc_10Peer(b *testing.B) {
@@ -160,7 +176,9 @@ func BenchmarkTacStats_1k_svc_10Peer(b *testing.B) {
 	}
 	b.StopTimer()
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func BenchmarkTacStats_1k_svc_100Peer(b *testing.B) {
@@ -179,7 +197,9 @@ func BenchmarkTacStats_1k_svc_100Peer(b *testing.B) {
 	}
 	b.StopTimer()
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func BenchmarkTacStats_5k_svc_500Peer(b *testing.B) {
@@ -198,7 +218,9 @@ func BenchmarkTacStats_5k_svc_500Peer(b *testing.B) {
 	}
 	b.StopTimer()
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func BenchmarkServicelistLimit_1k_svc__1Peer(b *testing.B) {
@@ -215,7 +237,9 @@ func BenchmarkServicelistLimit_1k_svc__1Peer(b *testing.B) {
 	}
 	b.StopTimer()
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func BenchmarkServicelistLimit_1k_svc_10Peer(b *testing.B) {
@@ -232,7 +256,9 @@ func BenchmarkServicelistLimit_1k_svc_10Peer(b *testing.B) {
 	}
 	b.StopTimer()
 
-	StopTestPeer(peer)
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 // Test queries
