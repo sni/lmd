@@ -258,6 +258,9 @@ func (res *Response) CalculateFinalStats() {
 	}
 	hasColumns := len(res.Request.Columns)
 	if hasColumns == 0 && len(res.Request.StatsResult) == 0 {
+		if res.Request.StatsResult == nil {
+			res.Request.StatsResult = make(map[string][]Filter)
+		}
 		res.Request.StatsResult[""] = createLocalStatsCopy(&res.Request.Stats)
 	}
 	res.Result = make([][]interface{}, len(res.Request.StatsResult))
