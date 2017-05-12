@@ -289,7 +289,7 @@ func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, LocalName s
 			if col.Type == VirtCol {
 				continue
 			}
-			if col.Update == RefUpdate {
+			if col.Update == RefUpdate || col.Update == RefNoUpdate {
 				continue
 			}
 			refColName := Prefix + "_" + col.Name

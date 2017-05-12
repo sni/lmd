@@ -435,3 +435,26 @@ func TestRequestBrokenColumns(t *testing.T) {
 		panic(err.Error())
 	}
 }
+
+func TestRequestGroupByTable(t *testing.T) {
+	peer := StartTestPeer(1, 0, 0)
+	PauseTestPeers(peer)
+
+	res, err := peer.QueryString("GET servicesbyhostgroup\nColumns: host_name description host_groups groups host_alias host_address\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(116, len(res)); err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("Test Business Process", res[0][0]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq("Business Process", res[0][5]); err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
