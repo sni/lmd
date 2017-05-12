@@ -905,10 +905,6 @@ func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn
 		c.CloseWrite()
 		break
 	}
-	// commands do not send anything back
-	if req.Command != "" {
-		return nil, nil
-	}
 
 	// read result from connection into result buffer
 	buf := new(bytes.Buffer)
@@ -921,6 +917,12 @@ func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn
 			break
 		}
 	}
+
+	// commands do not send anything back, return after reading any response to be sure the server accepted the command
+	if req.Command != "" {
+		return nil, nil
+	}
+
 	res := buf.Bytes()
 	return &res, nil
 }
