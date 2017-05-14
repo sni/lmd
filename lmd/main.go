@@ -147,6 +147,7 @@ func main() {
 
 	for {
 		exitCode := mainLoop(mainSignalChannel)
+		defer log.Debugf("lmd shutdown complete")
 		if exitCode > 0 {
 			os.Exit(exitCode)
 		}
@@ -483,6 +484,7 @@ func ReadConfig(files []string) (conf Config) {
 			panic(err)
 		}
 		allListeners = append(allListeners, conf.Listen...)
+		conf.Listen = []string{}
 	}
 	if flagLogFile != "" {
 		conf.LogFile = flagLogFile

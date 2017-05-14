@@ -165,24 +165,29 @@ func LocalListener(LocalConfig *Config, listen string, waitGroupInit *sync.WaitG
 		LocalListenerHTTP(LocalConfig, "http", listen, waitGroupInit, shutdownChannel)
 	} else if strings.Contains(listen, ":") {
 		listen = strings.TrimPrefix(listen, "*") // * means all interfaces
-		LocalListenerLivestatus(LocalConfig, "tcp", listen, waitGroupInit, waitGroupDone, shutdownChannel)
+		LocalListenerLivestatus(LocalConfig, "tcp", listen, waitGroupInit, shutdownChannel)
 	} else {
 		// remove stale sockets on start
 		if _, err := os.Stat(listen); err == nil {
 			log.Warnf("removing stale socket: %s", listen)
 			os.Remove(listen)
 		}
-		LocalListenerLivestatus(LocalConfig, "unix", listen, waitGroupInit, waitGroupDone, shutdownChannel)
+		LocalListenerLivestatus(LocalConfig, "unix", listen, waitGroupInit, shutdownChannel)
 	}
 }
 
 // LocalListenerLivestatus starts a listening socket with livestatus protocol.
-func LocalListenerLivestatus(LocalConfig *Config, connType string, listen string, waitGroupInit *sync.WaitGroup, waitGroupDone *sync.WaitGroup, shutdownChannel chan bool) {
+func LocalListenerLivestatus(LocalConfig *Config, connType string, listen string, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) {
 	l, err := net.Listen(connType, listen)
 	if err != nil {
 		log.Fatalf("listen error: %s", err.Error())
 		return
 	}
+	defer l.Close()
+	if connType == "unix" {
+		defer os.Remove(listen)
+	}
+	defer log.Infof("%s listener %s shutdown complete", connType, listen)
 	log.Infof("listening for incoming queries on %s %s", connType, listen)
 
 	// Close connection and log shutdown
@@ -191,13 +196,9 @@ func LocalListenerLivestatus(LocalConfig *Config, connType string, listen string
 		case <-shutdownChannel:
 			log.Infof("stopping %s listener on %s", connType, listen)
 			l.Close()
-			if connType == "unix" {
-				os.Remove(listen)
-			}
 		}
 	}()
 
-	defer l.Close()
 	waitGroupInit.Done()
 
 	for {
