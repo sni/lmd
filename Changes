@@ -1,6 +1,9 @@
 This file documents the revision history for the Livestatus Multitool Daemon
 
 
+1.1.1    Sun May 14 10:58:28 CEST 2017
+          - fix issue with multiple config files
+
 1.1.0    Fri May 12 16:30:55 CEST 2017
           - add support for keepalive requests
           - add support for grouped stats queries
