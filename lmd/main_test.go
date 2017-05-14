@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"syscall"
 	"testing"
 	"time"
@@ -169,4 +170,8 @@ func TestMainConfig(t *testing.T) {
 	if err := assertEq(len(conf.Listen), 2); err != nil {
 		t.Error(err)
 	}
+
+	os.Remove("test1.ini")
+	os.Remove("test2.ini")
+	os.Remove("test3.ini")
 }
