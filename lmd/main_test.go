@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"syscall"
 	"testing"
 	"time"
@@ -141,4 +142,31 @@ func testquery(t *testing.T, peer *Peer, table, column, op, value string) {
 		}
 	}
 	peer.QueryString(query)
+}
+
+func TestMainConfig(t *testing.T) {
+	testConfig := []string{
+		`Loglevel = "Warn"`,
+		`Listen = ["test1.sock"]`,
+		`Listen = ["test2.sock"]`,
+	}
+
+	ioutil.WriteFile("test1.ini", []byte(testConfig[0]), 0644)
+	ioutil.WriteFile("test2.ini", []byte(testConfig[1]), 0644)
+	ioutil.WriteFile("test3.ini", []byte(testConfig[2]), 0644)
+
+	conf := ReadConfig([]string{"test1.ini"})
+	if err := assertEq(len(conf.Listen), 0); err != nil {
+		t.Error(err)
+	}
+
+	conf = ReadConfig([]string{"test1.ini", "test2.ini"})
+	if err := assertEq(len(conf.Listen), 1); err != nil {
+		t.Error(err)
+	}
+
+	conf = ReadConfig([]string{"test1.ini", "test2.ini", "test3.ini"})
+	if err := assertEq(len(conf.Listen), 2); err != nil {
+		t.Error(err)
+	}
 }
