@@ -528,6 +528,7 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("contacts", StaticUpdate, StringListCol, "A list of all contacts of this host, either direct or via a contact group")
 	t.AddColumn("contact_groups", StaticUpdate, StringListCol, "A list of all contact groups this host is in")
 	t.AddColumn("comments", DynamicUpdate, IntListCol, "A list of the ids of all comments of this host")
+	t.AddColumn("comments_with_info", DynamicUpdate, IntListCol, "A list of all comments of the host with id, author and comment")
 	t.AddColumn("current_attempt", DynamicUpdate, IntCol, "Number of the current check attempts")
 	t.AddColumn("current_notification_number", DynamicUpdate, IntCol, "Number of the current notification")
 	t.AddColumn("custom_variables", StaticUpdate, CustomVarCol, "A dictionary of the custom variables")
@@ -535,6 +536,7 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("custom_variable_values", StaticUpdate, StringListCol, "A list of the values of the custom variables")
 	t.AddColumn("display_name", StaticUpdate, StringCol, "Optional display name of the host - not used by Nagios' web interface")
 	t.AddColumn("downtimes", DynamicUpdate, IntListCol, "A list of the ids of all scheduled downtimes of this host")
+	t.AddColumn("downtimes_with_info", DynamicUpdate, IntListCol, "A list of the all scheduled downtimes of the host with id, author and comment")
 	t.AddColumn("event_handler", StaticUpdate, StringCol, "Nagios command used as event handler")
 	t.AddColumn("event_handler_enabled", DynamicUpdate, IntCol, "Nagios command used as event handler")
 	t.AddColumn("execution_time", DynamicUpdate, FloatCol, "Time the host check needed for execution")
@@ -596,6 +598,7 @@ func NewHostsTable() (t *Table) {
 
 	// shinken specific
 	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, ShinkenOnly, "Whether the host state is an impact or not (0/1)")
+	t.AddOptColumn("business_impact", StaticUpdate, IntCol, ShinkenOnly, "An importance level. From 0 (not important) to 5 (top for business)")
 	t.AddOptColumn("source_problems", DynamicUpdate, StringListCol, ShinkenOnly, "The name of the source problems (host or service)")
 	t.AddOptColumn("impacts", DynamicUpdate, StringListCol, ShinkenOnly, "List of what the source impact (list of hosts and services)")
 	t.AddOptColumn("criticity", DynamicUpdate, IntCol, ShinkenOnly, "The importance we gave to this host between the minimum 0 and the maximum 5")
@@ -618,6 +621,7 @@ func NewHostgroupsTable() (t *Table) {
 	t.AddColumn("action_url", StaticUpdate, StringCol, "An optional URL to custom actions or information about the hostgroup")
 	t.AddColumn("alias", StaticUpdate, StringCol, "An alias of the hostgroup")
 	t.AddColumn("members", StaticUpdate, StringListCol, "A list of all host names that are members of the hostgroup")
+	t.AddColumn("members_with_state", StaticUpdate, StringListCol, "A list of all host names that are members of the hostgroup together with state and has_been_checked")
 	t.AddColumn("name", StaticUpdate, StringCol, "Name of the hostgroup")
 	t.AddColumn("notes", StaticUpdate, StringCol, "Optional notes to the hostgroup")
 	t.AddColumn("notes_url", StaticUpdate, StringCol, "An optional URL with further information about the hostgroup")
@@ -658,6 +662,7 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("contacts", StaticUpdate, StringListCol, "A list of all contacts of the service, either direct or via a contact group")
 	t.AddColumn("contact_groups", StaticUpdate, StringListCol, "A list of all contact groups this service is in")
 	t.AddColumn("comments", DynamicUpdate, IntListCol, "A list of all comment ids of the service")
+	t.AddColumn("comments_with_info", DynamicUpdate, IntListCol, "A list of all comments of the service with id, author and comment")
 	t.AddColumn("current_attempt", DynamicUpdate, IntCol, "The number of the current check attempt")
 	t.AddColumn("current_notification_number", DynamicUpdate, IntCol, "The number of the current notification")
 	t.AddColumn("custom_variables", StaticUpdate, CustomVarCol, "A dictionary of the custom variables")
@@ -665,6 +670,7 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("custom_variable_values", StaticUpdate, StringListCol, "A list of the values of all custom variable of the service")
 	t.AddColumn("description", StaticUpdate, StringCol, "Description of the service (also used as key)")
 	t.AddColumn("downtimes", DynamicUpdate, IntListCol, "A list of all downtime ids of the service")
+	t.AddColumn("downtimes_with_info", DynamicUpdate, IntListCol, "A list of all downtimes of the service with id, author and comment")
 	t.AddColumn("display_name", StaticUpdate, StringCol, "An optional display name (not used by Nagios standard web pages)")
 	t.AddColumn("event_handler", StaticUpdate, StringCol, "Nagios command used as event handler")
 	t.AddColumn("event_handler_enabled", DynamicUpdate, IntCol, "Nagios command used as event handler")
@@ -721,6 +727,7 @@ func NewServicesTable() (t *Table) {
 
 	// shinken specific
 	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, ShinkenOnly, "Whether the host state is an impact or not (0/1)")
+	t.AddOptColumn("business_impact", StaticUpdate, IntCol, ShinkenOnly, "An importance level. From 0 (not important) to 5 (top for business)")
 	t.AddOptColumn("source_problems", DynamicUpdate, StringListCol, ShinkenOnly, "The name of the source problems (host or service)")
 	t.AddOptColumn("impacts", DynamicUpdate, StringListCol, ShinkenOnly, "List of what the source impact (list of hosts and services)")
 	t.AddOptColumn("criticity", DynamicUpdate, IntCol, ShinkenOnly, "The importance we gave to this service between the minimum 0 and the maximum 5")
@@ -829,6 +836,7 @@ func NewLogTable() (t *Table) {
 	t.AddColumn("type", StaticUpdate, StringCol, "The type of the message (text before the colon), the message itself for info messages")
 	t.AddColumn("current_service_contacts", StaticUpdate, StringListCol, "A list of all contacts of the service, either direct or via a contact group")
 	t.AddColumn("current_host_contacts", StaticUpdate, StringListCol, "A list of all contacts of this host, either direct or via a contact group")
+	t.AddColumn("current_host_display_name", StaticUpdate, StringCol, "The display name of the host the log entry is about (might be empty)")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
