@@ -837,6 +837,7 @@ func NewLogTable() (t *Table) {
 	t.AddColumn("current_service_contacts", StaticUpdate, StringListCol, "A list of all contacts of the service, either direct or via a contact group")
 	t.AddColumn("current_host_contacts", StaticUpdate, StringListCol, "A list of all contacts of this host, either direct or via a contact group")
 	t.AddColumn("current_host_display_name", StaticUpdate, StringCol, "The display name of the host the log entry is about (might be empty)")
+	t.AddColumn("current_host_groups", StaticUpdate, StringListCol, "A list of all host groups of the host the log entry is about (might be empty)")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
