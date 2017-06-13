@@ -1590,7 +1590,7 @@ func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) 
 	options["sub"] = "_raw_query"
 	options["args"] = []string{query}
 	optionStr, _ := json.Marshal(options)
-	response, err := netClient.PostForm(peerAddr+"/thruk/cgi-bin/remote.cgi", url.Values{
+	response, err := netClient.PostForm(completePeerHTTPAddr(peerAddr), url.Values{
 		"data": {fmt.Sprintf("{\"credential\": \"%s\", \"options\": %s}", p.Config.Auth, optionStr)},
 	})
 	if err != nil {
@@ -1918,4 +1918,20 @@ func (p *Peer) checkIcinga2Reload() bool {
 		return (p.InitAllTables())
 	}
 	return (true)
+}
+
+// completePeerHTTPAddr returns autocompleted address for peer
+// it appends /thruk/cgi-bin/remote.cgi or parts of it
+func completePeerHTTPAddr(addr string) string {
+	switch {
+	case regexp.MustCompile(`/thruk/$`).MatchString(addr):
+		return addr + "cgi-bin/remote.cgi"
+	case regexp.MustCompile(`/thruk$`).MatchString(addr):
+		return addr + "/cgi-bin/remote.cgi"
+	case regexp.MustCompile(`/remote\.cgi$`).MatchString(addr):
+		return addr
+	case regexp.MustCompile(`/$`).MatchString(addr):
+		return addr + "thruk/cgi-bin/remote.cgi"
+	}
+	return addr + "/thruk/cgi-bin/remote.cgi"
 }
