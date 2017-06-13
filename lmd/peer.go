@@ -1284,7 +1284,7 @@ func (p *Peer) GetGroupByData(table *Table) (res [][]interface{}, err error) {
 
 // UpdateObjectByType updates a given table by requesting all dynamic columns from the remote peer.
 // Assuming we get the objects always in the same order, we can just iterate over the index and update the fields.
-// It returns a boolean flag wheter the remote site has been restarted and any error encountered.
+// It returns a boolean flag whether the remote site has been restarted and any error encountered.
 func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error) {
 	if len(table.DynamicColCacheNames) == 0 {
 		return
