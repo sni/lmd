@@ -1588,7 +1588,7 @@ func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) 
 	}
 	options["action"] = "raw"
 	options["sub"] = "_raw_query"
-	options["args"] = []string{query}
+	options["args"] = []string{strings.TrimSpace(query) + "\n"}
 	optionStr, _ := json.Marshal(options)
 	response, err := netClient.PostForm(completePeerHTTPAddr(peerAddr), url.Values{
 		"data": {fmt.Sprintf("{\"credential\": \"%s\", \"options\": %s}", p.Config.Auth, optionStr)},
