@@ -218,10 +218,7 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 		case sig := <-osSignalChannel:
 			return mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
 		case sig := <-osSignalUsrChannel:
-			log.Infof("got signal %s", sig)
-			buf := make([]byte, 1<<16)
-			runtime.Stack(buf, true)
-			log.Infof("%s", buf)
+			mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
 		case sig := <-mainSignalChannel:
 			return mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
 		}
@@ -418,6 +415,12 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		waitGroupListener.Wait()
 		waitGroupPeers.Wait()
 		return (-1)
+	case syscall.SIGUSR1:
+		log.Errorf("requested thread dump via signal %s", sig)
+		buf := make([]byte, 1<<16)
+		runtime.Stack(buf, true)
+		log.Errorf("%s", buf)
+		return (0)
 	default:
 		log.Warnf("Signal not handled: %v", sig)
 	}
