@@ -430,9 +430,10 @@ func (p *Peer) InitAllTables() bool {
 
 // resetErrors reset the error counter after the site has recovered
 func (p *Peer) resetErrors() {
+	now := time.Now().Unix()
 	p.PeerLock.Lock()
 	p.Status["LastError"] = ""
-	p.Status["LastOnline"] = time.Now().Unix()
+	p.Status["LastOnline"] = now
 	p.ErrorCount = 0
 	p.ErrorLogged = false
 	p.Status["PeerStatus"] = PeerStatusUp
@@ -811,10 +812,11 @@ func (p *Peer) query(req *Request) ([][]interface{}, error) {
 
 	p.PeerLock.Lock()
 	p.Status["Querys"] = p.Status["Querys"].(int) + 1
-	p.Status["BytesSend"] = p.Status["BytesSend"].(int) + len(query)
-	promPeerBytesSend.WithLabelValues(p.Name).Set(float64(p.Status["BytesSend"].(int)))
+	totalBytesSend := p.Status["BytesSend"].(int) + len(query)
+	p.Status["BytesSend"] = totalBytesSend
 	peerAddr := p.Status["PeerAddr"].(string)
 	p.PeerLock.Unlock()
+	promPeerBytesSend.WithLabelValues(p.Name).Set(float64(totalBytesSend))
 
 	resBytes, err := p.sendTo(req, query, peerAddr, conn, connType)
 	if err != nil {
@@ -840,10 +842,11 @@ func (p *Peer) query(req *Request) ([][]interface{}, error) {
 
 func (p *Peer) parseResult(req *Request, resBytes *[]byte) (result [][]interface{}, err error) {
 	p.PeerLock.Lock()
-	p.Status["BytesReceived"] = p.Status["BytesReceived"].(int) + len(*resBytes)
-	log.Debugf("[%s] got %s answer: size: %d kB", p.Name, req.Table, len(*resBytes)/1024)
-	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(p.Status["BytesReceived"].(int)))
+	totalBytesReceived := p.Status["BytesReceived"].(int) + len(*resBytes)
+	p.Status["BytesReceived"] = totalBytesReceived
 	p.PeerLock.Unlock()
+	log.Debugf("[%s] got %s answer: size: %d kB", p.Name, req.Table, len(*resBytes)/1024)
+	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(totalBytesReceived))
 
 	if len(*resBytes) == 0 || (string((*resBytes)[0]) != "{" && string((*resBytes)[0]) != "[") {
 		err = errors.New(strings.TrimSpace(string(*resBytes)))
@@ -1168,9 +1171,10 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	p.DataLock.Lock()
 	p.Tables[table.Name] = DataTable{Table: table, Data: res, Refs: refs, Index: index}
 	p.DataLock.Unlock()
+	now := time.Now().Unix()
 	p.PeerLock.Lock()
-	p.Status["LastUpdate"] = time.Now().Unix()
-	p.Status["LastFullUpdate"] = time.Now().Unix()
+	p.Status["LastUpdate"] = now
+	p.Status["LastFullUpdate"] = now
 	p.PeerLock.Unlock()
 	return
 }
@@ -1366,7 +1370,7 @@ func (p *Peer) updateTimeperiodsData(table *Table, res [][]interface{}, indexes 
 	p.DataLock.Unlock()
 	// Update hosts and services with those changed timeperiods
 	for name, state := range changedTimeperiods {
-		log.Debugf("[%s] timeperiod %s has changed to %v, need to update affected hosts/services", p.Name, state)
+		log.Debugf("[%s] timeperiod %s has changed to %v, need to update affected hosts/services", p.Name, name, state)
 		p.UpdateDeltaTableHosts("Filter: check_period = " + name + "\nFilter: notification_period = " + name + "\nOr: 2\n")
 		p.UpdateDeltaTableServices("Filter: check_period = " + name + "\nFilter: notification_period = " + name + "\nOr: 2\n")
 	}
