@@ -417,6 +417,17 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		return (-1)
 	case syscall.SIGUSR1:
 		log.Errorf("requested thread dump via signal %s", sig)
+		for id := range DataStore {
+			p := DataStore[id]
+			currentWriteLock := p.PeerLock.currentWriteLock.Load().(string)
+			if currentWriteLock != "" {
+				log.Errorf("[%s] peer holding peer lock: %s", p.Name, currentWriteLock)
+			}
+			currentWriteLock = p.DataLock.currentWriteLock.Load().(string)
+			if currentWriteLock != "" {
+				log.Errorf("[%s] peer holding data lock: %s", p.Name, currentWriteLock)
+			}
+		}
 		buf := make([]byte, 1<<16)
 		runtime.Stack(buf, true)
 		log.Errorf("%s", buf)

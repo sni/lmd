@@ -47,8 +47,8 @@ type Peer struct {
 	Name            string
 	ID              string
 	Source          []string
-	PeerLock        *sync.RWMutex
-	DataLock        *sync.RWMutex
+	PeerLock        *LoggingLock
+	DataLock        *LoggingLock
 	Tables          map[string]DataTable
 	Status          map[string]interface{}
 	ErrorCount      int
@@ -138,8 +138,8 @@ func NewPeer(LocalConfig *Config, config Connection, waitGroup *sync.WaitGroup, 
 		waitGroup:       waitGroup,
 		shutdownChannel: shutdownChannel,
 		stopChannel:     make(chan bool),
-		PeerLock:        new(sync.RWMutex),
-		DataLock:        new(sync.RWMutex),
+		PeerLock:        NewLoggingLock(config.Name + "PeerLock"),
+		DataLock:        NewLoggingLock(config.Name + "DataLock"),
 		Config:          config,
 		LocalConfig:     LocalConfig,
 	}
@@ -353,14 +353,14 @@ func (p *Peer) updateIdleStatus() bool {
 
 // StatusSet updates a status map and takes care about the logging.
 func (p *Peer) StatusSet(key string, value interface{}) {
-	p.PeerLock.Lock()
+	p.PeerLock.LockN(2)
 	p.Status[key] = value
 	p.PeerLock.Unlock()
 }
 
 // StatusGet returns a status map entry and takes care about the logging.
 func (p *Peer) StatusGet(key string) interface{} {
-	p.PeerLock.RLock()
+	p.PeerLock.RLockN(2)
 	value := p.Status[key]
 	p.PeerLock.RUnlock()
 	return value
