@@ -7,6 +7,7 @@ use Term::ANSIColor;
 
 my $f1 = _parse(read_file($ARGV[0]));
 my $f2 = _parse(read_file($ARGV[1]));
+printf("red color means %s is faster than %s\n", $ARGV[0], $ARGV[1]);
 _diff($f1, $f2);
 
 sub _diff {
