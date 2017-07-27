@@ -1624,6 +1624,9 @@ func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) 
 		return
 	}
 	remoteError := ""
+	if log.IsV(3) {
+		log.Tracef("[%s] response: %s", p.Name, result.Output)
+	}
 	if len(output) >= 4 {
 		if v, ok := output[3].(string); ok {
 			remoteError = strings.TrimSpace(v)
