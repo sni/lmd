@@ -140,7 +140,8 @@ func SendCommands(commandsByPeer *map[string][]string) {
 			peer.PeerLock.Unlock()
 			_, err := peer.Query(commandRequest)
 			if err != nil {
-				log.Warnf("[%s] sending command failed: %s", peer.ID, err.Error())
+				log.Warnf("[%s] sending command failed: %s", peer.Name, err.Error())
+				return
 			}
 			log.Infof("[%s] send %d commands successfully.", peer.Name, len((*commandsByPeer)[peer.ID]))
 
