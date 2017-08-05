@@ -425,7 +425,7 @@ func (res *Response) Send(c net.Conn) (size int, err error) {
 // JSON converts the response into a json structure
 func (res *Response) JSON() ([]byte, error) {
 	if res.Error != nil {
-		log.Warnf("client error: %s", res.Error.Error())
+		log.Warnf("sending error response: %d - %s", res.Code, res.Error.Error())
 		return []byte(res.Error.Error()), nil
 	}
 
@@ -485,7 +485,7 @@ func (res *Response) JSON() ([]byte, error) {
 }
 
 // BuildLocalResponse builds local data table result for all selected peers
-func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) (err error) {
+func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 	res.Result = make([][]interface{}, 0)
 
 	waitgroup := &sync.WaitGroup{}
@@ -542,12 +542,12 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) (err err
 	log.Tracef("waiting...")
 	waitgroup.Wait()
 	log.Tracef("waiting for all local data computations done")
-	return
+	return nil
 }
 
 // BuildPassThroughResult passes a query transparently to one or more remote sites and builds the response
 // from that.
-func (res *Response) BuildPassThroughResult(peers []string, table *Table, columns *[]Column) (err error) {
+func (res *Response) BuildPassThroughResult(peers []string, table *Table, columns *[]Column) error {
 	req := res.Request
 	res.Result = make([][]interface{}, 0)
 
@@ -596,12 +596,12 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table, column
 				ResponseFixed16: true,
 			}
 			var result [][]interface{}
-			result, err = peer.Query(passthroughRequest)
+			result, queryErr := peer.Query(passthroughRequest)
 			log.Tracef("[%s] req done", p.Name)
-			if err != nil {
-				log.Tracef("[%s] req errored", err.Error())
+			if queryErr != nil {
+				log.Tracef("[%s] req errored", queryErr.Error())
 				resultLock.Lock()
-				res.Failed[p.ID] = err.Error()
+				res.Failed[p.ID] = queryErr.Error()
 				resultLock.Unlock()
 				return
 			}
@@ -626,5 +626,5 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table, column
 	log.Tracef("waiting...")
 	waitgroup.Wait()
 	log.Debugf("waiting for passed through requests done")
-	return
+	return nil
 }
