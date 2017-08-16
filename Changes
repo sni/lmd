@@ -1,6 +1,6 @@
 This file documents the revision history for the Livestatus Multitool Daemon
 
-next:
+1.1.2    Wed Aug 16 15:56:04 CEST 2017
           - fix issue with broken pipes on http backends
 
 1.1.1    Sun May 14 10:58:28 CEST 2017
