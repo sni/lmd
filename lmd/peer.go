@@ -223,10 +223,10 @@ func (p *Peer) Stop() {
 }
 
 func (p *Peer) countFromServer(name string, queryCondition string) (count int) {
-	_, res := p.QueryString("GET " + name + "\nStats: " + queryCondition + "\n\n")
-	count, e := strconv.Atoi(fmt.Sprintf("%s", res))
-	if e != nil {
-		count = -1
+	count = -1
+	res, err := p.QueryString("GET " + name + "\nOutputFormat: json\nStats: " + queryCondition + "\n\n")
+	if err == nil && len(res) > 0 && len(res[0]) > 0 {
+		count = int(res[0][0].(float64))
 	}
 	return
 }
@@ -240,6 +240,7 @@ func (p *Peer) hasChanged() (changed bool) {
 	}
 	counter := p.countFromServer("services", "host_name !=")
 	changed = changed || (counter != len(p.Tables["services"].Data))
+	p.clearLastRequest()
 
 	return
 }
