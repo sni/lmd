@@ -517,3 +517,10 @@ func logPanicExit() {
 		os.Exit(1)
 	}
 }
+
+func timeOrNever(timestamp int64) string {
+	if timestamp > 0 {
+		return (time.Unix(timestamp, 0).String())
+	}
+	return "never"
+}

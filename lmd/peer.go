@@ -358,15 +358,13 @@ func (p *Peer) updateIdleStatus() bool {
 	lastQuery := p.Status["LastQuery"].(int64)
 	idling := p.Status["Idling"].(bool)
 	p.PeerLock.RUnlock()
-	lastQueryStr := time.Unix(lastQuery, 0).String()
 	if lastQuery == 0 && lastMainRestart < now-p.LocalConfig.IdleTimeout {
 		shouldIdle = true
-		lastQueryStr = "never"
 	} else if lastQuery > 0 && lastQuery < now-p.LocalConfig.IdleTimeout {
 		shouldIdle = true
 	}
 	if !idling && shouldIdle {
-		log.Infof("[%s] switched to idle interval, last query: %s", p.Name, lastQueryStr)
+		log.Infof("[%s] switched to idle interval, last query: %s", p.Name, timeOrNever(lastQuery))
 		p.StatusSet("Idling", true)
 		idling = true
 	}
@@ -1125,7 +1123,7 @@ func (p *Peer) setNextAddrFromErr(err error) {
 	}
 	now := time.Now().Unix()
 	lastOnline := p.Status["LastOnline"].(int64)
-	log.Debugf("[%s] last online: %s", p.Name, time.Unix(lastOnline, 0))
+	log.Debugf("[%s] last online: %s", p.Name, timeOrNever(lastOnline))
 	if lastOnline < now-int64(p.LocalConfig.StaleBackendTimeout) || (p.ErrorCount > numSources && lastOnline <= 0) {
 		if p.Status["PeerStatus"].(PeerStatus) != PeerStatusDown {
 			log.Warnf("[%s] site went offline: %s", p.Name, err.Error())
