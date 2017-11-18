@@ -764,7 +764,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	p.DataLock.RUnlock()
 	fieldIndex := table.ColumnsIndex["id"]
 
-	if float64(entries) == res[0][0].(float64) && (entries == 0 || last[fieldIndex].(float64) == res[0][1].(float64)) {
+	if len(res) == 0 || float64(entries) == res[0][0].(float64) && (entries == 0 || last[fieldIndex].(float64) == res[0][1].(float64)) {
 		log.Debugf("[%s] %s did not change", p.Name, name)
 		return
 	}
