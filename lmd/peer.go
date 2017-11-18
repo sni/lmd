@@ -675,23 +675,17 @@ func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated
 	if err != nil {
 		return
 	}
-	p.DataLock.RLock()
+
 	indexList := make([]int, len(scanColumns))
 	for i, name := range scanColumns {
 		indexList[i] = table.GetColumn(name).Index
 	}
-	data := p.Tables[table.Name].Data
-	missing := make(map[float64]bool)
-	for i := range res {
-		row := res[i]
-		for j, index := range indexList {
-			if row[j].(float64) != data[i][index].(float64) {
-				missing[row[0].(float64)] = true
-				break
-			}
-		}
+
+	missing, err := p.getMissingTimestamps(table, req, &res, indexList)
+	if err != nil {
+		return
 	}
-	p.DataLock.RUnlock()
+
 	if len(missing) > 0 {
 		filter := []string{filterStr}
 		for lastCheck := range missing {
@@ -711,6 +705,34 @@ func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated
 		p.StatusSet("LastFullHostUpdate", time.Now().Unix())
 	}
 	updated = true
+	return
+}
+
+// getMissingTimestamps returns list of last_check dates which can be used to delta update
+func (p *Peer) getMissingTimestamps(table *Table, req *Request, res *[][]interface{}, indexList []int) (missing map[float64]bool, err error) {
+	missing = make(map[float64]bool)
+	expectedRowLength := len(indexList)
+	p.DataLock.RLock()
+	defer p.DataLock.RUnlock()
+	data := p.Tables[table.Name].Data
+	for i := range *res {
+		row := (*res)[i]
+		for j, index := range indexList {
+			if len(row) != expectedRowLength {
+				err = &PeerError{
+					msg:  fmt.Sprintf("Unexpected result size in row %d, got %d but expected %d", i, len(row), expectedRowLength),
+					kind: ResponseError,
+					res:  *res,
+					req:  req,
+				}
+				return
+			}
+			if row[j].(float64) != data[i][index].(float64) {
+				missing[row[0].(float64)] = true
+				break
+			}
+		}
+	}
 	return
 }
 
