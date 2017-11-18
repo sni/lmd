@@ -100,12 +100,27 @@ type HTTPResult struct {
 
 // PeerError is a custom error to distinguish between connection and response errors.
 type PeerError struct {
-	msg  string
-	kind PeerErrorType
+	msg      string
+	kind     PeerErrorType
+	req      *Request
+	res      [][]interface{}
+	resBytes *[]byte
 }
 
 // Error returns the error message as string.
-func (e *PeerError) Error() string { return e.msg }
+func (e *PeerError) Error() string {
+	msg := e.msg
+	if e.req != nil {
+		msg += fmt.Sprintf("\nRequest: %s", e.req.String())
+	}
+	if e.res != nil {
+		msg += fmt.Sprintf("\nResponse: %#v", e.res)
+	}
+	if e.resBytes != nil {
+		msg += fmt.Sprintf("\nResponse: %s", string(*(e.resBytes)))
+	}
+	return msg
+}
 
 // Type returns the error type.
 func (e *PeerError) Type() PeerErrorType { return e.kind }
@@ -845,7 +860,7 @@ func (p *Peer) query(req *Request) ([][]interface{}, error) {
 	if req.ResponseFixed16 {
 		err = p.CheckResponseHeader(resBytes)
 		if err != nil {
-			return nil, &PeerError{msg: err.Error(), kind: ResponseError}
+			return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes}
 		}
 		*resBytes = (*resBytes)[16:]
 	}
@@ -862,19 +877,19 @@ func (p *Peer) parseResult(req *Request, resBytes *[]byte) (result [][]interface
 
 	if len(*resBytes) == 0 || (string((*resBytes)[0]) != "{" && string((*resBytes)[0]) != "[") {
 		err = errors.New(strings.TrimSpace(string(*resBytes)))
-		return nil, &PeerError{msg: err.Error(), kind: ResponseError}
+		return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes}
 	}
 	if req.OutputFormat == "wrapped_json" {
 		wrappedResult := make(map[string]json.RawMessage)
 		err = json.Unmarshal(*resBytes, &wrappedResult)
 		if err != nil {
-			return nil, &PeerError{msg: err.Error(), kind: ResponseError}
+			return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes}
 		}
 		err = json.Unmarshal(wrappedResult["data"], &result)
 	} else {
 		jsonParsed, jErr := gabs.ParseJSON(*resBytes)
 		if jErr != nil {
-			return nil, &PeerError{msg: jErr.Error(), kind: ResponseError}
+			return nil, &PeerError{msg: jErr.Error(), kind: ResponseError, req: req, resBytes: resBytes}
 		}
 		rows := jsonParsed.Data().([]interface{})
 		result = make([][]interface{}, len(rows))
