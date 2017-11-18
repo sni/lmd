@@ -131,7 +131,7 @@ func SendCommands(commandsByPeer *map[string][]string) {
 		go func(peer *Peer) {
 			// make sure we log panics properly
 			defer wg.Done()
-			defer logPanicExit()
+			defer logPanicExitPeer(peer)
 			commandRequest := &Request{
 				Command: strings.Join((*commandsByPeer)[peer.ID], "\n\n"),
 			}

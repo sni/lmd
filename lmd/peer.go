@@ -11,7 +11,9 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -59,6 +61,8 @@ type Peer struct {
 	Config          Connection
 	Flags           OptionalFlags
 	LocalConfig     *Config
+	lastRequest     *Request
+	lastResponse    *[]byte
 }
 
 // PeerStatus contains the different states a peer can have
@@ -184,7 +188,7 @@ func (p *Peer) Start() {
 	log.Infof("[%s] starting connection", p.Name)
 	go func() {
 		// make sure we log panics properly
-		defer logPanicExit()
+		defer logPanicExitPeer(p)
 		p.updateLoop()
 		p.StatusSet("Updating", false)
 		p.PeerLock.Lock()
@@ -252,6 +256,7 @@ func (p *Peer) updateLoop() {
 		p.Status["LastUpdateOK"] = ok
 		p.Status["LastTimeperiodUpdateMinute"] = lastTimeperiodUpdateMinute
 		p.PeerLock.Unlock()
+		p.clearLastRequest()
 	}
 
 	ticker := time.NewTicker(500 * time.Millisecond)
@@ -268,9 +273,11 @@ func (p *Peer) updateLoop() {
 			p.Status["LastUpdateOK"] = ok
 			p.Status["LastTimeperiodUpdateMinute"] = lastTimeperiodUpdateMinute
 			p.PeerLock.Unlock()
+			p.clearLastRequest()
 			return
 		case <-ticker.C:
 			p.periodicUpdate(&ok, &lastTimeperiodUpdateMinute)
+			p.clearLastRequest()
 		}
 	}
 }
@@ -811,6 +818,8 @@ func (p *Peer) query(req *Request) ([][]interface{}, error) {
 	}
 
 	p.PeerLock.Lock()
+	p.lastRequest = req
+	p.lastResponse = nil
 	p.Status["Querys"] = p.Status["Querys"].(int) + 1
 	totalBytesSend := p.Status["BytesSend"].(int) + len(query)
 	p.Status["BytesSend"] = totalBytesSend
@@ -829,6 +838,9 @@ func (p *Peer) query(req *Request) ([][]interface{}, error) {
 	if log.IsV(3) {
 		log.Tracef("[%s] result: %s", p.Name, string(*resBytes))
 	}
+	p.PeerLock.Lock()
+	p.lastResponse = resBytes
+	p.PeerLock.Unlock()
 
 	if req.ResponseFixed16 {
 		err = p.CheckResponseHeader(resBytes)
@@ -1886,6 +1898,13 @@ func (p *Peer) getStatsKey(columns []string, table *Table, refs *map[string][][]
 	return strings.Join(keyValues, ";")
 }
 
+func (p *Peer) clearLastRequest() {
+	p.PeerLock.Lock()
+	p.lastRequest = nil
+	p.lastResponse = nil
+	p.PeerLock.Unlock()
+}
+
 // MatchRowFilter returns true if the given filter matches the given datarow.
 func (p *Peer) MatchRowFilter(table *Table, refs *map[string][][]interface{}, inputRowLen int, filter *Filter, row *[]interface{}, rowNum int) bool {
 	// recursive group filter
@@ -1941,4 +1960,16 @@ func completePeerHTTPAddr(addr string) string {
 		return addr + "thruk/cgi-bin/remote.cgi"
 	}
 	return addr + "/thruk/cgi-bin/remote.cgi"
+}
+
+func logPanicExitPeer(p *Peer) {
+	if r := recover(); r != nil {
+		log.Errorf("Panic: %s", r)
+		log.Errorf("%s", debug.Stack())
+		log.Errorf("LastQuery:")
+		log.Errorf("%s", p.lastRequest.String())
+		log.Errorf("LastResponse:")
+		log.Errorf("%s", string(*(p.lastResponse)))
+		os.Exit(1)
+	}
 }
