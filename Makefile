@@ -113,7 +113,7 @@ fmt:
 versioncheck:
 	@[ "$(GOVERSION)" = "devel" ] || [ $$(echo "$(GOVERSION)" | tr -d ".") -ge 15 ] || { \
 		echo "**** ERROR:"; \
-		echo "**** LMD requires at least golang version 1.5 or higher"; \
+		echo "**** LMD requires at least golang version 1.7 or higher"; \
 		echo "**** this is: $$(go version)"; \
 		exit 1; \
 	}
@@ -122,12 +122,8 @@ lint:
 	#
 	# Check if golint complains
 	# see https://github.com/golang/lint/ for details.
-	# Only works with Go 1.6 or up.
-	#
-	@( [ "$(GOVERSION)" != "devel" ] && [ $$(echo "$(GOVERSION)" | tr -d ".") -lt 16 ] ) || { \
-		go get -u github.com/golang/lint/golint; \
-		cd $(LAMPDDIR) && golint -set_exit_status .; \
-	}
+	go get -u github.com/golang/lint/golint
+	cd $(LAMPDDIR) && golint -set_exit_status .
 
 cyclo:
 	go get -u github.com/fzipp/gocyclo

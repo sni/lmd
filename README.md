@@ -19,11 +19,21 @@ LMD fetches Livestatus data from one or multiple sources and provides:
 
 So basically this is a "Livestatus In / Livestatus Out" daemon. Its main purpose is to
 provide the backend handling of the [Thruk Monitoring Gui](http://www.thruk.org) in a native
-compiled fast daemon, but it works for everything which requires Livestatus.
+compiled fast daemon, but it should work for everything which requires Livestatus.
 
 <img src="docs/Architecture.png" alt="Architecture" style="width: 600px;"/>
 
 Log table requests and commands are just passed through to the actual backends.
+
+
+Requirements
+============
+
+You will need
+
+ - Go >= 1.7
+
+to compile lmd.
 
 
 How does it work
