@@ -2000,12 +2000,12 @@ func completePeerHTTPAddr(addr string) string {
 
 func logPanicExitPeer(p *Peer) {
 	if r := recover(); r != nil {
-		log.Errorf("Panic: %s", r)
-		log.Errorf("%s", debug.Stack())
-		log.Errorf("LastQuery:")
-		log.Errorf("%s", p.lastRequest.String())
-		log.Errorf("LastResponse:")
-		log.Errorf("%s", string(*(p.lastResponse)))
+		log.Errorf("[%s] Panic: %s", p.Name, r)
+		log.Errorf("[%s] %s", p.Name, debug.Stack())
+		log.Errorf("[%s] LastQuery:", p.Name)
+		log.Errorf("[%s] %s", p.Name, p.lastRequest.String())
+		log.Errorf("[%s] LastResponse:", p.Name)
+		log.Errorf("[%s] %s", p.Name, string(*(p.lastResponse)))
 		os.Exit(1)
 	}
 }
