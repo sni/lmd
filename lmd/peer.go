@@ -714,18 +714,26 @@ func (p *Peer) getMissingTimestamps(table *Table, req *Request, res *[][]interfa
 	p.DataLock.RLock()
 	defer p.DataLock.RUnlock()
 	data := p.Tables[table.Name].Data
+	if len(data) < len(*res) {
+		log.Debugf("[%s] table %s not ready, expecting at least %d entries but only have %d", p.Name, table.Name, len(*res), len(data))
+		return
+	}
 	for i := range *res {
 		row := (*res)[i]
-		for j, index := range indexList {
-			if len(row) != expectedRowLength {
-				err = &PeerError{
-					msg:  fmt.Sprintf("Unexpected result size in row %d, got %d but expected %d", i, len(row), expectedRowLength),
-					kind: ResponseError,
-					res:  *res,
-					req:  req,
-				}
-				return
+		if len(row) != expectedRowLength {
+			err = &PeerError{
+				msg:  fmt.Sprintf("Unexpected result size in row %d, got %d but expected %d", i, len(row), expectedRowLength),
+				kind: ResponseError,
+				res:  *res,
+				req:  req,
 			}
+			return
+		}
+		if len(data[i]) < expectedRowLength {
+			log.Debugf("[%s] table %s row not ready, expecting at least %d entries but only have %d", p.Name, table.Name, expectedRowLength, len(data[i]))
+			return
+		}
+		for j, index := range indexList {
 			if row[j].(float64) != data[i][index].(float64) {
 				missing[row[0].(float64)] = true
 				break
