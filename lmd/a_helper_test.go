@@ -249,8 +249,8 @@ func StartTestPeer(numPeers int, numHosts int, numServices int) *Peer {
 
 // StartTestPeerExtra starts:
 //  - a mock livestatus server which responds from status json
-//  - a main loop which has the mock server as backend
-// It returns a peer which the "mainloop" connection configured
+//  - a main loop which has the mock server(s) as backend
+// It returns a peer with the "mainloop" connection configured
 func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig string) (peer *Peer) {
 	sockets := []string{}
 	for i := 0; i < numPeers; i++ {
@@ -261,7 +261,6 @@ func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig
 
 	testPeerShutdownChannel := make(chan bool)
 	peer = NewPeer(&GlobalTestConfig, Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
-	peer.InitAllTables()
 
 	// wait till backend is available
 	retries := 0
@@ -281,6 +280,9 @@ func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig
 			}
 		}
 	}
+
+	// fill tables
+	peer.InitAllTables()
 
 	return
 }
