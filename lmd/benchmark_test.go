@@ -12,7 +12,8 @@ func BenchmarkQuery(b *testing.B) {
 	PauseTestPeers(peer)
 
 	testPeerShutdownChannel := make(chan bool)
-	mockPeer := NewPeer(&GlobalTestConfig, Connection{Source: []string{"mock0.sock"}, Name: "Mock", ID: "mock0id"}, TestPeerWaitGroup, testPeerShutdownChannel)
+	mockSocket := peer.LocalConfig.Connections[0].Source[0]
+	mockPeer := NewPeer(&GlobalTestConfig, Connection{Source: []string{mockSocket}, Name: "Mock", ID: "mock0id"}, TestPeerWaitGroup, testPeerShutdownChannel)
 	req, _, _ := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nResponseHeader: fixed16")))
 
 	b.StartTimer()

@@ -53,7 +53,7 @@ func assertLike(exp string, got string) error {
 
 func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen string) {
 	startedChannel := make(chan bool)
-	listen = fmt.Sprintf("mock%d.sock", nr)
+	listen = fmt.Sprintf("mock%d_%d.sock", nr, time.Now().Nanosecond())
 	TestPeerWaitGroup.Add(1)
 
 	dataFolder := "../t/data"
@@ -123,11 +123,17 @@ func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (t
 	}
 	// read existing json files and extend hosts and services
 	for name, table := range Objects.Tables {
+		if table.Virtual || table.GroupBy || table.PassthroughOnly {
+			continue
+		}
 		file, err := os.Create(fmt.Sprintf("%s/%s.json", tempFolder, name))
 		if err != nil {
 			panic("failed to create temp file: " + err.Error())
 		}
 		template, err := os.Open(fmt.Sprintf("%s/%s.json", dataFolder, name))
+		if err != nil {
+			panic("failed to open temp file: " + err.Error())
+		}
 		if name == "hosts" || name == "services" {
 			err = file.Close()
 			prepareTmpDataHostService(dataFolder, tempFolder, table, numHosts, numServices)
