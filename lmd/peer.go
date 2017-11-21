@@ -1199,6 +1199,7 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 		refCol := table.Columns[refNum]
 		fieldName := refCol.Name
 		refs[fieldName] = make([][]interface{}, len(res))
+		p.DataLock.RLock()
 		refByName := p.Tables[fieldName].Index
 		if refCol.Name == "services" {
 			hostnameIndex := table.ColumnsIndex["hostname_index"]
@@ -1219,6 +1220,7 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 				}
 			}
 		}
+		p.DataLock.RUnlock()
 	}
 
 	p.createIndex(table, &res, &index)
@@ -1383,6 +1385,7 @@ func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error)
 			row := res[i]
 			if len(row) < indexLength {
 				err = fmt.Errorf("response list has wrong size, got %d and expexted %d", len(row), indexLength)
+				p.DataLock.Unlock()
 				return
 			}
 			for j, k := range indexes {
