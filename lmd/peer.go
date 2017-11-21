@@ -1188,6 +1188,7 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 			OutputFormat:    "json",
 		}
 		res, err = p.Query(req)
+		log.Debugf("[%s] fetched %d initial %s objects", p.Name, len(res), table.Name)
 	}
 	if err != nil {
 		return
