@@ -4,6 +4,8 @@ LAMPDDIR=lmd
 MAKE:=make
 SHELL:=bash
 GOVERSION:=$(shell go version | awk '{print $$3}' | sed 's/^go\([0-9]\.[0-9]\).*/\1/')
+#UPDATE=-u
+UPDATE=
 
 EXTERNAL_DEPS = \
 	github.com/BurntSushi/toml \
@@ -23,7 +25,7 @@ deps: versioncheck dump
 
 updatedeps: versioncheck
 	set -e; for DEP in $(EXTERNAL_DEPS); do \
-		go get -u $$DEP; \
+		go get $(UPDATE) $$DEP; \
 	done
 
 dump:
@@ -67,6 +69,7 @@ citest: deps
 	$(MAKE) lint
 	$(MAKE) cyclo
 	$(MAKE) mispell
+	$(MAKE) copyfighter
 	$(MAKE) fmt
 	#
 	# Normal test cases
@@ -105,7 +108,7 @@ clean:
 	rm -f $(LAMPDDIR)/coverage.html
 
 fmt:
-	go get -u golang.org/x/tools/cmd/goimports
+	go get $(UPDATE) golang.org/x/tools/cmd/goimports
 	cd $(LAMPDDIR) && goimports -w .
 	cd $(LAMPDDIR) && go tool vet -all -shadow -assign -atomic -bool -composites -copylocks -nilfunc -rangeloops -unsafeptr -unreachable .
 	cd $(LAMPDDIR) && gofmt -w -s .
@@ -122,11 +125,11 @@ lint:
 	#
 	# Check if golint complains
 	# see https://github.com/golang/lint/ for details.
-	go get -u github.com/golang/lint/golint
+	go get $(UPDATE) github.com/golang/lint/golint
 	cd $(LAMPDDIR) && golint -set_exit_status .
 
 cyclo:
-	go get -u github.com/fzipp/gocyclo
+	go get $(UPDATE) github.com/fzipp/gocyclo
 	#
 	# Check if there are any too complicated functions
 	# Any function with a score higher than 15 is bad.
@@ -135,12 +138,20 @@ cyclo:
 	cd $(LAMPDDIR) && gocyclo -over 15 . | ../t/filter_cyclo_exceptions.sh
 
 mispell:
-	go get -u github.com/client9/misspell/cmd/misspell
+	go get $(UPDATE) github.com/client9/misspell/cmd/misspell
 	#
 	# Check if there are common spell errors.
 	# See https://github.com/client9/misspell
 	#
 	cd $(LAMPDDIR) && misspell -error .
+
+copyfighter:
+	go get $(UPDATE) github.com/jmhodges/copyfighter
+	#
+	# Check if there are values better passed as pointer
+	# See https://github.com/jmhodges/copyfighter
+	#
+	cd $(LAMPDDIR) && copyfighter .
 
 version:
 	OLDVERSION="$(shell grep "VERSION =" $(LAMPDDIR)/main.go | awk '{print $$3}' | tr -d '"')"; \
