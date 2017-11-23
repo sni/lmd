@@ -270,7 +270,7 @@ func (res *Response) CalculateFinalStats() {
 	hasColumns := len(res.Request.Columns)
 	if hasColumns == 0 && len(res.Request.StatsResult) == 0 {
 		if res.Request.StatsResult == nil {
-			res.Request.StatsResult = make(map[string][]Filter)
+			res.Request.StatsResult = make(map[string][]*Filter)
 		}
 		res.Request.StatsResult[""] = createLocalStatsCopy(&res.Request.Stats)
 	}
@@ -289,7 +289,7 @@ func (res *Response) CalculateFinalStats() {
 		for i, s := range stats {
 			i += hasColumns
 
-			finalStatsApply(&s, &res.Result[j][i])
+			finalStatsApply(s, &res.Result[j][i])
 
 			if res.Request.SendStatsData {
 				res.Result[j][i] = []interface{}{s.Stats, s.StatsCount}
@@ -355,7 +355,7 @@ func (req *Request) BuildResponseIndexes(table *Table) (indexes []int, columns [
 	// but only if this is no stats query
 	if len(req.Columns) == 0 && len(req.Stats) == 0 {
 		req.SendColumnsHeader = true
-		for _, col := range *table.Columns {
+		for _, col := range table.Columns {
 			if col.Update != RefUpdate {
 				req.Columns = append(req.Columns, col.Name)
 			}
@@ -372,8 +372,8 @@ func (req *Request) BuildResponseIndexes(table *Table) (indexes []int, columns [
 			}
 			i, _ = table.ColumnsIndex[colName]
 		}
-		col := &(*table.Columns)[i]
-		if (*table.Columns)[i].Type == VirtCol {
+		col := table.Columns[i]
+		if table.Columns[i].Type == VirtCol {
 			indexes = append(indexes, col.VirtMap.Index)
 			columns = append(columns, ResultColumn{Name: colName, Type: VirtCol, Index: j, Column: col})
 			requestColumnsMap[colName] = j
@@ -534,7 +534,7 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 				res.Result = append(res.Result, (*result)...)
 			} else if statsResult != nil {
 				if res.Request.StatsResult == nil {
-					res.Request.StatsResult = make(map[string][]Filter)
+					res.Request.StatsResult = make(map[string][]*Filter)
 				}
 				// apply stats querys
 				for key, stats := range *statsResult {

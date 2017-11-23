@@ -51,7 +51,7 @@ type Filter struct {
 	IsEmpty    bool
 
 	// or a group of filters
-	Filter        []Filter
+	Filter        []*Filter
 	GroupOperator GroupOperator
 
 	// stats query
@@ -227,7 +227,7 @@ func (f *Filter) ApplyValue(val float64, count int) {
 
 // ParseFilter parses a single line into a filter object.
 // It returns any error encountered.
-func ParseFilter(value string, line *string, table string, stack *[]Filter) (err error) {
+func ParseFilter(value string, line *string, table string, stack *[]*Filter) (err error) {
 	tmp := strings.SplitN(value, " ", 3)
 	if len(tmp) < 2 {
 		err = errors.New("bad request: filter header, must be Filter: <field> <operator> <value>")
@@ -254,7 +254,7 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 		}
 		i, _ = Objects.Tables[table].ColumnsIndex[columnName]
 	}
-	col := &(*Objects.Tables[table].Columns)[i]
+	col := Objects.Tables[table].Columns[i]
 	resCol := &ResultColumn{Name: columnName, Type: col.Type, Index: 0, Column: col}
 	filter := Filter{Operator: op, Column: resCol}
 
@@ -275,7 +275,7 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 		}
 		filter.Regexp = regex
 	}
-	*stack = append(*stack, filter)
+	*stack = append(*stack, &filter)
 	return
 }
 
@@ -385,7 +385,7 @@ func parseFilterOp(opStr string, line *string) (op Operator, isRegex bool, err e
 
 // ParseStats parses a text line into a stats object.
 // It returns any error encountered.
-func ParseStats(value string, line *string, table string, stack *[]Filter) (err error) {
+func ParseStats(value string, line *string, table string, stack *[]*Filter) (err error) {
 	tmp := strings.SplitN(value, " ", 3)
 	if len(tmp) < 2 {
 		err = errors.New("bad request: stats header, must be Stats: <field> <operator> <value> OR Stats: <sum|avg|min|max> <field>")
@@ -422,16 +422,16 @@ func ParseStats(value string, line *string, table string, stack *[]Filter) (err 
 		err = errors.New("bad request: unrecognized column from stats: " + tmp[1] + " in " + *line)
 		return
 	}
-	col := &(*Objects.Tables[table].Columns)[i]
+	col := Objects.Tables[table].Columns[i]
 	resCol := &ResultColumn{Name: col.Name, Type: col.Type, Index: 0, Column: col}
-	stats := Filter{Column: resCol, StatsType: op, Stats: startWith, StatsCount: 0}
+	stats := &Filter{Column: resCol, StatsType: op, Stats: startWith, StatsCount: 0}
 	*stack = append(*stack, stats)
 	return
 }
 
 // ParseFilterOp parses a text line into a filter group operator like And: <nr>.
 // It returns any error encountered.
-func ParseFilterOp(header string, value string, line *string, stack *[]Filter) (err error) {
+func ParseFilterOp(header string, value string, line *string, stack *[]*Filter) (err error) {
 	num, cerr := strconv.Atoi(value)
 	if cerr != nil || num < 1 {
 		err = fmt.Errorf("bad request: %s must be a positive number in: %s", header, *line)
@@ -448,8 +448,8 @@ func ParseFilterOp(header string, value string, line *string, stack *[]Filter) (
 	if header == "and" {
 		op = And
 	}
-	stackedFilter := Filter{Filter: groupedStack, GroupOperator: op}
-	*stack = []Filter{}
+	stackedFilter := &Filter{Filter: groupedStack, GroupOperator: op}
+	*stack = []*Filter{}
 	*stack = append(*stack, remainingStack...)
 	*stack = append(*stack, stackedFilter)
 	return

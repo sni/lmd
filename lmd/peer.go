@@ -1199,7 +1199,7 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	// expand references, create a hash entry for each reference type, ex.: hosts
 	// with an array containing the references (using the same index as the original row)
 	for _, refNum := range table.RefColCacheIndexes {
-		refCol := (*table.Columns)[refNum]
+		refCol := table.Columns[refNum]
 		fieldName := refCol.Name
 		refs[fieldName] = make([][]interface{}, len(res))
 		p.DataLock.RLock()
@@ -1457,7 +1457,7 @@ func (p *Peer) GetRowValue(col *ResultColumn, row *[]interface{}, rowNum int, ta
 		}
 
 		// reference columns
-		refObj := (*refs)[(*table.Columns)[col.Column.RefIndex].Name][rowNum]
+		refObj := (*refs)[table.Columns[col.Column.RefIndex].Name][rowNum]
 		if refObj == nil {
 			log.Panicf("should not happen, ref not found in table %s", table.Name)
 		}
@@ -1596,7 +1596,7 @@ func (p *Peer) WaitCondition(req *Request) bool {
 				close(c)
 				return
 			}
-			if p.MatchRowFilter(table, &refs, &req.WaitCondition[0], &obj, 0) {
+			if p.MatchRowFilter(table, &refs, req.WaitCondition[0], &obj, 0) {
 				// trigger update for all, wait conditions are run against the last object
 				// but multiple commands may have been sent
 				p.ScheduleImmediateUpdate()
@@ -1760,7 +1760,7 @@ func SpinUpPeers(peers []string) {
 }
 
 // BuildLocalResponseData returnss the result data for a given request
-func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (int, *[][]interface{}, *map[string][]Filter) {
+func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (int, *[][]interface{}, *map[string][]*Filter) {
 	req := res.Request
 	numPerRow := len(*indexes)
 	log.Tracef("BuildLocalResponseData: %s", p.Name)
@@ -1818,8 +1818,7 @@ Rows:
 	for j := range *data {
 		row := &((*data)[j])
 		// does our filter match?
-		for i := range req.Filter {
-			f := &(req.Filter[i])
+		for _, f := range req.Filter {
 			if !p.MatchRowFilter(table, &refs, f, row, j) {
 				continue Rows
 			}
@@ -1848,7 +1847,7 @@ Rows:
 			}
 			// fill null values with something useful
 			if resRow[k] == nil {
-				resRow[k] = (*table.Columns)[i].GetEmptyValue()
+				resRow[k] = table.Columns[i].GetEmptyValue()
 			}
 		}
 		result = append(result, resRow)
@@ -1856,7 +1855,7 @@ Rows:
 
 	// sanitize broken custom var data from icinga2
 	for j, i := range *(indexes) {
-		if i > 0 && (*table.Columns)[i].Type == CustomVarCol {
+		if i > 0 && table.Columns[i].Type == CustomVarCol {
 			for k := range result {
 				resRow := &(result[k])
 				(*resRow)[j] = interfaceToCustomVarHash(&(*resRow)[j])
@@ -1867,18 +1866,17 @@ Rows:
 	return found, &result
 }
 
-func (p *Peer) gatherStatsResult(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) *map[string][]Filter {
+func (p *Peer) gatherStatsResult(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) *map[string][]*Filter {
 	req := res.Request
 	refs := p.Tables[req.Table].Refs
 
-	localStats := make(map[string][]Filter)
+	localStats := make(map[string][]*Filter)
 
 Rows:
 	for j := range *data {
 		row := &((*data)[j])
 		// does our filter match?
-		for i := range req.Filter {
-			f := &(req.Filter[i])
+		for _, f := range req.Filter {
 			if !p.MatchRowFilter(table, &refs, f, row, j) {
 				continue Rows
 			}
@@ -1894,8 +1892,7 @@ Rows:
 		}
 
 		// count stats
-		for i := range req.Stats {
-			s := &(req.Stats[i])
+		for i, s := range req.Stats {
 			// avg/sum/min/max are passed through, they dont have filter
 			// counter must match their filter
 			if s.StatsType == Counter {
@@ -1913,10 +1910,10 @@ Rows:
 	return &localStats
 }
 
-func createLocalStatsCopy(stats *[]Filter) []Filter {
-	localStats := make([]Filter, len(*stats))
-	for i := range *stats {
-		s := (*stats)[i]
+func createLocalStatsCopy(stats *[]*Filter) []*Filter {
+	localStats := make([]*Filter, len(*stats))
+	for i, s := range *stats {
+		localStats[i] = &Filter{}
 		localStats[i].StatsType = s.StatsType
 		if s.StatsType == Min {
 			localStats[i].Stats = -1
@@ -1955,8 +1952,8 @@ func (p *Peer) MatchRowFilter(table *Table, refs *map[string][][]interface{}, fi
 	// recursive group filter
 	filterLength := len(filter.Filter)
 	if filterLength > 0 {
-		for i := 0; i < filterLength; i++ {
-			subresult := p.MatchRowFilter(table, refs, &(filter.Filter[i]), row, rowNum)
+		for _, f := range filter.Filter {
+			subresult := p.MatchRowFilter(table, refs, f, row, rowNum)
 			switch filter.GroupOperator {
 			case And:
 				// if all conditions must match and we failed already, exit early

@@ -19,10 +19,10 @@ type Request struct {
 	Table             string
 	Command           string
 	Columns           []string
-	Filter            []Filter
+	Filter            []*Filter
 	FilterStr         string
-	Stats             []Filter
-	StatsResult       map[string][]Filter
+	Stats             []*Filter
+	StatsResult       map[string][]*Filter
 	Limit             int
 	Offset            int
 	Sort              []*SortField
@@ -34,7 +34,7 @@ type Request struct {
 	SendStatsData     bool
 	WaitTimeout       int
 	WaitTrigger       string
-	WaitCondition     []Filter
+	WaitCondition     []*Filter
 	WaitObject        string
 	KeepAlive         bool
 }
@@ -530,7 +530,7 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan [][]interfac
 			// Value (sum), count (number of elements)
 			hasColumns := len(req.Columns)
 			if req.StatsResult == nil {
-				req.StatsResult = make(map[string][]Filter)
+				req.StatsResult = make(map[string][]*Filter)
 			}
 			for _, row := range currentRows {
 				// apply stats querys
@@ -687,7 +687,7 @@ func parseSortHeader(field *[]*SortField, value string) (err error) {
 	return
 }
 
-func parseStatsOp(op string, value string, line *string, stats *[]Filter) (err error) {
+func parseStatsOp(op string, value string, line *string, stats *[]*Filter) (err error) {
 	err = ParseFilterOp(op, value, line, stats)
 	if err != nil {
 		return

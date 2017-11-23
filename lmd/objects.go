@@ -14,7 +14,7 @@ type Table struct {
 	Name                   string
 	MaxIndex               int
 	ColumnsIndex           map[string]int
-	Columns                *[]Column
+	Columns                []*Column
 	StaticColCacheNames    []string
 	StaticColCacheIndexes  []int
 	DynamicColCacheNames   []string
@@ -116,7 +116,7 @@ func (c *Column) GetEmptyValue() interface{} {
 // GetTableColumnsData returns the virtual data used for the columns/table livestatus table.
 func (o *ObjectsType) GetTableColumnsData() (data [][]interface{}) {
 	for _, t := range o.Tables {
-		for _, c := range *(t.Columns) {
+		for _, c := range t.Columns {
 			colType := c.Type
 			if c.Type == VirtCol {
 				colType = c.VirtType
@@ -187,19 +187,18 @@ func (t *Table) IsDefaultSortOrder(sort *[]*SortField) bool {
 
 // GetColumn returns a column by name.
 func (t *Table) GetColumn(name string) *Column {
-	return (&(*t.Columns)[t.ColumnsIndex[name]])
+	return t.Columns[t.ColumnsIndex[name]]
 }
 
 // GetResultColumn returns a fake result column by name.
 func (t *Table) GetResultColumn(name string) *ResultColumn {
-	column := &(*t.Columns)[t.ColumnsIndex[name]]
+	column := t.Columns[t.ColumnsIndex[name]]
 	return &ResultColumn{Name: name, Type: column.Type, Column: column}
 }
 
 // GetInitialKeys returns the list of strings of all static and dynamic columns.
 func (t *Table) GetInitialKeys(flags OptionalFlags) (keys []string) {
-	for i := range *(t.Columns) {
-		col := (*t.Columns)[i]
+	for _, col := range t.Columns {
 		if col.Update != RefUpdate && col.Update != RefNoUpdate && col.Type != VirtCol {
 			if col.Optional == NoFlags || flags&col.Optional != 0 {
 				keys = append(keys, col.Name)
@@ -211,8 +210,7 @@ func (t *Table) GetInitialKeys(flags OptionalFlags) (keys []string) {
 
 // GetDynamicColumns returns a list of all dynamic columns along with their indexes.
 func (t *Table) GetDynamicColumns(flags OptionalFlags) (keys []string, indexes []int) {
-	for i := range *(t.Columns) {
-		col := (*t.Columns)[i]
+	for _, col := range t.Columns {
 		if col.Update == DynamicUpdate {
 			if col.Optional == NoFlags || flags&col.Optional != 0 {
 				keys = append(keys, col.Name)
@@ -247,10 +245,9 @@ func (t *Table) AddColumnObject(col *Column) int {
 		break
 	}
 	if t.Columns == nil {
-		columns := make([]Column, 0)
-		t.Columns = &columns
+		t.Columns = make([]*Column, 0)
 	}
-	*t.Columns = append(*t.Columns, *col)
+	t.Columns = append(t.Columns, col)
 	return col.Index
 }
 
@@ -307,7 +304,7 @@ func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, LocalName s
 	RefIndex := t.AddColumnObject(&RefColumn)
 
 	// add fake columns for all columns from the referenced table
-	for _, col := range *(Objects.Tables[Ref].Columns) {
+	for _, col := range Objects.Tables[Ref].Columns {
 		if col.Name != Name {
 			// skip peer_key and such things from ref table
 			if col.Type == VirtCol {
