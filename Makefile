@@ -4,8 +4,6 @@ LAMPDDIR=lmd
 MAKE:=make
 SHELL:=bash
 GOVERSION:=$(shell go version | awk '{print $$3}' | sed 's/^go\([0-9]\.[0-9]\).*/\1/')
-#UPDATE=-u
-UPDATE=
 
 EXTERNAL_DEPS = \
 	github.com/BurntSushi/toml \
@@ -14,6 +12,12 @@ EXTERNAL_DEPS = \
 	github.com/prometheus/client_golang/prometheus \
 	github.com/Jeffail/gabs \
 	github.com/julienschmidt/httprouter \
+	github.com/davecgh/go-spew/spew \
+	golang.org/x/tools/cmd/goimports \
+	github.com/golang/lint/golint \
+	github.com/fzipp/gocyclo \
+	github.com/client9/misspell/cmd/misspell \
+	github.com/jmhodges/copyfighter \
 
 
 all: deps fmt build
@@ -25,12 +29,11 @@ deps: versioncheck dump
 
 updatedeps: versioncheck
 	set -e; for DEP in $(EXTERNAL_DEPS); do \
-		go get $(UPDATE) $$DEP; \
+		go get -u $$DEP; \
 	done
 
 dump:
 	if [ $(shell grep -rc Dump $(LAMPDDIR)/*.go | grep -v :0 | grep -v $(LAMPDDIR)/dump.go | wc -l) -ne 0 ]; then \
-		go get github.com/davecgh/go-spew/spew; \
 		sed -i.bak 's/\/\/ +build.*/\/\/ build with debug functions/' $(LAMPDDIR)/dump.go; \
 	else \
 		sed -i.bak 's/\/\/ build.*/\/\/ +build ignore/' $(LAMPDDIR)/dump.go; \
@@ -108,7 +111,6 @@ clean:
 	rm -f $(LAMPDDIR)/coverage.html
 
 fmt:
-	go get $(UPDATE) golang.org/x/tools/cmd/goimports
 	cd $(LAMPDDIR) && goimports -w .
 	cd $(LAMPDDIR) && go tool vet -all -shadow -assign -atomic -bool -composites -copylocks -nilfunc -rangeloops -unsafeptr -unreachable .
 	cd $(LAMPDDIR) && gofmt -w -s .
@@ -125,11 +127,9 @@ lint:
 	#
 	# Check if golint complains
 	# see https://github.com/golang/lint/ for details.
-	go get $(UPDATE) github.com/golang/lint/golint
 	cd $(LAMPDDIR) && golint -set_exit_status .
 
 cyclo:
-	go get $(UPDATE) github.com/fzipp/gocyclo
 	#
 	# Check if there are any too complicated functions
 	# Any function with a score higher than 15 is bad.
@@ -138,7 +138,6 @@ cyclo:
 	cd $(LAMPDDIR) && gocyclo -over 15 . | ../t/filter_cyclo_exceptions.sh
 
 mispell:
-	go get $(UPDATE) github.com/client9/misspell/cmd/misspell
 	#
 	# Check if there are common spell errors.
 	# See https://github.com/client9/misspell
@@ -146,7 +145,6 @@ mispell:
 	cd $(LAMPDDIR) && misspell -error .
 
 copyfighter:
-	go get $(UPDATE) github.com/jmhodges/copyfighter
 	#
 	# Check if there are values better passed as pointer
 	# See https://github.com/jmhodges/copyfighter
