@@ -7,7 +7,6 @@ use Term::ANSIColor;
 
 my $f1 = _parse(read_file($ARGV[0]));
 my $f2 = _parse(read_file($ARGV[1]));
-printf("red color means %s is faster than %s\n", $ARGV[0], $ARGV[1]);
 _diff($f1, $f2);
 
 sub _diff {
@@ -20,6 +19,7 @@ sub _diff {
             if(length($name) > $longestname) { $longestname = length($name); }
         }
     }
+    printf("%-".$longestname."s       %10s   /     %s\n", "", $ARGV[0], $ARGV[1]);
     for my $name (sort keys %{$e1}) {
         if(defined $e2->{$name}) {
             my $r1 = $e1->{$name};
@@ -28,14 +28,12 @@ sub _diff {
             $name =~ s/^Benchmark//gmx;
             $name =~ s/-\d+$//gmx;
             printf("%-".$longestname."s  ", $name);
-            # number of tests
-            printf("%-15s  ", ($r1->[1] != $r2->[1] ? $r1->[1]." / ".$r2->[1] : $r1->[1]));
             # duration
-            printf("%s %10s / %-10s ns/op", _color(($r2->[2] / $r1->[2]) * 100), $r1->[2], $r2->[2]);
+            printf("%10s / %-10s ns/op %s", $r1->[2], $r2->[2], _color(($r2->[2] / $r1->[2]) * 100));
             # bytes
-            printf("  |   %s %10s / %-10s B/op", _color(($r2->[3] / $r1->[3]) * 100), $r1->[3], $r2->[3]);
+            printf("  |   %10s / %-10s B/op %s", $r1->[3], $r2->[3], _color(($r2->[3] / $r1->[3]) * 100));
             # allocs
-            printf("  |   %s %7s / %-7s allocs/op", _color(($r2->[4] / $r1->[4]) * 100), $r1->[4], $r2->[4]);
+            printf("  |   %7s / %-7s allocs/op %s", $r1->[4], $r2->[4], _color(($r2->[4] / $r1->[4]) * 100));
 
             printf("\n");
         }
@@ -47,7 +45,7 @@ sub _color {
     if($num > 102) {
         return(color("red").sprintf("%6s%%", sprintf("%.2f", $num)).color("reset"));
     }
-    if($num < 95) {
+    if($num < 98) {
         return(color("green").sprintf("%6s%%", sprintf("%.2f", $num)).color("reset"));
     }
     return(sprintf("%6s%%", sprintf("%.2f", $num)));
