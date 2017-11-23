@@ -1061,7 +1061,6 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 			fallthrough
 		case "unix":
 			conn, err = net.DialTimeout(connType, peerAddr, time.Duration(p.LocalConfig.NetTimeout)*time.Second)
-			break
 		case "http":
 			// test at least basic tcp connect
 			uri, uErr := url.Parse(peerAddr)
@@ -1073,13 +1072,10 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 				switch uri.Scheme {
 				case "http":
 					host = host + ":80"
-					break
 				case "https":
 					host = host + ":443"
-					break
 				default:
 					err = &PeerError{msg: fmt.Sprintf("unknown scheme: %s", uri.Scheme), kind: ConnectionError}
-					break
 				}
 			}
 			conn, err = net.DialTimeout("tcp", host, time.Duration(p.LocalConfig.NetTimeout)*time.Second)
@@ -1087,7 +1083,6 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 				conn.Close()
 			}
 			conn = nil
-			break
 		}
 		// connection successful
 		if err == nil {

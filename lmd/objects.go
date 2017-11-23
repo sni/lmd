@@ -128,28 +128,20 @@ func (o *ObjectsType) GetTableColumnsData() (data [][]interface{}) {
 			switch colType {
 			case IntCol:
 				colTypeName = "int"
-				break
 			case StringCol:
 				colTypeName = "string"
-				break
 			case StringListCol:
 				colTypeName = "list"
-				break
 			case TimeCol:
 				colTypeName = "int"
-				break
 			case IntListCol:
 				colTypeName = "list"
-				break
 			case CustomVarCol:
 				colTypeName = "list"
-				break
 			case FloatCol:
 				colTypeName = "float"
-				break
 			case RefCol:
 				colTypeName = "string"
-				break
 			default:
 				log.Panicf("type not handled in table %s: %#v", t.Name, c)
 			}

@@ -319,8 +319,8 @@ func checkFlags() {
 
 	if flagPidfile != "" {
 		if _, err := os.Stat(flagPidfile); err == nil {
-			dat, err := ioutil.ReadFile(flagPidfile)
-			pid, err := strconv.ParseInt(strings.TrimSpace(string(dat)), 10, 64)
+			dat, _ := ioutil.ReadFile(flagPidfile)
+			pid, _ := strconv.ParseInt(strings.TrimSpace(string(dat)), 10, 64)
 			process, err := os.FindProcess(int(pid))
 			if err == nil {
 				err = process.Signal(syscall.Signal(0))
