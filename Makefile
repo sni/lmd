@@ -18,6 +18,7 @@ EXTERNAL_DEPS = \
 	github.com/fzipp/gocyclo \
 	github.com/client9/misspell/cmd/misspell \
 	github.com/jmhodges/copyfighter \
+	honnef.co/go/tools/cmd/gosimple \
 
 
 all: deps fmt build
@@ -73,6 +74,7 @@ citest: deps
 	$(MAKE) cyclo
 	$(MAKE) mispell
 	$(MAKE) copyfighter
+	$(MAKE) gosimple
 	$(MAKE) fmt
 	#
 	# Normal test cases
@@ -150,6 +152,13 @@ copyfighter:
 	# See https://github.com/jmhodges/copyfighter
 	#
 	cd $(LAMPDDIR) && copyfighter .
+
+gosimple:
+	#
+	# Check if something could be made simpler
+	# See https://github.com/dominikh/go-tools/tree/master/cmd/gosimple
+	#
+	cd $(LAMPDDIR) && gosimple
 
 version:
 	OLDVERSION="$(shell grep "VERSION =" $(LAMPDDIR)/main.go | awk '{print $$3}' | tr -d '"')"; \

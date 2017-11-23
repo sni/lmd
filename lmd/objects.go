@@ -226,15 +226,12 @@ func (t *Table) AddColumnObject(col *Column) int {
 	case StaticUpdate:
 		t.StaticColCacheNames = append(t.StaticColCacheNames, col.Name)
 		t.StaticColCacheIndexes = append(t.StaticColCacheIndexes, col.Index)
-		break
 	case DynamicUpdate:
 		t.DynamicColCacheNames = append(t.DynamicColCacheNames, col.Name)
 		t.DynamicColCacheIndexes = append(t.DynamicColCacheIndexes, col.Index)
-		break
 	case RefUpdate:
 		t.RefColCacheNames = append(t.RefColCacheNames, col.Name)
 		t.RefColCacheIndexes = append(t.RefColCacheIndexes, col.Index)
-		break
 	}
 	if t.Columns == nil {
 		t.Columns = make([]*Column, 0)
@@ -320,7 +317,6 @@ func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, LocalName s
 			t.AddColumnObject(column)
 		}
 	}
-	return
 }
 
 // InitObjects creates the initial table object structures.
@@ -365,8 +361,6 @@ func InitObjects() {
 	// add fake tables about our columns
 	Objects.AddTable("columns", NewColumnsTable("columns"))
 	Objects.AddTable("tables", NewColumnsTable("tables"))
-
-	return
 }
 
 // AddTable appends a table object to the Objects and verifies that no table is added twice.
@@ -377,7 +371,6 @@ func (o *ObjectsType) AddTable(name string, table *Table) {
 	}
 	o.Tables[name] = table
 	o.Order = append(o.Order, name)
-	return
 }
 
 // NewBackendsTable returns a new backends table

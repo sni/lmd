@@ -128,7 +128,6 @@ func (e *PeerError) Type() PeerErrorType { return e.kind }
 // AddItem adds an new entry to a datatable.
 func (d *DataTable) AddItem(row *[]interface{}) {
 	d.Data = append(d.Data, *row)
-	return
 }
 
 // RemoveItem removes an entry from a datatable.
@@ -210,8 +209,6 @@ func (p *Peer) Start() {
 		p.waitGroup.Done()
 		p.PeerLock.Unlock()
 	}()
-
-	return
 }
 
 // Stop stops this peer. Restart with Start.
@@ -349,7 +346,6 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 	}
 
 	*ok = p.UpdateDeltaTables()
-	return
 }
 
 func (p *Peer) updateIdleStatus() bool {
@@ -959,10 +955,8 @@ func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn
 	switch c := conn.(type) {
 	case *net.TCPConn:
 		c.CloseWrite()
-		break
 	case *net.UnixConn:
 		c.CloseWrite()
-		break
 	}
 
 	// read result from connection into result buffer
@@ -1136,8 +1130,8 @@ func (p *Peer) setNextAddrFromErr(err error) {
 			for name := range p.Tables {
 				table := p.Tables[name]
 				table.Data = make([][]interface{}, 0)
-				table.Refs = make(map[string][][]interface{}, 0)
-				table.Index = make(map[string][]interface{}, 0)
+				table.Refs = make(map[string][][]interface{})
+				table.Index = make(map[string][]interface{})
 			}
 			p.DataLock.Unlock()
 		}
@@ -1147,7 +1141,6 @@ func (p *Peer) setNextAddrFromErr(err error) {
 	if numSources > 1 {
 		log.Debugf("[%s] trying next one: %s", p.Name, peerAddr)
 	}
-	return
 }
 
 // CreateObjectByType fetches all static and dynamic data from the remote site and creates the initial table.
@@ -1396,10 +1389,8 @@ func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error
 	switch table.Name {
 	case "hosts":
 		promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(res)))
-		break
 	case "services":
 		promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(res)))
-		break
 	case "status":
 		if p.StatusGet("ProgramStart") != data[0][table.ColumnsIndex["program_start"]] {
 			log.Infof("[%s] site has been restarted, recreating objects", p.Name)
@@ -1507,7 +1498,6 @@ func (p *Peer) GetVirtRowComputedValue(col *ResultColumn, row *[]interface{}, ro
 		} else {
 			value = lastStateChange
 		}
-		break
 	case "host_last_state_change_order":
 		// return last_state_change or program_start
 		val := p.GetRowValue(table.GetResultColumn("host_last_state_change"), row, rowNum, table, refs)
@@ -1517,7 +1507,6 @@ func (p *Peer) GetVirtRowComputedValue(col *ResultColumn, row *[]interface{}, ro
 		} else {
 			value = lastStateChange
 		}
-		break
 	case "state_order":
 		// return 4 instead of 2, which makes critical come first
 		// this way we can use this column to sort by state
@@ -1527,7 +1516,6 @@ func (p *Peer) GetVirtRowComputedValue(col *ResultColumn, row *[]interface{}, ro
 		} else {
 			value = state
 		}
-		break
 	case "has_long_plugin_output":
 		// return 1 if there is long_plugin_output
 		val := (*row)[table.ColumnsIndex["long_plugin_output"]].(string)
@@ -1536,7 +1524,6 @@ func (p *Peer) GetVirtRowComputedValue(col *ResultColumn, row *[]interface{}, ro
 		} else {
 			value = 0
 		}
-		break
 	case "host_has_long_plugin_output":
 		// return 1 if there is long_plugin_output
 		val := p.GetRowValue(table.GetResultColumn("long_plugin_output"), row, rowNum, table, refs).(string)
@@ -1545,10 +1532,8 @@ func (p *Peer) GetVirtRowComputedValue(col *ResultColumn, row *[]interface{}, ro
 		} else {
 			value = 0
 		}
-		break
 	default:
 		log.Panicf("cannot handle virtual column: %s", col.Name)
-		break
 	}
 	return
 }

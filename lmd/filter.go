@@ -144,13 +144,10 @@ func (f *Filter) String(prefix string) (str string) {
 			prefix = "Filter"
 		}
 		str = fmt.Sprintf("%s: %s %s%s\n", prefix, f.Column.Name, f.Operator.String(), strVal)
-		break
 	case Counter:
 		str = fmt.Sprintf("Stats: %s %s%s\n", f.Column.Name, f.Operator.String(), strVal)
-		break
 	default:
 		str = fmt.Sprintf("Stats: %s %s\n", f.StatsType.String(), f.Column.Name)
-		break
 	}
 	return
 }
@@ -171,25 +168,20 @@ func (f *Filter) strValue() (str string) {
 	switch colType {
 	case CustomVarCol:
 		value = f.CustomTag + " " + f.StrValue
-		break
 	case TimeCol:
 		fallthrough
 	case IntListCol:
 		fallthrough
 	case IntCol:
 		value = fmt.Sprintf("%d", int(f.FloatValue))
-		break
 	case FloatCol:
 		value = fmt.Sprintf("%v", f.FloatValue)
-		break
 	case StringListCol:
 		fallthrough
 	case StringCol:
 		value = f.StrValue
-		break
 	default:
 		log.Panicf("not implemented column type: %v", f.Column.Type)
-		break
 	}
 
 	str = fmt.Sprintf("%v", value)
@@ -201,24 +193,20 @@ func (f *Filter) ApplyValue(val float64, count int) {
 	switch f.StatsType {
 	case Counter:
 		f.Stats += float64(count)
-		break
 	case Average:
 		fallthrough
 	case Sum:
 		f.Stats += val
-		break
 	case Min:
 		value := val
 		if f.Stats > value || f.Stats == -1 {
 			f.Stats = value
 		}
-		break
 	case Max:
 		value := val
 		if f.Stats < value {
 			f.Stats = value
 		}
-		break
 	default:
 		panic("not implemented stats type")
 	}
@@ -252,7 +240,7 @@ func ParseFilter(value string, line *string, table string, stack *[]*Filter) (er
 			err = errors.New("bad request: unrecognized column from filter: " + columnName + " in " + *line)
 			return
 		}
-		i, _ = Objects.Tables[table].ColumnsIndex[columnName]
+		i = Objects.Tables[table].ColumnsIndex[columnName]
 	}
 	col := Objects.Tables[table].Columns[i]
 	resCol := &ResultColumn{Name: columnName, Type: col.Type, Index: 0, Column: col}
@@ -396,17 +384,13 @@ func ParseStats(value string, line *string, table string, stack *[]*Filter) (err
 	switch strings.ToLower(tmp[0]) {
 	case "avg":
 		op = Average
-		break
 	case "min":
 		op = Min
 		startWith = -1
-		break
 	case "max":
 		op = Max
-		break
 	case "sum":
 		op = Sum
-		break
 	default:
 		err = ParseFilter(value, line, table, stack)
 		if err != nil {

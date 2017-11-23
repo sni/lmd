@@ -68,7 +68,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 		Request: req,
 	}
 
-	table, _ := Objects.Tables[req.Table]
+	table := Objects.Tables[req.Table]
 
 	indexes, columns, err := req.BuildResponseIndexes(table)
 	if err != nil {
@@ -259,7 +259,6 @@ func (res *Response) PostProcessing() {
 
 	// final calculation of stats querys
 	res.CalculateFinalStats()
-	return
 }
 
 // CalculateFinalStats calculates final averages and sums from stats queries
@@ -321,26 +320,20 @@ func finalStatsApply(s *Filter, res *interface{}) {
 	switch s.StatsType {
 	case Counter:
 		*res = s.Stats
-		break
 	case Min:
 		*res = s.Stats
-		break
 	case Max:
 		*res = s.Stats
-		break
 	case Sum:
 		*res = s.Stats
-		break
 	case Average:
 		if s.StatsCount > 0 {
 			*res = s.Stats / float64(s.StatsCount)
 		} else {
 			*res = 0
 		}
-		break
 	default:
 		log.Panicf("not implemented")
-		break
 	}
 	if s.StatsCount == 0 {
 		*res = 0
@@ -370,7 +363,7 @@ func (req *Request) BuildResponseIndexes(table *Table) (indexes []int, columns [
 				err = errors.New("bad request: table " + req.Table + " has no column " + colName)
 				return
 			}
-			i, _ = table.ColumnsIndex[colName]
+			i = table.ColumnsIndex[colName]
 		}
 		col := table.Columns[i]
 		if table.Columns[i].Type == VirtCol {

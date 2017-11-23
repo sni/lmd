@@ -155,7 +155,6 @@ func SendCommands(commandsByPeer *map[string][]string) {
 	}
 	// Wait up to 10 seconds for all commands being sent
 	waitTimeout(wg, 10)
-	return
 }
 
 // LocalListener starts a listening socket.
@@ -197,11 +196,9 @@ func LocalListenerLivestatus(LocalConfig *Config, connType string, listen string
 
 	// Close connection and log shutdown
 	go func() {
-		select {
-		case <-shutdownChannel:
-			log.Infof("stopping %s listener on %s", connType, listen)
-			l.Close()
-		}
+		<-shutdownChannel
+		log.Infof("stopping %s listener on %s", connType, listen)
+		l.Close()
 	}()
 
 	waitGroupInit.Done()
@@ -266,11 +263,9 @@ func LocalListenerHTTP(LocalConfig *Config, httpType string, listen string, wait
 
 	// Close connection and log shutdown
 	go func() {
-		select {
-		case <-shutdownChannel:
-			log.Infof("stopping listener on %s", listen)
-			l.Close()
-		}
+		<-shutdownChannel
+		log.Infof("stopping listener on %s", listen)
+		l.Close()
 	}()
 
 	// Initialize HTTP router

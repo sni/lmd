@@ -44,8 +44,7 @@ type NodeAddress struct {
 // HumanIdentifier returns the node address.
 // If the node has been discovered, its id is prepended.
 func (a *NodeAddress) HumanIdentifier() string {
-	var human string
-	human = fmt.Sprintf("%s:%d", a.ip, a.port)
+	human := fmt.Sprintf("%s:%d", a.ip, a.port)
 	if a.id != "" {
 		human = fmt.Sprintf("[%s] %s", a.id, human)
 	}

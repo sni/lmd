@@ -328,7 +328,7 @@ func (req *Request) GetResponse() (*Response, error) {
 func (req *Request) getDistributedResponse() (*Response, error) {
 	// Columns for sub-requests
 	// Define request columns if not specified
-	table, _ := Objects.Tables[req.Table]
+	table := Objects.Tables[req.Table]
 	_, resultColumns, err := req.BuildResponseIndexes(table)
 	if err != nil {
 		return nil, err
@@ -675,10 +675,8 @@ func parseSortHeader(field *[]*SortField, value string) (err error) {
 	switch strings.ToLower(tmp[1]) {
 	case "asc":
 		direction = Asc
-		break
 	case "desc":
 		direction = Desc
-		break
 	default:
 		err = errors.New("bad request: unrecognized sort direction, must be asc or desc")
 		return
@@ -700,10 +698,8 @@ func parseOutputFormat(field *string, value string) (err error) {
 	switch value {
 	case "wrapped_json":
 		*field = value
-		break
 	case "json":
 		*field = value
-		break
 	default:
 		err = errors.New("bad request: unrecognized outputformat, only json and wrapped_json is supported")
 		return
