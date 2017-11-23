@@ -2,7 +2,7 @@ package main
 
 // ObjectsType is a map of tables with a given order.
 type ObjectsType struct {
-	Tables map[string]Table
+	Tables map[string]*Table
 	Order  []string
 }
 
@@ -14,7 +14,7 @@ type Table struct {
 	Name                   string
 	MaxIndex               int
 	ColumnsIndex           map[string]int
-	Columns                []Column
+	Columns                *[]Column
 	StaticColCacheNames    []string
 	StaticColCacheIndexes  []int
 	DynamicColCacheNames   []string
@@ -74,6 +74,8 @@ const (
 type Column struct {
 	Name        string
 	Type        ColumnType
+	VirtType    ColumnType
+	VirtMap     *VirtKeyMapTupel
 	Index       int
 	RefIndex    int
 	RefColIndex int
@@ -97,23 +99,27 @@ const (
 )
 
 // GetEmptyValue returns an empty placeholder representation for the given column type
-func (c Column) GetEmptyValue() interface{} {
+func (c *Column) GetEmptyValue() interface{} {
 	switch c.Type {
+	case IntCol:
+		fallthrough
+	case FloatCol:
+		return -1
 	case IntListCol:
 		fallthrough
 	case StringListCol:
 		return (make([]interface{}, 0))
 	}
-	return ("")
+	return ""
 }
 
 // GetTableColumnsData returns the virtual data used for the columns/table livestatus table.
 func (o *ObjectsType) GetTableColumnsData() (data [][]interface{}) {
 	for _, t := range o.Tables {
-		for _, c := range t.Columns {
+		for _, c := range *(t.Columns) {
 			colType := c.Type
 			if c.Type == VirtCol {
-				colType = VirtKeyMap[c.Name].Type
+				colType = c.VirtType
 			}
 			if c.Update == RefUpdate {
 				continue
@@ -180,14 +186,20 @@ func (t *Table) IsDefaultSortOrder(sort *[]*SortField) bool {
 }
 
 // GetColumn returns a column by name.
-func (t *Table) GetColumn(name string) Column {
-	return (t.Columns[t.ColumnsIndex[name]])
+func (t *Table) GetColumn(name string) *Column {
+	return (&(*t.Columns)[t.ColumnsIndex[name]])
+}
+
+// GetResultColumn returns a fake result column by name.
+func (t *Table) GetResultColumn(name string) *ResultColumn {
+	column := &(*t.Columns)[t.ColumnsIndex[name]]
+	return &ResultColumn{Name: name, Type: column.Type, Column: column}
 }
 
 // GetInitialKeys returns the list of strings of all static and dynamic columns.
 func (t *Table) GetInitialKeys(flags OptionalFlags) (keys []string) {
-	for i := range t.Columns {
-		col := t.Columns[i]
+	for i := range *(t.Columns) {
+		col := (*t.Columns)[i]
 		if col.Update != RefUpdate && col.Update != RefNoUpdate && col.Type != VirtCol {
 			if col.Optional == NoFlags || flags&col.Optional != 0 {
 				keys = append(keys, col.Name)
@@ -199,8 +211,8 @@ func (t *Table) GetInitialKeys(flags OptionalFlags) (keys []string) {
 
 // GetDynamicColumns returns a list of all dynamic columns along with their indexes.
 func (t *Table) GetDynamicColumns(flags OptionalFlags) (keys []string, indexes []int) {
-	for i := range t.Columns {
-		col := t.Columns[i]
+	for i := range *(t.Columns) {
+		col := (*t.Columns)[i]
 		if col.Update == DynamicUpdate {
 			if col.Optional == NoFlags || flags&col.Optional != 0 {
 				keys = append(keys, col.Name)
@@ -234,7 +246,11 @@ func (t *Table) AddColumnObject(col *Column) int {
 		t.RefColCacheIndexes = append(t.RefColCacheIndexes, col.Index)
 		break
 	}
-	t.Columns = append(t.Columns, *col)
+	if t.Columns == nil {
+		columns := make([]Column, 0)
+		t.Columns = &columns
+	}
+	*t.Columns = append(*t.Columns, *col)
 	return col.Index
 }
 
@@ -245,6 +261,14 @@ func (t *Table) AddColumn(Name string, Update UpdateType, Type ColumnType, Descr
 		Type:        Type,
 		Update:      Update,
 		Description: Description,
+	}
+	if column.Type == VirtCol {
+		virtMap, ok := VirtKeyMap[Name]
+		if !ok {
+			panic("no VirtKeyMap entry for " + Name)
+		}
+		column.VirtMap = &virtMap
+		column.VirtType = column.VirtMap.Type
 	}
 	return t.AddColumnObject(column)
 }
@@ -283,7 +307,7 @@ func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, LocalName s
 	RefIndex := t.AddColumnObject(&RefColumn)
 
 	// add fake columns for all columns from the referenced table
-	for _, col := range Objects.Tables[Ref].Columns {
+	for _, col := range *(Objects.Tables[Ref].Columns) {
 		if col.Name != Name {
 			// skip peer_key and such things from ref table
 			if col.Type == VirtCol {
@@ -317,7 +341,18 @@ func InitObjects() {
 	}
 	Objects = &ObjectsType{}
 
-	Objects.Tables = make(map[string]Table)
+	// generate virtual keys with peer and host_peer prefix
+	for name, dat := range VirtKeyMap {
+		if dat.Key != "" {
+			VirtKeyMap["peer_"+name] = dat
+			VirtKeyMap["host_peer_"+name] = dat
+		}
+		if dat.Key == "" {
+			VirtKeyMap["host_"+name] = dat
+		}
+	}
+
+	Objects.Tables = make(map[string]*Table)
 	Objects.AddTable("backends", NewBackendsTable("backends"))
 	Objects.AddTable("status", NewStatusTable())
 	Objects.AddTable("timeperiods", NewTimeperiodsTable())
@@ -342,17 +377,6 @@ func InitObjects() {
 	Objects.AddTable("columns", NewColumnsTable("columns"))
 	Objects.AddTable("tables", NewColumnsTable("tables"))
 
-	// insert virtual keys with peer and host_peer prefix
-	for name, dat := range VirtKeyMap {
-		if dat.Key != "" {
-			VirtKeyMap["peer_"+name] = dat
-			VirtKeyMap["host_peer_"+name] = dat
-		}
-		if dat.Key == "" {
-			VirtKeyMap["host_"+name] = dat
-		}
-	}
-
 	return
 }
 
@@ -362,7 +386,7 @@ func (o *ObjectsType) AddTable(name string, table *Table) {
 	if exists {
 		log.Panicf("table %s has been added twice", name)
 	}
-	o.Tables[name] = *table
+	o.Tables[name] = table
 	o.Order = append(o.Order, name)
 	return
 }

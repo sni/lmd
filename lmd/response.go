@@ -12,6 +12,14 @@ import (
 	"time"
 )
 
+// ResultColumn is a column container for results
+type ResultColumn struct {
+	Name   string
+	Type   ColumnType
+	Column *Column // reference to the real column
+	Index  int     // index in the request
+}
+
 // VirtKeyMapTupel is used to define the virtual key mapping in the VirtKeyMap
 type VirtKeyMapTupel struct {
 	Index int
@@ -48,7 +56,7 @@ type Response struct {
 	Request     *Request
 	Error       error
 	Failed      map[string]string
-	Columns     []Column
+	Columns     []ResultColumn
 }
 
 // NewResponse creates a new response object for a given request
@@ -62,7 +70,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 
 	table, _ := Objects.Tables[req.Table]
 
-	indexes, columns, err := req.BuildResponseIndexes(&table)
+	indexes, columns, err := req.BuildResponseIndexes(table)
 	if err != nil {
 		return
 	}
@@ -90,7 +98,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 
 	if table.PassthroughOnly {
 		// passthrough requests, ex.: log table
-		err = res.BuildPassThroughResult(selectedPeers, &table, &columns)
+		err = res.BuildPassThroughResult(selectedPeers, table, &columns)
 		if err != nil {
 			return
 		}
@@ -108,16 +116,19 @@ func NewResponse(req *Request) (res *Response, err error) {
 }
 
 // Len returns the result length used for sorting results.
-func (res Response) Len() int {
+func (res *Response) Len() int {
 	return len(res.Result)
 }
 
 // Less returns the sort result of two data rows
-func (res Response) Less(i, j int) bool {
+func (res *Response) Less(i, j int) bool {
 	for _, s := range res.Request.Sort {
 		Type := StringFakeSortCol
 		if s.Index != -1 {
-			Type = res.Columns[s.Index].Type
+			Type = res.Columns[s.Index].Column.Type
+		}
+		if Type == VirtCol {
+			Type = res.Columns[s.Index].Column.VirtType
 		}
 		switch Type {
 		case TimeCol:
@@ -185,7 +196,7 @@ func (res Response) Less(i, j int) bool {
 }
 
 // Swap replaces two data rows while sorting.
-func (res Response) Swap(i, j int) {
+func (res *Response) Swap(i, j int) {
 	res.Result[i], res.Result[j] = res.Result[j], res.Result[i]
 }
 
@@ -278,7 +289,7 @@ func (res *Response) CalculateFinalStats() {
 		for i, s := range stats {
 			i += hasColumns
 
-			finalStatsApply(s, &res.Result[j][i])
+			finalStatsApply(&s, &res.Result[j][i])
 
 			if res.Request.SendStatsData {
 				res.Result[j][i] = []interface{}{s.Stats, s.StatsCount}
@@ -306,7 +317,7 @@ func (res *Response) CalculateFinalStats() {
 	}
 }
 
-func finalStatsApply(s Filter, res *interface{}) {
+func finalStatsApply(s *Filter, res *interface{}) {
 	switch s.StatsType {
 	case Counter:
 		*res = s.Stats
@@ -337,39 +348,40 @@ func finalStatsApply(s Filter, res *interface{}) {
 }
 
 // BuildResponseIndexes returns a list of used indexes and columns for this request.
-func (req *Request) BuildResponseIndexes(table *Table) (indexes []int, columns []Column, err error) {
+func (req *Request) BuildResponseIndexes(table *Table) (indexes []int, columns []ResultColumn, err error) {
 	log.Tracef("BuildResponseIndexes")
 	requestColumnsMap := make(map[string]int)
 	// if no column header was given, return all columns
 	// but only if this is no stats query
 	if len(req.Columns) == 0 && len(req.Stats) == 0 {
 		req.SendColumnsHeader = true
-		for _, col := range table.Columns {
+		for _, col := range *table.Columns {
 			if col.Update != RefUpdate {
 				req.Columns = append(req.Columns, col.Name)
 			}
 		}
 	}
-	// build array of requested columns as Column objects list
-	for j, col := range req.Columns {
-		col = strings.ToLower(col)
-		i, ok := table.ColumnsIndex[col]
+	// build array of requested columns as ResultColumn objects list
+	for j, colName := range req.Columns {
+		colName = strings.ToLower(colName)
+		i, ok := table.ColumnsIndex[colName]
 		if !ok {
-			if !fixBrokenClientsRequestColumn(&col, table.Name) {
-				err = errors.New("bad request: table " + req.Table + " has no column " + col)
+			if !fixBrokenClientsRequestColumn(&colName, table.Name) {
+				err = errors.New("bad request: table " + req.Table + " has no column " + colName)
 				return
 			}
-			i, _ = table.ColumnsIndex[col]
+			i, _ = table.ColumnsIndex[colName]
 		}
-		if table.Columns[i].Type == VirtCol {
-			indexes = append(indexes, VirtKeyMap[col].Index)
-			columns = append(columns, Column{Name: col, Type: VirtKeyMap[col].Type, Index: j, RefIndex: i})
-			requestColumnsMap[col] = j
+		col := &(*table.Columns)[i]
+		if (*table.Columns)[i].Type == VirtCol {
+			indexes = append(indexes, col.VirtMap.Index)
+			columns = append(columns, ResultColumn{Name: colName, Type: VirtCol, Index: j, Column: col})
+			requestColumnsMap[colName] = j
 			continue
 		}
 		indexes = append(indexes, i)
-		columns = append(columns, Column{Name: col, Type: table.Columns[i].Type, Index: j})
-		requestColumnsMap[col] = j
+		columns = append(columns, ResultColumn{Name: colName, Type: col.Type, Index: j, Column: col})
+		requestColumnsMap[colName] = j
 	}
 
 	// check wether our sort columns do exist in the output
@@ -508,13 +520,13 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 		waitgroup.Add(1)
 		go func(peer *Peer, wg *sync.WaitGroup) {
 			// make sure we log panics properly
-			defer logPanicExit()
+			defer logPanicExitPeer(peer)
 
-			log.Tracef("[%s] starting local data computation", p.Name)
+			log.Tracef("[%s] starting local data computation", peer.Name)
 			defer wg.Done()
 
-			total, result, statsResult := p.BuildLocalResponseData(res, indexes)
-			log.Tracef("[%s] result ready", p.Name)
+			total, result, statsResult := peer.BuildLocalResponseData(res, indexes)
+			log.Tracef("[%s] result ready", peer.Name)
 			resultLock.Lock()
 			res.ResultTotal += total
 			if result != nil {
@@ -547,22 +559,21 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 
 // BuildPassThroughResult passes a query transparently to one or more remote sites and builds the response
 // from that.
-func (res *Response) BuildPassThroughResult(peers []string, table *Table, columns *[]Column) error {
+func (res *Response) BuildPassThroughResult(peers []string, table *Table, columns *[]ResultColumn) error {
 	req := res.Request
 	res.Result = make([][]interface{}, 0)
 
 	// build columns list
 	backendColumns := []string{}
-	virtColumns := []Column{}
+	virtColumns := []*ResultColumn{}
 	for _, col := range *columns {
-		if col.RefIndex > 0 {
-			virtColumns = append(virtColumns, col)
+		if col.Type == VirtCol {
+			virtColumns = append(virtColumns, &col)
 		} else {
 			backendColumns = append(backendColumns, col.Name)
 		}
 	}
 
-	numPerRow := len(*columns)
 	waitgroup := &sync.WaitGroup{}
 	resultLock := sync.Mutex{}
 
@@ -582,9 +593,9 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table, column
 		waitgroup.Add(1)
 		go func(peer *Peer, wg *sync.WaitGroup) {
 			// make sure we log panics properly
-			defer logPanicExit()
+			defer logPanicExitPeer(peer)
 
-			log.Debugf("[%s] starting passthrough request", p.Name)
+			log.Debugf("[%s] starting passthrough request", peer.Name)
 			defer wg.Done()
 			passthroughRequest := &Request{
 				Table:           req.Table,
@@ -597,27 +608,27 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table, column
 			}
 			var result [][]interface{}
 			result, queryErr := peer.Query(passthroughRequest)
-			log.Tracef("[%s] req done", p.Name)
+			log.Tracef("[%s] req done", peer.Name)
 			if queryErr != nil {
 				log.Tracef("[%s] req errored", queryErr.Error())
 				resultLock.Lock()
-				res.Failed[p.ID] = queryErr.Error()
+				res.Failed[peer.ID] = queryErr.Error()
 				resultLock.Unlock()
 				return
 			}
 			// insert virtual values
 			if len(virtColumns) > 0 {
-				for j, row := range result {
+				for rowNum, row := range result {
 					for _, col := range virtColumns {
 						i := col.Index
 						row = append(row, 0)
 						copy(row[i+1:], row[i:])
-						row[i] = peer.GetRowValue(col.RefIndex, &row, j, table, nil, numPerRow)
+						row[i] = peer.GetRowValue(col, &row, rowNum, table, nil)
 					}
-					result[j] = row
+					result[rowNum] = row
 				}
 			}
-			log.Tracef("[%s] result ready", p.Name)
+			log.Tracef("[%s] result ready", peer.Name)
 			resultLock.Lock()
 			res.Result = append(res.Result, result...)
 			resultLock.Unlock()

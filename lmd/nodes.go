@@ -110,7 +110,7 @@ func (n *Nodes) IsClustered() bool {
 }
 
 // Node returns the NodeAddress object for the specified node id.
-func (n *Nodes) Node(id string) NodeAddress {
+func (n *Nodes) Node(id string) *NodeAddress {
 	var nodeAddress NodeAddress
 	for _, otherNodeAddress := range n.nodeAddresses {
 		if otherNodeAddress.id != "" && otherNodeAddress.id == id {
@@ -122,7 +122,7 @@ func (n *Nodes) Node(id string) NodeAddress {
 		// Not found
 		nodeAddress.id = id
 	}
-	return nodeAddress
+	return &nodeAddress
 }
 
 // Initialize generates the node's identifier and identifies this node.
@@ -258,7 +258,7 @@ func (n *Nodes) checkNodeAvailability() {
 				}
 				wg.Done()
 			}
-			n.SendQuery(*node, "ping", requestData, callback)
+			n.SendQuery(node, "ping", requestData, callback)
 		}(&wg, node)
 	}
 
@@ -424,7 +424,7 @@ func (n *Nodes) IsOurBackend(backend string) bool {
 // SendQuery sends a query to a node.
 // It will be sent as http request; name is the api function to be called.
 // The returned data will be passed to the callback.
-func (n *Nodes) SendQuery(node NodeAddress, name string, parameters map[string]interface{}, callback func(interface{})) error {
+func (n *Nodes) SendQuery(node *NodeAddress, name string, parameters map[string]interface{}, callback func(interface{})) error {
 	// Prepare request data
 	requestData := make(map[string]interface{})
 	for key, value := range parameters {

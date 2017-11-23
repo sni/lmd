@@ -159,7 +159,7 @@ func main() {
 }
 
 func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
-	LocalConfig := ReadConfig(flagConfigFile)
+	LocalConfig := *(ReadConfig(flagConfigFile))
 	setDefaults(&LocalConfig)
 	setVerboseFlags(&LocalConfig)
 	InitLogging(&LocalConfig)
@@ -258,7 +258,7 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 		// Keep peer if connection settings unchanged
 		var p *Peer
 		if v, ok := DataStore[c.ID]; ok {
-			if c.Equals(&v.Config) {
+			if c.Equals(v.Config) {
 				p = v
 				p.PeerLock.Lock()
 				p.waitGroup = waitGroupPeers
@@ -270,7 +270,7 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 
 		// Create new peer otherwise
 		if p == nil {
-			p = NewPeer(LocalConfig, c, waitGroupPeers, shutdownChannel)
+			p = NewPeer(LocalConfig, &c, waitGroupPeers, shutdownChannel)
 		}
 
 		// Check for duplicate id
@@ -485,7 +485,7 @@ func PrintVersion() {
 
 // ReadConfig reads all config files.
 // It returns a Config object.
-func ReadConfig(files []string) (conf Config) {
+func ReadConfig(files []string) (conf *Config) {
 	// combine listeners from all files
 	var allListeners []string
 

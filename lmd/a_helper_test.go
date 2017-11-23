@@ -148,7 +148,7 @@ func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (t
 	return
 }
 
-func prepareTmpDataHostService(dataFolder string, tempFolder string, table Table, numHosts int, numServices int) {
+func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Table, numHosts int, numServices int) {
 	name := table.Name
 	dat, _ := ioutil.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, name))
 	removeFirstLine := regexp.MustCompile("^200.*")
@@ -260,7 +260,7 @@ func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig
 	StartMockMainLoop(sockets, extraConfig)
 
 	testPeerShutdownChannel := make(chan bool)
-	peer = NewPeer(&GlobalTestConfig, Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
+	peer = NewPeer(&GlobalTestConfig, &Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
 
 	// wait till backend is available
 	retries := 0

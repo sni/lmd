@@ -329,7 +329,7 @@ func (req *Request) getDistributedResponse() (*Response, error) {
 	// Columns for sub-requests
 	// Define request columns if not specified
 	table, _ := Objects.Tables[req.Table]
-	_, resultColumns, err := req.BuildResponseIndexes(&table)
+	_, resultColumns, err := req.BuildResponseIndexes(table)
 	if err != nil {
 		return nil, err
 	}

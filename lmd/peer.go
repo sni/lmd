@@ -58,7 +58,7 @@ type Peer struct {
 	waitGroup       *sync.WaitGroup
 	shutdownChannel chan bool
 	stopChannel     chan bool
-	Config          Connection
+	Config          *Connection
 	Flags           OptionalFlags
 	LocalConfig     *Config
 	lastRequest     *Request
@@ -146,7 +146,7 @@ func (d *DataTable) RemoveItem(row []interface{}) {
 
 // NewPeer creates a new peer object.
 // It returns the created peer.
-func NewPeer(LocalConfig *Config, config Connection, waitGroup *sync.WaitGroup, shutdownChannel chan bool) *Peer {
+func NewPeer(LocalConfig *Config, config *Connection, waitGroup *sync.WaitGroup, shutdownChannel chan bool) *Peer {
 	p := Peer{
 		Name:            config.Name,
 		ID:              config.ID,
@@ -406,7 +406,7 @@ func (p *Peer) InitAllTables() bool {
 	t1 := time.Now()
 	for _, n := range Objects.Order {
 		t := Objects.Tables[n]
-		_, err = p.CreateObjectByType(&t)
+		_, err = p.CreateObjectByType(t)
 		if err != nil {
 			log.Debugf("[%s] creating initial objects failed in table %s: %s", p.Name, t.Name, err.Error())
 			return false
@@ -556,7 +556,7 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	if filterStr == "" {
 		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.StatusGet("LastUpdate").(int64) - UpdateAdditionalDelta))
 		// no filter means regular delta update, so lets check if all last_check dates match
-		ok, uErr := p.UpdateDeltaTableFullScan(&table, filterStr)
+		ok, uErr := p.UpdateDeltaTableFullScan(table, filterStr)
 		if ok || uErr != nil {
 			return uErr
 		}
@@ -600,7 +600,7 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	if filterStr == "" {
 		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.StatusGet("LastUpdate").(int64) - UpdateAdditionalDelta))
 		// no filter means regular delta update, so lets check if all last_check dates match
-		ok, uErr := p.UpdateDeltaTableFullScan(&table, filterStr)
+		ok, uErr := p.UpdateDeltaTableFullScan(table, filterStr)
 		if ok || uErr != nil {
 			return uErr
 		}
@@ -1188,16 +1188,18 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 			OutputFormat:    "json",
 		}
 		res, err = p.Query(req)
-		log.Debugf("[%s] fetched %d initial %s objects", p.Name, len(res), table.Name)
 	}
 	if err != nil {
 		return
+	}
+	if !table.GroupBy {
+		log.Debugf("[%s] fetched %d initial %s objects", p.Name, len(res), table.Name)
 	}
 
 	// expand references, create a hash entry for each reference type, ex.: hosts
 	// with an array containing the references (using the same index as the original row)
 	for _, refNum := range table.RefColCacheIndexes {
-		refCol := table.Columns[refNum]
+		refCol := (*table.Columns)[refNum]
 		fieldName := refCol.Name
 		refs[fieldName] = make([][]interface{}, len(res))
 		p.DataLock.RLock()
@@ -1326,12 +1328,12 @@ func (p *Peer) GetGroupByData(table *Table) (res [][]interface{}, err error) {
 	case "servicesbyhostgroup":
 		index1 := p.Tables["services"].Table.ColumnsIndex["host_name"]
 		index2 := p.Tables["services"].Table.ColumnsIndex["description"]
-		index3 := p.Tables["services"].Table.ColumnsIndex["host_groups"]
+		hostGroupsColumn := p.Tables["services"].Table.GetResultColumn("host_groups")
 		refs := p.Tables["services"].Refs
-		for i, row := range p.Tables["services"].Data {
+		for rowNum, row := range p.Tables["services"].Data {
 			hostName := row[index1].(string)
 			description := row[index2].(string)
-			groups := p.GetRowValue(index3, &row, i, p.Tables["services"].Table, &refs, 3)
+			groups := p.GetRowValue(hostGroupsColumn, &row, rowNum, p.Tables["services"].Table, &refs)
 			switch v := (groups).(type) {
 			case []interface{}:
 				for _, group := range v {
@@ -1348,7 +1350,7 @@ func (p *Peer) GetGroupByData(table *Table) (res [][]interface{}, err error) {
 // UpdateObjectByType updates a given table by requesting all dynamic columns from the remote peer.
 // Assuming we get the objects always in the same order, we can just iterate over the index and update the fields.
 // It returns a boolean flag whether the remote site has been restarted and any error encountered.
-func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error) {
+func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error) {
 	if len(table.DynamicColCacheNames) == 0 {
 		return
 	}
@@ -1378,7 +1380,7 @@ func (p *Peer) UpdateObjectByType(table Table) (restartRequired bool, err error)
 	}
 	if table.Name == "timeperiods" {
 		// check for changed timeperiods, because we have to update the linked hosts and services as well
-		p.updateTimeperiodsData(&table, res, indexes)
+		p.updateTimeperiodsData(table, res, indexes)
 	} else {
 		indexLength := len(indexes)
 		p.DataLock.Lock()
@@ -1439,49 +1441,47 @@ func (p *Peer) updateTimeperiodsData(table *Table, res [][]interface{}, indexes 
 // GetRowValue returns the value for a given index in a data row and resolves
 // any virtual or reference column.
 // The result is returned as interface.
-func (p *Peer) GetRowValue(index int, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}, inputRowLen int) interface{} {
-	if index >= inputRowLen {
-		col := table.Columns[index]
-
+func (p *Peer) GetRowValue(col *ResultColumn, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}) interface{} {
+	if col.Column.Index >= len(*row) {
 		if col.Type == VirtCol {
-			return p.GetVirtRowValue(col, row, rowNum, table, refs, inputRowLen)
+			return p.GetVirtRowValue(col, row, rowNum, table, refs)
 		}
 
 		// this happens if we are requesting an optional column from the wrong backend
 		// ex.: shinken specific columns from a non-shinken backend
-		if col.RefIndex == 0 {
-			if _, ok := (*refs)[table.Columns[col.RefIndex].Name]; !ok {
+		if col.Column.RefIndex == 0 {
+			if _, ok := (*refs)[col.Column.Name]; !ok {
 				// return empty placeholder matching the column type
-				return (col.GetEmptyValue())
+				return (col.Column.GetEmptyValue())
 			}
 		}
 
 		// reference columns
-		refObj := (*refs)[table.Columns[col.RefIndex].Name][rowNum]
+		refObj := (*refs)[(*table.Columns)[col.Column.RefIndex].Name][rowNum]
 		if refObj == nil {
 			log.Panicf("should not happen, ref not found in table %s", table.Name)
 		}
-		if len(refObj) > col.RefColIndex {
-			return refObj[col.RefColIndex]
+		if len(refObj) > col.Column.RefColIndex {
+			return refObj[col.Column.RefColIndex]
 		}
 
 		// this happens if we are requesting an optional column from the wrong backend
 		// ex.: shinken specific columns from a non-shinken backend
 		// -> return empty placeholder matching the column type
-		return (col.GetEmptyValue())
+		return (col.Column.GetEmptyValue())
 	}
-	return (*row)[index]
+	return (*row)[col.Column.Index]
 }
 
 // GetVirtRowValue returns the actual value for a virtual column.
-func (p *Peer) GetVirtRowValue(col Column, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}, inputRowLen int) interface{} {
+func (p *Peer) GetVirtRowValue(col *ResultColumn, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}) interface{} {
 	p.PeerLock.RLock()
-	value, ok := p.Status[VirtKeyMap[col.Name].Key]
+	value, ok := p.Status[col.Column.VirtMap.Key]
 	p.PeerLock.RUnlock()
 	if !ok {
-		value = p.GetVirtRowComputedValue(col, row, rowNum, table, refs, inputRowLen)
+		value = p.GetVirtRowComputedValue(col, row, rowNum, table, refs)
 	}
-	colType := VirtKeyMap[col.Name].Type
+	colType := col.Column.VirtType
 	switch colType {
 	case IntCol:
 		fallthrough
@@ -1502,7 +1502,7 @@ func (p *Peer) GetVirtRowValue(col Column, row *[]interface{}, rowNum int, table
 }
 
 // GetVirtRowComputedValue returns a computed virtual value for the given column.
-func (p *Peer) GetVirtRowComputedValue(col Column, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}, inputRowLen int) (value interface{}) {
+func (p *Peer) GetVirtRowComputedValue(col *ResultColumn, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}) (value interface{}) {
 	switch col.Name {
 	case "last_state_change_order":
 		// return last_state_change or program_start
@@ -1515,7 +1515,7 @@ func (p *Peer) GetVirtRowComputedValue(col Column, row *[]interface{}, rowNum in
 		break
 	case "host_last_state_change_order":
 		// return last_state_change or program_start
-		val := p.GetRowValue(table.GetColumn("host_last_state_change").Index, row, rowNum, table, refs, inputRowLen)
+		val := p.GetRowValue(table.GetResultColumn("host_last_state_change"), row, rowNum, table, refs)
 		lastStateChange := numberToFloat(&val)
 		if lastStateChange == 0 {
 			value = p.Status["ProgramStart"]
@@ -1544,7 +1544,7 @@ func (p *Peer) GetVirtRowComputedValue(col Column, row *[]interface{}, rowNum in
 		break
 	case "host_has_long_plugin_output":
 		// return 1 if there is long_plugin_output
-		val := p.GetRowValue(table.GetColumn("long_plugin_output").Index, row, rowNum, table, refs, inputRowLen).(string)
+		val := p.GetRowValue(table.GetResultColumn("long_plugin_output"), row, rowNum, table, refs).(string)
 		if val != "" {
 			value = 1
 		} else {
@@ -1596,7 +1596,7 @@ func (p *Peer) WaitCondition(req *Request) bool {
 				close(c)
 				return
 			}
-			if p.MatchRowFilter(table, &refs, len(obj), &req.WaitCondition[0], &obj, 0) {
+			if p.MatchRowFilter(table, &refs, &req.WaitCondition[0], &obj, 0) {
 				// trigger update for all, wait conditions are run against the last object
 				// but multiple commands may have been sent
 				p.ScheduleImmediateUpdate()
@@ -1807,7 +1807,6 @@ func (p *Peer) isOnline() bool {
 func (p *Peer) gatherResultRows(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) (int, *[][]interface{}) {
 	req := res.Request
 	refs := p.Tables[req.Table].Refs
-	inputRowLen := len((*data)[0])
 	result := make([][]interface{}, 0)
 
 	// if there is no sort header or sort by name only,
@@ -1821,7 +1820,7 @@ Rows:
 		// does our filter match?
 		for i := range req.Filter {
 			f := &(req.Filter[i])
-			if !p.MatchRowFilter(table, &refs, inputRowLen, f, row, j) {
+			if !p.MatchRowFilter(table, &refs, f, row, j) {
 				continue Rows
 			}
 		}
@@ -1837,19 +1836,19 @@ Rows:
 		for k, i := range *(indexes) {
 			if i < 0 {
 				// virtual columns
-				resRow[k] = p.GetRowValue(res.Columns[k].RefIndex, row, j, table, &refs, inputRowLen)
+				resRow[k] = p.GetRowValue(&(res.Columns[k]), row, j, table, &refs)
 			} else {
 				// check if this is a reference column
 				// reference columns come after the non-ref columns
-				if i >= inputRowLen {
-					resRow[k] = p.GetRowValue(table.Columns[i].Index, row, j, table, &refs, inputRowLen)
+				if i >= len(*row) {
+					resRow[k] = p.GetRowValue(&(res.Columns[k]), row, j, table, &refs)
 				} else {
 					resRow[k] = (*row)[i]
 				}
 			}
 			// fill null values with something useful
 			if resRow[k] == nil {
-				resRow[k] = table.Columns[i].GetEmptyValue()
+				resRow[k] = (*table.Columns)[i].GetEmptyValue()
 			}
 		}
 		result = append(result, resRow)
@@ -1857,7 +1856,7 @@ Rows:
 
 	// sanitize broken custom var data from icinga2
 	for j, i := range *(indexes) {
-		if i > 0 && table.Columns[i].Type == CustomVarCol {
+		if i > 0 && (*table.Columns)[i].Type == CustomVarCol {
 			for k := range result {
 				resRow := &(result[k])
 				(*resRow)[j] = interfaceToCustomVarHash(&(*resRow)[j])
@@ -1871,7 +1870,6 @@ Rows:
 func (p *Peer) gatherStatsResult(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) *map[string][]Filter {
 	req := res.Request
 	refs := p.Tables[req.Table].Refs
-	inputRowLen := len((*data)[0])
 
 	localStats := make(map[string][]Filter)
 
@@ -1881,14 +1879,14 @@ Rows:
 		// does our filter match?
 		for i := range req.Filter {
 			f := &(req.Filter[i])
-			if !p.MatchRowFilter(table, &refs, inputRowLen, f, row, j) {
+			if !p.MatchRowFilter(table, &refs, f, row, j) {
 				continue Rows
 			}
 		}
 
 		key := ""
 		if len(req.Columns) > 0 {
-			key = p.getStatsKey(req.Columns, table, &refs, inputRowLen, row, j)
+			key = p.getStatsKey(&res.Columns, table, &refs, row, j)
 		}
 
 		if _, ok := localStats[key]; !ok {
@@ -1901,12 +1899,12 @@ Rows:
 			// avg/sum/min/max are passed through, they dont have filter
 			// counter must match their filter
 			if s.StatsType == Counter {
-				if p.MatchRowFilter(table, &refs, inputRowLen, s, row, j) {
+				if p.MatchRowFilter(table, &refs, s, row, j) {
 					localStats[key][i].Stats++
 					localStats[key][i].StatsCount++
 				}
 			} else {
-				val := p.GetRowValue(s.Column.Index, row, j, table, &refs, inputRowLen)
+				val := p.GetRowValue(s.Column, row, j, table, &refs)
 				localStats[key][i].ApplyValue(numberToFloat(&val), 1)
 			}
 		}
@@ -1936,12 +1934,11 @@ func optimizeResultLimit(req *Request, table *Table) (limit int) {
 	return
 }
 
-func (p *Peer) getStatsKey(columns []string, table *Table, refs *map[string][][]interface{}, inputRowLen int, row *[]interface{}, rowNum int) string {
+func (p *Peer) getStatsKey(columns *[]ResultColumn, table *Table, refs *map[string][][]interface{}, row *[]interface{}, rowNum int) string {
 	keyValues := []string{}
-	for _, columnName := range columns {
-		index := table.ColumnsIndex[columnName]
-		value := p.GetRowValue(index, row, rowNum, table, refs, inputRowLen)
-		keyValues = append(keyValues, fmt.Sprintf("%s", value))
+	for _, col := range *columns {
+		value := p.GetRowValue(&col, row, rowNum, table, refs)
+		keyValues = append(keyValues, fmt.Sprintf("%v", value))
 	}
 	return strings.Join(keyValues, ";")
 }
@@ -1954,12 +1951,12 @@ func (p *Peer) clearLastRequest() {
 }
 
 // MatchRowFilter returns true if the given filter matches the given datarow.
-func (p *Peer) MatchRowFilter(table *Table, refs *map[string][][]interface{}, inputRowLen int, filter *Filter, row *[]interface{}, rowNum int) bool {
+func (p *Peer) MatchRowFilter(table *Table, refs *map[string][][]interface{}, filter *Filter, row *[]interface{}, rowNum int) bool {
 	// recursive group filter
-	len := len(filter.Filter)
-	if len > 0 {
-		for i := 0; i < len; i++ {
-			subresult := p.MatchRowFilter(table, refs, inputRowLen, &(filter.Filter[i]), row, rowNum)
+	filterLength := len(filter.Filter)
+	if filterLength > 0 {
+		for i := 0; i < filterLength; i++ {
+			subresult := p.MatchRowFilter(table, refs, &(filter.Filter[i]), row, rowNum)
 			switch filter.GroupOperator {
 			case And:
 				// if all conditions must match and we failed already, exit early
@@ -1979,11 +1976,11 @@ func (p *Peer) MatchRowFilter(table *Table, refs *map[string][][]interface{}, in
 	}
 
 	// normal field filter
-	if filter.Column.Index < inputRowLen {
+	if filter.Column.Column.Index < len(*row) {
 		// directly access the row value
-		return (filter.MatchFilter(&((*row)[filter.Column.Index])))
+		return (filter.MatchFilter(&((*row)[filter.Column.Column.Index])))
 	}
-	value := p.GetRowValue(filter.Column.Index, row, rowNum, table, refs, inputRowLen)
+	value := p.GetRowValue(filter.Column, row, rowNum, table, refs)
 	return (filter.MatchFilter(&value))
 }
 
@@ -2014,10 +2011,12 @@ func logPanicExitPeer(p *Peer) {
 	if r := recover(); r != nil {
 		log.Errorf("[%s] Panic: %s", p.Name, r)
 		log.Errorf("[%s] %s", p.Name, debug.Stack())
-		log.Errorf("[%s] LastQuery:", p.Name)
-		log.Errorf("[%s] %s", p.Name, p.lastRequest.String())
-		log.Errorf("[%s] LastResponse:", p.Name)
-		log.Errorf("[%s] %s", p.Name, string(*(p.lastResponse)))
+		if p.lastRequest != nil {
+			log.Errorf("[%s] LastQuery:", p.Name)
+			log.Errorf("[%s] %s", p.Name, p.lastRequest.String())
+			log.Errorf("[%s] LastResponse:", p.Name)
+			log.Errorf("[%s] %s", p.Name, string(*(p.lastResponse)))
+		}
 		os.Exit(1)
 	}
 }

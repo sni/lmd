@@ -42,7 +42,7 @@ func (op *StatsType) String() string {
 // Filter defines a single filter object.
 type Filter struct {
 	// filter can either be a single filter
-	Column     Column
+	Column     *ResultColumn
 	Operator   Operator
 	StrValue   string
 	FloatValue float64
@@ -166,7 +166,7 @@ func (f *Filter) strValue() (str string) {
 	}
 	var value string
 	if colType == VirtCol {
-		colType = VirtKeyMap[f.Column.Name].Type
+		colType = f.Column.Column.VirtType
 	}
 	switch colType {
 	case CustomVarCol:
@@ -254,10 +254,11 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 		}
 		i, _ = Objects.Tables[table].ColumnsIndex[columnName]
 	}
-	col := Objects.Tables[table].Columns[i]
-	filter := Filter{Operator: op, Column: col}
+	col := &(*Objects.Tables[table].Columns)[i]
+	resCol := &ResultColumn{Name: columnName, Type: col.Type, Index: 0, Column: col}
+	filter := Filter{Operator: op, Column: resCol}
 
-	err = filter.setFilterValue(&col, tmp[2], line)
+	err = filter.setFilterValue(col, tmp[2], line)
 	if err != nil {
 		return
 	}
@@ -282,7 +283,7 @@ func ParseFilter(value string, line *string, table string, stack *[]Filter) (err
 func (f *Filter) setFilterValue(col *Column, strVal string, line *string) (err error) {
 	colType := col.Type
 	if colType == VirtCol {
-		colType = VirtKeyMap[col.Name].Type
+		colType = col.VirtType
 	}
 	if strVal == "" {
 		f.IsEmpty = true
@@ -421,9 +422,9 @@ func ParseStats(value string, line *string, table string, stack *[]Filter) (err 
 		err = errors.New("bad request: unrecognized column from stats: " + tmp[1] + " in " + *line)
 		return
 	}
-	col := Objects.Tables[table].Columns[i]
-
-	stats := Filter{Column: col, StatsType: op, Stats: startWith, StatsCount: 0}
+	col := &(*Objects.Tables[table].Columns)[i]
+	resCol := &ResultColumn{Name: col.Name, Type: col.Type, Index: 0, Column: col}
+	stats := Filter{Column: resCol, StatsType: op, Stats: startWith, StatsCount: 0}
 	*stack = append(*stack, stats)
 	return
 }
@@ -456,7 +457,11 @@ func ParseFilterOp(header string, value string, line *string, stack *[]Filter) (
 
 // MatchFilter returns true if the given filter matches the given value.
 func (f *Filter) MatchFilter(value *interface{}) bool {
-	switch f.Column.Type {
+	colType := f.Column.Type
+	if colType == VirtCol {
+		colType = f.Column.Column.VirtType
+	}
+	switch colType {
 	case StringCol:
 		return matchStringFilter(f, value)
 	case CustomVarCol:
@@ -491,13 +496,8 @@ func (f *Filter) MatchFilter(value *interface{}) bool {
 		return matchStringListFilter(f, value)
 	case IntListCol:
 		return matchIntListFilter(f, value)
-	case VirtCol:
-		// run MatchFilter with a copy of this filter but replace the type
-		filter := *f
-		filter.Column.Type = VirtKeyMap[f.Column.Name].Type
-		return (filter.MatchFilter(value))
 	}
-	log.Panicf("not implemented filter type: %v", f.Column.Type)
+	log.Panicf("not implemented filter type: %v", colType)
 	return false
 }
 
