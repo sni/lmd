@@ -6,21 +6,67 @@ import (
 	"testing"
 )
 
-func BenchmarkQuery(b *testing.B) {
+func BenchmarkParseResultJSON(b *testing.B) {
 	b.StopTimer()
 	peer := StartTestPeer(1, 100, 1000)
 	PauseTestPeers(peer)
 
-	testPeerShutdownChannel := make(chan bool)
-	mockSocket := peer.LocalConfig.Connections[0].Source[0]
-	mockPeer := NewPeer(&GlobalTestConfig, &Connection{Source: []string{mockSocket}, Name: "Mock", ID: "mock0id"}, TestPeerWaitGroup, testPeerShutdownChannel)
-	req, _, _ := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nResponseHeader: fixed16")))
+	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nOutputFormat: json\n")))
+	if err != nil {
+		panic(err.Error())
+	}
+	conn, connType, err := peer.GetConnection()
+	if err != nil {
+		panic(err.Error())
+	}
+	resBytes, err := peer.sendTo(req, req.String(), peer.Status["PeerAddr"].(string), conn, connType)
+	if err != nil {
+		panic(err.Error())
+	}
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		_, err := mockPeer.query(req)
+		res, err := peer.parseResult(req, resBytes)
 		if err != nil {
 			panic(err.Error())
+		}
+		if len(res) == 0 {
+			panic("got no result")
+		}
+	}
+	b.StopTimer()
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func BenchmarkParseResultWrappedJSON(b *testing.B) {
+	b.StopTimer()
+	peer := StartTestPeer(1, 100, 1000)
+	PauseTestPeers(peer)
+
+	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nOutputFormat: wrapped_json\n")))
+	if err != nil {
+		panic(err.Error())
+	}
+	conn, connType, err := peer.GetConnection()
+	if err != nil {
+		panic(err.Error())
+	}
+	resBytes, err := peer.sendTo(req, req.String(), peer.Status["PeerAddr"].(string), conn, connType)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		res, err := peer.parseResult(req, resBytes)
+		if err != nil {
+			panic(err.Error())
+		}
+		if len(res) == 0 {
+			panic("got no result")
 		}
 	}
 	b.StopTimer()
