@@ -10,7 +10,8 @@ EXTERNAL_DEPS = \
 	github.com/kdar/factorlog \
 	github.com/mgutz/ansi \
 	github.com/prometheus/client_golang/prometheus \
-	github.com/Jeffail/gabs \
+	github.com/buger/jsonparser \
+	github.com/a8m/djson \
 	github.com/julienschmidt/httprouter \
 	github.com/davecgh/go-spew/spew \
 	golang.org/x/tools/cmd/goimports \

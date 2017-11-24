@@ -19,7 +19,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Jeffail/gabs"
+	"github.com/a8m/djson"
+	"github.com/buger/jsonparser"
 )
 
 var reResponseHeader = regexp.MustCompile(`^(\d+)\s+(\d+)$`)
@@ -907,23 +908,17 @@ func (p *Peer) parseResult(req *Request, resBytes *[]byte) (result [][]interface
 		return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes}
 	}
 	if req.OutputFormat == "wrapped_json" {
-		wrappedResult := make(map[string]json.RawMessage)
-		err = json.Unmarshal(*resBytes, &wrappedResult)
-		if err != nil {
-			return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes}
-		}
-		err = json.Unmarshal(wrappedResult["data"], &result)
-	} else {
-		jsonParsed, jErr := gabs.ParseJSON(*resBytes)
+		dataBytes, _, _, jErr := jsonparser.Get(*resBytes, "data")
 		if jErr != nil {
 			return nil, &PeerError{msg: jErr.Error(), kind: ResponseError, req: req, resBytes: resBytes}
 		}
-		rows := jsonParsed.Data().([]interface{})
-		result = make([][]interface{}, len(rows))
-		for i := range rows {
-			result[i] = rows[i].([]interface{})
-		}
+		resBytes = &dataBytes
 	}
+	result = make([][]interface{}, 0)
+	jsonparser.ArrayEach(*resBytes, func(rowBytes []byte, dataType jsonparser.ValueType, offset int, err error) {
+		row, err := djson.Decode(rowBytes)
+		result = append(result, row.([]interface{}))
+	})
 
 	if err != nil {
 		log.Errorf("[%s] json string: %s", p.Name, string(*resBytes))
