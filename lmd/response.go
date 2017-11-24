@@ -498,7 +498,9 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 
 	for _, id := range peers {
 		p := DataStore[id]
+		p.DataLock.RLock()
 		table := p.Tables[res.Request.Table].Table
+		p.DataLock.RUnlock()
 
 		if table != nil && !table.Virtual {
 			p.StatusSet("LastQuery", time.Now().Unix())
