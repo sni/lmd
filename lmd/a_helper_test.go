@@ -266,7 +266,7 @@ func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig
 	retries := 0
 	for {
 		res, err := peer.QueryString("GET backends\nColumns: status last_error\nFilter: status = 0\nResponseHeader: fixed16\n\n")
-		if err == nil && len(res) == len(sockets) && len(res[0]) > 0 && res[0][0].(float64) == 0 {
+		if err == nil && len(res) == len(sockets) && len(res[0]) > 0 && res[0][0].(float64) == 0 && res[0][1].(string) == "" {
 			break
 		}
 		// recheck every 100ms
