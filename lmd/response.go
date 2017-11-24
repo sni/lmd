@@ -498,16 +498,18 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 
 	for _, id := range peers {
 		p := DataStore[id]
+		table := p.Tables[res.Request.Table].Table
 
-		if res.Request.Table != "tables" && res.Request.Table != "columns" && res.Request.Table != "backends" {
+		if table != nil && !table.Virtual {
 			p.StatusSet("LastQuery", time.Now().Unix())
 		}
-
-		if !p.isOnline() {
+		if table == nil || !p.isOnline() {
 			resultLock.Lock()
 			res.Failed[p.ID] = fmt.Sprintf("%v", p.StatusGet("LastError"))
 			resultLock.Unlock()
-			continue
+			if table != nil && !table.Virtual {
+				continue
+			}
 		}
 
 		waitgroup.Add(1)
