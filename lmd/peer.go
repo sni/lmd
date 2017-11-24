@@ -572,10 +572,10 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	nameindex := p.Tables[table.Name].Index
 	fieldIndex := len(keys) - 1
 	for i := range res {
-		resRow := res[i]
-		dataRow := nameindex[resRow[fieldIndex].(string)]
+		resRow := &res[i]
+		dataRow := nameindex[(*resRow)[fieldIndex].(string)]
 		for j, k := range indexes {
-			dataRow[k] = resRow[j]
+			dataRow[k] = (*resRow)[j]
 		}
 	}
 	p.DataLock.Unlock()
@@ -617,10 +617,10 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	fieldIndex1 := len(keys) - 2
 	fieldIndex2 := len(keys) - 1
 	for i := range res {
-		resRow := res[i]
-		dataRow := nameindex[resRow[fieldIndex1].(string)+";"+resRow[fieldIndex2].(string)]
+		resRow := &res[i]
+		dataRow := nameindex[(*resRow)[fieldIndex1].(string)+";"+(*resRow)[fieldIndex2].(string)]
 		for j, k := range indexes {
-			dataRow[k] = resRow[j]
+			dataRow[k] = (*resRow)[j]
 		}
 	}
 	p.DataLock.Unlock()
@@ -715,10 +715,10 @@ func (p *Peer) getMissingTimestamps(table *Table, req *Request, res *[][]interfa
 		return
 	}
 	for i := range *res {
-		row := (*res)[i]
-		if len(row) != expectedRowLength {
+		row := &(*res)[i]
+		if len(*row) != expectedRowLength {
 			err = &PeerError{
-				msg:  fmt.Sprintf("Unexpected result size in row %d, got %d but expected %d", i, len(row), expectedRowLength),
+				msg:  fmt.Sprintf("Unexpected result size in row %d, got %d but expected %d", i, len(*row), expectedRowLength),
 				kind: ResponseError,
 				res:  *res,
 				req:  req,
@@ -730,8 +730,8 @@ func (p *Peer) getMissingTimestamps(table *Table, req *Request, res *[][]interfa
 			return
 		}
 		for j, index := range indexList {
-			if row[j].(float64) != data[i][index].(float64) {
-				missing[row[0].(float64)] = true
+			if (*row)[j].(float64) != data[i][index].(float64) {
+				missing[(*row)[0].(float64)] = true
 				break
 			}
 		}
@@ -788,8 +788,8 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	missingIds := []string{}
 	resIndex := make(map[string]bool)
 	for i := range res {
-		resRow := res[i]
-		id := fmt.Sprintf("%v", resRow[0])
+		resRow := &res[i]
+		id := fmt.Sprintf("%v", (*resRow)[0])
 		_, ok := idIndex[id]
 		if !ok {
 			log.Debugf("adding %s with id %s", name, id)
