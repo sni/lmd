@@ -54,13 +54,13 @@ func TestParseResultJSON(t *testing.T) {
 	connection := Connection{Name: "Test", Source: []string{"http://localhost/test/", "http://clusternode/test"}}
 	peer := NewPeer(&Config{}, &connection, waitGroup, shutdownChannel)
 
-	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description\nOutputFormat: json\n")))
+	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")))
 	if err != nil {
 		panic(err.Error())
 	}
 	data := []byte(`[
-	 ["host1", "desc1"],
-	 ["host2", "desc2"]
+	 ["host1", "desc1", 0, [1,2], {"a": 1}],
+	 ["host2", "desc2", 1, [1,2], {"a": 1}],
 	]`)
 
 	res, err := peer.parseResult(req, &data)
@@ -68,10 +68,13 @@ func TestParseResultJSON(t *testing.T) {
 	if err := assertEq(2, len(res)); err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(2, len(res[0])); err != nil {
+	if err := assertEq(5, len(res[0])); err != nil {
 		t.Error(err)
 	}
 	if err := assertEq("host2", res[1][0]); err != nil {
+		t.Error(err)
+	}
+	if err := assertEq(float64(1), res[1][2]); err != nil {
 		t.Error(err)
 	}
 }
@@ -83,25 +86,28 @@ func TestParseResultWrappedJSON(t *testing.T) {
 	connection := Connection{Name: "Test", Source: []string{"http://localhost/test/", "http://clusternode/test"}}
 	peer := NewPeer(&Config{}, &connection, waitGroup, shutdownChannel)
 
-	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description\nOutputFormat: wrapped_json\n")))
+	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: wrapped_json\n")))
 	if err != nil {
 		panic(err.Error())
 	}
 	data := []byte(`{"data": [
-	 ["host1", "desc1"],
-	 ["host2", "desc2"]
-	]}`)
+	 ["host1", "desc1", 0, [1,2], {"a": 1}],
+	 ["host2", "desc2", 1, [1,2], {"a": 1}],
+	],
+	"total": 2}`)
 
 	res, err := peer.parseResult(req, &data)
 
 	if err := assertEq(2, len(res)); err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(2, len(res[0])); err != nil {
+	if err := assertEq(5, len(res[0])); err != nil {
 		t.Error(err)
 	}
 	if err := assertEq("host2", res[1][0]); err != nil {
 		t.Error(err)
 	}
+	if err := assertEq(float64(1), res[1][2]); err != nil {
+		t.Error(err)
+	}
 }
-
