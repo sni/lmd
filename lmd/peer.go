@@ -846,6 +846,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 func (p *Peer) query(req *Request) ([][]interface{}, error) {
 	conn, connType, err := p.GetConnection()
 	if err != nil {
+		log.Debugf("[%s] connection failed: %s", p.Name, err)
 		return nil, err
 	}
 	if conn != nil {
@@ -869,6 +870,7 @@ func (p *Peer) query(req *Request) ([][]interface{}, error) {
 
 	resBytes, err := p.sendTo(req, query, peerAddr, conn, connType)
 	if err != nil {
+		log.Debugf("[%s] sending data/query failed: %s", p.Name, err)
 		return nil, err
 	}
 	if req.Command != "" {
@@ -1054,7 +1056,7 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 		case "tcp":
 			fallthrough
 		case "unix":
-			conn, err = net.DialTimeout(connType, peerAddr, time.Duration(p.LocalConfig.NetTimeout)*time.Second)
+			conn, err = net.DialTimeout(connType, peerAddr, time.Duration(p.LocalConfig.ConnectTimeout)*time.Second)
 		case "http":
 			// test at least basic tcp connect
 			uri, uErr := url.Parse(peerAddr)
@@ -1072,7 +1074,7 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 					err = &PeerError{msg: fmt.Sprintf("unknown scheme: %s", uri.Scheme), kind: ConnectionError}
 				}
 			}
-			conn, err = net.DialTimeout("tcp", host, time.Duration(p.LocalConfig.NetTimeout)*time.Second)
+			conn, err = net.DialTimeout("tcp", host, time.Duration(p.LocalConfig.ConnectTimeout)*time.Second)
 			if conn != nil {
 				conn.Close()
 			}
@@ -1634,6 +1636,7 @@ func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) 
 	options["sub"] = "_raw_query"
 	options["args"] = []string{strings.TrimSpace(query) + "\n"}
 	optionStr, _ := json.Marshal(options)
+	netClient.Timeout = time.Duration(p.LocalConfig.NetTimeout) * time.Second
 	response, err := netClient.PostForm(completePeerHTTPAddr(peerAddr), url.Values{
 		"data": {fmt.Sprintf("{\"credential\": \"%s\", \"options\": %s}", p.Config.Auth, optionStr)},
 	})

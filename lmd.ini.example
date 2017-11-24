@@ -38,8 +38,11 @@ FullUpdateInterval = 600
 IdleTimeout = 120
 IdleInterval = 1800
 
-# Connection timeout for remote tcp connections
-NetTimeout = 30
+# Connection timeout settings for remote connections.
+# `ConnectTimeout` will be used when opening and testing
+# the initial connection and `NetTimeout` is used for transfering data.
+ConnectTimeout = 30
+NetTimeout = 120
 
 # Skip ssl certificate verification on https remote backends.
 # Set to 1 to disabled any ssl verification checks.

@@ -71,6 +71,7 @@ type Config struct {
 	Connections         []Connection
 	LogFile             string
 	LogLevel            string
+	ConnectTimeout      int
 	NetTimeout          int
 	ListenTimeout       int
 	ListenPrometheus    string
@@ -455,7 +456,10 @@ func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 
 func setDefaults(conf *Config) {
 	if conf.NetTimeout <= 0 {
-		conf.NetTimeout = 30
+		conf.NetTimeout = 120
+	}
+	if conf.ConnectTimeout <= 0 {
+		conf.ConnectTimeout = 30
 	}
 	if conf.ListenTimeout <= 0 {
 		conf.ListenTimeout = 60
