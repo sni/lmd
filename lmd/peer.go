@@ -76,7 +76,7 @@ const (
 	PeerStatusUp PeerStatus = iota
 	PeerStatusWarning
 	PeerStatusDown
-	_
+	PeerStatusBroken // broken flags clients which cannot be used, lmd will check program_start and only retry them if start time changed
 	PeerStatusPending
 )
 
@@ -313,7 +313,7 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 		}
 	} else {
 		// update timeperiods every full minute except when idling
-		if *ok && *lastTimeperiodUpdateMinute != currentMinute {
+		if *ok && *lastTimeperiodUpdateMinute != currentMinute && lastStatus != PeerStatusBroken {
 			log.Debugf("[%s] updating timeperiods and host/servicegroup statistics", p.Name)
 			p.UpdateObjectByType(Objects.Tables["timeperiods"])
 			p.UpdateObjectByType(Objects.Tables["hostgroups"])
@@ -331,6 +331,18 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 	// set last update timestamp, otherwise we would retry the connection every 500ms instead
 	// of the update interval
 	p.StatusSet("LastUpdate", time.Now().Unix())
+
+	if lastStatus == PeerStatusBroken {
+		restartRequired, _ := p.UpdateObjectByType(Objects.Tables["status"])
+		if restartRequired {
+			log.Debugf("[%s] broken peer has reloaded, trying again.", p.Name)
+			*ok = p.InitAllTables()
+			*lastTimeperiodUpdateMinute = currentMinute
+		} else {
+			log.Debugf("[%s] waiting for reload", p.Name)
+		}
+		return
+	}
 
 	// run full update if the site was down.
 	// run update if it was just a short outage
@@ -575,6 +587,9 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	for i := range res {
 		resRow := &res[i]
 		dataRow := nameindex[(*resRow)[fieldIndex].(string)]
+		if dataRow == nil {
+			continue
+		}
 		for j, k := range indexes {
 			dataRow[k] = (*resRow)[j]
 		}
@@ -620,6 +635,9 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	for i := range res {
 		resRow := &res[i]
 		dataRow := nameindex[(*resRow)[fieldIndex1].(string)+";"+(*resRow)[fieldIndex2].(string)]
+		if dataRow == nil {
+			continue
+		}
 		for j, k := range indexes {
 			dataRow[k] = (*resRow)[j]
 		}
@@ -689,9 +707,9 @@ func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated
 		}
 		filter = append(filter, fmt.Sprintf("Or: %d\n", len(filter)))
 		if table.Name == "services" {
-			p.UpdateDeltaTableServices(strings.Join(filter, ""))
+			err = p.UpdateDeltaTableServices(strings.Join(filter, ""))
 		} else if table.Name == "hosts" {
-			p.UpdateDeltaTableHosts(strings.Join(filter, ""))
+			err = p.UpdateDeltaTableHosts(strings.Join(filter, ""))
 		}
 	}
 
@@ -707,29 +725,17 @@ func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated
 // getMissingTimestamps returns list of last_check dates which can be used to delta update
 func (p *Peer) getMissingTimestamps(table *Table, req *Request, res *[][]interface{}, indexList []int) (missing map[float64]bool, err error) {
 	missing = make(map[float64]bool)
-	expectedRowLength := len(indexList)
 	p.DataLock.RLock()
-	defer p.DataLock.RUnlock()
 	data := p.Tables[table.Name].Data
 	if len(data) < len(*res) {
-		log.Debugf("[%s] table %s not ready, expecting at least %d entries but only have %d", p.Name, table.Name, len(*res), len(data))
+		p.DataLock.RUnlock()
+		err = &PeerError{msg: fmt.Sprintf("%s cache not ready, got %d entries but only have %d in cache", table.Name, len(*res), len(data)), kind: ResponseError}
+		log.Warnf("[%s] %s", p.Name, err.Error())
+		p.setBroken(fmt.Sprintf("got more %s than expected. Hint: check clients 'max_response_size' setting.", table.Name))
 		return
 	}
 	for i := range *res {
 		row := &(*res)[i]
-		if len(*row) != expectedRowLength {
-			err = &PeerError{
-				msg:  fmt.Sprintf("Unexpected result size in row %d, got %d but expected %d", i, len(*row), expectedRowLength),
-				kind: ResponseError,
-				res:  *res,
-				req:  req,
-			}
-			return
-		}
-		if len(data[i]) < expectedRowLength {
-			log.Debugf("[%s] table %s row not ready, expecting at least %d entries but only have %d", p.Name, table.Name, expectedRowLength, len(data[i]))
-			return
-		}
 		for j, index := range indexList {
 			if (*row)[j].(float64) != data[i][index].(float64) {
 				missing[(*row)[0].(float64)] = true
@@ -737,6 +743,7 @@ func (p *Peer) getMissingTimestamps(table *Table, req *Request, res *[][]interfa
 			}
 		}
 	}
+	p.DataLock.RUnlock()
 	return
 }
 
@@ -1124,12 +1131,7 @@ func (p *Peer) setNextAddrFromErr(err error) {
 			log.Warnf("[%s] site went offline: %s", p.Name, err.Error())
 			// clear existing data from memory
 			p.DataLock.Lock()
-			for name := range p.Tables {
-				table := p.Tables[name]
-				table.Data = make([][]interface{}, 0)
-				table.Refs = make(map[string][][]interface{})
-				table.Index = make(map[string][]interface{})
-			}
+			p.Clear()
 			p.DataLock.Unlock()
 		}
 		p.Status["PeerStatus"] = PeerStatusDown
@@ -1980,6 +1982,26 @@ func completePeerHTTPAddr(addr string) string {
 		return addr + "thruk/cgi-bin/remote.cgi"
 	}
 	return addr + "/thruk/cgi-bin/remote.cgi"
+}
+
+func (p *Peer) setBroken(details string) {
+	log.Warnf("[%s] %s", p.Name, details)
+	p.PeerLock.Lock()
+	p.Status["PeerStatus"] = PeerStatusBroken
+	p.Status["LastError"] = "broken: " + details
+	p.PeerLock.Unlock()
+
+	p.DataLock.Lock()
+	// clear data except the status table which is required to see if the backend has been restarted
+	for name := range p.Tables {
+		if name != "status" {
+			table := p.Tables[name]
+			table.Data = make([][]interface{}, 0)
+			table.Refs = make(map[string][][]interface{})
+			table.Index = make(map[string][]interface{})
+		}
+	}
+	p.DataLock.Unlock()
 }
 
 func logPanicExitPeer(p *Peer) {
