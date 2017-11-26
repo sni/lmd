@@ -577,15 +577,13 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table, column
 	for _, id := range peers {
 		p := DataStore[id]
 
-		p.PeerLock.RLock()
-		if p.Status["PeerStatus"].(PeerStatus) == PeerStatusDown {
+		peerStatus := p.StatusGet("PeerStatus").(PeerStatus)
+		if peerStatus == PeerStatusDown || peerStatus == PeerStatusBroken {
 			resultLock.Lock()
-			res.Failed[p.ID] = fmt.Sprintf("%v", p.Status["LastError"])
+			res.Failed[p.ID] = fmt.Sprintf("%v", p.StatusGet("LastError"))
 			resultLock.Unlock()
-			p.PeerLock.RUnlock()
 			continue
 		}
-		p.PeerLock.RUnlock()
 
 		waitgroup.Add(1)
 		go func(peer *Peer, wg *sync.WaitGroup) {
