@@ -682,6 +682,12 @@ func numberToFloat(in *interface{}) float64 {
 		if v {
 			return 1
 		}
+	case string:
+		val, _ := strconv.ParseFloat(v, 64)
+		return val
+	default:
+		val, _ := strconv.ParseFloat(fmt.Sprintf("%v", v), 64)
+		return val
 	}
 	return 0
 }
