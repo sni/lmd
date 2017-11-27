@@ -50,6 +50,7 @@ var VirtKeyMap = map[string]VirtKeyMapTupel{
 
 // Response contains the livestatus response data as long with some meta data
 type Response struct {
+	Lock        *LoggingLock // must be used for Result and Failed access
 	Code        int
 	Result      [][]interface{}
 	ResultTotal int
@@ -66,6 +67,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 		Code:    200,
 		Failed:  make(map[string]string),
 		Request: req,
+		Lock:    NewLoggingLock("ResponseLock"),
 	}
 
 	table := Objects.Tables[req.Table]
@@ -494,7 +496,6 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 	res.Result = make([][]interface{}, 0)
 
 	waitgroup := &sync.WaitGroup{}
-	resultLock := sync.Mutex{}
 
 	for _, id := range peers {
 		p := DataStore[id]
@@ -506,9 +507,9 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 			p.StatusSet("LastQuery", time.Now().Unix())
 		}
 		if table == nil || !p.isOnline() {
-			resultLock.Lock()
+			res.Lock.Lock()
 			res.Failed[p.ID] = fmt.Sprintf("%v", p.StatusGet("LastError"))
-			resultLock.Unlock()
+			res.Lock.Unlock()
 			if table != nil && !table.Virtual {
 				continue
 			}
@@ -524,7 +525,7 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 
 			total, result, statsResult := peer.BuildLocalResponseData(res, indexes)
 			log.Tracef("[%s] result ready", peer.Name)
-			resultLock.Lock()
+			res.Lock.Lock()
 			res.ResultTotal += total
 			if result != nil {
 				// data results rows
@@ -545,7 +546,7 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 					}
 				}
 			}
-			resultLock.Unlock()
+			res.Lock.Unlock()
 		}(p, waitgroup)
 	}
 	log.Tracef("waiting...")
@@ -572,16 +573,15 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table, column
 	}
 
 	waitgroup := &sync.WaitGroup{}
-	resultLock := sync.Mutex{}
 
 	for _, id := range peers {
 		p := DataStore[id]
 
 		peerStatus := p.StatusGet("PeerStatus").(PeerStatus)
 		if peerStatus == PeerStatusDown || peerStatus == PeerStatusBroken {
-			resultLock.Lock()
+			res.Lock.Lock()
 			res.Failed[p.ID] = fmt.Sprintf("%v", p.StatusGet("LastError"))
-			resultLock.Unlock()
+			res.Lock.Unlock()
 			continue
 		}
 
@@ -606,9 +606,9 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table, column
 			log.Tracef("[%s] req done", peer.Name)
 			if queryErr != nil {
 				log.Tracef("[%s] req errored", queryErr.Error())
-				resultLock.Lock()
+				res.Lock.Lock()
 				res.Failed[peer.ID] = queryErr.Error()
-				resultLock.Unlock()
+				res.Lock.Unlock()
 				return
 			}
 			// insert virtual values
@@ -624,9 +624,9 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table, column
 				}
 			}
 			log.Tracef("[%s] result ready", peer.Name)
-			resultLock.Lock()
+			res.Lock.Lock()
 			res.Result = append(res.Result, result...)
-			resultLock.Unlock()
+			res.Lock.Unlock()
 		}(p, waitgroup)
 	}
 	log.Tracef("waiting...")

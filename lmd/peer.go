@@ -50,8 +50,8 @@ type Peer struct {
 	Name            string
 	ID              string
 	Source          []string
-	PeerLock        *LoggingLock
-	DataLock        *LoggingLock
+	PeerLock        *LoggingLock // must be used for Peer.Status access
+	DataLock        *LoggingLock // must be used for Peer.Table access
 	Tables          map[string]DataTable
 	Status          map[string]interface{}
 	ErrorCount      int
@@ -234,10 +234,14 @@ func (p *Peer) hasChanged() (changed bool) {
 	tablenames := []string{"commands", "contactgroups", "contacts", "hostgroups", "hosts", "servicegroups", "timeperiods"}
 	for _, name := range tablenames {
 		counter := p.countFromServer(name, "name !=")
+		p.DataLock.RLock()
 		changed = changed || (counter != len(p.Tables[name].Data))
+		p.DataLock.RUnlock()
 	}
 	counter := p.countFromServer("services", "host_name !=")
+	p.DataLock.RLock()
 	changed = changed || (counter != len(p.Tables["services"].Data))
+	p.DataLock.RUnlock()
 	p.clearLastRequest()
 
 	return
@@ -1285,6 +1289,8 @@ func (p *Peer) createFlags(table *Table, res *[][]interface{}, index *map[string
 // GetGroupByData returns fake query result for given groupby table
 func (p *Peer) GetGroupByData(table *Table) (res [][]interface{}, err error) {
 	res = make([][]interface{}, 0)
+	p.DataLock.RLock()
+	defer p.DataLock.RUnlock()
 	switch table.Name {
 	case "hostsbygroup":
 		index1 := p.Tables["hosts"].Table.ColumnsIndex["name"]
@@ -1359,7 +1365,9 @@ func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error
 	if err != nil {
 		return
 	}
+	p.DataLock.RLock()
 	data := p.Tables[table.Name].Data
+	p.DataLock.RUnlock()
 	if len(res) > len(data) {
 		log.Debugf("[%s] site too large number of objects, assuming backend has been restarted", p.Name)
 		restartRequired = true
@@ -1545,8 +1553,10 @@ func (p *Peer) WaitCondition(req *Request) bool {
 		// make sure we log panics properly
 		defer logPanicExit()
 
+		p.DataLock.RLock()
 		table := p.Tables[req.Table].Table
 		refs := p.Tables[req.Table].Refs
+		p.DataLock.RUnlock()
 		var lastUpdate int64
 		for {
 			select {
@@ -1569,7 +1579,9 @@ func (p *Peer) WaitCondition(req *Request) bool {
 			// get object to watch
 			var obj []interface{}
 			if req.Table == "hosts" || req.Table == "services" {
+				p.DataLock.RLock()
 				obj = p.Tables[req.Table].Index[req.WaitObject]
+				p.DataLock.RUnlock()
 			} else {
 				log.Errorf("unsupported wait table: %s", req.Table)
 				close(c)
@@ -1744,9 +1756,13 @@ func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (int, *[][]
 	req := res.Request
 	numPerRow := len(*indexes)
 	log.Tracef("BuildLocalResponseData: %s", p.Name)
+	p.DataLock.RLock()
 	table := p.Tables[req.Table].Table
+	p.DataLock.RUnlock()
 	if table == nil || (!p.isOnline() && !table.Virtual) {
+		res.Lock.Lock()
 		res.Failed[p.ID] = fmt.Sprintf("%v", p.StatusGet("LastError"))
+		res.Lock.Unlock()
 		return 0, nil, nil
 	}
 

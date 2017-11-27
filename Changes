@@ -1,5 +1,8 @@
 This file documents the revision history for the Livestatus Multitool Daemon
 
+next
+          - fix locking issue
+
 1.1.3    Sun Nov 26 23:12:20 CET 2017
           - log last query on crash
           - improved performance
