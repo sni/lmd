@@ -36,7 +36,7 @@ var Build string
 
 const (
 	// VERSION contains the actual lmd version
-	VERSION = "1.1.3"
+	VERSION = "1.1.4"
 	// NAME defines the name of this project
 	NAME = "lmd"
 )
