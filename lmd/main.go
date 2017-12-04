@@ -255,7 +255,8 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 	// Create/set Peer objects
 	DataStoreOrder = nil
 	var backends []string
-	for _, c := range LocalConfig.Connections {
+	for i := range LocalConfig.Connections {
+		c := LocalConfig.Connections[i]
 		// Keep peer if connection settings unchanged
 		var p *Peer
 		if v, ok := DataStore[c.ID]; ok {
