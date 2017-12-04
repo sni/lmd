@@ -46,6 +46,7 @@ var VirtKeyMap = map[string]VirtKeyMapTupel{
 	"has_long_plugin_output":  {Index: -15, Key: "", Type: IntCol},
 	"idling":                  {Index: -16, Key: "Idling", Type: IntCol},
 	"last_query":              {Index: -17, Key: "LastQuery", Type: TimeCol},
+	"lmd_last_cache_update":   {Index: -18, Key: "", Type: IntCol},
 }
 
 // Response contains the livestatus response data as long with some meta data

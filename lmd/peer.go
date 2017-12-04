@@ -39,10 +39,11 @@ const (
 
 // DataTable contains the actual data with a reference to the table.
 type DataTable struct {
-	Table *Table
-	Data  [][]interface{}
-	Refs  map[string][][]interface{}
-	Index map[string][]interface{}
+	Table      *Table
+	Data       [][]interface{}
+	Refs       map[string][][]interface{}
+	Index      map[string][]interface{}
+	LastUpdate []int64
 }
 
 // Peer is the object which handles collecting and updating data and connections.
@@ -587,6 +588,7 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	}
 	p.DataLock.Lock()
 	nameindex := p.Tables[table.Name].Index
+	lastUpdate := p.Tables[table.Name].LastUpdate
 	fieldIndex := len(keys) - 1
 	now := time.Now().Unix()
 	for i := range res {
@@ -598,7 +600,7 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 		for j, k := range indexes {
 			dataRow[k] = (*resRow)[j]
 		}
-		dataRow[0] = now
+		lastUpdate[i] = now
 	}
 	p.DataLock.Unlock()
 	promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(res)))
@@ -1228,16 +1230,18 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	p.createIndex(table, &res, &index)
 	p.createFlags(table, &res, &index)
 
-	// set last_cache_update timestamp
 	now := time.Now().Unix()
-	if table.Columns[0].Name == "last_cache_update" {
-		for _, row := range res {
-			row[0] = now
+
+	lastUpdate := make([]int64, 0)
+	if _, ok := table.ColumnsIndex["lmd_last_cache_update"]; ok {
+		lastUpdate = make([]int64, len(res))
+		for i := range res {
+			lastUpdate[i] = now
 		}
 	}
 
 	p.DataLock.Lock()
-	p.Tables[table.Name] = DataTable{Table: table, Data: res, Refs: refs, Index: index}
+	p.Tables[table.Name] = DataTable{Table: table, Data: res, Refs: refs, Index: index, LastUpdate: lastUpdate}
 	p.DataLock.Unlock()
 	p.PeerLock.Lock()
 	p.Status["LastUpdate"] = now
@@ -1393,15 +1397,15 @@ func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error
 		return
 	}
 
-	hasLastCacheUpdate := table.Columns[0].Name == "last_cache_update"
-	now := time.Now().Unix()
-
 	if table.Name == "timeperiods" {
 		// check for changed timeperiods, because we have to update the linked hosts and services as well
 		p.updateTimeperiodsData(table, res, indexes)
 	} else {
-		indexLength := len(indexes)
 		p.DataLock.Lock()
+		_, hasLastCacheUpdate := table.ColumnsIndex["lmd_last_cache_update"]
+		now := time.Now().Unix()
+		lastUpdate := p.Tables[table.Name].LastUpdate
+		indexLength := len(indexes)
 		for i := range res {
 			row := res[i]
 			if len(row) < indexLength {
@@ -1413,7 +1417,7 @@ func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error
 				data[i][k] = row[j]
 			}
 			if hasLastCacheUpdate {
-				data[i][0] = now
+				lastUpdate[i] = now
 			}
 		}
 		p.DataLock.Unlock()
@@ -1525,6 +1529,9 @@ func (p *Peer) GetVirtRowValue(col *ResultColumn, row *[]interface{}, rowNum int
 // GetVirtRowComputedValue returns a computed virtual value for the given column.
 func (p *Peer) GetVirtRowComputedValue(col *ResultColumn, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}) (value interface{}) {
 	switch col.Name {
+	case "lmd_last_cache_update":
+		// return timestamp of last update for this data row
+		value = p.Tables[table.Name].LastUpdate[rowNum]
 	case "last_state_change_order":
 		// return last_state_change or program_start
 		lastStateChange := numberToFloat(&((*row)[table.ColumnsIndex["last_state_change"]]))
