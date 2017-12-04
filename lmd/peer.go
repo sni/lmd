@@ -324,7 +324,7 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 			p.UpdateObjectByType(Objects.Tables["servicegroups"])
 			*lastTimeperiodUpdateMinute = currentMinute
 
-			p.checkIcinga2Reload()
+			*ok = p.checkIcinga2Reload()
 		}
 
 		if now < lastUpdate+p.LocalConfig.Updateinterval {
@@ -733,6 +733,10 @@ func (p *Peer) getMissingTimestamps(table *Table, req *Request, res *[][]interfa
 	data := p.Tables[table.Name].Data
 	if len(data) < len(*res) {
 		p.DataLock.RUnlock()
+		if p.Flags&Icinga2Only == Icinga2Only {
+			p.checkIcinga2Reload()
+			return
+		}
 		err = &PeerError{msg: fmt.Sprintf("%s cache not ready, got %d entries but only have %d in cache", table.Name, len(*res), len(data)), kind: ResponseError}
 		log.Warnf("[%s] %s", p.Name, err.Error())
 		p.setBroken(fmt.Sprintf("got more %s than expected. Hint: check clients 'max_response_size' setting.", table.Name))
