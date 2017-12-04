@@ -53,6 +53,7 @@ debugbuild: deps fmt
 
 test: fmt dump
 	cd $(LAMPDDIR) && go test -short -v | ../t/test_counter.sh
+	rm -f lmd/mock*.sock
 	if grep -r TODO: lmd/; then exit 1; fi
 
 citest: deps
