@@ -276,6 +276,8 @@ func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig
 			if err != nil {
 				panic("backend never came online: " + err.Error())
 			} else {
+				res, _ := peer.QueryString("GET backends\nColumns: status last_error\nResponseHeader: fixed16\n\n")
+				Dump(res)
 				panic("backend never came online")
 			}
 		}

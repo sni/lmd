@@ -91,11 +91,14 @@ const (
 	// NoFlags is set if there are no flags at all.
 	NoFlags OptionalFlags = iota
 
-	// ShinkenOnly flag is set if the remote site is a shinken installation.
-	ShinkenOnly
+	// LMD flag is set if the remote site is a LMD backend.
+	LMD
 
-	// Icinga2Only flag is set if the remote site is a icinga 2 installation.
-	Icinga2Only
+	// Shinken flag is set if the remote site is a shinken installation.
+	Shinken
+
+	// Icinga2 flag is set if the remote site is a icinga 2 installation.
+	Icinga2
 )
 
 // GetEmptyValue returns an empty placeholder representation for the given column type
@@ -190,9 +193,13 @@ func (t *Table) GetResultColumn(name string) *ResultColumn {
 
 // GetInitialKeys returns the list of strings of all static and dynamic columns.
 func (t *Table) GetInitialKeys(flags OptionalFlags) (keys []string) {
-	for _, col := range t.Columns {
+	for i, col := range t.Columns {
 		if col.Update != RefUpdate && col.Update != RefNoUpdate && col.Type != VirtCol {
-			if col.Optional == NoFlags || flags&col.Optional != 0 {
+			if col.Name == "last_cache_update" {
+				// just fetch a duplicate of the following column to get a placeholder,
+				// content will be replaced when fetching the result
+				keys = append(keys, t.Columns[i+1].Name)
+			} else if col.Optional == NoFlags || flags&col.Optional != 0 {
 				keys = append(keys, col.Name)
 			}
 		}
@@ -409,6 +416,7 @@ func NewColumnsTable(name string) (t *Table) {
 // NewStatusTable returns a new status table
 func NewStatusTable() (t *Table) {
 	t = &Table{Name: "status"}
+	t.AddColumn("last_cache_update", StaticUpdate, IntCol, "Timestamp of the last LMD update of this object.")
 	t.AddColumn("program_start", DynamicUpdate, IntCol, "The time of the last program start as UNIX timestamp")
 	t.AddColumn("accept_passive_host_checks", DynamicUpdate, IntCol, "The number of host checks since program start")
 	t.AddColumn("accept_passive_service_checks", DynamicUpdate, IntCol, "The number of completed service checks since program start")
@@ -463,6 +471,7 @@ func NewStatusTable() (t *Table) {
 // NewTimeperiodsTable returns a new timeperiods table
 func NewTimeperiodsTable() (t *Table) {
 	t = &Table{Name: "timeperiods"}
+	t.AddColumn("last_cache_update", StaticUpdate, IntCol, "Timestamp of the last LMD update of this object.")
 	t.AddColumn("alias", StaticUpdate, StringCol, "The alias of the timeperiod")
 	t.AddColumn("name", StaticUpdate, StringCol, "The name of the timeperiod")
 	t.AddColumn("in", DynamicUpdate, IntCol, "Wether we are currently in this period (0/1)")
@@ -475,6 +484,7 @@ func NewTimeperiodsTable() (t *Table) {
 // NewContactsTable returns a new contacts table
 func NewContactsTable() (t *Table) {
 	t = &Table{Name: "contacts"}
+	t.AddColumn("last_cache_update", StaticUpdate, IntCol, "Timestamp of the last LMD update of this object.")
 	t.AddColumn("alias", StaticUpdate, StringCol, "The full name of the contact")
 	t.AddColumn("can_submit_commands", StaticUpdate, IntCol, "Wether the contact is allowed to submit commands (0/1)")
 	t.AddColumn("email", StaticUpdate, StringCol, "The email address of the contact")
@@ -516,6 +526,7 @@ func NewCommandsTable() (t *Table) {
 // NewHostsTable returns a new hosts table
 func NewHostsTable() (t *Table) {
 	t = &Table{Name: "hosts"}
+	t.AddColumn("last_cache_update", StaticUpdate, IntCol, "Timestamp of the last LMD update of this object.")
 	t.AddColumn("accept_passive_checks", DynamicUpdate, IntCol, "Whether passive host checks are accepted (0/1)")
 	t.AddColumn("acknowledged", DynamicUpdate, IntCol, "Whether the current host problem has been acknowledged (0/1)")
 	t.AddColumn("action_url", StaticUpdate, StringCol, "An optional URL to custom actions or information about this host")
@@ -601,15 +612,15 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("staleness", DynamicUpdate, FloatCol, "Staleness indicator for this host")
 
 	// shinken specific
-	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, ShinkenOnly, "Whether the host state is an impact or not (0/1)")
-	t.AddOptColumn("source_problems", DynamicUpdate, StringListCol, ShinkenOnly, "The name of the source problems (host or service)")
-	t.AddOptColumn("impacts", DynamicUpdate, StringListCol, ShinkenOnly, "List of what the source impact (list of hosts and services)")
-	t.AddOptColumn("criticity", DynamicUpdate, IntCol, ShinkenOnly, "The importance we gave to this host between the minimum 0 and the maximum 5")
-	t.AddOptColumn("is_problem", DynamicUpdate, IntCol, ShinkenOnly, "Whether the host state is a problem or not (0/1)")
-	t.AddOptColumn("realm", DynamicUpdate, StringCol, ShinkenOnly, "Realm")
-	t.AddOptColumn("poller_tag", DynamicUpdate, StringCol, ShinkenOnly, "Poller Tag")
-	t.AddOptColumn("got_business_rule", DynamicUpdate, IntCol, ShinkenOnly, "Whether the host state is an business rule based host or not (0/1)")
-	t.AddOptColumn("parent_dependencies", DynamicUpdate, StringCol, ShinkenOnly, "List of the dependencies (logical, network or business one) of this host.")
+	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
+	t.AddOptColumn("source_problems", DynamicUpdate, StringListCol, Shinken, "The name of the source problems (host or service)")
+	t.AddOptColumn("impacts", DynamicUpdate, StringListCol, Shinken, "List of what the source impact (list of hosts and services)")
+	t.AddOptColumn("criticity", DynamicUpdate, IntCol, Shinken, "The importance we gave to this host between the minimum 0 and the maximum 5")
+	t.AddOptColumn("is_problem", DynamicUpdate, IntCol, Shinken, "Whether the host state is a problem or not (0/1)")
+	t.AddOptColumn("realm", DynamicUpdate, StringCol, Shinken, "Realm")
+	t.AddOptColumn("poller_tag", DynamicUpdate, StringCol, Shinken, "Poller Tag")
+	t.AddOptColumn("got_business_rule", DynamicUpdate, IntCol, Shinken, "Whether the host state is an business rule based host or not (0/1)")
+	t.AddOptColumn("parent_dependencies", DynamicUpdate, StringCol, Shinken, "List of the dependencies (logical, network or business one) of this host.")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
@@ -621,6 +632,7 @@ func NewHostsTable() (t *Table) {
 // NewHostgroupsTable returns a new hostgroups table
 func NewHostgroupsTable() (t *Table) {
 	t = &Table{Name: "hostgroups"}
+	t.AddColumn("last_cache_update", StaticUpdate, IntCol, "Timestamp of the last LMD update of this object.")
 	t.AddColumn("action_url", StaticUpdate, StringCol, "An optional URL to custom actions or information about the hostgroup")
 	t.AddColumn("alias", StaticUpdate, StringCol, "An alias of the hostgroup")
 	t.AddColumn("members", StaticUpdate, StringListCol, "A list of all host names that are members of the hostgroup")
@@ -649,6 +661,7 @@ func NewHostgroupsTable() (t *Table) {
 // NewServicesTable returns a new services table
 func NewServicesTable() (t *Table) {
 	t = &Table{Name: "services"}
+	t.AddColumn("last_cache_update", StaticUpdate, IntCol, "Timestamp of the last LMD update of this object.")
 	t.AddColumn("accept_passive_checks", DynamicUpdate, IntCol, "Whether the service accepts passive checks (0/1)")
 	t.AddColumn("acknowledged", DynamicUpdate, IntCol, "Whether the current service problem has been acknowledged (0/1)")
 	t.AddColumn("acknowledgement_type", DynamicUpdate, IntCol, "The type of the acknownledgement (0: none, 1: normal, 2: sticky)")
@@ -726,15 +739,15 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("staleness", DynamicUpdate, FloatCol, "Staleness indicator for this host")
 
 	// shinken specific
-	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, ShinkenOnly, "Whether the host state is an impact or not (0/1)")
-	t.AddOptColumn("source_problems", DynamicUpdate, StringListCol, ShinkenOnly, "The name of the source problems (host or service)")
-	t.AddOptColumn("impacts", DynamicUpdate, StringListCol, ShinkenOnly, "List of what the source impact (list of hosts and services)")
-	t.AddOptColumn("criticity", DynamicUpdate, IntCol, ShinkenOnly, "The importance we gave to this service between the minimum 0 and the maximum 5")
-	t.AddOptColumn("is_problem", DynamicUpdate, IntCol, ShinkenOnly, "Whether the host state is a problem or not (0/1)")
-	t.AddOptColumn("realm", DynamicUpdate, StringCol, ShinkenOnly, "Realm")
-	t.AddOptColumn("poller_tag", DynamicUpdate, StringCol, ShinkenOnly, "Poller Tag")
-	t.AddOptColumn("got_business_rule", DynamicUpdate, IntCol, ShinkenOnly, "Whether the service state is an business rule based host or not (0/1)")
-	t.AddOptColumn("parent_dependencies", DynamicUpdate, StringCol, ShinkenOnly, "List of the dependencies (logical, network or business one) of this service.")
+	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
+	t.AddOptColumn("source_problems", DynamicUpdate, StringListCol, Shinken, "The name of the source problems (host or service)")
+	t.AddOptColumn("impacts", DynamicUpdate, StringListCol, Shinken, "List of what the source impact (list of hosts and services)")
+	t.AddOptColumn("criticity", DynamicUpdate, IntCol, Shinken, "The importance we gave to this service between the minimum 0 and the maximum 5")
+	t.AddOptColumn("is_problem", DynamicUpdate, IntCol, Shinken, "Whether the host state is a problem or not (0/1)")
+	t.AddOptColumn("realm", DynamicUpdate, StringCol, Shinken, "Realm")
+	t.AddOptColumn("poller_tag", DynamicUpdate, StringCol, Shinken, "Poller Tag")
+	t.AddOptColumn("got_business_rule", DynamicUpdate, IntCol, Shinken, "Whether the service state is an business rule based host or not (0/1)")
+	t.AddOptColumn("parent_dependencies", DynamicUpdate, StringCol, Shinken, "List of the dependencies (logical, network or business one) of this service.")
 
 	t.AddRefColumn("hosts", "host", "name", "host_name")
 
@@ -749,6 +762,7 @@ func NewServicesTable() (t *Table) {
 // NewServicegroupsTable returns a new hostgroups table
 func NewServicegroupsTable() (t *Table) {
 	t = &Table{Name: "servicegroups"}
+	t.AddColumn("last_cache_update", StaticUpdate, IntCol, "Timestamp of the last LMD update of this object.")
 	t.AddColumn("action_url", StaticUpdate, StringCol, "An optional URL to custom notes or actions on the service group")
 	t.AddColumn("alias", StaticUpdate, StringCol, "An alias of the service group")
 	t.AddColumn("members", StaticUpdate, StringListCol, "A list of all members of the service group as host/service pairs")

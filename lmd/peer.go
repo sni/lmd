@@ -27,7 +27,7 @@ var reResponseHeader = regexp.MustCompile(`^(\d+)\s+(\d+)$`)
 var reHTTPTooOld = regexp.MustCompile(`Can.t locate object method`)
 var reHTTPOMDError = regexp.MustCompile(`<h1>(OMD:.*?)</h1>`)
 var reShinkenVersion = regexp.MustCompile(`-shinken$`)
-var reIcingaVersion = regexp.MustCompile(`^r[\d\.-]+$`)
+var reIcinga2Version = regexp.MustCompile(`^r[\d\.-]+$`)
 
 const (
 	// UpdateAdditionalDelta is the number of seconds to add to the last_check filter on delta updates
@@ -588,6 +588,7 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	p.DataLock.Lock()
 	nameindex := p.Tables[table.Name].Index
 	fieldIndex := len(keys) - 1
+	now := time.Now().Unix()
 	for i := range res {
 		resRow := &res[i]
 		dataRow := nameindex[(*resRow)[fieldIndex].(string)]
@@ -597,6 +598,7 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 		for j, k := range indexes {
 			dataRow[k] = (*resRow)[j]
 		}
+		dataRow[0] = now
 	}
 	p.DataLock.Unlock()
 	promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(res)))
@@ -636,6 +638,7 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	nameindex := p.Tables[table.Name].Index
 	fieldIndex1 := len(keys) - 2
 	fieldIndex2 := len(keys) - 1
+	now := time.Now().Unix()
 	for i := range res {
 		resRow := &res[i]
 		dataRow := nameindex[(*resRow)[fieldIndex1].(string)+";"+(*resRow)[fieldIndex2].(string)]
@@ -645,6 +648,7 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 		for j, k := range indexes {
 			dataRow[k] = (*resRow)[j]
 		}
+		dataRow[0] = now
 	}
 	p.DataLock.Unlock()
 	promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(res)))
@@ -733,7 +737,7 @@ func (p *Peer) getMissingTimestamps(table *Table, req *Request, res *[][]interfa
 	data := p.Tables[table.Name].Data
 	if len(data) < len(*res) {
 		p.DataLock.RUnlock()
-		if p.Flags&Icinga2Only == Icinga2Only {
+		if p.Flags&Icinga2 == Icinga2 {
 			p.checkIcinga2Reload()
 			return
 		}
@@ -1224,10 +1228,17 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	p.createIndex(table, &res, &index)
 	p.createFlags(table, &res, &index)
 
+	// set last_cache_update timestamp
+	now := time.Now().Unix()
+	if table.Columns[0].Name == "last_cache_update" {
+		for _, row := range res {
+			row[0] = now
+		}
+	}
+
 	p.DataLock.Lock()
 	p.Tables[table.Name] = DataTable{Table: table, Data: res, Refs: refs, Index: index}
 	p.DataLock.Unlock()
-	now := time.Now().Unix()
 	p.PeerLock.Lock()
 	p.Status["LastUpdate"] = now
 	p.Status["LastFullUpdate"] = now
@@ -1273,19 +1284,23 @@ func (p *Peer) createIndex(table *Table, res *[][]interface{}, index *map[string
 }
 
 func (p *Peer) createFlags(table *Table, res *[][]interface{}, index *map[string][]interface{}) {
-	// is this a shinken or icinga backend?
-	if table.Name == "status" && len((*res)) > 0 {
+	// set backend specific flags
+	if table.Name == "status" && len(*res) > 0 {
+		p.PeerLock.Lock()
+		defer p.PeerLock.Unlock()
 		row := (*res)[0]
-		matched := reShinkenVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))
-		if len(matched) > 0 {
-			p.PeerLock.Lock()
-			p.Flags |= ShinkenOnly
-			p.PeerLock.Unlock()
+		if len(reShinkenVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))) > 0 {
+			log.Debugf("[%s] remote connection Shinken flag set", p.Name)
+			p.Flags |= Shinken
 		}
-		if len(reIcingaVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))) > 0 {
-			p.PeerLock.Lock()
-			p.Flags |= Icinga2Only
-			p.PeerLock.Unlock()
+		if len(reIcinga2Version.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))) > 0 {
+			log.Debugf("[%s] remote connection Icinga2 flag set", p.Name)
+			p.Flags |= Icinga2
+		}
+		// getting more than one status is a sure sign for a LMD backend
+		if len(*res) > 1 {
+			log.Debugf("[%s] remote connection LMD flag set", p.Name)
+			p.Flags |= LMD
 		}
 	}
 }
@@ -1373,10 +1388,14 @@ func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error
 	data := p.Tables[table.Name].Data
 	p.DataLock.RUnlock()
 	if len(res) > len(data) {
-		log.Debugf("[%s] site too large number of objects, assuming backend has been restarted", p.Name)
+		log.Debugf("[%s] site returned to many objects, assuming backend has been restarted", p.Name)
 		restartRequired = true
 		return
 	}
+
+	hasLastCacheUpdate := table.Columns[0].Name == "last_cache_update"
+	now := time.Now().Unix()
+
 	if table.Name == "timeperiods" {
 		// check for changed timeperiods, because we have to update the linked hosts and services as well
 		p.updateTimeperiodsData(table, res, indexes)
@@ -1392,6 +1411,9 @@ func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error
 			}
 			for j, k := range indexes {
 				data[i][k] = row[j]
+			}
+			if hasLastCacheUpdate {
+				data[i][0] = now
 			}
 		}
 		p.DataLock.Unlock()
@@ -1417,6 +1439,7 @@ func (p *Peer) updateTimeperiodsData(table *Table, res [][]interface{}, indexes 
 	nameIndex := table.ColumnsIndex["name"]
 	p.DataLock.Lock()
 	data := p.Tables[table.Name].Data
+	now := time.Now().Unix()
 	for i := range res {
 		row := res[i]
 		for j, k := range indexes {
@@ -1424,6 +1447,7 @@ func (p *Peer) updateTimeperiodsData(table *Table, res [][]interface{}, indexes 
 				changedTimeperiods[data[i][nameIndex].(string)] = data[i][k].(float64)
 			}
 			data[i][k] = row[j]
+			data[i][0] = now
 		}
 	}
 	p.DataLock.Unlock()
@@ -1982,7 +2006,7 @@ func (p *Peer) MatchRowFilter(table *Table, refs *map[string][][]interface{}, fi
 }
 
 func (p *Peer) checkIcinga2Reload() bool {
-	if p.Flags&Icinga2Only == Icinga2Only && p.hasChanged() {
+	if p.Flags&Icinga2 == Icinga2 && p.hasChanged() {
 		return (p.InitAllTables())
 	}
 	return (true)
