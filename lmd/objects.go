@@ -89,10 +89,10 @@ type OptionalFlags byte
 
 const (
 	// NoFlags is set if there are no flags at all.
-	NoFlags OptionalFlags = iota
+	NoFlags OptionalFlags = 0
 
 	// LMD flag is set if the remote site is a LMD backend.
-	LMD
+	LMD = 1 << iota
 
 	// Shinken flag is set if the remote site is a shinken installation.
 	Shinken
