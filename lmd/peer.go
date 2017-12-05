@@ -404,9 +404,9 @@ func (p *Peer) StatusGet(key string) interface{} {
 // ScheduleImmediateUpdate resets all update timer so the next updateloop iteration
 // will performan an update.
 func (p *Peer) ScheduleImmediateUpdate() {
-	p.StatusSet("LastUpdate", time.Now().Unix()-p.LocalConfig.Updateinterval)
-	p.StatusSet("LastFullServiceUpdate", time.Now().Unix()-MinFullScanInterval)
-	p.StatusSet("LastFullHostUpdate", time.Now().Unix()-MinFullScanInterval)
+	p.StatusSet("LastUpdate", time.Now().Unix()-p.LocalConfig.Updateinterval-1)
+	p.StatusSet("LastFullServiceUpdate", time.Now().Unix()-MinFullScanInterval-1)
+	p.StatusSet("LastFullHostUpdate", time.Now().Unix()-MinFullScanInterval-1)
 }
 
 // InitAllTables creates all tables for this peer.

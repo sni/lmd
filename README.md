@@ -212,3 +212,6 @@ Some ideas may or may not be implemented in the future
 - Add transparent and half-transparent mode which just handles the map/reduce without cache.
   This is implemented for log table and commands anyway already. Just requires an additional header.
 - Cache last 24h of logfiles to speed up most logfile requests
+- Fix updating comments (takes too long after sending commands)
+- Add lmd federation mode to cascade multiple lmds
+- Make use of lmd_last_cache_update in federation mode
