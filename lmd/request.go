@@ -30,6 +30,7 @@ type Request struct {
 	OutputFormat      string
 	Backends          []string
 	BackendsMap       map[string]string
+	BackendErrors     map[string]string
 	SendColumnsHeader bool
 	SendStatsData     bool
 	WaitTimeout       int
@@ -299,7 +300,7 @@ func (req *Request) GetResponse() (*Response, error) {
 	log.Tracef("GetResponse")
 
 	// Run single request if possible
-	if !nodeAccessor.IsClustered() {
+	if nodeAccessor == nil || !nodeAccessor.IsClustered() {
 		// Single mode (send request and return response)
 		return (NewResponse(req))
 	}

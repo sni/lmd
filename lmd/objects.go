@@ -94,6 +94,9 @@ const (
 	// LMD flag is set if the remote site is a LMD backend.
 	LMD = 1 << iota
 
+	// LMDSub is a sub peer from within a remote LMD connection
+	LMDSub
+
 	// Shinken flag is set if the remote site is a shinken installation.
 	Shinken
 
@@ -341,7 +344,12 @@ func InitObjects() {
 	}
 
 	Objects.Tables = make(map[string]*Table)
+	// add complete virtual tables first
 	Objects.AddTable("backends", NewBackendsTable("backends"))
+	Objects.AddTable("sites", NewBackendsTable("sites"))
+	Objects.AddTable("columns", NewColumnsTable("columns"))
+	Objects.AddTable("tables", NewColumnsTable("tables"))
+
 	Objects.AddTable("status", NewStatusTable())
 	Objects.AddTable("timeperiods", NewTimeperiodsTable())
 	Objects.AddTable("contacts", NewContactsTable())
@@ -357,13 +365,6 @@ func InitObjects() {
 	Objects.AddTable("hostsbygroup", NewHostsByGroupTable())
 	Objects.AddTable("servicesbygroup", NewServicesByGroupTable())
 	Objects.AddTable("servicesbyhostgroup", NewServicesByHostgroupTable())
-
-	// add some aliases
-	Objects.AddTable("sites", NewBackendsTable("sites"))
-
-	// add fake tables about our columns
-	Objects.AddTable("columns", NewColumnsTable("columns"))
-	Objects.AddTable("tables", NewColumnsTable("tables"))
 }
 
 // AddTable appends a table object to the Objects and verifies that no table is added twice.
@@ -394,7 +395,11 @@ func NewBackendsTable(name string) (t *Table) {
 	t.AddColumn("response_time", RefNoUpdate, VirtCol, "Duration of last update in seconds")
 	t.AddColumn("idling", RefNoUpdate, VirtCol, "Idle status of this backend (0 - Not idling, 1 - idling)")
 	t.AddColumn("last_query", RefNoUpdate, VirtCol, "Timestamp of the last incoming request")
+	t.AddColumn("section", RefNoUpdate, VirtCol, "Section information when having cascaded LMDs.")
+	t.AddColumn("parent", RefNoUpdate, VirtCol, "Parent id when having cascaded LMDs.")
+	t.AddColumn("lmd_version", RefNoUpdate, VirtCol, "LMD version string.")
 
+	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -406,6 +411,7 @@ func NewColumnsTable(name string) (t *Table) {
 	t.AddColumn("type", VirtUpdate, StringCol, "The data type of the column (int, float, string, list)")
 	t.AddColumn("description", VirtUpdate, StringCol, "A description of the column")
 
+	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -461,6 +467,7 @@ func NewStatusTable() (t *Table) {
 	t.AddColumn("peer_last_online", RefNoUpdate, VirtCol, "Timestamp when peer was last online")
 	t.AddColumn("peer_response_time", RefNoUpdate, VirtCol, "Duration of last update in seconds")
 
+	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -474,6 +481,8 @@ func NewTimeperiodsTable() (t *Table) {
 	t.AddColumn("lmd_last_cache_update", RefNoUpdate, VirtCol, "Timestamp of the last LMD update of this object.")
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
+
+	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -493,6 +502,8 @@ func NewContactsTable() (t *Table) {
 	t.AddColumn("lmd_last_cache_update", RefNoUpdate, VirtCol, "Timestamp of the last LMD update of this object.")
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
+
+	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -505,6 +516,8 @@ func NewContactgroupsTable() (t *Table) {
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
+
+	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -516,6 +529,8 @@ func NewCommandsTable() (t *Table) {
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
+
+	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -622,6 +637,8 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
 	t.AddColumn("last_state_change_order", RefNoUpdate, VirtCol, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked.")
 	t.AddColumn("has_long_plugin_output", RefNoUpdate, VirtCol, "Flag wether this host has long_plugin_output or not")
+
+	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -651,6 +668,8 @@ func NewHostgroupsTable() (t *Table) {
 	t.AddColumn("lmd_last_cache_update", RefNoUpdate, VirtCol, "Timestamp of the last LMD update of this object.")
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
+
+	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -752,6 +771,8 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("last_state_change_order", RefNoUpdate, VirtCol, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked.")
 	t.AddColumn("state_order", RefNoUpdate, VirtCol, "The service state suitable for sorting. Unknown and Critical state are switched.")
 	t.AddColumn("has_long_plugin_output", RefNoUpdate, VirtCol, "Flag wether this service has long_plugin_output or not")
+
+	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -775,6 +796,8 @@ func NewServicegroupsTable() (t *Table) {
 	t.AddColumn("lmd_last_cache_update", RefNoUpdate, VirtCol, "Timestamp of the last LMD update of this object.")
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
+
+	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -799,6 +822,8 @@ func NewCommentsTable() (t *Table) {
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
+
+	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -823,6 +848,8 @@ func NewDowntimesTable() (t *Table) {
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
+
+	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -848,6 +875,8 @@ func NewLogTable() (t *Table) {
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
+
+	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -862,6 +891,8 @@ func NewHostsByGroupTable() (t *Table) {
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
+
+	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -878,6 +909,8 @@ func NewServicesByGroupTable() (t *Table) {
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
+
+	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -894,5 +927,7 @@ func NewServicesByHostgroupTable() (t *Table) {
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
+
+	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }

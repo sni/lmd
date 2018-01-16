@@ -47,6 +47,10 @@ var VirtKeyMap = map[string]VirtKeyMapTupel{
 	"idling":                  {Index: -16, Key: "Idling", Type: IntCol},
 	"last_query":              {Index: -17, Key: "LastQuery", Type: TimeCol},
 	"lmd_last_cache_update":   {Index: -18, Key: "", Type: IntCol},
+	"lmd_version":             {Index: -19, Key: "", Type: StringCol},
+	"section":                 {Index: -20, Key: "Section", Type: StringCol},
+	"parent":                  {Index: -21, Key: "PeerParent", Type: StringCol},
+	"empty":                   {Index: -22, Key: "", Type: StringCol},
 }
 
 // Response contains the livestatus response data as long with some meta data
@@ -66,7 +70,7 @@ type Response struct {
 func NewResponse(req *Request) (res *Response, err error) {
 	res = &Response{
 		Code:    200,
-		Failed:  make(map[string]string),
+		Failed:  req.BackendErrors,
 		Request: req,
 		Lock:    NewLoggingLock("ResponseLock"),
 	}
@@ -82,9 +86,13 @@ func NewResponse(req *Request) (res *Response, err error) {
 	// check if we have to spin up updates, if so, do it parallel
 	selectedPeers := []string{}
 	spinUpPeers := []string{}
-	for _, id := range req.BackendsMap {
-		selectedPeers = append(selectedPeers, id)
+	// iterate over DataStore instead of BackendsMap to retain backend order
+	for _, id := range DataStoreOrder {
 		p := DataStore[id]
+		if _, ok := req.BackendsMap[p.ID]; !ok {
+			continue
+		}
+		selectedPeers = append(selectedPeers, p.ID)
 
 		// spin up required?
 		if p.StatusGet("Idling").(bool) && len(table.DynamicColCacheIndexes) > 0 {
@@ -206,6 +214,7 @@ func (res *Response) Swap(i, j int) {
 // ExpandRequestedBackends fills the requests backends map
 func (req *Request) ExpandRequestedBackends() (err error) {
 	req.BackendsMap = make(map[string]string)
+	req.BackendErrors = make(map[string]string)
 
 	// no backends selected means all backends
 	if len(req.Backends) == 0 {
@@ -218,8 +227,8 @@ func (req *Request) ExpandRequestedBackends() (err error) {
 	for _, b := range req.Backends {
 		_, Ok := DataStore[b]
 		if !Ok {
-			err = errors.New("bad request: backend " + b + " does not exist")
-			return
+			req.BackendErrors[b] = fmt.Sprintf("bad request: backend %s does not exist", b)
+			continue
 		}
 		req.BackendsMap[b] = b
 	}
@@ -352,7 +361,7 @@ func (req *Request) BuildResponseIndexes(table *Table) (indexes []int, columns [
 	if len(req.Columns) == 0 && len(req.Stats) == 0 {
 		req.SendColumnsHeader = true
 		for _, col := range table.Columns {
-			if col.Update != RefUpdate {
+			if col.Update != RefUpdate && col.Name != "empty" {
 				req.Columns = append(req.Columns, col.Name)
 			}
 		}
@@ -363,8 +372,7 @@ func (req *Request) BuildResponseIndexes(table *Table) (indexes []int, columns [
 		i, ok := table.ColumnsIndex[colName]
 		if !ok {
 			if !fixBrokenClientsRequestColumn(&colName, table.Name) {
-				err = errors.New("bad request: table " + req.Table + " has no column " + colName)
-				return
+				colName = "empty"
 			}
 			i = table.ColumnsIndex[colName]
 		}
@@ -500,20 +508,28 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 
 	for _, id := range peers {
 		p := DataStore[id]
+		if p.Flags&LMD == LMD {
+			continue
+		}
 		p.DataLock.RLock()
 		table := p.Tables[res.Request.Table].Table
 		p.DataLock.RUnlock()
 
-		if table != nil && !table.Virtual {
-			p.StatusSet("LastQuery", time.Now().Unix())
-		}
-		if table == nil || !p.isOnline() {
-			res.Lock.Lock()
-			res.Failed[p.ID] = fmt.Sprintf("%v", p.StatusGet("LastError"))
-			res.Lock.Unlock()
-			if table != nil && !table.Virtual {
+		if table != nil {
+			// append results serially for local calculations
+			// no need to create goroutines for simple sites queries
+			if table.Virtual {
+				res.AppendPeerResult(p, indexes)
 				continue
 			}
+			p.StatusSet("LastQuery", time.Now().Unix())
+		}
+
+		if table == nil || !p.isOnline() {
+			res.Lock.Lock()
+			res.Failed[p.ID] = p.getError()
+			res.Lock.Unlock()
+			continue
 		}
 
 		waitgroup.Add(1)
@@ -524,36 +540,41 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 			log.Tracef("[%s] starting local data computation", peer.Name)
 			defer wg.Done()
 
-			total, result, statsResult := peer.BuildLocalResponseData(res, indexes)
-			log.Tracef("[%s] result ready", peer.Name)
-			res.Lock.Lock()
-			res.ResultTotal += total
-			if result != nil {
-				// data results rows
-				res.Result = append(res.Result, (*result)...)
-			} else if statsResult != nil {
-				if res.Request.StatsResult == nil {
-					res.Request.StatsResult = make(map[string][]*Filter)
-				}
-				// apply stats querys
-				for key, stats := range *statsResult {
-					if _, ok := res.Request.StatsResult[key]; !ok {
-						res.Request.StatsResult[key] = stats
-					} else {
-						for i := range stats {
-							s := stats[i]
-							res.Request.StatsResult[key][i].ApplyValue(s.Stats, s.StatsCount)
-						}
-					}
-				}
-			}
-			res.Lock.Unlock()
+			res.AppendPeerResult(peer, indexes)
 		}(p, waitgroup)
 	}
 	log.Tracef("waiting...")
 	waitgroup.Wait()
 	log.Tracef("waiting for all local data computations done")
 	return nil
+}
+
+// AppendPeerResult appends result for given peer
+func (res *Response) AppendPeerResult(peer *Peer, indexes *[]int) {
+	total, result, statsResult := peer.BuildLocalResponseData(res, indexes)
+	log.Tracef("[%s] result ready", peer.Name)
+	res.Lock.Lock()
+	res.ResultTotal += total
+	if result != nil {
+		// data results rows
+		res.Result = append(res.Result, (*result)...)
+	} else if statsResult != nil {
+		if res.Request.StatsResult == nil {
+			res.Request.StatsResult = make(map[string][]*Filter)
+		}
+		// apply stats querys
+		for key, stats := range *statsResult {
+			if _, ok := res.Request.StatsResult[key]; !ok {
+				res.Request.StatsResult[key] = stats
+			} else {
+				for i := range stats {
+					s := stats[i]
+					res.Request.StatsResult[key][i].ApplyValue(s.Stats, s.StatsCount)
+				}
+			}
+		}
+	}
+	res.Lock.Unlock()
 }
 
 // BuildPassThroughResult passes a query transparently to one or more remote sites and builds the response

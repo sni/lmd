@@ -54,7 +54,8 @@ debugbuild: deps fmt
 test: fmt dump
 	cd $(LAMPDDIR) && go test -short -v | ../t/test_counter.sh
 	rm -f lmd/mock*.sock
-	if grep -r TODO: lmd/; then exit 1; fi
+	if grep -rn TODO: lmd/; then exit 1; fi
+	if grep -rn Dump lmd/*.go | grep -v dump.go; then exit 1; fi
 
 citest: deps
 	#
@@ -68,7 +69,11 @@ citest: deps
 	#
 	# Checking TODO items
 	#
-	if grep -r TODO: lmd/; then exit 1; fi
+	if grep -rn TODO: lmd/; then exit 1; fi
+	#
+	# Checking remaining debug calls
+	#
+	if grep -rn Dump lmd/*.go | grep -v dump.go; then exit 1; fi
 	#
 	# Run other subtests
 	#

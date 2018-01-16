@@ -237,8 +237,7 @@ func ParseFilter(value string, line *string, table string, stack *[]*Filter) (er
 	i, Ok := Objects.Tables[table].ColumnsIndex[columnName]
 	if !Ok {
 		if !fixBrokenClientsRequestColumn(&columnName, table) {
-			err = errors.New("bad request: unrecognized column from filter: " + columnName + " in " + *line)
-			return
+			columnName = "empty"
 		}
 		i = Objects.Tables[table].ColumnsIndex[columnName]
 	}

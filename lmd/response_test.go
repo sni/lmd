@@ -15,15 +15,6 @@ func TestRequestHeaderTableFail(t *testing.T) {
 	}
 }
 
-func TestRequestHeaderColumnFail(t *testing.T) {
-	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nCOlumns: test\n"))
-	req, _, err := NewRequest(buf)
-	_, err = req.GetResponse()
-	if err = assertEq(errors.New("bad request: table hosts has no column test"), err); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestRequestHeaderSort1Fail(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nCOlumns: state\nSort: name\n"))
 	_, _, err := NewRequest(buf)

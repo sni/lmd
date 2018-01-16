@@ -50,6 +50,7 @@ type DataTable struct {
 type Peer struct {
 	Name            string
 	ID              string
+	ParentID        string
 	Source          []string
 	PeerLock        *LoggingLock // must be used for Peer.Status access
 	DataLock        *LoggingLock // must be used for Peer.Table access
@@ -182,6 +183,8 @@ func NewPeer(LocalConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 	p.Status["ReponseTime"] = 0
 	p.Status["Idling"] = false
 	p.Status["Updating"] = false
+	p.Status["Section"] = config.Section
+	p.Status["PeerParent"] = ""
 
 	/* strip of trailing slashes from http backends */
 	for i, s := range p.Source {
@@ -250,7 +253,13 @@ func (p *Peer) hasChanged() (changed bool) {
 
 // Clear resets the data table.
 func (p *Peer) Clear() {
-	p.Tables = make(map[string]DataTable)
+	p.DataLock.Lock()
+	for key, table := range p.Tables {
+		if !table.Table.Virtual {
+			delete(p.Tables, key)
+		}
+	}
+	p.DataLock.Unlock()
 }
 
 // updateLoop is the main loop updating this peer.
@@ -295,7 +304,11 @@ func (p *Peer) updateLoop() {
 			p.clearLastRequest()
 			return
 		case <-ticker.C:
-			p.periodicUpdate(&ok, &lastTimeperiodUpdateMinute)
+			if p.Flags&LMD == LMD {
+				p.periodicUpdateLMD(&ok)
+			} else {
+				p.periodicUpdate(&ok, &lastTimeperiodUpdateMinute)
+			}
 			p.clearLastRequest()
 		}
 	}
@@ -366,6 +379,93 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 	*ok = p.UpdateDeltaTables()
 }
 
+// periodicUpdateLMD runs the periodic updates from the update loop for LMD backends
+func (p *Peer) periodicUpdateLMD(ok *bool) {
+	p.PeerLock.RLock()
+	lastUpdate := p.Status["LastUpdate"].(int64)
+	p.PeerLock.RUnlock()
+
+	now := time.Now().Unix()
+	if now < lastUpdate+p.LocalConfig.Updateinterval {
+		return
+	}
+
+	*ok = p.UpdateAllTables()
+
+	// set last update timestamp, otherwise we would retry the connection every 500ms instead
+	// of the update interval
+	p.StatusSet("LastUpdate", time.Now().Unix())
+
+	columns := []string{"key", "name", "status", "addr", "last_error", "last_update", "last_online", "last_query", "idling"}
+	req := &Request{
+		Table:           "sites",
+		Columns:         columns,
+		ResponseFixed16: true,
+		OutputFormat:    "json",
+	}
+	res, err := p.query(req)
+	if err != nil {
+		log.Infof("[%s] failed to fetch sites information: %s", p.Name, err.Error())
+		*ok = false
+		return
+	}
+	resHash := Result2Hash(res, columns)
+
+	// check if we need to start/stop peers
+	log.Debugf("[%s] checking for changed remote lmd backends", p.Name)
+	existing := make(map[string]bool)
+	for _, rowHash := range resHash {
+		subID := rowHash["key"].(string)
+		existing[subID] = true
+		subName := p.Name + "/" + rowHash["name"].(string)
+		subPeer, ok := DataStore[subID]
+		if !ok {
+			log.Debugf("[%s] starting sub peer for %s", p.Name, subName)
+			c := Connection{ID: subID, Name: subName, Source: p.Source}
+			subPeer = NewPeer(p.LocalConfig, &c, p.waitGroup, p.shutdownChannel)
+			subPeer.ParentID = p.ID
+			subPeer.Flags |= LMDSub
+			subPeer.StatusSet("PeerParent", p.ID)
+			DataStore[subID] = subPeer
+			DataStoreOrder = append(DataStoreOrder, c.ID)
+
+			// try to fetch section information
+			// may fail for older lmd versions
+			req := &Request{
+				Table:           "sites",
+				Columns:         []string{"section"},
+				ResponseFixed16: true,
+				OutputFormat:    "json",
+			}
+			res, err := subPeer.query(req)
+			if err == nil {
+				subPeer.StatusSet("Section", res[0][0].(string))
+			}
+
+			subPeer.Start()
+		}
+
+		// update flags for existing sub peers
+		subPeer.PeerLock.Lock()
+		subPeer.Status["SubPeerStatus"] = rowHash
+		subPeer.PeerLock.Unlock()
+	}
+
+	// remove exceeding peers
+	removed := 0
+	for id, peer := range DataStore {
+		if peer.ParentID == p.ID {
+			if _, ok := existing[id]; !ok {
+				log.Debugf("[%s] removing sub peer", peer.Name)
+				peer.Stop()
+				peer.Clear()
+				DataStoreRemove(id)
+				removed++
+			}
+		}
+	}
+}
+
 func (p *Peer) updateIdleStatus() bool {
 	now := time.Now().Unix()
 	shouldIdle := false
@@ -420,10 +520,18 @@ func (p *Peer) InitAllTables() bool {
 	t1 := time.Now()
 	for _, n := range Objects.Order {
 		t := Objects.Tables[n]
+		if p.Flags&LMD == LMD && t.Name != "status" {
+			// just create empty data pools
+			// real data is handled by separate peers
+			continue
+		}
 		_, err = p.CreateObjectByType(t)
 		if err != nil {
 			log.Debugf("[%s] creating initial objects failed in table %s: %s", p.Name, t.Name, err.Error())
 			return false
+		}
+		if t.Name == "status" {
+			p.checkStatusFlags(t)
 		}
 	}
 	// this may happen if we query another lmd daemon which has no backends ready yet
@@ -875,6 +983,11 @@ func (p *Peer) query(req *Request) ([][]interface{}, error) {
 		defer conn.Close()
 	}
 
+	if p.Flags&LMDSub == LMDSub {
+		// add backends filter for lmd sub peers
+		req.Backends = []string{p.ID}
+	}
+
 	query := req.String()
 	if log.IsV(3) {
 		log.Tracef("[%s] query: %s", p.Name, query)
@@ -1027,6 +1140,10 @@ func (p *Peer) QueryString(str string) ([][]interface{}, error) {
 // It returns an error if something is wrong with the header.
 func (p *Peer) CheckResponseHeader(resBytes *[]byte) (err error) {
 	resSize := len(*resBytes)
+	if resSize == 0 {
+		err = fmt.Errorf("[%s] empty response, got 0 bytes", p.Name)
+		return
+	}
 	if resSize < 16 {
 		err = fmt.Errorf("[%s] uncomplete response header: %s", p.Name, string(*resBytes))
 		return
@@ -1144,9 +1261,7 @@ func (p *Peer) setNextAddrFromErr(err error) {
 		if p.Status["PeerStatus"].(PeerStatus) != PeerStatusDown {
 			log.Warnf("[%s] site went offline: %s", p.Name, err.Error())
 			// clear existing data from memory
-			p.DataLock.Lock()
 			p.Clear()
-			p.DataLock.Unlock()
 		}
 		p.Status["PeerStatus"] = PeerStatusDown
 	}
@@ -1228,7 +1343,6 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	}
 
 	p.createIndex(table, &res, &index)
-	p.createFlags(table, &res, &index)
 
 	now := time.Now().Unix()
 
@@ -1247,6 +1361,7 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 	p.Status["LastUpdate"] = now
 	p.Status["LastFullUpdate"] = now
 	p.PeerLock.Unlock()
+
 	return
 }
 
@@ -1287,26 +1402,42 @@ func (p *Peer) createIndex(table *Table, res *[][]interface{}, index *map[string
 	}
 }
 
-func (p *Peer) createFlags(table *Table, res *[][]interface{}, index *map[string][]interface{}) {
+func (p *Peer) checkStatusFlags(table *Table) {
 	// set backend specific flags
-	if table.Name == "status" && len(*res) > 0 {
-		p.PeerLock.Lock()
-		defer p.PeerLock.Unlock()
-		row := (*res)[0]
-		if len(reShinkenVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))) > 0 {
+	p.DataLock.RLock()
+	data := p.Tables[table.Name].Data
+	if len(data) == 0 {
+		p.DataLock.RUnlock()
+		return
+	}
+	p.PeerLock.Lock()
+	row := data[0]
+	// getting more than one status is a sure sign for a LMD backend
+	if len(data) > 1 {
+		if p.Flags&LMD != LMD {
+			log.Debugf("[%s] remote connection LMD flag set", p.Name)
+			p.Flags |= LMD
+			p.PeerLock.Unlock()
+			p.DataLock.RUnlock()
+			// force immediate update to fetch all sites
+			p.StatusSet("LastUpdate", time.Now().Unix()-p.LocalConfig.Updateinterval)
+			ok := true
+			p.periodicUpdateLMD(&ok)
+			return
+		}
+	} else if len(reShinkenVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))) > 0 {
+		if p.Flags&Shinken != Shinken {
 			log.Debugf("[%s] remote connection Shinken flag set", p.Name)
 			p.Flags |= Shinken
 		}
-		if len(reIcinga2Version.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))) > 0 {
+	} else if len(reIcinga2Version.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))) > 0 {
+		if p.Flags&Icinga2 != Icinga2 {
 			log.Debugf("[%s] remote connection Icinga2 flag set", p.Name)
 			p.Flags |= Icinga2
 		}
-		// getting more than one status is a sure sign for a LMD backend
-		if len(*res) > 1 {
-			log.Debugf("[%s] remote connection LMD flag set", p.Name)
-			p.Flags |= LMD
-		}
 	}
+	p.PeerLock.Unlock()
+	p.DataLock.RUnlock()
 }
 
 // GetGroupByData returns fake query result for given groupby table
@@ -1367,16 +1498,10 @@ func (p *Peer) GetGroupByData(table *Table) (res [][]interface{}, err error) {
 // Assuming we get the objects always in the same order, we can just iterate over the index and update the fields.
 // It returns a boolean flag whether the remote site has been restarted and any error encountered.
 func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error) {
-	if len(table.DynamicColCacheNames) == 0 {
+	if p.skipTableUpdate(table) {
 		return
 	}
-	if table.Virtual {
-		return
-	}
-	// no updates for passthrough tables, ex.: log
-	if table.PassthroughOnly {
-		return
-	}
+
 	keys, indexes := table.GetDynamicColumns(p.Flags)
 	req := &Request{
 		Table:           table.Name,
@@ -1391,8 +1516,8 @@ func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error
 	p.DataLock.RLock()
 	data := p.Tables[table.Name].Data
 	p.DataLock.RUnlock()
-	if len(res) > len(data) {
-		log.Debugf("[%s] site returned to many objects, assuming backend has been restarted", p.Name)
+	if len(res) != len(data) {
+		log.Debugf("[%s] site returned different number of objects, assuming backend has been restarted", p.Name)
 		restartRequired = true
 		return
 	}
@@ -1429,13 +1554,31 @@ func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error
 	case "services":
 		promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(res)))
 	case "status":
-		if p.StatusGet("ProgramStart") != data[0][table.ColumnsIndex["program_start"]] {
+		p.checkStatusFlags(table)
+		if p.Flags&LMD != LMD && len(data) >= 1 && p.StatusGet("ProgramStart") != data[0][table.ColumnsIndex["program_start"]] {
 			log.Infof("[%s] site has been restarted, recreating objects", p.Name)
 			restartRequired = true
 		}
 		return
 	}
 	return
+}
+
+func (p *Peer) skipTableUpdate(table *Table) bool {
+	if len(table.DynamicColCacheNames) == 0 {
+		return true
+	}
+	if table.Virtual {
+		return true
+	}
+	// no updates for passthrough tables, ex.: log
+	if table.PassthroughOnly {
+		return true
+	}
+	if p.Flags&LMD == LMD && table.Name != "status" {
+		return true
+	}
+	return false
 }
 
 func (p *Peer) updateTimeperiodsData(table *Table, res [][]interface{}, indexes []int) {
@@ -1503,6 +1646,12 @@ func (p *Peer) GetVirtRowValue(col *ResultColumn, row *[]interface{}, rowNum int
 	p.PeerLock.RLock()
 	value, ok := p.Status[col.Column.VirtMap.Key]
 	p.PeerLock.RUnlock()
+	if p.Flags&LMDSub == LMDSub {
+		val, ok2 := p.GetVirtSubLMDValue(col)
+		if ok2 {
+			value = val
+		}
+	}
 	if !ok {
 		value = p.GetVirtRowComputedValue(col, row, rowNum, table, refs)
 	}
@@ -1515,7 +1664,7 @@ func (p *Peer) GetVirtRowValue(col *ResultColumn, row *[]interface{}, rowNum int
 	case StringCol:
 		return value
 	case TimeCol:
-		val := value.(int64)
+		val := int64(numberToFloat(&value))
 		if val < 0 {
 			val = 0
 		}
@@ -1529,9 +1678,15 @@ func (p *Peer) GetVirtRowValue(col *ResultColumn, row *[]interface{}, rowNum int
 // GetVirtRowComputedValue returns a computed virtual value for the given column.
 func (p *Peer) GetVirtRowComputedValue(col *ResultColumn, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}) (value interface{}) {
 	switch col.Name {
+	case "empty":
+		// return empty string as placeholder for nonexisting columns
+		value = ""
 	case "lmd_last_cache_update":
 		// return timestamp of last update for this data row
 		value = p.Tables[table.Name].LastUpdate[rowNum]
+	case "lmd_version":
+		// return lmd version
+		value = fmt.Sprintf("%s-%s", NAME, Version())
 	case "last_state_change_order":
 		// return last_state_change or program_start
 		lastStateChange := numberToFloat(&((*row)[table.ColumnsIndex["last_state_change"]]))
@@ -1577,6 +1732,17 @@ func (p *Peer) GetVirtRowComputedValue(col *ResultColumn, row *[]interface{}, ro
 	default:
 		log.Panicf("cannot handle virtual column: %s", col.Name)
 	}
+	return
+}
+
+// GetVirtSubLMDValue returns status values for LMDSub backends
+func (p *Peer) GetVirtSubLMDValue(col *ResultColumn) (val interface{}, ok bool) {
+	ok = true
+	peerData := p.StatusGet("SubPeerStatus").(map[string]interface{})
+	if peerData == nil {
+		return nil, false
+	}
+	val, ok = peerData[col.Name]
 	return
 }
 
@@ -1794,12 +1960,6 @@ func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (int, *[][]
 	p.DataLock.RLock()
 	table := p.Tables[req.Table].Table
 	p.DataLock.RUnlock()
-	if table == nil || (!p.isOnline() && !table.Virtual) {
-		res.Lock.Lock()
-		res.Failed[p.ID] = fmt.Sprintf("%v", p.StatusGet("LastError"))
-		res.Lock.Unlock()
-		return 0, nil, nil
-	}
 
 	// if a WaitTrigger is supplied, wait max ms till the condition is true
 	if req.WaitTrigger != "" {
@@ -1829,10 +1989,29 @@ func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (int, *[][]
 // isOnline returns true if this peer is online and has data
 func (p *Peer) isOnline() bool {
 	status := p.StatusGet("PeerStatus").(PeerStatus)
+	if p.Flags&LMDSub == LMDSub {
+		realStatus := p.StatusGet("SubPeerStatus").(map[string]interface{})
+		num, ok := realStatus["status"]
+		if !ok {
+			return false
+		}
+		status = PeerStatus(num.(float64))
+	}
 	if status == PeerStatusUp || status == PeerStatusWarning {
 		return true
 	}
 	return false
+}
+
+func (p *Peer) getError() string {
+	if p.Flags&LMDSub == LMDSub {
+		realStatus := p.StatusGet("SubPeerStatus").(map[string]interface{})
+		errString, ok := realStatus["last_error"]
+		if ok {
+			return errString.(string)
+		}
+	}
+	return fmt.Sprintf("%v", p.StatusGet("LastError"))
 }
 
 func (p *Peer) gatherResultRows(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) (int, *[][]interface{}) {
@@ -2041,18 +2220,7 @@ func (p *Peer) setBroken(details string) {
 	p.Status["PeerStatus"] = PeerStatusBroken
 	p.Status["LastError"] = "broken: " + details
 	p.PeerLock.Unlock()
-
-	p.DataLock.Lock()
-	// clear data except the status table which is required to see if the backend has been restarted
-	for name := range p.Tables {
-		if name != "status" {
-			table := p.Tables[name]
-			table.Data = make([][]interface{}, 0)
-			table.Refs = make(map[string][][]interface{})
-			table.Index = make(map[string][]interface{})
-		}
-	}
-	p.DataLock.Unlock()
+	p.Clear()
 }
 
 func logPanicExitPeer(p *Peer) {
@@ -2067,4 +2235,17 @@ func logPanicExitPeer(p *Peer) {
 		}
 		os.Exit(1)
 	}
+}
+
+// Result2Hash converts list result into hashes
+func Result2Hash(data [][]interface{}, columns []string) []map[string]interface{} {
+	hash := make([]map[string]interface{}, 0)
+	for _, row := range data {
+		rowHash := make(map[string]interface{})
+		for x, key := range columns {
+			rowHash[key] = row[x]
+		}
+		hash = append(hash, rowHash)
+	}
+	return hash
 }

@@ -180,7 +180,10 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 	var columns []string
 	if val, ok := requestData["columns"]; ok {
 		for _, column := range val.([]interface{}) {
-			columns = append(columns, column.(string))
+			name := column.(string)
+			if name != "empty" {
+				columns = append(columns, name)
+			}
 		}
 	}
 	req.Columns = columns

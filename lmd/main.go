@@ -48,6 +48,7 @@ type Connection struct {
 	Source     []string
 	Auth       string
 	RemoteName string
+	Section    string
 }
 
 // Equals checks if two connection objects are identical.
@@ -226,6 +227,11 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	}
 }
 
+// Version returns the LMD version string
+func Version() string {
+	return fmt.Sprintf("%s (Build: %s)", VERSION, Build)
+}
+
 func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGroupInit *sync.WaitGroup, waitGroupListener *sync.WaitGroup, shutdownChannel chan bool) {
 	// This node's http address (http://*:1234), to be used as address pattern
 	var nodeListenAddress string
@@ -300,7 +306,7 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 func checkFlags() {
 	flag.Parse()
 	if flagVersion {
-		fmt.Printf("%s - version %s (Build: %s)\n", NAME, VERSION, Build)
+		fmt.Printf("%s - version %s\n", NAME, Version())
 		os.Exit(2)
 	}
 
@@ -527,4 +533,16 @@ func timeOrNever(timestamp int64) string {
 		return (time.Unix(timestamp, 0).String())
 	}
 	return "never"
+}
+
+// DataStoreRemove deletes a peer from DataStore and DataStoreOrder
+func DataStoreRemove(peerID string) {
+	// find id in order array
+	for i, id := range DataStoreOrder {
+		if id == peerID {
+			DataStoreOrder = append(DataStoreOrder[:i], DataStoreOrder[i+1:]...)
+			break
+		}
+	}
+	delete(DataStore, peerID)
 }
