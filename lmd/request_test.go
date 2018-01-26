@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"testing"
+	"time"
 )
 
 func TestRequestHeader(t *testing.T) {
@@ -445,6 +446,36 @@ func TestRequestGroupByTable(t *testing.T) {
 	}
 	if err = assertEq("Business Process", res[0][5]); err != nil {
 		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestRequestBlocking(t *testing.T) {
+	peer := StartTestPeer(1, 0, 0)
+	PauseTestPeers(peer)
+
+	start := time.Now()
+
+	// start long running query in background
+	go func() {
+		_, err1 := peer.QueryString("GET hosts\nColumns: name latency check_command\nLimit: 1\nWaitTrigger: all\nWaitObject: test\nWaitTimeout: 5000\nWaitCondition: last_check > 1473760401\n\n")
+		if err1 != nil {
+			t.Fatal(err1)
+		}
+	}()
+
+	// test how long next query will take
+	_, err2 := peer.QueryString("GET hosts\nColumns: name latency check_command\nLimit: 1\n\n")
+	if err2 != nil {
+		t.Fatal(err2)
+	}
+
+	elapsed := time.Since(start)
+	if elapsed.Seconds() > 3 {
+		t.Error("query2 should return immediately")
 	}
 
 	if err := StopTestPeer(peer); err != nil {

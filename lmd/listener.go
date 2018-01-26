@@ -214,23 +214,30 @@ func LocalListenerLivestatus(LocalConfig *Config, connType string, listen string
 			return
 		}
 
-		// process client request with a timeout
-		ch := make(chan error, 1)
+		// background waiting for query to finish/timeout
 		go func() {
+			// process client request with a timeout
+
 			// make sure we log panics properly
 			defer logPanicExit()
 
-			ch <- QueryServer(fd)
+			ch := make(chan error, 1)
+			go func() {
+				// make sure we log panics properly
+				defer logPanicExit()
+
+				ch <- QueryServer(fd)
+			}()
+			select {
+			case <-ch:
+			// request finishes normally
+			case <-time.After(time.Duration(LocalConfig.ListenTimeout) * time.Second):
+				localAddr := fd.LocalAddr().String()
+				remote := fd.RemoteAddr().String()
+				log.Warnf("client request from %s to %s timed out", remote, localAddr)
+			}
+			fd.Close()
 		}()
-		select {
-		case <-ch:
-		// request finishes normally
-		case <-time.After(time.Duration(LocalConfig.ListenTimeout) * time.Second):
-			localAddr := fd.LocalAddr().String()
-			remote := fd.RemoteAddr().String()
-			log.Warnf("client request from %s to %s timed out", remote, localAddr)
-		}
-		fd.Close()
 	}
 }
 
