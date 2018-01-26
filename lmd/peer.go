@@ -1329,7 +1329,8 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 				key := row[hostnameIndex].(string) + ";" + row[refCol.RefIndex].(string)
 				refs[fieldName][i] = refByName[key]
 				if refByName[key] == nil {
-					log.Panicf("%s '%s' ref not found from table %s, refmap contains %d elements", refCol.Name, row[refCol.RefIndex].(string), table.Name, len(refByName))
+					err = fmt.Errorf("%s '%s' ref not found from table %s, refmap contains %d elements", refCol.Name, row[refCol.RefIndex].(string), table.Name, len(refByName))
+					return
 				}
 			}
 		} else {
@@ -1337,7 +1338,8 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 				row := res[i]
 				refs[fieldName][i] = refByName[row[refCol.RefIndex].(string)]
 				if refByName[row[refCol.RefIndex].(string)] == nil {
-					log.Panicf("%s '%s' ref not found from table %s, refmap contains %d elements", refCol.Name, row[refCol.RefIndex].(string), table.Name, len(refByName))
+					err = fmt.Errorf("%s '%s' ref not found from table %s, refmap contains %d elements", refCol.Name, row[refCol.RefIndex].(string), table.Name, len(refByName))
+					return
 				}
 			}
 		}
