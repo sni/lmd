@@ -420,6 +420,7 @@ func (res *Response) Send(c net.Conn) (size int, err error) {
 		_, err = c.Write([]byte(fmt.Sprintf("%d %11d\n", res.Code, size)))
 		if err != nil {
 			log.Warnf("write error: %s", err.Error())
+			return
 		}
 	}
 	if log.IsV(3) {
@@ -428,9 +429,11 @@ func (res *Response) Send(c net.Conn) (size int, err error) {
 	written, err := c.Write(resBytes)
 	if err != nil {
 		log.Warnf("write error: %s", err.Error())
+		return
 	}
 	if written != size-1 {
 		log.Warnf("write error: written %d, size: %d", written, size)
+		return
 	}
 	localAddr := c.LocalAddr().String()
 	promFrontendBytesSend.WithLabelValues(localAddr).Add(float64(len(resBytes)))
