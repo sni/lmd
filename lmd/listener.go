@@ -17,6 +17,7 @@ func QueryServer(c net.Conn) error {
 	localAddr := c.LocalAddr().String()
 	keepAlive := false
 	remote := c.RemoteAddr().String()
+	defer c.Close()
 	if remote == "" {
 		remote = "unknown"
 	}

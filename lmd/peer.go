@@ -1083,11 +1083,13 @@ func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn
 	fmt.Fprintf(conn, "%s", query)
 
 	// close write part of connection
-	switch c := conn.(type) {
-	case *net.TCPConn:
-		c.CloseWrite()
-	case *net.UnixConn:
-		c.CloseWrite()
+	if req.Command != "" {
+		switch c := conn.(type) {
+		case *net.TCPConn:
+			c.CloseWrite()
+		case *net.UnixConn:
+			c.CloseWrite()
+		}
 	}
 
 	// read result from connection into result buffer
