@@ -650,7 +650,19 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table, column
 			}
 			log.Tracef("[%s] result ready", peer.Name)
 			res.Lock.Lock()
-			res.Result = append(res.Result, result...)
+			if len(req.Stats) == 0 {
+				res.Result = append(res.Result, result...)
+			} else {
+				if res.Request.StatsResult == nil {
+					res.Request.StatsResult = make(map[string][]*Filter)
+					res.Request.StatsResult[""] = createLocalStatsCopy(&res.Request.Stats)
+				}
+				// apply stats querys
+				for i := range result[0] {
+					val := result[0][i].(float64)
+					res.Request.StatsResult[""][i].ApplyValue(val, int(val))
+				}
+			}
 			res.Lock.Unlock()
 		}(p, waitgroup)
 	}
