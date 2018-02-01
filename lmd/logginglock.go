@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // LoggingLock is a lock wrapper which traces the current holding caller
@@ -27,10 +28,24 @@ func (l *LoggingLock) LockN(skip int) {
 	waited := false
 	currentWriteLock := l.currentWriteLock.Load().(string)
 	if currentWriteLock != "" {
-		log.Infof("[%s][%s:%d] waiting for write lock from %s", l.name, file, line, currentWriteLock)
-		waited = true
+		timeout := time.Second * 2
+		c := make(chan struct{})
+		go func() {
+			defer close(c)
+			l.lock.Lock()
+		}()
+		select {
+		case <-c:
+			// got lock within timeout, no logging
+			break
+		case <-time.After(timeout):
+			// still waiting...
+			log.Warnf("[%s][%s:%d] waiting for write lock from %s", l.name, file, line, currentWriteLock)
+			waited = true
+		}
+	} else {
+		l.lock.Lock()
 	}
-	l.lock.Lock()
 	l.currentWriteLock.Store(fmt.Sprintf("%s:%d", file, line))
 	if waited {
 		log.Infof("[%s][%s:%d] got write lock", l.name, file, line)
@@ -49,10 +64,24 @@ func (l *LoggingLock) RLockN(skip int) {
 	waited := false
 	currentWriteLock := l.currentWriteLock.Load().(string)
 	if currentWriteLock != "" {
-		log.Infof("[%s][%s:%d] waiting for read lock from %s", l.name, file, line, currentWriteLock)
-		waited = true
+		timeout := time.Second * 2
+		c := make(chan struct{})
+		go func() {
+			defer close(c)
+			l.lock.RLock()
+		}()
+		select {
+		case <-c:
+			// got lock within timeout, no logging
+			break
+		case <-time.After(timeout):
+			// still waiting...
+			log.Warnf("[%s][%s:%d] waiting for read lock from %s", l.name, file, line, currentWriteLock)
+			waited = true
+		}
+	} else {
+		l.lock.RLock()
 	}
-	l.lock.RLock()
 	if waited {
 		log.Infof("[%s][%s:%d] got read lock", l.name, file, line)
 	}
