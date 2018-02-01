@@ -74,6 +74,9 @@ func NewResponse(req *Request) (res *Response, err error) {
 		Request: req,
 		Lock:    NewLoggingLock("ResponseLock"),
 	}
+	if res.Failed == nil {
+		res.Failed = make(map[string]string)
+	}
 
 	table := Objects.Tables[req.Table]
 
