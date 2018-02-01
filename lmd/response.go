@@ -538,6 +538,13 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 			continue
 		}
 
+		if table.Name == "status" {
+			// append results serially for simple calculations
+			// no need to create goroutines for simple status queries
+			res.AppendPeerResult(p, indexes)
+			continue
+		}
+
 		waitgroup.Add(1)
 		go func(peer *Peer, wg *sync.WaitGroup) {
 			// make sure we log panics properly
@@ -559,12 +566,18 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 func (res *Response) AppendPeerResult(peer *Peer, indexes *[]int) {
 	total, result, statsResult := peer.BuildLocalResponseData(res, indexes)
 	log.Tracef("[%s] result ready", peer.Name)
-	res.Lock.Lock()
-	res.ResultTotal += total
 	if result != nil {
+		if total == 0 {
+			return
+		}
 		// data results rows
+		res.Lock.Lock()
+		res.ResultTotal += total
 		res.Result = append(res.Result, (*result)...)
+		res.Lock.Unlock()
 	} else if statsResult != nil {
+		res.Lock.Lock()
+		res.ResultTotal += total
 		if res.Request.StatsResult == nil {
 			res.Request.StatsResult = make(map[string][]*Filter)
 		}
@@ -579,8 +592,8 @@ func (res *Response) AppendPeerResult(peer *Peer, indexes *[]int) {
 				}
 			}
 		}
+		res.Lock.Unlock()
 	}
-	res.Lock.Unlock()
 }
 
 // BuildPassThroughResult passes a query transparently to one or more remote sites and builds the response
