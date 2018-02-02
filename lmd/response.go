@@ -99,6 +99,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 
 		// spin up required?
 		if p.StatusGet("Idling").(bool) && len(table.DynamicColCacheIndexes) > 0 {
+			p.StatusSet("LastQuery", time.Now().Unix())
 			spinUpPeers = append(spinUpPeers, id)
 		}
 	}
@@ -521,14 +522,13 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 		table := p.Tables[res.Request.Table].Table
 		p.DataLock.RUnlock()
 
-		if table != nil {
+		p.StatusSet("LastQuery", time.Now().Unix())
+
+		if table != nil && table.Virtual {
 			// append results serially for local calculations
 			// no need to create goroutines for simple sites queries
-			if table.Virtual {
-				res.AppendPeerResult(p, indexes)
-				continue
-			}
-			p.StatusSet("LastQuery", time.Now().Unix())
+			res.AppendPeerResult(p, indexes)
+			continue
 		}
 
 		if table == nil || !p.isOnline() {
