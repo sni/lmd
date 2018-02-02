@@ -531,19 +531,21 @@ func (p *Peer) InitAllTables() bool {
 			return false
 		}
 		if t.Name == "status" {
+			// this may happen if we query another lmd daemon which has no backends ready yet
+			p.DataLock.RLock()
+			hasStatus := len(p.Tables["status"].Data) > 0
+			p.DataLock.RUnlock()
+			if !hasStatus {
+				p.PeerLock.Lock()
+				p.Status["PeerStatus"] = PeerStatusDown
+				p.Status["LastError"] = "peered partner not ready yet"
+				p.PeerLock.Unlock()
+				p.Clear()
+				return false
+			}
+
 			p.checkStatusFlags(t)
 		}
-	}
-	// this may happen if we query another lmd daemon which has no backends ready yet
-	p.DataLock.RLock()
-	hasStatus := len(p.Tables["status"].Data) > 0
-	p.DataLock.RUnlock()
-	if !hasStatus {
-		p.PeerLock.Lock()
-		p.Status["PeerStatus"] = PeerStatusWarning
-		p.Status["LastError"] = "peered partner not ready yet"
-		p.PeerLock.Unlock()
-		return false
 	}
 
 	p.DataLock.RLock()
