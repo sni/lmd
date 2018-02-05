@@ -1748,7 +1748,25 @@ func (p *Peer) GetVirtSubLMDValue(col *ResultColumn) (val interface{}, ok bool) 
 	if peerData == nil {
 		return nil, false
 	}
-	val, ok = peerData[col.Name]
+	switch col.Name {
+	case "status":
+		// return worst state of LMD and LMDSubs state
+		parentVal := p.StatusGet("PeerStatus").(PeerStatus)
+		if parentVal != PeerStatusUp {
+			val = parentVal
+		} else {
+			val, ok = peerData[col.Name]
+		}
+	case "last_error":
+		// return worst state of LMD and LMDSubs state
+		parentVal := p.StatusGet("LastError").(string)
+		val, ok = peerData[col.Name]
+		if parentVal != "" && (!ok || val.(string) == "") {
+			val = parentVal
+		}
+	default:
+		val, ok = peerData[col.Name]
+	}
 	return
 }
 
@@ -2013,7 +2031,7 @@ func (p *Peer) getError() string {
 	if p.Flags&LMDSub == LMDSub {
 		realStatus := p.StatusGet("SubPeerStatus").(map[string]interface{})
 		errString, ok := realStatus["last_error"]
-		if ok {
+		if ok && errString.(string) != "" {
 			return errString.(string)
 		}
 	}
