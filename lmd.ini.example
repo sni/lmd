@@ -88,4 +88,14 @@ id     = "id4"
 source = ["http://thruk.monitoring/omdsite/"]
 auth   = "authkey..."
 
+# use tcp connections with tls encryption
+[[Connections]]
+name           = "Monitoring Site A TLS"
+id             = "id5"
+tlsCertificate = "client.pem"          # if key and cert is set, client cert authentication will be done
+tlsKey         = "client.key"
+tlsCA          = "optional_server.crt" # used to verify server certificate
+tlsSkipVerify  = 0                     # if set to 1, no common name verification will be done
+source         = ["tls://192.168.33.10:6557"]
+
 # add more connections as you like...

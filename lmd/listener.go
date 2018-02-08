@@ -192,11 +192,11 @@ func LocalListenerLivestatus(LocalConfig *Config, connType string, listen string
 	var l net.Listener
 	var err error
 	if connType == "tls" {
-		config, tErr := getTLSListenerConfig(LocalConfig)
+		tlsConfig, tErr := getTLSListenerConfig(LocalConfig)
 		if tErr != nil {
 			log.Fatalf("failed to initialize tls %s", tErr.Error())
 		}
-		l, err = tls.Listen("tcp", listen, config)
+		l, err = tls.Listen("tcp", listen, tlsConfig)
 	} else {
 		l, err = net.Listen(connType, listen)
 	}
@@ -265,11 +265,11 @@ func LocalListenerHTTP(LocalConfig *Config, httpType string, listen string, wait
 	// Listener
 	var l net.Listener
 	if httpType == "https" {
-		config, err := getTLSListenerConfig(LocalConfig)
+		tlsConfig, err := getTLSListenerConfig(LocalConfig)
 		if err != nil {
 			log.Fatalf("failed to initialize https %s", err.Error())
 		}
-		ln, err := tls.Listen("tcp", listen, config)
+		ln, err := tls.Listen("tcp", listen, tlsConfig)
 		if err != nil {
 			log.Fatalf("listen error: %s", err.Error())
 			return

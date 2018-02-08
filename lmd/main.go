@@ -43,12 +43,16 @@ const (
 
 // Connection defines a single connection configuration.
 type Connection struct {
-	Name       string
-	ID         string
-	Source     []string
-	Auth       string
-	RemoteName string
-	Section    string
+	Name           string
+	ID             string
+	Source         []string
+	Auth           string
+	RemoteName     string
+	Section        string
+	TLSCertificate string
+	TLSKey         string
+	TLSCA          string
+	TLSSkipVerify  int
 }
 
 // Equals checks if two connection objects are identical.

@@ -2,6 +2,7 @@ This file documents the revision history for the Livestatus Multitool Daemon
 
 next:
           - add tls listener support (including client certificate authorization)
+          - support client tls connections (with optional client authorization)
 
 1.2.0    Mon Feb  5 17:03:36 CET 2018
           - support lmd federation mode with cascading lmd instances

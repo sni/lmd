@@ -3,6 +3,8 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1182,18 +1184,22 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 	numSources := len(p.Source)
 
 	for x := 0; x < numSources; x++ {
-		peerAddr := p.StatusGet("PeerAddr").(string)
-		connType = "unix"
-		if strings.HasPrefix(peerAddr, "http") {
-			connType = "http"
-		} else if strings.Contains(peerAddr, ":") {
-			connType = "tcp"
-		}
+		var peerAddr string
+		peerAddr, connType = extractConnType(p.StatusGet("PeerAddr").(string))
 		switch connType {
 		case "tcp":
 			fallthrough
 		case "unix":
 			conn, err = net.DialTimeout(connType, peerAddr, time.Duration(p.LocalConfig.ConnectTimeout)*time.Second)
+		case "tls":
+			tlsConfig, cErr := p.getTLSClientConfig()
+			if cErr != nil {
+				err = cErr
+			} else {
+				dialer := new(net.Dialer)
+				dialer.Timeout = time.Duration(p.LocalConfig.ConnectTimeout) * time.Second
+				conn, err = tls.DialWithDialer(dialer, "tcp", peerAddr, tlsConfig)
+			}
 		case "http":
 			// test at least basic tcp connect
 			uri, uErr := url.Parse(peerAddr)
@@ -1232,6 +1238,19 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 	}
 
 	return nil, "", &PeerError{msg: err.Error(), kind: ConnectionError}
+}
+
+func extractConnType(rawAddr string) (string, string) {
+	connType := "unix"
+	if strings.HasPrefix(rawAddr, "http") {
+		connType = "http"
+	} else if strings.HasPrefix(rawAddr, "tls://") {
+		connType = "tls"
+		rawAddr = strings.TrimPrefix(rawAddr, "tls://")
+	} else if strings.Contains(rawAddr, ":") {
+		connType = "tcp"
+	}
+	return rawAddr, connType
 }
 
 func (p *Peer) setNextAddrFromErr(err error) {
@@ -2272,4 +2291,32 @@ func Result2Hash(data [][]interface{}, columns []string) []map[string]interface{
 		hash = append(hash, rowHash)
 	}
 	return hash
+}
+
+func (p *Peer) getTLSClientConfig() (*tls.Config, error) {
+	config := &tls.Config{}
+	if p.Config.TLSCertificate != "" && p.Config.TLSKey != "" {
+		cer, err := tls.LoadX509KeyPair(p.Config.TLSCertificate, p.Config.TLSKey)
+		if err != nil {
+			return nil, err
+		}
+		config.Certificates = []tls.Certificate{cer}
+	}
+
+	if p.Config.TLSSkipVerify > 0 {
+		config.InsecureSkipVerify = true
+	}
+
+	if p.Config.TLSCA != "" {
+		caCert, err := ioutil.ReadFile(p.Config.TLSCA)
+		if err != nil {
+			return nil, err
+		}
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCert)
+		config.RootCAs = caCertPool
+		config.BuildNameToCertificate()
+	}
+
+	return config, nil
 }
