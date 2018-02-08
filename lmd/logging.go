@@ -10,7 +10,7 @@ import (
 )
 
 const logFormat = "[%{Date} %{Time}][%{Severity}][%{File}:%{Line}] %{Message}"
-const logColors = "%{Color \"yellow\" \"WARN\"}%{Color \"red\" \"ERROR\"}"
+const logColors = "%{Color \"yellow\" \"WARN\"}%{Color \"red\" \"ERROR\"}%{Color \"red\" \"FATAL\"}"
 const logColorReset = "%{Color \"reset\"}"
 
 // initialize standard logger which will be configured later from the configuration file options
