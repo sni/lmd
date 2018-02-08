@@ -67,6 +67,7 @@ type Config struct {
 	Nodes               []string
 	TLSCertificate      string
 	TLSKey              string
+	TLSClientPems       []string
 	Updateinterval      int64
 	FullUpdateInterval  int64
 	Connections         []Connection

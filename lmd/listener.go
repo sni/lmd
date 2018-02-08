@@ -2,7 +2,9 @@ package main
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -168,6 +170,10 @@ func LocalListener(LocalConfig *Config, listen string, waitGroupInit *sync.WaitG
 	} else if strings.HasPrefix(listen, "http://") {
 		listen = strings.TrimPrefix(listen, "http://")
 		LocalListenerHTTP(LocalConfig, "http", listen, waitGroupInit, shutdownChannel)
+	} else if strings.HasPrefix(listen, "tls://") {
+		listen = strings.TrimPrefix(listen, "tls://")
+		listen = strings.TrimPrefix(listen, "*") // * means all interfaces
+		LocalListenerLivestatus(LocalConfig, "tls", listen, waitGroupInit, shutdownChannel)
 	} else if strings.Contains(listen, ":") {
 		listen = strings.TrimPrefix(listen, "*") // * means all interfaces
 		LocalListenerLivestatus(LocalConfig, "tcp", listen, waitGroupInit, shutdownChannel)
@@ -183,7 +189,17 @@ func LocalListener(LocalConfig *Config, listen string, waitGroupInit *sync.WaitG
 
 // LocalListenerLivestatus starts a listening socket with livestatus protocol.
 func LocalListenerLivestatus(LocalConfig *Config, connType string, listen string, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) {
-	l, err := net.Listen(connType, listen)
+	var l net.Listener
+	var err error
+	if connType == "tls" {
+		config, tErr := getTLSListenerConfig(LocalConfig)
+		if tErr != nil {
+			log.Fatalf("failed to initialize tls %s", tErr.Error())
+		}
+		l, err = tls.Listen("tcp", listen, config)
+	} else {
+		l, err = net.Listen(connType, listen)
+	}
 	if err != nil {
 		log.Fatalf("listen error: %s", err.Error())
 		return
@@ -249,11 +265,10 @@ func LocalListenerHTTP(LocalConfig *Config, httpType string, listen string, wait
 	// Listener
 	var l net.Listener
 	if httpType == "https" {
-		cer, err := tls.LoadX509KeyPair(LocalConfig.TLSCertificate, LocalConfig.TLSKey)
+		config, err := getTLSListenerConfig(LocalConfig)
 		if err != nil {
-			log.Fatalf("failed to initialize tls %s", err.Error())
+			log.Fatalf("failed to initialize https %s", err.Error())
 		}
-		config := &tls.Config{Certificates: []tls.Certificate{cer}}
 		ln, err := tls.Listen("tcp", listen, config)
 		if err != nil {
 			log.Fatalf("listen error: %s", err.Error())
@@ -293,4 +308,29 @@ func LocalListenerHTTP(LocalConfig *Config, httpType string, listen string, wait
 	}
 	server.Serve(l)
 
+}
+
+func getTLSListenerConfig(LocalConfig *Config) (config *tls.Config, err error) {
+	if LocalConfig.TLSCertificate == "" || LocalConfig.TLSKey == "" {
+		log.Fatalf("TLSCertificate and TLSKey configuration items are required for tls connections")
+	}
+	cer, err := tls.LoadX509KeyPair(LocalConfig.TLSCertificate, LocalConfig.TLSKey)
+	if err != nil {
+		return nil, err
+	}
+	config = &tls.Config{Certificates: []tls.Certificate{cer}}
+	if len(LocalConfig.TLSClientPems) > 0 {
+		caCertPool := x509.NewCertPool()
+		for _, file := range LocalConfig.TLSClientPems {
+			caCert, err := ioutil.ReadFile(file)
+			if err != nil {
+				return nil, err
+			}
+			caCertPool.AppendCertsFromPEM(caCert)
+		}
+
+		config.ClientAuth = tls.RequireAndVerifyClientCert
+		config.ClientCAs = caCertPool
+	}
+	return
 }

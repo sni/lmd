@@ -1,7 +1,7 @@
 # Listen for incoming livestatus requests here
 # TCP or unix sockets are allowed. Multiple entries are also valid.
 # An http address can be defined as well.
-Listen          = ["127.0.0.1:3333", "/tmp/lmd.sock", "http://*:8080"]
+Listen          = ["127.0.0.1:3333", "/tmp/lmd.sock", "http://*:8080", "https://*:8443", "tls://127.0.0.1:3334"]
 
 # List of cluster nodes (cluster mode).
 # All cluster nodes must have their http server enabled (see Listen).
@@ -10,6 +10,12 @@ Listen          = ["127.0.0.1:3333", "/tmp/lmd.sock", "http://*:8080"]
 
 # Timeout for incoming client requests on `Listen` threads
 ListenTimeout = 60
+
+# TLS certificate settings for https and tls listeners
+#TLSKey         = "server.key"
+#TLSCertificate = "server.pem"
+# set CA file to enforce client certificates
+#TLSClientPems  = ["client.pem"]
 
 # daemon will log to stdout if no logfile is set
 #LogFile         = "lmd.log"
