@@ -68,6 +68,7 @@ type Peer struct {
 	LocalConfig     *Config
 	lastRequest     *Request
 	lastResponse    *[]byte
+	HTTPClient      *http.Client
 }
 
 // PeerStatus contains the different states a peer can have
@@ -194,6 +195,22 @@ func NewPeer(LocalConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 			s = s[0 : len(s)-1]
 		}
 		p.Source[i] = s
+	}
+
+	/* initialize http client if there are any http(s) connections */
+	hasHTTP := false
+	for _, addr := range config.Source {
+		if strings.HasPrefix(addr, "http") {
+			hasHTTP = true
+			break
+		}
+	}
+	if hasHTTP {
+		tlsConfig, err := p.getTLSClientConfig()
+		if err != nil {
+			log.Fatalf("failed to initialize peer: %s", err.Error())
+		}
+		p.HTTPClient = NewLMDHTTPClient(tlsConfig)
 	}
 
 	return &p
@@ -1889,8 +1906,8 @@ func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) 
 	options["sub"] = "_raw_query"
 	options["args"] = []string{strings.TrimSpace(query) + "\n"}
 	optionStr, _ := json.Marshal(options)
-	netClient.Timeout = time.Duration(p.LocalConfig.NetTimeout) * time.Second
-	response, err := netClient.PostForm(completePeerHTTPAddr(peerAddr), url.Values{
+	p.HTTPClient.Timeout = time.Duration(p.LocalConfig.NetTimeout) * time.Second
+	response, err := p.HTTPClient.PostForm(completePeerHTTPAddr(peerAddr), url.Values{
 		"data": {fmt.Sprintf("{\"credential\": \"%s\", \"options\": %s}", p.Config.Auth, optionStr)},
 	})
 	if err != nil {
@@ -2303,7 +2320,7 @@ func (p *Peer) getTLSClientConfig() (*tls.Config, error) {
 		config.Certificates = []tls.Certificate{cer}
 	}
 
-	if p.Config.TLSSkipVerify > 0 {
+	if p.Config.TLSSkipVerify > 0 || p.LocalConfig.SkipSSLCheck > 0 {
 		config.InsecureSkipVerify = true
 	}
 

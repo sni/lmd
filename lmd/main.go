@@ -119,7 +119,6 @@ var flagPidfile string
 var flagProfile string
 
 var once sync.Once
-var netClient *http.Client
 var mainSignalChannel chan os.Signal
 var lastMainRestart = time.Now().Unix()
 
@@ -200,9 +199,6 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 
 	// initialize prometheus
 	prometheusListener := initPrometheus(&LocalConfig)
-
-	// initialize http client
-	initializeHTTPClient(&LocalConfig)
 
 	// start local listeners
 	waitGroupInit.Add(len(LocalConfig.Listen))
@@ -302,7 +298,7 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 
 	// Node accessor
 	nodeAddresses := LocalConfig.Nodes
-	nodeAccessor = NewNodes(nodeAddresses, nodeListenAddress, waitGroupInit, shutdownChannel)
+	nodeAccessor = NewNodes(LocalConfig, nodeAddresses, nodeListenAddress, waitGroupInit, shutdownChannel)
 	nodeAccessor.Initialize() // starts peers in single mode
 	nodeAccessor.Start()      // nodes loop starts/stops peers in cluster mode
 
@@ -368,23 +364,21 @@ func setVerboseFlags(LocalConfig *Config) {
 	}
 }
 
-func initializeHTTPClient(LocalConfig *Config) {
-	insecure := false
-	if LocalConfig.SkipSSLCheck == 1 {
-		insecure = true
-	}
+// NewLMDHTTPClient creates a http.Client with the given tls.Config
+func NewLMDHTTPClient(tlsConfig *tls.Config) *http.Client {
 	tr := &http.Transport{
 		Dial: (&net.Dialer{
 			Timeout:   10 * time.Second,
 			KeepAlive: 10 * time.Second,
 		}).Dial,
 		TLSHandshakeTimeout: 10 * time.Second,
-		TLSClientConfig:     &tls.Config{InsecureSkipVerify: insecure},
+		TLSClientConfig:     tlsConfig,
 	}
-	netClient = &http.Client{
+	netClient := &http.Client{
 		Timeout:   time.Second * 30,
 		Transport: tr,
 	}
+	return netClient
 }
 
 func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers *sync.WaitGroup, waitGroupListener *sync.WaitGroup, prometheusListener net.Listener) (exitCode int) {

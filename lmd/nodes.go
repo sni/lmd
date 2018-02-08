@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -52,14 +53,15 @@ func (a *NodeAddress) HumanIdentifier() string {
 }
 
 // NewNodes creates a new cluster manager.
-func NewNodes(addresses []string, listen string, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) *Nodes {
+func NewNodes(LocalConfig *Config, addresses []string, listen string, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) *Nodes {
 	n := &Nodes{
 		WaitGroupInit:   waitGroupInit,
 		ShutdownChannel: shutdownChannel,
 		stopChannel:     make(chan bool),
 	}
 	n.PeerMap = &DataStore
-	n.HTTPClient = netClient
+	tlsConfig := &tls.Config{InsecureSkipVerify: LocalConfig.SkipSSLCheck > 0}
+	n.HTTPClient = NewLMDHTTPClient(tlsConfig)
 	for id := range *n.PeerMap {
 		n.backends = append(n.backends, id)
 	}
