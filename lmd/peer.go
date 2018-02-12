@@ -767,6 +767,7 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	}
 	p.DataLock.Lock()
 	nameindex := p.Tables[table.Name].Index
+	lastUpdate := p.Tables[table.Name].LastUpdate
 	fieldIndex1 := len(keys) - 2
 	fieldIndex2 := len(keys) - 1
 	now := time.Now().Unix()
@@ -779,7 +780,7 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 		for j, k := range indexes {
 			dataRow[k] = (*resRow)[j]
 		}
-		dataRow[0] = now
+		lastUpdate[i] = now
 	}
 	p.DataLock.Unlock()
 	promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(res)))
