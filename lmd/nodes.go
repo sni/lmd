@@ -302,17 +302,13 @@ func (n *Nodes) redistribute() {
 			assignedNumberBackends[i] = 1
 		}
 	} else {
-		first := true
 		for i := range allNodes {
 			if !nodeOnline[i] {
 				continue
 			}
 			numberPerNode := numberBackends / numberAvailableNodes
-			if first {
-				first = false
-				if numberBackends%numberAvailableNodes != 0 {
-					numberPerNode++
-				}
+			if numberBackends%numberAvailableNodes != 0 {
+				numberPerNode++
 			}
 			assignedNumberBackends[i] = numberPerNode
 		}
@@ -329,7 +325,9 @@ func (n *Nodes) redistribute() {
 			// number == 0 means no backends for that node
 			list := make([]string, number)
 			for j := 0; j < number; j++ {
-				list[j] = n.backends[distributedCount+j]
+				if len(n.backends) > distributedCount+j {
+					list[j] = n.backends[distributedCount+j]
+				}
 			}
 			distributedCount += number
 			assignedBackends[i] = list
