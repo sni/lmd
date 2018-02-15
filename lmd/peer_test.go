@@ -111,3 +111,61 @@ func TestParseResultWrappedJSON(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestParseResultJSONBroken(t *testing.T) {
+
+	waitGroup := &sync.WaitGroup{}
+	shutdownChannel := make(chan bool)
+	connection := Connection{Name: "Test", Source: []string{"http://localhost/test/", "http://clusternode/test"}}
+	peer := NewPeer(&Config{}, &connection, waitGroup, shutdownChannel)
+
+	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")))
+	if err != nil {
+		panic(err.Error())
+	}
+	data := []byte(`[
+	 ["host1", "desc1", 0, [1,2], {"a": 1}],
+	 ["host2", "desc2", 1, [1
+	]`)
+
+	InitLogging(&Config{LogLevel: "off", LogFile: "stderr"})
+	res, err := peer.parseResult(req, &data)
+	InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
+
+	if err == nil {
+		t.Errorf("got no error from broken json")
+	}
+
+	if res != nil {
+		t.Errorf("got result for broken json")
+	}
+}
+
+func TestParseResultJSONBroken2(t *testing.T) {
+
+	waitGroup := &sync.WaitGroup{}
+	shutdownChannel := make(chan bool)
+	connection := Connection{Name: "Test", Source: []string{"http://localhost/test/", "http://clusternode/test"}}
+	peer := NewPeer(&Config{}, &connection, waitGroup, shutdownChannel)
+
+	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")))
+	if err != nil {
+		panic(err.Error())
+	}
+	data := []byte(`[
+	 ["host1", "desc1", 0, [1,2], {"a": 1}],
+	 ["host2", "desc2", 1, [1,2], {"a" 1}],
+	]`)
+
+	InitLogging(&Config{LogLevel: "off", LogFile: "stderr"})
+	res, err := peer.parseResult(req, &data)
+	InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
+
+	if err == nil {
+		t.Errorf("got no error from broken json")
+	}
+
+	if res != nil {
+		t.Errorf("got result for broken json")
+	}
+}

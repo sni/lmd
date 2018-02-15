@@ -1071,10 +1071,20 @@ func (p *Peer) parseResult(req *Request, resBytes *[]byte) (result [][]interface
 		resBytes = &dataBytes
 	}
 	result = make([][]interface{}, 0)
-	jsonparser.ArrayEach(*resBytes, func(rowBytes []byte, dataType jsonparser.ValueType, offset int, err error) {
-		row, err := djson.Decode(rowBytes)
-		result = append(result, row.([]interface{}))
+	offset, jErr := jsonparser.ArrayEach(*resBytes, func(rowBytes []byte, dataType jsonparser.ValueType, offset int, aErr error) {
+		row, dErr := djson.Decode(rowBytes)
+		if aErr != nil {
+			err = aErr
+		} else if dErr != nil {
+			err = dErr
+		} else {
+			result = append(result, row.([]interface{}))
+		}
 	})
+	// trailing comma error will be ignored
+	if jErr != nil && offset < len(*resBytes)-3 {
+		err = jErr
+	}
 
 	if err != nil {
 		log.Errorf("[%s] json string: %s", p.Name, string(*resBytes))
