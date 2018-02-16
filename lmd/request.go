@@ -16,6 +16,7 @@ import (
 
 // Request defines a livestatus request object.
 type Request struct {
+	noCopy            noCopy
 	Table             string
 	Command           string
 	Columns           []string

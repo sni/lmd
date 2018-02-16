@@ -41,6 +41,7 @@ func (op *StatsType) String() string {
 
 // Filter defines a single filter object.
 type Filter struct {
+	noCopy noCopy
 	// filter can either be a single filter
 	Column     *ResultColumn
 	Operator   Operator

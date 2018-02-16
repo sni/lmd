@@ -15,6 +15,7 @@ import (
 
 // Listener is the object which handles incoming connections
 type Listener struct {
+	noCopy           noCopy
 	ConnectionString string
 	shutdownChannel  chan bool
 	connection       net.Listener

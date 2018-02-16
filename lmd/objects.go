@@ -11,6 +11,7 @@ var Objects *ObjectsType
 
 // Table defines the livestatus table object.
 type Table struct {
+	noCopy                 noCopy
 	Name                   string
 	MaxIndex               int
 	ColumnsIndex           map[string]int

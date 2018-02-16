@@ -50,6 +50,7 @@ type DataTable struct {
 
 // Peer is the object which handles collecting and updating data and connections.
 type Peer struct {
+	noCopy          noCopy
 	Name            string
 	ID              string
 	ParentID        string
@@ -265,8 +266,8 @@ func (p *Peer) hasChanged() (changed bool) {
 // Clear resets the data table.
 func (p *Peer) Clear() {
 	p.DataLock.Lock()
-	for key, table := range p.Tables {
-		if !table.Table.Virtual {
+	for key := range p.Tables {
+		if !p.Tables[key].Table.Virtual {
 			delete(p.Tables, key)
 		}
 	}

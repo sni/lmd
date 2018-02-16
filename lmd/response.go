@@ -55,6 +55,7 @@ var VirtKeyMap = map[string]VirtKeyMapTupel{
 
 // Response contains the livestatus response data as long with some meta data
 type Response struct {
+	noCopy      noCopy
 	Lock        *LoggingLock // must be used for Result and Failed access
 	Code        int
 	Result      [][]interface{}

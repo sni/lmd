@@ -17,6 +17,7 @@ var reNodeAddress = regexp.MustCompile(`^(https?)?(://)?(.*?)(:(\d+))?(/.*)?$`)
 
 // Nodes is the cluster management object.
 type Nodes struct {
+	noCopy           noCopy
 	PeerMap          *map[string]*Peer
 	ID               string
 	HTTPClient       *http.Client

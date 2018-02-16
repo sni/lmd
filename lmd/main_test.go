@@ -88,6 +88,18 @@ func TestMainReload(t *testing.T) {
 	StartMockMainLoop([]string{"mock0.sock"}, "")
 	mainSignalChannel <- syscall.SIGHUP
 	waitTimeout(TestPeerWaitGroup, 5*time.Second)
+	// shutdown all peers
+	for _, p := range DataStore {
+		p.Stop()
+		p.shutdownChannel <- true
+		DataStoreRemove(p.ID)
+	}
+	// shutdown all listeners
+	ListenersLock.Lock()
+	for _, l := range Listeners {
+		l.connection.Close()
+	}
+	ListenersLock.Unlock()
 }
 
 func TestAllOps(t *testing.T) {

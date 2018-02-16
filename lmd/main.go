@@ -41,6 +41,11 @@ const (
 	NAME = "lmd"
 )
 
+// https://github.com/golang/go/issues/8005#issuecomment-190753527
+type noCopy struct{}
+
+func (*noCopy) Lock() {}
+
 // Connection defines a single connection configuration.
 type Connection struct {
 	Name           string

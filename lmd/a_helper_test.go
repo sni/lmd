@@ -298,9 +298,6 @@ func StopTestPeer(peer *Peer) (err error) {
 	if waitTimeout(TestPeerWaitGroup, 10*time.Second) {
 		err = fmt.Errorf("timeout while waiting for peers to stop")
 	}
-	// clean from global object
-	DataStore = make(map[string]*Peer)
-	DataStoreOrder = nil
 	return
 }
 
