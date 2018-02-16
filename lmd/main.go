@@ -98,6 +98,12 @@ var DataStore map[string]*Peer
 // DataStoreOrder contains the order of all remote peers as defined in the supplied config files.
 var DataStoreOrder []string
 
+// Listeners stores if we started a listener
+var Listeners map[string]*Listener
+
+// ListenersLock is the lock for the Listeners map
+var ListenersLock sync.RWMutex
+
 type configFiles []string
 
 // String returns the config files list as string.
@@ -133,6 +139,7 @@ func init() {
 	mainSignalChannel = make(chan os.Signal)
 	DataStore = make(map[string]*Peer)
 	DataStoreOrder = make([]string, 0)
+	Listeners = make(map[string]*Listener)
 }
 
 func setFlags() {
@@ -206,17 +213,10 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	prometheusListener := initPrometheus(&LocalConfig)
 
 	// start local listeners
-	waitGroupInit.Add(len(LocalConfig.Listen))
-	for _, listen := range LocalConfig.Listen {
-		go func(listen string) {
-			// make sure we log panics properly
-			defer logPanicExit()
-			LocalListener(&LocalConfig, listen, waitGroupInit, waitGroupListener, shutdownChannel)
-		}(listen)
-	}
+	initializeListeners(&LocalConfig, waitGroupListener, waitGroupInit, shutdownChannel)
 
 	// start remote connections
-	initializePeers(&LocalConfig, waitGroupPeers, waitGroupInit, waitGroupListener, shutdownChannel)
+	initializePeers(&LocalConfig, waitGroupPeers, waitGroupInit, shutdownChannel)
 
 	once.Do(PrintVersion)
 
@@ -238,7 +238,41 @@ func Version() string {
 	return fmt.Sprintf("%s (Build: %s)", VERSION, Build)
 }
 
-func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGroupInit *sync.WaitGroup, waitGroupListener *sync.WaitGroup, shutdownChannel chan bool) {
+func initializeListeners(LocalConfig *Config, waitGroupListener *sync.WaitGroup, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) {
+	ListenersNew := make(map[string]*Listener)
+
+	// close all listeners which are no longer defined
+	ListenersLock.Lock()
+	for con, l := range Listeners {
+		found := false
+		for _, listen := range LocalConfig.Listen {
+			if listen == con {
+				found = true
+				break
+			}
+		}
+		if !found {
+			delete(Listeners, con)
+			l.connection.Close()
+		}
+	}
+
+	// open new listeners
+	for _, listen := range LocalConfig.Listen {
+		if l, ok := Listeners[listen]; ok {
+			ListenersNew[listen] = l
+		} else {
+			waitGroupInit.Add(1)
+			l := NewListener(LocalConfig, listen, waitGroupInit, waitGroupListener, shutdownChannel)
+			ListenersNew[listen] = l
+		}
+	}
+
+	Listeners = ListenersNew
+	ListenersLock.Unlock()
+}
+
+func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) {
 	// This node's http address (http://*:1234), to be used as address pattern
 	var nodeListenAddress string
 	rx := regexp.MustCompile("^(https?)://(.*?):(.*)")
@@ -390,14 +424,14 @@ func NewLMDHTTPClient(tlsConfig *tls.Config) *http.Client {
 	return netClient
 }
 
-func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers *sync.WaitGroup, waitGroupListener *sync.WaitGroup, prometheusListener net.Listener) (exitCode int) {
+func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers *sync.WaitGroup, waitGroupListener *sync.WaitGroup, prometheusListener *net.Listener) (exitCode int) {
 	switch sig {
 	case syscall.SIGTERM:
 		log.Infof("got sigterm, quiting gracefully")
 		shutdownChannel <- true
 		close(shutdownChannel)
 		if prometheusListener != nil {
-			prometheusListener.Close()
+			(*prometheusListener).Close()
 		}
 		waitGroupListener.Wait()
 		waitGroupPeers.Wait()
@@ -412,7 +446,7 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		shutdownChannel <- true
 		close(shutdownChannel)
 		if prometheusListener != nil {
-			prometheusListener.Close()
+			(*prometheusListener).Close()
 		}
 		// wait one second which should be enough for the listeners
 		waitTimeout(waitGroupListener, time.Second)
@@ -425,7 +459,7 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		shutdownChannel <- true
 		close(shutdownChannel)
 		if prometheusListener != nil {
-			prometheusListener.Close()
+			(*prometheusListener).Close()
 		}
 		waitGroupListener.Wait()
 		waitGroupPeers.Wait()

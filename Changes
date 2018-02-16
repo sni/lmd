@@ -3,6 +3,7 @@ This file documents the revision history for the Livestatus Multitool Daemon
 next:
           - add tls listener support (including client certificate authorization)
           - support client tls connections (with optional client authorization)
+          - only restart listeners in SIGHUP if really changed
           - fix overwriting svc accept_passive_checks (#20)
           - fix evenly distribution in cluster mode (#18)
 

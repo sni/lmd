@@ -13,6 +13,32 @@ import (
 	"time"
 )
 
+// Listener is the object which handles incoming connections
+type Listener struct {
+	ConnectionString string
+	shutdownChannel  chan bool
+	connection       net.Listener
+	LocalConfig      *Config
+	waitGroupDone    *sync.WaitGroup
+	waitGroupInit    *sync.WaitGroup
+}
+
+// NewListener creates a new Listener object
+func NewListener(LocalConfig *Config, listen string, waitGroupInit *sync.WaitGroup, waitGroupDone *sync.WaitGroup, shutdownChannel chan bool) *Listener {
+	l := Listener{
+		ConnectionString: listen,
+		shutdownChannel:  shutdownChannel,
+		LocalConfig:      LocalConfig,
+		waitGroupDone:    waitGroupDone,
+		waitGroupInit:    waitGroupInit,
+	}
+	go func() {
+		defer logPanicExit()
+		l.Listen()
+	}()
+	return &l
+}
+
 // QueryServer handles a single client connection.
 // It returns any error encountered.
 func QueryServer(c net.Conn) error {
@@ -160,51 +186,58 @@ func SendCommands(commandsByPeer *map[string][]string) {
 	waitTimeout(wg, 10)
 }
 
-// LocalListener starts a listening socket.
-func LocalListener(LocalConfig *Config, listen string, waitGroupInit *sync.WaitGroup, waitGroupDone *sync.WaitGroup, shutdownChannel chan bool) {
-	defer waitGroupDone.Done()
-	waitGroupDone.Add(1)
+// Listen start listening the actual connection
+func (l *Listener) Listen() {
+	defer func() {
+		l.waitGroupDone.Done()
+		ListenersLock.Lock()
+		delete(Listeners, l.ConnectionString)
+		ListenersLock.Unlock()
+	}()
+	l.waitGroupDone.Add(1)
+	listen := l.ConnectionString
 	if strings.HasPrefix(listen, "https://") {
 		listen = strings.TrimPrefix(listen, "https://")
-		LocalListenerHTTP(LocalConfig, "https", listen, waitGroupInit, shutdownChannel)
+		l.LocalListenerHTTP("https", listen)
 	} else if strings.HasPrefix(listen, "http://") {
 		listen = strings.TrimPrefix(listen, "http://")
-		LocalListenerHTTP(LocalConfig, "http", listen, waitGroupInit, shutdownChannel)
+		l.LocalListenerHTTP("http", listen)
 	} else if strings.HasPrefix(listen, "tls://") {
 		listen = strings.TrimPrefix(listen, "tls://")
 		listen = strings.TrimPrefix(listen, "*") // * means all interfaces
-		LocalListenerLivestatus(LocalConfig, "tls", listen, waitGroupInit, shutdownChannel)
+		l.LocalListenerLivestatus("tls", listen)
 	} else if strings.Contains(listen, ":") {
 		listen = strings.TrimPrefix(listen, "*") // * means all interfaces
-		LocalListenerLivestatus(LocalConfig, "tcp", listen, waitGroupInit, shutdownChannel)
+		l.LocalListenerLivestatus("tcp", listen)
 	} else {
 		// remove stale sockets on start
 		if _, err := os.Stat(listen); err == nil {
 			log.Warnf("removing stale socket: %s", listen)
 			os.Remove(listen)
 		}
-		LocalListenerLivestatus(LocalConfig, "unix", listen, waitGroupInit, shutdownChannel)
+		l.LocalListenerLivestatus("unix", listen)
 	}
 }
 
 // LocalListenerLivestatus starts a listening socket with livestatus protocol.
-func LocalListenerLivestatus(LocalConfig *Config, connType string, listen string, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) {
-	var l net.Listener
+func (l *Listener) LocalListenerLivestatus(connType string, listen string) {
 	var err error
+	var c net.Listener
 	if connType == "tls" {
-		tlsConfig, tErr := getTLSListenerConfig(LocalConfig)
+		tlsConfig, tErr := getTLSListenerConfig(l.LocalConfig)
 		if tErr != nil {
 			log.Fatalf("failed to initialize tls %s", tErr.Error())
 		}
-		l, err = tls.Listen("tcp", listen, tlsConfig)
+		c, err = tls.Listen("tcp", listen, tlsConfig)
 	} else {
-		l, err = net.Listen(connType, listen)
+		c, err = net.Listen(connType, listen)
 	}
+	l.connection = c
 	if err != nil {
 		log.Fatalf("listen error: %s", err.Error())
 		return
 	}
-	defer l.Close()
+	defer c.Close()
 	if connType == "unix" {
 		defer os.Remove(listen)
 	}
@@ -213,15 +246,15 @@ func LocalListenerLivestatus(LocalConfig *Config, connType string, listen string
 
 	// Close connection and log shutdown
 	go func() {
-		<-shutdownChannel
+		<-l.shutdownChannel
 		log.Infof("stopping %s listener on %s", connType, listen)
-		l.Close()
+		c.Close()
 	}()
 
-	waitGroupInit.Done()
+	l.waitGroupInit.Done()
 
 	for {
-		fd, err := l.Accept()
+		fd, err := c.Accept()
 		if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
 			continue
 		}
@@ -247,7 +280,7 @@ func LocalListenerLivestatus(LocalConfig *Config, connType string, listen string
 			select {
 			case <-ch:
 			// request finishes normally
-			case <-time.After(time.Duration(LocalConfig.ListenTimeout) * time.Second):
+			case <-time.After(time.Duration(l.LocalConfig.ListenTimeout) * time.Second):
 				localAddr := fd.LocalAddr().String()
 				remote := fd.RemoteAddr().String()
 				log.Warnf("client request from %s to %s timed out", remote, localAddr)
@@ -258,14 +291,14 @@ func LocalListenerLivestatus(LocalConfig *Config, connType string, listen string
 }
 
 // LocalListenerHTTP starts a listening socket with http protocol.
-func LocalListenerHTTP(LocalConfig *Config, httpType string, listen string, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) {
+func (l *Listener) LocalListenerHTTP(httpType string, listen string) {
 	// Parse listener address
 	listen = strings.TrimPrefix(listen, "*") // * means all interfaces
 
 	// Listener
-	var l net.Listener
+	var c net.Listener
 	if httpType == "https" {
-		tlsConfig, err := getTLSListenerConfig(LocalConfig)
+		tlsConfig, err := getTLSListenerConfig(l.LocalConfig)
 		if err != nil {
 			log.Fatalf("failed to initialize https %s", err.Error())
 		}
@@ -274,21 +307,22 @@ func LocalListenerHTTP(LocalConfig *Config, httpType string, listen string, wait
 			log.Fatalf("listen error: %s", err.Error())
 			return
 		}
-		l = ln
+		c = ln
 	} else {
 		ln, err := net.Listen("tcp", listen)
 		if err != nil {
 			log.Fatalf("listen error: %s", err.Error())
 			return
 		}
-		l = ln
+		c = ln
 	}
+	l.connection = c
 
 	// Close connection and log shutdown
 	go func() {
-		<-shutdownChannel
+		<-l.shutdownChannel
 		log.Infof("stopping listener on %s", listen)
-		l.Close()
+		c.Close()
 	}()
 
 	// Initialize HTTP router
@@ -298,7 +332,7 @@ func LocalListenerHTTP(LocalConfig *Config, httpType string, listen string, wait
 		return
 	}
 	log.Infof("listening for rest queries on %s", listen)
-	waitGroupInit.Done()
+	l.waitGroupInit.Done()
 
 	// Wait for and handle http requests
 	server := &http.Server{
@@ -306,7 +340,7 @@ func LocalListenerHTTP(LocalConfig *Config, httpType string, listen string, wait
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
 	}
-	server.Serve(l)
+	server.Serve(c)
 
 }
 
