@@ -61,6 +61,11 @@ func (c *Connection) Equals(other *Connection) bool {
 	equal = equal && c.Name == other.Name
 	equal = equal && c.Auth == other.Auth
 	equal = equal && c.RemoteName == other.RemoteName
+	equal = equal && c.Section == other.Section
+	equal = equal && c.TLSCertificate == other.TLSCertificate
+	equal = equal && c.TLSKey == other.TLSKey
+	equal = equal && c.TLSCA == other.TLSCA
+	equal = equal && c.TLSSkipVerify == other.TLSSkipVerify
 	equal = equal && strings.Join(c.Source, ":") == strings.Join(other.Source, ":")
 	return equal
 }
