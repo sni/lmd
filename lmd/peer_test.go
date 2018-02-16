@@ -14,7 +14,7 @@ func TestPeerSource(t *testing.T) {
 	connection := Connection{Name: "Test", Source: []string{"http://localhost/test/", "http://clusternode/test"}}
 	peer := NewPeer(&Config{}, &connection, waitGroup, shutdownChannel)
 
-	if err := assertEq("http://localhost/test", peer.Source[0]); err != nil {
+	if err := assertEq("http://localhost/test/", peer.Source[0]); err != nil {
 		t.Error(err)
 	}
 
