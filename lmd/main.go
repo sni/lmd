@@ -255,12 +255,13 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 			}
 		}
 		if !found {
-			delete(DataStore, id)
+			DataStoreRemove(id)
 		}
 	}
 
 	// Create/set Peer objects
-	DataStoreOrder = nil
+	DataStoreNew := make(map[string]*Peer)
+	DataStoreOrderNew := make([]string, 0)
 	var backends []string
 	for i := range LocalConfig.Connections {
 		c := LocalConfig.Connections[i]
@@ -291,10 +292,13 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 		backends = append(backends, c.ID)
 
 		// Put new or modified peer in map
-		DataStore[c.ID] = p
-		DataStoreOrder = append(DataStoreOrder, c.ID)
+		DataStoreNew[c.ID] = p
+		DataStoreOrderNew = append(DataStoreOrderNew, c.ID)
 		// Peer started later in node redistribution routine
 	}
+
+	DataStoreOrder = DataStoreOrderNew
+	DataStore = DataStoreNew
 
 	// Node accessor
 	nodeAddresses := LocalConfig.Nodes
