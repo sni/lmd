@@ -149,7 +149,9 @@ func (n *Nodes) Initialize() {
 	// Start all peers in single mode
 	if !n.IsClustered() {
 		for _, peer := range *n.PeerMap {
-			peer.Start()
+			if !peer.StatusGet("Updating").(bool) {
+				peer.Start()
+			}
 		}
 	}
 

@@ -189,14 +189,6 @@ func NewPeer(LocalConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 	p.Status["Section"] = config.Section
 	p.Status["PeerParent"] = ""
 
-	/* strip of trailing slashes from http backends */
-	for i, s := range p.Source {
-		for len(s) > 0 && s[len(s)-1] == '/' {
-			s = s[0 : len(s)-1]
-		}
-		p.Source[i] = s
-	}
-
 	/* initialize http client if there are any http(s) connections */
 	hasHTTP := false
 	for _, addr := range config.Source {
@@ -2272,6 +2264,8 @@ func (p *Peer) checkIcinga2Reload() bool {
 // completePeerHTTPAddr returns autocompleted address for peer
 // it appends /thruk/cgi-bin/remote.cgi or parts of it
 func completePeerHTTPAddr(addr string) string {
+	// remove trailing slashes
+	addr = strings.TrimSuffix(addr, "/")
 	switch {
 	case regexp.MustCompile(`/thruk/$`).MatchString(addr):
 		return addr + "cgi-bin/remote.cgi"

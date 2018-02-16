@@ -294,6 +294,8 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 			}
 		}
 		if !found {
+			DataStore[id].Stop()
+			DataStore[id].Clear()
 			DataStoreRemove(id)
 		}
 	}
@@ -456,13 +458,9 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		return (1)
 	case syscall.SIGHUP:
 		log.Infof("got sighup, reloading configuration...")
-		shutdownChannel <- true
-		close(shutdownChannel)
 		if prometheusListener != nil {
 			(*prometheusListener).Close()
 		}
-		waitGroupListener.Wait()
-		waitGroupPeers.Wait()
 		return (-1)
 	case syscall.SIGUSR1:
 		log.Errorf("requested thread dump via signal %s", sig)
