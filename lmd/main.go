@@ -265,6 +265,8 @@ func initializeListeners(LocalConfig *Config, waitGroupListener *sync.WaitGroup,
 	// open new listeners
 	for _, listen := range LocalConfig.Listen {
 		if l, ok := Listeners[listen]; ok {
+			l.shutdownChannel = shutdownChannel
+			l.LocalConfig = LocalConfig
 			ListenersNew[listen] = l
 		} else {
 			waitGroupInit.Add(1)

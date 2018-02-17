@@ -100,6 +100,22 @@ func TestMainReload(t *testing.T) {
 		l.connection.Close()
 	}
 	ListenersLock.Unlock()
+	waitTimeout(TestPeerWaitGroup, 5*time.Second)
+	retries := 0
+	for {
+		// recheck every 100ms
+		time.Sleep(100 * time.Millisecond)
+		retries++
+		if retries > 100 {
+			panic("listener/peers did not stop after reload")
+		}
+		ListenersLock.Lock()
+		numListener := len(Listeners)
+		ListenersLock.Unlock()
+		if len(DataStore)+numListener == 0 {
+			break
+		}
+	}
 }
 
 func TestAllOps(t *testing.T) {

@@ -190,10 +190,10 @@ func SendCommands(commandsByPeer *map[string][]string) {
 // Listen start listening the actual connection
 func (l *Listener) Listen() {
 	defer func() {
-		l.waitGroupDone.Done()
 		ListenersLock.Lock()
 		delete(Listeners, l.ConnectionString)
 		ListenersLock.Unlock()
+		l.waitGroupDone.Done()
 	}()
 	l.waitGroupDone.Add(1)
 	listen := l.ConnectionString
