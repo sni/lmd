@@ -91,6 +91,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 	selectedPeers := []string{}
 	spinUpPeers := []string{}
 	// iterate over DataStore instead of BackendsMap to retain backend order
+	DataStoreLock.RLock()
 	for _, id := range DataStoreOrder {
 		p := DataStore[id]
 		if _, ok := req.BackendsMap[p.ID]; !ok {
@@ -104,6 +105,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 			spinUpPeers = append(spinUpPeers, id)
 		}
 	}
+	DataStoreLock.RUnlock()
 
 	// only use the first backend when requesting table or columns table
 	if table.Name == "tables" || table.Name == "columns" {
@@ -222,6 +224,8 @@ func (req *Request) ExpandRequestedBackends() (err error) {
 	req.BackendErrors = make(map[string]string)
 
 	// no backends selected means all backends
+	DataStoreLock.RLock()
+	defer DataStoreLock.RUnlock()
 	if len(req.Backends) == 0 {
 		for _, p := range DataStore {
 			req.BackendsMap[p.ID] = p.ID
@@ -515,7 +519,9 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 	waitgroup := &sync.WaitGroup{}
 
 	for _, id := range peers {
+		DataStoreLock.RLock()
 		p := DataStore[id]
+		DataStoreLock.RUnlock()
 		if p.Flags&LMD == LMD {
 			continue
 		}
@@ -616,7 +622,9 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table, column
 	waitgroup := &sync.WaitGroup{}
 
 	for _, id := range peers {
+		DataStoreLock.RLock()
 		p := DataStore[id]
+		DataStoreLock.RUnlock()
 
 		peerStatus := p.StatusGet("PeerStatus").(PeerStatus)
 		if peerStatus == PeerStatusDown || peerStatus == PeerStatusBroken {

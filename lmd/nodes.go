@@ -18,7 +18,6 @@ var reNodeAddress = regexp.MustCompile(`^(https?)?(://)?(.*?)(:(\d+))?(/.*)?$`)
 // Nodes is the cluster management object.
 type Nodes struct {
 	noCopy           noCopy
-	PeerMap          *map[string]*Peer
 	ID               string
 	HTTPClient       *http.Client
 	WaitGroupInit    *sync.WaitGroup
@@ -60,12 +59,13 @@ func NewNodes(LocalConfig *Config, addresses []string, listen string, waitGroupI
 		ShutdownChannel: shutdownChannel,
 		stopChannel:     make(chan bool),
 	}
-	n.PeerMap = &DataStore
 	tlsConfig := &tls.Config{InsecureSkipVerify: LocalConfig.SkipSSLCheck > 0}
 	n.HTTPClient = NewLMDHTTPClient(tlsConfig)
-	for id := range *n.PeerMap {
+	DataStoreLock.RLock()
+	for id := range DataStore {
 		n.backends = append(n.backends, id)
 	}
+	DataStoreLock.RUnlock()
 	partsListen := reNodeAddress.FindStringSubmatch(listen)
 	for _, address := range addresses {
 		parts := reNodeAddress.FindStringSubmatch(address)
@@ -149,11 +149,13 @@ func (n *Nodes) Initialize() {
 
 	// Start all peers in single mode
 	if !n.IsClustered() {
-		for _, peer := range *n.PeerMap {
+		DataStoreLock.RLock()
+		for _, peer := range DataStore {
 			if !peer.StatusGet("Updating").(bool) {
 				peer.Start()
 			}
 		}
+		DataStoreLock.RUnlock()
 	}
 
 	// Send first ping (detect own ip) and wait for it to finish
@@ -377,15 +379,17 @@ func (n *Nodes) updateBackends(ourBackends []string) {
 	n.assignedBackends = ourBackends
 
 	// Start/stop backends
+	DataStoreLock.RLock()
 	for _, oldBackend := range rmvBackends {
-		peer := (*n.PeerMap)[oldBackend]
+		peer := DataStore[oldBackend]
 		peer.Stop()
 		peer.Clear()
 	}
 	for _, newBackend := range addBackends {
-		peer := (*n.PeerMap)[newBackend]
+		peer := DataStore[newBackend]
 		peer.Start()
 	}
+	DataStoreLock.RUnlock()
 }
 
 func (n *Nodes) getOnlineNodes() (ownIndex int, nodeOnline []bool, numberAllNodes int, numberAvailableNodes int) {

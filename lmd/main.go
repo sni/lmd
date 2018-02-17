@@ -103,11 +103,14 @@ var DataStore map[string]*Peer
 // DataStoreOrder contains the order of all remote peers as defined in the supplied config files.
 var DataStoreOrder []string
 
+// DataStoreLock is the lock for the DataStore map
+var DataStoreLock *LoggingLock
+
 // Listeners stores if we started a listener
 var Listeners map[string]*Listener
 
 // ListenersLock is the lock for the Listeners map
-var ListenersLock sync.RWMutex
+var ListenersLock *LoggingLock
 
 type configFiles []string
 
@@ -142,9 +145,11 @@ var lastMainRestart = time.Now().Unix()
 func init() {
 	InitObjects()
 	mainSignalChannel = make(chan os.Signal)
+	DataStoreLock = NewLoggingLock("DataStoreLock")
 	DataStore = make(map[string]*Peer)
 	DataStoreOrder = make([]string, 0)
 	Listeners = make(map[string]*Listener)
+	ListenersLock = NewLoggingLock("ListenersLock")
 }
 
 func setFlags() {
@@ -293,6 +298,7 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 	}
 
 	// Get rid of obsolete peers (removed from config)
+	DataStoreLock.Lock()
 	for id := range DataStore {
 		found := false // id exists
 		for _, c := range LocalConfig.Connections {
@@ -306,6 +312,7 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 			DataStoreRemove(id)
 		}
 	}
+	DataStoreLock.Unlock()
 
 	// Create/set Peer objects
 	DataStoreNew := make(map[string]*Peer)
@@ -315,6 +322,7 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 		c := LocalConfig.Connections[i]
 		// Keep peer if connection settings unchanged
 		var p *Peer
+		DataStoreLock.RLock()
 		if v, ok := DataStore[c.ID]; ok {
 			if c.Equals(v.Config) {
 				p = v
@@ -325,6 +333,7 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 				p.PeerLock.Unlock()
 			}
 		}
+		DataStoreLock.RUnlock()
 
 		// Create new peer otherwise
 		if p == nil {
@@ -345,8 +354,10 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 		// Peer started later in node redistribution routine
 	}
 
+	DataStoreLock.Lock()
 	DataStoreOrder = DataStoreOrderNew
 	DataStore = DataStoreNew
+	DataStoreLock.Unlock()
 
 	// Node accessor
 	nodeAddresses := LocalConfig.Nodes
@@ -471,6 +482,7 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		return (-1)
 	case syscall.SIGUSR1:
 		log.Errorf("requested thread dump via signal %s", sig)
+		DataStoreLock.RLock()
 		for id := range DataStore {
 			p := DataStore[id]
 			currentWriteLock := p.PeerLock.currentWriteLock.Load().(string)
@@ -482,6 +494,7 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 				log.Errorf("[%s] peer holding data lock: %s", p.Name, currentWriteLock)
 			}
 		}
+		DataStoreLock.RUnlock()
 		buf := make([]byte, 1<<16)
 		runtime.Stack(buf, true)
 		log.Errorf("%s", buf)

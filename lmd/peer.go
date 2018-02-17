@@ -426,6 +426,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool) {
 	// check if we need to start/stop peers
 	log.Debugf("[%s] checking for changed remote lmd backends", p.Name)
 	existing := make(map[string]bool)
+	DataStoreLock.Lock()
 	for _, rowHash := range resHash {
 		subID := rowHash["key"].(string)
 		existing[subID] = true
@@ -462,9 +463,11 @@ func (p *Peer) periodicUpdateLMD(ok *bool) {
 		subPeer.Status["SubPeerStatus"] = rowHash
 		subPeer.PeerLock.Unlock()
 	}
+	DataStoreLock.Unlock()
 
 	// remove exceeding peers
 	removed := 0
+	DataStoreLock.Lock()
 	for id, peer := range DataStore {
 		if peer.ParentID == p.ID {
 			if _, ok := existing[id]; !ok {
@@ -476,6 +479,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool) {
 			}
 		}
 	}
+	DataStoreLock.Unlock()
 }
 
 func (p *Peer) updateIdleStatus() bool {
@@ -1992,7 +1996,9 @@ func ExtractHTTPResponse(response *http.Response) (contents []byte, err error) {
 func SpinUpPeers(peers []string) {
 	waitgroup := &sync.WaitGroup{}
 	for _, id := range peers {
+		DataStoreLock.RLock()
 		p := DataStore[id]
+		DataStoreLock.RUnlock()
 		waitgroup.Add(1)
 		go func(peer *Peer, wg *sync.WaitGroup) {
 			// make sure we log panics properly
