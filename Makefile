@@ -57,6 +57,10 @@ test: fmt dump
 	if grep -rn TODO: lmd/; then exit 1; fi
 	if grep -rn Dump lmd/*.go | grep -v dump.go; then exit 1; fi
 
+longtest: fmt dump
+	cd $(LAMPDDIR) && go test -v | ../t/test_counter.sh
+	rm -f lmd/mock*.sock
+
 citest: deps
 	#
 	# Checking gofmt errors
