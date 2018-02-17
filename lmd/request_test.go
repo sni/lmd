@@ -242,7 +242,7 @@ func TestRequestNestedFilter(t *testing.T) {
 	peer := StartTestPeer(1, 0, 0)
 	PauseTestPeers(peer)
 
-	if err := assertEq(1, len(DataStore)); err != nil {
+	if err := assertEq(1, len(PeerMap)); err != nil {
 		t.Error(err)
 	}
 
@@ -283,7 +283,7 @@ func TestRequestStats(t *testing.T) {
 	peer := StartTestPeer(4, 10, 10)
 	PauseTestPeers(peer)
 
-	if err := assertEq(4, len(DataStore)); err != nil {
+	if err := assertEq(4, len(PeerMap)); err != nil {
 		t.Error(err)
 	}
 
@@ -319,7 +319,7 @@ func TestRequestStatsGroupBy(t *testing.T) {
 	peer := StartTestPeer(4, 0, 0)
 	PauseTestPeers(peer)
 
-	if err := assertEq(4, len(DataStore)); err != nil {
+	if err := assertEq(4, len(PeerMap)); err != nil {
 		t.Error(err)
 	}
 

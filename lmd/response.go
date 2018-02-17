@@ -90,10 +90,10 @@ func NewResponse(req *Request) (res *Response, err error) {
 	// check if we have to spin up updates, if so, do it parallel
 	selectedPeers := []string{}
 	spinUpPeers := []string{}
-	// iterate over DataStore instead of BackendsMap to retain backend order
-	DataStoreLock.RLock()
-	for _, id := range DataStoreOrder {
-		p := DataStore[id]
+	// iterate over PeerMap instead of BackendsMap to retain backend order
+	PeerMapLock.RLock()
+	for _, id := range PeerMapOrder {
+		p := PeerMap[id]
 		if _, ok := req.BackendsMap[p.ID]; !ok {
 			continue
 		}
@@ -105,11 +105,11 @@ func NewResponse(req *Request) (res *Response, err error) {
 			spinUpPeers = append(spinUpPeers, id)
 		}
 	}
-	DataStoreLock.RUnlock()
+	PeerMapLock.RUnlock()
 
 	// only use the first backend when requesting table or columns table
 	if table.Name == "tables" || table.Name == "columns" {
-		selectedPeers = []string{DataStoreOrder[0]}
+		selectedPeers = []string{PeerMapOrder[0]}
 	} else if !table.PassthroughOnly && len(spinUpPeers) > 0 {
 		SpinUpPeers(spinUpPeers)
 	}
@@ -224,17 +224,17 @@ func (req *Request) ExpandRequestedBackends() (err error) {
 	req.BackendErrors = make(map[string]string)
 
 	// no backends selected means all backends
-	DataStoreLock.RLock()
-	defer DataStoreLock.RUnlock()
+	PeerMapLock.RLock()
+	defer PeerMapLock.RUnlock()
 	if len(req.Backends) == 0 {
-		for _, p := range DataStore {
+		for _, p := range PeerMap {
 			req.BackendsMap[p.ID] = p.ID
 		}
 		return
 	}
 
 	for _, b := range req.Backends {
-		_, Ok := DataStore[b]
+		_, Ok := PeerMap[b]
 		if !Ok {
 			req.BackendErrors[b] = fmt.Sprintf("bad request: backend %s does not exist", b)
 			continue
@@ -519,9 +519,9 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 	waitgroup := &sync.WaitGroup{}
 
 	for _, id := range peers {
-		DataStoreLock.RLock()
-		p := DataStore[id]
-		DataStoreLock.RUnlock()
+		PeerMapLock.RLock()
+		p := PeerMap[id]
+		PeerMapLock.RUnlock()
 		if p.Flags&LMD == LMD {
 			continue
 		}
@@ -622,9 +622,9 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table, column
 	waitgroup := &sync.WaitGroup{}
 
 	for _, id := range peers {
-		DataStoreLock.RLock()
-		p := DataStore[id]
-		DataStoreLock.RUnlock()
+		PeerMapLock.RLock()
+		p := PeerMap[id]
+		PeerMapLock.RUnlock()
 
 		peerStatus := p.StatusGet("PeerStatus").(PeerStatus)
 		if peerStatus == PeerStatusDown || peerStatus == PeerStatusBroken {

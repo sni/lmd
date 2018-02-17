@@ -426,12 +426,12 @@ func (p *Peer) periodicUpdateLMD(ok *bool) {
 	// check if we need to start/stop peers
 	log.Debugf("[%s] checking for changed remote lmd backends", p.Name)
 	existing := make(map[string]bool)
-	DataStoreLock.Lock()
+	PeerMapLock.Lock()
 	for _, rowHash := range resHash {
 		subID := rowHash["key"].(string)
 		existing[subID] = true
 		subName := p.Name + "/" + rowHash["name"].(string)
-		subPeer, ok := DataStore[subID]
+		subPeer, ok := PeerMap[subID]
 		if !ok {
 			log.Debugf("[%s] starting sub peer for %s", p.Name, subName)
 			c := Connection{ID: subID, Name: subName, Source: p.Source}
@@ -439,8 +439,8 @@ func (p *Peer) periodicUpdateLMD(ok *bool) {
 			subPeer.ParentID = p.ID
 			subPeer.Flags |= LMDSub
 			subPeer.StatusSet("PeerParent", p.ID)
-			DataStore[subID] = subPeer
-			DataStoreOrder = append(DataStoreOrder, c.ID)
+			PeerMap[subID] = subPeer
+			PeerMapOrder = append(PeerMapOrder, c.ID)
 
 			// try to fetch section information
 			// may fail for older lmd versions
@@ -463,23 +463,23 @@ func (p *Peer) periodicUpdateLMD(ok *bool) {
 		subPeer.Status["SubPeerStatus"] = rowHash
 		subPeer.PeerLock.Unlock()
 	}
-	DataStoreLock.Unlock()
+	PeerMapLock.Unlock()
 
 	// remove exceeding peers
 	removed := 0
-	DataStoreLock.Lock()
-	for id, peer := range DataStore {
+	PeerMapLock.Lock()
+	for id, peer := range PeerMap {
 		if peer.ParentID == p.ID {
 			if _, ok := existing[id]; !ok {
 				log.Debugf("[%s] removing sub peer", peer.Name)
 				peer.Stop()
 				peer.Clear()
-				DataStoreRemove(id)
+				PeerMapRemove(id)
 				removed++
 			}
 		}
 	}
-	DataStoreLock.Unlock()
+	PeerMapLock.Unlock()
 }
 
 func (p *Peer) updateIdleStatus() bool {
@@ -1996,9 +1996,9 @@ func ExtractHTTPResponse(response *http.Response) (contents []byte, err error) {
 func SpinUpPeers(peers []string) {
 	waitgroup := &sync.WaitGroup{}
 	for _, id := range peers {
-		DataStoreLock.RLock()
-		p := DataStore[id]
-		DataStoreLock.RUnlock()
+		PeerMapLock.RLock()
+		p := PeerMap[id]
+		PeerMapLock.RUnlock()
 		waitgroup.Add(1)
 		go func(peer *Peer, wg *sync.WaitGroup) {
 			// make sure we log panics properly

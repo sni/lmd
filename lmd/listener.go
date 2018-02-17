@@ -156,9 +156,9 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string) (bool, error) {
 func SendCommands(commandsByPeer *map[string][]string) {
 	wg := &sync.WaitGroup{}
 	for pID := range *commandsByPeer {
-		DataStoreLock.RLock()
-		p := DataStore[pID]
-		DataStoreLock.RUnlock()
+		PeerMapLock.RLock()
+		p := PeerMap[pID]
+		PeerMapLock.RUnlock()
 		wg.Add(1)
 		go func(peer *Peer) {
 			// make sure we log panics properly

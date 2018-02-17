@@ -61,11 +61,11 @@ func NewNodes(LocalConfig *Config, addresses []string, listen string, waitGroupI
 	}
 	tlsConfig := &tls.Config{InsecureSkipVerify: LocalConfig.SkipSSLCheck > 0}
 	n.HTTPClient = NewLMDHTTPClient(tlsConfig)
-	DataStoreLock.RLock()
-	for id := range DataStore {
+	PeerMapLock.RLock()
+	for id := range PeerMap {
 		n.backends = append(n.backends, id)
 	}
-	DataStoreLock.RUnlock()
+	PeerMapLock.RUnlock()
 	partsListen := reNodeAddress.FindStringSubmatch(listen)
 	for _, address := range addresses {
 		parts := reNodeAddress.FindStringSubmatch(address)
@@ -149,13 +149,13 @@ func (n *Nodes) Initialize() {
 
 	// Start all peers in single mode
 	if !n.IsClustered() {
-		DataStoreLock.RLock()
-		for _, peer := range DataStore {
+		PeerMapLock.RLock()
+		for _, peer := range PeerMap {
 			if !peer.StatusGet("Updating").(bool) {
 				peer.Start()
 			}
 		}
-		DataStoreLock.RUnlock()
+		PeerMapLock.RUnlock()
 	}
 
 	// Send first ping (detect own ip) and wait for it to finish
@@ -379,17 +379,17 @@ func (n *Nodes) updateBackends(ourBackends []string) {
 	n.assignedBackends = ourBackends
 
 	// Start/stop backends
-	DataStoreLock.RLock()
+	PeerMapLock.RLock()
 	for _, oldBackend := range rmvBackends {
-		peer := DataStore[oldBackend]
+		peer := PeerMap[oldBackend]
 		peer.Stop()
 		peer.Clear()
 	}
 	for _, newBackend := range addBackends {
-		peer := DataStore[newBackend]
+		peer := PeerMap[newBackend]
 		peer.Start()
 	}
-	DataStoreLock.RUnlock()
+	PeerMapLock.RUnlock()
 }
 
 func (n *Nodes) getOnlineNodes() (ownIndex int, nodeOnline []bool, numberAllNodes int, numberAvailableNodes int) {

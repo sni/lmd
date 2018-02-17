@@ -89,10 +89,10 @@ func TestMainReload(t *testing.T) {
 	mainSignalChannel <- syscall.SIGHUP
 	waitTimeout(TestPeerWaitGroup, 5*time.Second)
 	// shutdown all peers
-	for _, p := range DataStore {
+	for _, p := range PeerMap {
 		p.Stop()
 		p.shutdownChannel <- true
-		DataStoreRemove(p.ID)
+		PeerMapRemove(p.ID)
 	}
 	// shutdown all listeners
 	ListenersLock.Lock()
@@ -112,7 +112,7 @@ func TestMainReload(t *testing.T) {
 		ListenersLock.Lock()
 		numListener := len(Listeners)
 		ListenersLock.Unlock()
-		if len(DataStore)+numListener == 0 {
+		if len(PeerMap)+numListener == 0 {
 			break
 		}
 	}

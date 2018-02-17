@@ -97,14 +97,14 @@ type Config struct {
 	StaleBackendTimeout int
 }
 
-// DataStore contains a map of available remote peers.
-var DataStore map[string]*Peer
+// PeerMap contains a map of available remote peers.
+var PeerMap map[string]*Peer
 
-// DataStoreOrder contains the order of all remote peers as defined in the supplied config files.
-var DataStoreOrder []string
+// PeerMapOrder contains the order of all remote peers as defined in the supplied config files.
+var PeerMapOrder []string
 
-// DataStoreLock is the lock for the DataStore map
-var DataStoreLock *LoggingLock
+// PeerMapLock is the lock for the PeerMap map
+var PeerMapLock *LoggingLock
 
 // Listeners stores if we started a listener
 var Listeners map[string]*Listener
@@ -145,9 +145,9 @@ var lastMainRestart = time.Now().Unix()
 func init() {
 	InitObjects()
 	mainSignalChannel = make(chan os.Signal)
-	DataStoreLock = NewLoggingLock("DataStoreLock")
-	DataStore = make(map[string]*Peer)
-	DataStoreOrder = make([]string, 0)
+	PeerMapLock = NewLoggingLock("PeerMapLock")
+	PeerMap = make(map[string]*Peer)
+	PeerMapOrder = make([]string, 0)
 	Listeners = make(map[string]*Listener)
 	ListenersLock = NewLoggingLock("ListenersLock")
 }
@@ -298,8 +298,8 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 	}
 
 	// Get rid of obsolete peers (removed from config)
-	DataStoreLock.Lock()
-	for id := range DataStore {
+	PeerMapLock.Lock()
+	for id := range PeerMap {
 		found := false // id exists
 		for _, c := range LocalConfig.Connections {
 			if c.ID == id {
@@ -307,23 +307,23 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 			}
 		}
 		if !found {
-			DataStore[id].Stop()
-			DataStore[id].Clear()
-			DataStoreRemove(id)
+			PeerMap[id].Stop()
+			PeerMap[id].Clear()
+			PeerMapRemove(id)
 		}
 	}
-	DataStoreLock.Unlock()
+	PeerMapLock.Unlock()
 
 	// Create/set Peer objects
-	DataStoreNew := make(map[string]*Peer)
-	DataStoreOrderNew := make([]string, 0)
+	PeerMapNew := make(map[string]*Peer)
+	PeerMapOrderNew := make([]string, 0)
 	var backends []string
 	for i := range LocalConfig.Connections {
 		c := LocalConfig.Connections[i]
 		// Keep peer if connection settings unchanged
 		var p *Peer
-		DataStoreLock.RLock()
-		if v, ok := DataStore[c.ID]; ok {
+		PeerMapLock.RLock()
+		if v, ok := PeerMap[c.ID]; ok {
 			if c.Equals(v.Config) {
 				p = v
 				p.PeerLock.Lock()
@@ -333,7 +333,7 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 				p.PeerLock.Unlock()
 			}
 		}
-		DataStoreLock.RUnlock()
+		PeerMapLock.RUnlock()
 
 		// Create new peer otherwise
 		if p == nil {
@@ -349,15 +349,15 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 		backends = append(backends, c.ID)
 
 		// Put new or modified peer in map
-		DataStoreNew[c.ID] = p
-		DataStoreOrderNew = append(DataStoreOrderNew, c.ID)
+		PeerMapNew[c.ID] = p
+		PeerMapOrderNew = append(PeerMapOrderNew, c.ID)
 		// Peer started later in node redistribution routine
 	}
 
-	DataStoreLock.Lock()
-	DataStoreOrder = DataStoreOrderNew
-	DataStore = DataStoreNew
-	DataStoreLock.Unlock()
+	PeerMapLock.Lock()
+	PeerMapOrder = PeerMapOrderNew
+	PeerMap = PeerMapNew
+	PeerMapLock.Unlock()
 
 	// Node accessor
 	nodeAddresses := LocalConfig.Nodes
@@ -482,9 +482,9 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		return (-1)
 	case syscall.SIGUSR1:
 		log.Errorf("requested thread dump via signal %s", sig)
-		DataStoreLock.RLock()
-		for id := range DataStore {
-			p := DataStore[id]
+		PeerMapLock.RLock()
+		for id := range PeerMap {
+			p := PeerMap[id]
 			currentWriteLock := p.PeerLock.currentWriteLock.Load().(string)
 			if currentWriteLock != "" {
 				log.Errorf("[%s] peer holding peer lock: %s", p.Name, currentWriteLock)
@@ -494,7 +494,7 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 				log.Errorf("[%s] peer holding data lock: %s", p.Name, currentWriteLock)
 			}
 		}
-		DataStoreLock.RUnlock()
+		PeerMapLock.RUnlock()
 		buf := make([]byte, 1<<16)
 		runtime.Stack(buf, true)
 		log.Errorf("%s", buf)
@@ -595,14 +595,14 @@ func timeOrNever(timestamp int64) string {
 	return "never"
 }
 
-// DataStoreRemove deletes a peer from DataStore and DataStoreOrder
-func DataStoreRemove(peerID string) {
+// PeerMapRemove deletes a peer from PeerMap and PeerMapOrder
+func PeerMapRemove(peerID string) {
 	// find id in order array
-	for i, id := range DataStoreOrder {
+	for i, id := range PeerMapOrder {
 		if id == peerID {
-			DataStoreOrder = append(DataStoreOrder[:i], DataStoreOrder[i+1:]...)
+			PeerMapOrder = append(PeerMapOrder[:i], PeerMapOrder[i+1:]...)
 			break
 		}
 	}
-	delete(DataStore, peerID)
+	delete(PeerMap, peerID)
 }

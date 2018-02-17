@@ -303,7 +303,7 @@ func StopTestPeer(peer *Peer) (err error) {
 
 func PauseTestPeers(peer *Peer) {
 	peer.Stop()
-	for _, p := range DataStore {
+	for _, p := range PeerMap {
 		p.Stop()
 	}
 }
