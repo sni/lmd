@@ -5,4 +5,5 @@ lmd.log
 lmd/cover.out
 lmd/coverage.html
 .idea/
+.vscode/
 lmd.iml
