@@ -482,27 +482,31 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		return (-1)
 	case syscall.SIGUSR1:
 		log.Errorf("requested thread dump via signal %s", sig)
-		PeerMapLock.RLock()
-		for id := range PeerMap {
-			p := PeerMap[id]
-			currentWriteLock := p.PeerLock.currentWriteLock.Load().(string)
-			if currentWriteLock != "" {
-				log.Errorf("[%s] peer holding peer lock: %s", p.Name, currentWriteLock)
-			}
-			currentWriteLock = p.DataLock.currentWriteLock.Load().(string)
-			if currentWriteLock != "" {
-				log.Errorf("[%s] peer holding data lock: %s", p.Name, currentWriteLock)
-			}
-		}
-		PeerMapLock.RUnlock()
-		buf := make([]byte, 1<<16)
-		runtime.Stack(buf, true)
-		log.Errorf("%s", buf)
+		logThreaddump()
 		return (0)
 	default:
 		log.Warnf("Signal not handled: %v", sig)
 	}
 	return (1)
+}
+
+func logThreaddump() {
+	PeerMapLock.RLock()
+	for id := range PeerMap {
+		p := PeerMap[id]
+		currentWriteLock := p.PeerLock.currentWriteLock.Load().(string)
+		if currentWriteLock != "" {
+			log.Errorf("[%s] peer holding peer lock: %s", p.Name, currentWriteLock)
+		}
+		currentWriteLock = p.DataLock.currentWriteLock.Load().(string)
+		if currentWriteLock != "" {
+			log.Errorf("[%s] peer holding data lock: %s", p.Name, currentWriteLock)
+		}
+	}
+	PeerMapLock.RUnlock()
+	buf := make([]byte, 1<<16)
+	runtime.Stack(buf, true)
+	log.Errorf("%s", buf)
 }
 
 // waitTimeout waits for the waitgroup for the specified max timeout.
