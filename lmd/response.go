@@ -50,7 +50,8 @@ var VirtKeyMap = map[string]VirtKeyMapTupel{
 	"lmd_version":             {Index: -19, Key: "", Type: StringCol},
 	"section":                 {Index: -20, Key: "Section", Type: StringCol},
 	"parent":                  {Index: -21, Key: "PeerParent", Type: StringCol},
-	"empty":                   {Index: -22, Key: "", Type: StringCol},
+	"configtool":              {Index: -22, Key: "", Type: HashMapCol},
+	"empty":                   {Index: -23, Key: "", Type: StringCol},
 }
 
 // Response contains the livestatus response data as long with some meta data

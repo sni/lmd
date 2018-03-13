@@ -177,6 +177,9 @@ func (f *Filter) strValue() (str string) {
 		value = fmt.Sprintf("%d", int(f.FloatValue))
 	case FloatCol:
 		value = fmt.Sprintf("%v", f.FloatValue)
+	case HashMapCol:
+		// not impemented right now
+		fallthrough
 	case StringListCol:
 		fallthrough
 	case StringCol:
@@ -310,6 +313,9 @@ func (f *Filter) setFilterValue(col *Column, strVal string, line *string) (err e
 		}
 		f.CustomTag = vars[0]
 		return
+	case HashMapCol:
+		// not impemented right now
+		fallthrough
 	case StringListCol:
 		fallthrough
 	case StringCol:
@@ -476,6 +482,9 @@ func (f *Filter) MatchFilter(value *interface{}) bool {
 			}
 		}
 		return matchNumberFilter(f.Operator, numberToFloat(value), f.FloatValue)
+	case HashMapCol:
+		// not implemented
+		fallthrough
 	case StringListCol:
 		return matchStringListFilter(f, value)
 	case IntListCol:

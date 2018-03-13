@@ -10,6 +10,9 @@ do
   if [[ "$line" == *"matchStringValueOperator filter.go"*  ]]; then
     continue
   fi
+  if [[ "$line" == *"GetVirtRowComputedValue peer.go"*  ]]; then
+    continue
+  fi
   if [[ "$line" == *"ParseRequestHeaderLine request.go"*  ]]; then
     continue
   fi

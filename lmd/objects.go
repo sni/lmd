@@ -65,6 +65,8 @@ const (
 	TimeCol
 	// CustomVarCol is used for custom variable map columns.
 	CustomVarCol
+	// HashMapCol is used for generic hash map columns.
+	HashMapCol
 	// VirtCol is used for virtual columns.
 	VirtCol
 	// StringFakeSortCol is used to sort grouped stats requests
@@ -144,6 +146,8 @@ func (o *ObjectsType) GetTableColumnsData() (data [][]interface{}) {
 			case IntListCol:
 				colTypeName = "list"
 			case CustomVarCol:
+				colTypeName = "list"
+			case HashMapCol:
 				colTypeName = "list"
 			case FloatCol:
 				colTypeName = "float"
@@ -399,6 +403,7 @@ func NewBackendsTable(name string) (t *Table) {
 	t.AddColumn("section", RefNoUpdate, VirtCol, "Section information when having cascaded LMDs.")
 	t.AddColumn("parent", RefNoUpdate, VirtCol, "Parent id when having cascaded LMDs.")
 	t.AddColumn("lmd_version", RefNoUpdate, VirtCol, "LMD version string.")
+	t.AddColumn("configtool", RefNoUpdate, VirtCol, "Thruks config tool configuration if available.")
 
 	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
@@ -467,6 +472,7 @@ func NewStatusTable() (t *Table) {
 	t.AddColumn("peer_last_update", RefNoUpdate, VirtCol, "Timestamp of last update")
 	t.AddColumn("peer_last_online", RefNoUpdate, VirtCol, "Timestamp when peer was last online")
 	t.AddColumn("peer_response_time", RefNoUpdate, VirtCol, "Duration of last update in seconds")
+	t.AddColumn("configtool", RefNoUpdate, VirtCol, "Thruks config tool configuration if available.")
 
 	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return

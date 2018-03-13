@@ -4,6 +4,7 @@ next:
           - add tls listener support (including client certificate authorization)
           - support client tls connections (with optional client authorization)
           - only restart listeners and peers on SIGHUP if really changed
+          - provide thruk config tool settings for http backends
           - fix overwriting svc accept_passive_checks (#20)
           - fix evenly distribution in cluster mode (#18)
 

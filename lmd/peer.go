@@ -561,6 +561,16 @@ func (p *Peer) InitAllTables() bool {
 			}
 
 			p.checkStatusFlags(t)
+
+			// check thruk config tool settings
+			configtool, _ := p.fetchConfigTool()
+			if configtool != nil {
+				p.StatusSet("ConfigTool", configtool)
+			} else {
+				p.PeerLock.Lock()
+				delete(p.Status, "ConfigTool")
+				p.PeerLock.Unlock()
+			}
 		}
 	}
 
@@ -1490,6 +1500,59 @@ func (p *Peer) checkStatusFlags(table *Table) {
 	p.DataLock.RUnlock()
 }
 
+func (p *Peer) fetchConfigTool() (conf map[string]interface{}, err error) {
+	// no http client is a sure sign for no http connection
+	if p.HTTPClient == nil {
+		return
+	}
+	// try all http connections and return first config tool config
+	for _, addr := range p.Config.Source {
+		if strings.HasPrefix(addr, "http") {
+			c, e := p.fetchConfigToolFromAddr(addr)
+			err = e
+			if c != nil {
+				conf = c
+				return
+			}
+		}
+	}
+	return
+}
+
+func (p *Peer) fetchConfigToolFromAddr(peerAddr string) (conf map[string]interface{}, err error) {
+	if !strings.HasPrefix(peerAddr, "http") {
+		return
+	}
+	options := make(map[string]interface{})
+	if p.Config.RemoteName != "" {
+		options["remote_name"] = []string{p.Config.RemoteName}
+	}
+	options["action"] = "raw"
+	options["sub"] = "get_processinfo"
+	optionStr, _ := json.Marshal(options)
+	output, result, err := p.HTTPPostQuery(peerAddr, url.Values{
+		"data": {fmt.Sprintf("{\"credential\": \"%s\", \"options\": %s}", p.Config.Auth, optionStr)},
+	})
+	if err != nil {
+		return
+	}
+	if data, ok := output[2].(map[string]interface{}); ok {
+		for k := range data {
+			if processinfo, ok2 := data[k].(map[string]interface{}); ok2 {
+				if c, ok2 := processinfo["configtool"]; ok2 {
+					if v, ok3 := c.(map[string]interface{}); ok3 {
+						conf = v
+						return
+					}
+				}
+			}
+		}
+	} else {
+		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %v", result), kind: ResponseError}
+	}
+	return
+}
+
 // GetGroupByData returns fake query result for given groupby table
 func (p *Peer) GetGroupByData(table *Table) (res [][]interface{}, err error) {
 	res = make([][]interface{}, 0)
@@ -1713,6 +1776,10 @@ func (p *Peer) GetVirtRowValue(col *ResultColumn, row *[]interface{}, rowNum int
 		return numberToFloat(&value)
 	case StringCol:
 		return value
+	case CustomVarCol:
+		return value
+	case HashMapCol:
+		return value
 	case TimeCol:
 		val := int64(numberToFloat(&value))
 		if val < 0 {
@@ -1778,6 +1845,12 @@ func (p *Peer) GetVirtRowComputedValue(col *ResultColumn, row *[]interface{}, ro
 			value = 1
 		} else {
 			value = 0
+		}
+	case "configtool":
+		if _, ok := p.Status["ConfigTool"]; ok {
+			value = p.Status["ConfigTool"]
+		} else {
+			value = ""
 		}
 	default:
 		log.Panicf("cannot handle virtual column: %s", col.Name)
@@ -1914,10 +1987,25 @@ func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) 
 	options["sub"] = "_raw_query"
 	options["args"] = []string{strings.TrimSpace(query) + "\n"}
 	optionStr, _ := json.Marshal(options)
-	p.HTTPClient.Timeout = time.Duration(p.LocalConfig.NetTimeout) * time.Second
-	response, err := p.HTTPClient.PostForm(completePeerHTTPAddr(peerAddr), url.Values{
+
+	output, result, err := p.HTTPPostQuery(peerAddr, url.Values{
 		"data": {fmt.Sprintf("{\"credential\": \"%s\", \"options\": %s}", p.Config.Auth, optionStr)},
 	})
+	if err != nil {
+		return
+	}
+	if v, ok := output[2].(string); ok {
+		res = []byte(v)
+	} else {
+		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %v", result), kind: ResponseError}
+	}
+	return
+}
+
+// HTTPPostQuery returns response array from thruk api
+func (p *Peer) HTTPPostQuery(peerAddr string, postData url.Values) (output []interface{}, result *HTTPResult, err error) {
+	p.HTTPClient.Timeout = time.Duration(p.LocalConfig.NetTimeout) * time.Second
+	response, err := p.HTTPClient.PostForm(completePeerHTTPAddr(peerAddr), postData)
 	if err != nil {
 		return
 	}
@@ -1933,7 +2021,6 @@ func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) 
 		err = &PeerError{msg: fmt.Sprintf("site did not return a proper response: %s", contents), kind: ResponseError}
 		return
 	}
-	var result HTTPResult
 	err = json.Unmarshal(contents, &result)
 	if err != nil {
 		return
@@ -1943,7 +2030,6 @@ func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) 
 		return
 	}
 
-	var output []interface{}
 	err = json.Unmarshal(result.Output, &output)
 	if err != nil {
 		return
@@ -1963,11 +2049,6 @@ func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) 
 			}
 			return
 		}
-	}
-	if v, ok := output[2].(string); ok {
-		res = []byte(v)
-	} else {
-		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %v", result), kind: ResponseError}
 	}
 	return
 }
