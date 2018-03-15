@@ -1472,8 +1472,18 @@ func (p *Peer) checkStatusFlags(table *Table) {
 	}
 	p.PeerLock.Lock()
 	row := data[0]
-	// getting more than one status is a sure sign for a LMD backend
-	if len(data) > 1 {
+	if len(reShinkenVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))) > 0 {
+		if p.Flags&Shinken != Shinken {
+			log.Debugf("[%s] remote connection Shinken flag set", p.Name)
+			p.Flags |= Shinken
+		}
+	} else if len(reIcinga2Version.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))) > 0 {
+		if p.Flags&Icinga2 != Icinga2 {
+			log.Debugf("[%s] remote connection Icinga2 flag set", p.Name)
+			p.Flags |= Icinga2
+		}
+	} else if len(data) > 1 {
+		// getting more than one status is a sure sign for a LMD backend
 		if p.Flags&LMD != LMD {
 			log.Debugf("[%s] remote connection LMD flag set", p.Name)
 			p.Flags |= LMD
@@ -1484,16 +1494,6 @@ func (p *Peer) checkStatusFlags(table *Table) {
 			ok := true
 			p.periodicUpdateLMD(&ok)
 			return
-		}
-	} else if len(reShinkenVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))) > 0 {
-		if p.Flags&Shinken != Shinken {
-			log.Debugf("[%s] remote connection Shinken flag set", p.Name)
-			p.Flags |= Shinken
-		}
-	} else if len(reIcinga2Version.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))) > 0 {
-		if p.Flags&Icinga2 != Icinga2 {
-			log.Debugf("[%s] remote connection Icinga2 flag set", p.Name)
-			p.Flags |= Icinga2
 		}
 	}
 	p.PeerLock.Unlock()
