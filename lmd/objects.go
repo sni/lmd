@@ -105,6 +105,9 @@ const (
 
 	// Icinga2 flag is set if the remote site is a icinga 2 installation.
 	Icinga2
+
+	// Naemon flag is set if the remote site is a Naemon installation.
+	Naemon
 )
 
 // GetEmptyValue returns an empty placeholder representation for the given column type
@@ -630,7 +633,7 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("pnpgraph_present", DynamicUpdate, IntCol, "The pnp graph presence (0/1)")
 
 	// naemon specific
-	t.AddOptColumn("obsess", DynamicUpdate, IntCol, "The obsessing over host")
+	t.AddOptColumn("obsess", DynamicUpdate, IntCol, Naemon, "The obsessing over host")
 
 	// shinken specific
 	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
@@ -765,7 +768,7 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("pnpgraph_present", DynamicUpdate, IntCol, "The pnp graph presence (0/1)")
 
 	// naemon specific
-	t.AddOptColumn("obsess", DynamicUpdate, IntCol, "The obsessing over service")
+	t.AddOptColumn("obsess", DynamicUpdate, IntCol, Naemon, "The obsessing over service")
 
 	// shinken specific
 	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
