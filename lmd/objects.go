@@ -763,7 +763,7 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("host_name", StaticUpdate, StringCol, "Host name")
 	t.AddColumn("staleness", DynamicUpdate, FloatCol, "Staleness indicator for this host")
 	t.AddColumn("pnpgraph_present", DynamicUpdate, IntCol, "The pnp graph presence (0/1)")
-	
+
 	// naemon specific
 	t.AddOptColumn("obsess", DynamicUpdate, IntCol, "The obsessing over service")
 
