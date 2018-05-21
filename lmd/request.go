@@ -702,6 +702,8 @@ func parseOutputFormat(field *string, value string) (err error) {
 		*field = value
 	case "json":
 		*field = value
+	case "python":
+		*field = value
 	default:
 		err = errors.New("bad request: unrecognized outputformat, only json and wrapped_json is supported")
 		return
