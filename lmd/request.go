@@ -633,6 +633,9 @@ func (req *Request) ParseRequestHeaderLine(line *string) (err error) {
 	case "keepalive":
 		err = parseOnOff(&req.KeepAlive, line, matched[1])
 		return
+	case "columnheaders":
+		err = parseOnOff(&req.SendColumnsHeader, line, matched[1])
+		return
 	default:
 		err = fmt.Errorf("bad request: unrecognized header %s", *line)
 		return
