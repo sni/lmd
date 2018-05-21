@@ -601,7 +601,7 @@ func (req *Request) ParseRequestHeaderLine(line *string) (err error) {
 		err = parseSortHeader(&req.Sort, matched[1])
 		return
 	case "limit":
-		err = parseIntHeader(&req.Limit, matched[0], matched[1], 1)
+		err = parseIntHeader(&req.Limit, matched[0], matched[1], 0)
 		return
 	case "offset":
 		err = parseIntHeader(&req.Offset, matched[0], matched[1], 0)
