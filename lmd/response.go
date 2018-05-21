@@ -488,7 +488,7 @@ func (res *Response) JSON() ([]byte, error) {
 		}
 	}
 	// append result row by row
-	if outputFormat == "wrapped_json" || outputFormat == "json" {
+	if outputFormat == "wrapped_json" || outputFormat == "json" || outputFormat == "python" {
 		for i, row := range res.Result {
 			if i == 0 {
 				if sendColumnsHeader {
