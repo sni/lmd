@@ -423,8 +423,14 @@ func ParseStats(value string, line *string, table string, stack *[]*Filter) (err
 // It returns any error encountered.
 func ParseFilterOp(header string, value string, line *string, stack *[]*Filter) (err error) {
 	num, cerr := strconv.Atoi(value)
-	if cerr != nil || num < 1 {
+	if cerr != nil || num < 0 {
 		err = fmt.Errorf("bad request: %s must be a positive number in: %s", header, *line)
+		return
+	}
+	if num == 0 {
+		if log.IsV(2) {
+			log.Debugf("Ignoring %s as value is not positive", *line)
+		}
 		return
 	}
 	stackLen := len(*stack)
