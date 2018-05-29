@@ -592,10 +592,10 @@ func (req *Request) ParseRequestHeaderLine(line *string) (err error) {
 		err = ParseStats(matched[1], line, req.Table, &req.Stats)
 		return
 	case "statsand":
-		err = parseStatsOp("and", matched[1], line, &req.Stats)
+		err = parseStatsOp("and", matched[1], line, req.Table, &req.Stats)
 		return
 	case "statsor":
-		err = parseStatsOp("or", matched[1], line, &req.Stats)
+		err = parseStatsOp("or", matched[1], line, req.Table, &req.Stats)
 		return
 	case "sort":
 		err = parseSortHeader(&req.Sort, matched[1])
@@ -690,7 +690,13 @@ func parseSortHeader(field *[]*SortField, value string) (err error) {
 	return
 }
 
-func parseStatsOp(op string, value string, line *string, stats *[]*Filter) (err error) {
+func parseStatsOp(op string, value string, line *string, table string, stats *[]*Filter) (err error) {
+	num, cerr := strconv.Atoi(value)
+	if cerr == nil && num == 0 {
+		newline := "Stats: state != 9999"
+		err = ParseStats("state != 9999", &newline, table, stats)
+		return
+	}
 	err = ParseFilterOp(op, value, line, stats)
 	if err != nil {
 		return
