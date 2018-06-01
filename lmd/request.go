@@ -636,6 +636,11 @@ func (req *Request) ParseRequestHeaderLine(line *string) (err error) {
 	case "columnheaders":
 		err = parseOnOff(&req.SendColumnsHeader, line, matched[1])
 		return
+	case "localtime":
+		if log.IsV(2) {
+			log.Debugf("Ignoring %s as LMD works on unix timestamps only.", *line)
+		}
+		return
 	default:
 		err = fmt.Errorf("bad request: unrecognized header %s", *line)
 		return
