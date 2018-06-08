@@ -30,6 +30,7 @@ var reHTTPTooOld = regexp.MustCompile(`Can.t locate object method`)
 var reHTTPOMDError = regexp.MustCompile(`<h1>(OMD:.*?)</h1>`)
 var reShinkenVersion = regexp.MustCompile(`-shinken$`)
 var reIcinga2Version = regexp.MustCompile(`^r[\d\.-]+$`)
+var reNaemonVersion = regexp.MustCompile(`-naemon$`)
 
 const (
 	// UpdateAdditionalDelta is the number of seconds to add to the last_check filter on delta updates
@@ -1482,7 +1483,7 @@ func (p *Peer) checkStatusFlags(table *Table) {
 			log.Debugf("[%s] remote connection Icinga2 flag set", p.Name)
 			p.Flags |= Icinga2
 		}
-	} else if strings.Contains(p.Name, "Naemon") {
+	} else if len(reNaemonVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))) > 0 {
 		if p.Flags&Naemon != Naemon {
 			log.Debugf("[%s] remote connection Naemon flag set", p.Name)
 			p.Flags |= Naemon
