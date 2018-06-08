@@ -1482,6 +1482,11 @@ func (p *Peer) checkStatusFlags(table *Table) {
 			log.Debugf("[%s] remote connection Icinga2 flag set", p.Name)
 			p.Flags |= Icinga2
 		}
+	} else if strings.Contains(p.Name, "Naemon") {
+		if p.Flags&Naemon != Naemon {
+			log.Debugf("[%s] remote connection Naemon flag set", p.Name)
+			p.Flags |= Naemon
+		}
 	} else if len(data) > 1 {
 		// getting more than one status is a sure sign for a LMD backend
 		if p.Flags&LMD != LMD {
