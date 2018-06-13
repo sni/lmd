@@ -488,23 +488,21 @@ func (res *Response) JSON() ([]byte, error) {
 		}
 	}
 	// append result row by row
-	if outputFormat == "wrapped_json" || outputFormat == "json" {
-		for i, row := range res.Result {
-			if i == 0 {
-				if sendColumnsHeader {
-					buf.Write([]byte(",\n"))
-				}
-			} else {
-				buf.Write([]byte(","))
+	for i, row := range res.Result {
+		if i == 0 {
+			if sendColumnsHeader {
+				buf.Write([]byte(",\n"))
 			}
-			err := enc.Encode(row)
-			if err != nil {
-				log.Errorf("json error: %s in row: %v", err.Error(), row)
-				return nil, err
-			}
+		} else {
+			buf.Write([]byte(","))
 		}
-		buf.Write([]byte("]"))
+		err := enc.Encode(row)
+		if err != nil {
+			log.Errorf("json error: %s in row: %v", err.Error(), row)
+			return nil, err
+		}
 	}
+	buf.Write([]byte("]"))
 	if outputFormat == "wrapped_json" {
 		buf.Write([]byte("\n,\"failed\":"))
 		enc.Encode(res.Failed)

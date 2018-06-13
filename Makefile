@@ -3,7 +3,12 @@
 LAMPDDIR=lmd
 MAKE:=make
 SHELL:=bash
-GOVERSION:=$(shell go version | awk '{print $$3}' | sed 's/^go\([0-9]\.[0-9]\).*/\1/')
+GOVERSION:=$(shell \
+    go version | \
+    awk -F'go| ' '{ split($$5, a, /\./); printf ("%04d%04d", a[1], a[2]); exit; }' \
+)
+MINGOVERSION:=00010007
+MINGOVERSIONSTR:=1.7
 
 EXTERNAL_DEPS = \
 	github.com/BurntSushi/toml \
@@ -129,9 +134,9 @@ fmt:
 	cd $(LAMPDDIR) && gofmt -w -s .
 
 versioncheck:
-	@[ "$(GOVERSION)" = "devel" ] || [ $$(echo "$(GOVERSION)" | tr -d ".") -ge 15 ] || { \
+	@[ $$( printf '%s\n' $(GOVERSION) $(MINGOVERSION) | sort | head -n 1 ) = $(MINGOVERSION) ] || { \
 		echo "**** ERROR:"; \
-		echo "**** LMD requires at least golang version 1.7 or higher"; \
+		echo "**** LMD requires at least golang version $(MINGOVERSIONSTR) or higher"; \
 		echo "**** this is: $$(go version)"; \
 		exit 1; \
 	}
