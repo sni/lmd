@@ -106,7 +106,7 @@ const (
 	// Icinga2 flag is set if the remote site is a icinga 2 installation.
 	Icinga2
 
-	// Naemon flag is set if the remote site is a Naemon installation.
+	// Naemon flag is set if the remote site is a naemon installation.
 	Naemon
 )
 
