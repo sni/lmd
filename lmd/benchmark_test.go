@@ -33,8 +33,8 @@ func BenchmarkParseResultJSON(b *testing.B) {
 		if len(res) != 901 {
 			b.Fatalf("wrong result size, expected 901, got %d", len(res))
 		}
-		if len(res[0]) != 181 {
-			b.Fatalf("wrong result size, expected 181, got %d", len(res[0]))
+		if len(res[0]) != 185 {
+			b.Fatalf("wrong result size, expected 185, got %d", len(res[0]))
 		}
 	}
 	b.StopTimer()
@@ -71,8 +71,8 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 		if len(res) != 901 {
 			b.Fatalf("wrong result size, expected 901, got %d", len(res))
 		}
-		if len(res[0]) != 181 {
-			b.Fatalf("wrong result size, expected 181, got %d", len(res[0]))
+		if len(res[0]) != 185 {
+			b.Fatalf("wrong result size, expected 185, got %d", len(res[0]))
 		}
 	}
 	b.StopTimer()

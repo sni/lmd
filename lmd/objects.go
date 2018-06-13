@@ -105,6 +105,9 @@ const (
 
 	// Icinga2 flag is set if the remote site is a icinga 2 installation.
 	Icinga2
+
+	// Naemon flag is set if the remote site is a naemon installation.
+	Naemon
 )
 
 // GetEmptyValue returns an empty placeholder representation for the given column type
@@ -627,6 +630,10 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("state", DynamicUpdate, IntCol, "The current state of the host (0: up, 1: down, 2: unreachable)")
 	t.AddColumn("state_type", DynamicUpdate, IntCol, "The current state of the host (0: up, 1: down, 2: unreachable)")
 	t.AddColumn("staleness", DynamicUpdate, FloatCol, "Staleness indicator for this host")
+	t.AddColumn("pnpgraph_present", DynamicUpdate, IntCol, "The pnp graph presence (0/1)")
+
+	// naemon specific
+	t.AddOptColumn("obsess", DynamicUpdate, IntCol, Naemon, "The obsessing over host")
 
 	// shinken specific
 	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
@@ -758,6 +765,10 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("state_type", DynamicUpdate, IntCol, "The current state of the service (0: OK, 1: WARN, 2: CRITICAL, 3: UNKNOWN)")
 	t.AddColumn("host_name", StaticUpdate, StringCol, "Host name")
 	t.AddColumn("staleness", DynamicUpdate, FloatCol, "Staleness indicator for this host")
+	t.AddColumn("pnpgraph_present", DynamicUpdate, IntCol, "The pnp graph presence (0/1)")
+
+	// naemon specific
+	t.AddOptColumn("obsess", DynamicUpdate, IntCol, Naemon, "The obsessing over service")
 
 	// shinken specific
 	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
