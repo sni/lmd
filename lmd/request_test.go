@@ -205,7 +205,6 @@ func TestResponseErrorsFunc(t *testing.T) {
 		{"GET hosts\nSort: 1", "bad request: invalid sort header, must be 'Sort: <field> <asc|desc>' or 'Sort: custom_variables <name> <asc|desc>'"},
 		{"GET hosts\nSort: name none", "bad request: unrecognized sort direction, must be asc or desc"},
 		{"GET hosts\nSort: name", "bad request: invalid sort header, must be 'Sort: <field> <asc|desc>' or 'Sort: custom_variables <name> <asc|desc>'"},
-		{"GET hosts\nColumns: name\nSort: state asc", "bad request: sort column state not in result set\nRequest: GET hosts\nColumns: name\nSort: state asc\n\n\nResponse: bad request: sort column state not in result set\n"},
 		{"GET hosts\nResponseheader: none", "bad request: unrecognized responseformat, only fixed16 is supported"},
 		{"GET hosts\nOutputFormat: csv: none", "bad request: unrecognized outputformat, only json and wrapped_json is supported"},
 		{"GET hosts\nStatsAnd: 1", "bad request: not enough filter on stack in StatsAnd: 1"},
@@ -476,6 +475,45 @@ func TestRequestBlocking(t *testing.T) {
 	elapsed := time.Since(start)
 	if elapsed.Seconds() > 3 {
 		t.Error("query2 should return immediately")
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestRequestSort(t *testing.T) {
+	peer := StartTestPeer(1, 0, 0)
+	PauseTestPeers(peer)
+
+	res, err := peer.QueryString("GET hosts\nColumns: name latency\nSort: latency asc\nLimit: 5\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(5, len(res)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq("Test Business Process", res[0][0]); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestRequestSortColumnNotRequested(t *testing.T) {
+	peer := StartTestPeer(1, 0, 0)
+	PauseTestPeers(peer)
+
+	res, err := peer.QueryString("GET hosts\nColumns: name state alias\nSort: latency asc\nSort: name asc\nLimit: 5\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(5, len(res)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(3, len(res[0])); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq("Test Business Process", res[0][0]); err != nil {
+		t.Error(err)
 	}
 
 	if err := StopTestPeer(peer); err != nil {

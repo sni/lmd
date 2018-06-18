@@ -18,6 +18,7 @@ type ResultColumn struct {
 	Type   ColumnType
 	Column *Column // reference to the real column
 	Index  int     // index in the request
+	Hidden bool    // true if column is not used in the output and ex. just for sorting
 }
 
 // VirtKeyMapTupel is used to define the virtual key mapping in the VirtKeyMap
@@ -259,6 +260,20 @@ func (res *Response) PostProcessing() {
 			duration := time.Since(t1)
 			log.Debugf("sorting result took %s", duration.String())
 		}
+
+		// remove hidden columns from result, for ex. columns used for sorting only
+		firstHiddenColumnIndex := -1
+		for i, col := range res.Columns {
+			// first hidden column breaks the loop, because hidden columns are appended at the end of all columns
+			if col.Hidden {
+				firstHiddenColumnIndex = i
+			}
+		}
+		if firstHiddenColumnIndex != -1 {
+			for i := range res.Result {
+				res.Result[i] = (res.Result[i])[:firstHiddenColumnIndex]
+			}
+		}
 	}
 
 	if res.ResultTotal == 0 {
@@ -378,24 +393,7 @@ func (req *Request) BuildResponseIndexes(table *Table) (indexes []int, columns [
 	}
 	// build array of requested columns as ResultColumn objects list
 	for j, colName := range req.Columns {
-		colName = strings.ToLower(colName)
-		i, ok := table.ColumnsIndex[colName]
-		if !ok {
-			if !fixBrokenClientsRequestColumn(&colName, table.Name) {
-				colName = "empty"
-			}
-			i = table.ColumnsIndex[colName]
-		}
-		col := table.Columns[i]
-		if table.Columns[i].Type == VirtCol {
-			indexes = append(indexes, col.VirtMap.Index)
-			columns = append(columns, ResultColumn{Name: colName, Type: VirtCol, Index: j, Column: col})
-			requestColumnsMap[colName] = j
-			continue
-		}
-		indexes = append(indexes, i)
-		columns = append(columns, ResultColumn{Name: colName, Type: col.Type, Index: j, Column: col})
-		requestColumnsMap[colName] = j
+		indexes, columns = addBuildResponseIndexColumn(table, colName, j, requestColumnsMap, indexes, columns, false)
 	}
 
 	// check wether our sort columns do exist in the output
@@ -407,13 +405,34 @@ func (req *Request) BuildResponseIndexes(table *Table) (indexes []int, columns [
 		}
 		i, Ok := requestColumnsMap[s.Name]
 		if !Ok {
-			err = errors.New("bad request: sort column " + s.Name + " not in result set")
-			return
+			i = len(columns)
+			indexes, columns = addBuildResponseIndexColumn(table, s.Name, i, requestColumnsMap, indexes, columns, true)
 		}
 		s.Index = i
 	}
 
 	return
+}
+func addBuildResponseIndexColumn(table *Table, colName string, requestIndex int, requestColumnsMap map[string]int, indexes []int, columns []ResultColumn, hidden bool) ([]int, []ResultColumn) {
+	colName = strings.ToLower(colName)
+	i, ok := table.ColumnsIndex[colName]
+	if !ok {
+		if !fixBrokenClientsRequestColumn(&colName, table.Name) {
+			colName = "empty"
+		}
+		i = table.ColumnsIndex[colName]
+	}
+	col := table.Columns[i]
+	if table.Columns[i].Type == VirtCol {
+		indexes = append(indexes, col.VirtMap.Index)
+		columns = append(columns, ResultColumn{Name: colName, Type: VirtCol, Index: requestIndex, Column: col, Hidden: hidden})
+		requestColumnsMap[colName] = requestIndex
+		return indexes, columns
+	}
+	indexes = append(indexes, i)
+	columns = append(columns, ResultColumn{Name: colName, Type: col.Type, Index: requestIndex, Column: col, Hidden: hidden})
+	requestColumnsMap[colName] = requestIndex
+	return indexes, columns
 }
 
 // Send writes converts the result object to a livestatus answer and writes the resulting bytes back to the client.
@@ -572,10 +591,12 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 func (res *Response) AppendPeerResult(peer *Peer, indexes *[]int) {
 	total, result, statsResult := peer.BuildLocalResponseData(res, indexes)
 	log.Tracef("[%s] result ready", peer.Name)
+
 	if result != nil {
 		if total == 0 {
 			return
 		}
+
 		// data results rows
 		res.Lock.Lock()
 		res.ResultTotal += total

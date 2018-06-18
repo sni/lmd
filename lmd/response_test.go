@@ -22,12 +22,3 @@ func TestRequestHeaderSort1Fail(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-
-func TestRequestHeaderSort2Fail(t *testing.T) {
-	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nCOlumns: state\nSort: name desc\n"))
-	req, _, err := NewRequest(buf)
-	_, err = req.GetResponse()
-	if err = assertEq(errors.New("bad request: sort column name not in result set"), err); err != nil {
-		t.Fatal(err)
-	}
-}
