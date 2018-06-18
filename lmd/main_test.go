@@ -30,7 +30,6 @@ func TestMainFunc(t *testing.T) {
 		"GET backends\n\n",
 		"GET backends\nResponseHeader: fixed16\n\n",
 		"GET backends\nResponseHeader: fixed16\nOutputFormat: json\n\n",
-		"GET backends\nResponseHeader: fixed16\nOutputFormat: wrapped_json\n\n",
 		"GET backends\nResponseHeader: fixed16\nFilter: peer_key = mockid0\n\n",
 		"GET backends\nResponseHeader: fixed16\nFilter: peer_key = mockid0\n\n",
 		"GET backends\nResponseHeader: fixed16\nFilter: peer_key ~~ mockid0\n\n",

@@ -160,6 +160,9 @@ func (req *Request) String() (str string) {
 	if req.Offset > 0 {
 		str += fmt.Sprintf("Offset: %d\n", req.Offset)
 	}
+	if req.SendColumnsHeader {
+		str += fmt.Sprintf("ColumnHeaders: on\n")
+	}
 	for _, f := range req.Filter {
 		str += f.String("")
 	}
@@ -303,7 +306,7 @@ func (req *Request) GetResponse() (*Response, error) {
 	// Run single request if possible
 	if nodeAccessor == nil || !nodeAccessor.IsClustered() {
 		// Single mode (send request and return response)
-		return (NewResponse(req))
+		return NewResponse(req)
 	}
 
 	// Determine if request for this node only (if backends specified)
@@ -319,11 +322,11 @@ func (req *Request) GetResponse() (*Response, error) {
 
 	// Return local result if its not distributed at all
 	if isForOurBackends {
-		return (NewResponse(req))
+		return NewResponse(req)
 	}
 
 	// Distribute request
-	return (req.getDistributedResponse())
+	return req.getDistributedResponse()
 }
 
 // getDistributedResponse builds the response from a distributed setup

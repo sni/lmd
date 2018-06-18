@@ -190,6 +190,8 @@ func NewPeer(LocalConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 	p.Status["Updating"] = false
 	p.Status["Section"] = config.Section
 	p.Status["PeerParent"] = ""
+	p.Status["LastColumns"] = []string{}
+	p.Status["LastTotalCount"] = int64(0)
 
 	/* initialize http client if there are any http(s) connections */
 	hasHTTP := false
@@ -1063,6 +1065,8 @@ func (p *Peer) parseResult(req *Request, resBytes *[]byte) (result [][]interface
 	p.PeerLock.Lock()
 	totalBytesReceived := p.Status["BytesReceived"].(int) + len(*resBytes)
 	p.Status["BytesReceived"] = totalBytesReceived
+	p.Status["LastColumns"] = []string{}
+	p.Status["LastTotalCount"] = int64(0)
 	p.PeerLock.Unlock()
 	log.Debugf("[%s] got %s answer: size: %d kB", p.Name, req.Table, len(*resBytes)/1024)
 	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(totalBytesReceived))
@@ -1072,7 +1076,23 @@ func (p *Peer) parseResult(req *Request, resBytes *[]byte) (result [][]interface
 		return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes}
 	}
 	if req.OutputFormat == "wrapped_json" {
-		dataBytes, _, _, jErr := jsonparser.Get(*resBytes, "data")
+		dataBytes, dataType, _, jErr := jsonparser.Get(*resBytes, "columns")
+		if dataType == jsonparser.Array {
+			var columns []string
+			err = json.Unmarshal(dataBytes, &columns)
+			if err != nil {
+				log.Debugf("[%s] column header parse error: %s", p.Name, err.Error())
+			} else {
+				p.PeerLock.Lock()
+				p.Status["LastColumns"] = columns
+				p.PeerLock.Unlock()
+			}
+		}
+		totalCount, jErr := jsonparser.GetInt(*resBytes, "total_count")
+		if jErr == nil {
+			p.Status["LastTotalCount"] = totalCount
+		}
+		dataBytes, _, _, jErr = jsonparser.Get(*resBytes, "data")
 		if jErr != nil {
 			return nil, &PeerError{msg: jErr.Error(), kind: ResponseError, req: req, resBytes: resBytes}
 		}

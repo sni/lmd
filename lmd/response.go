@@ -495,21 +495,23 @@ func (res *Response) JSON() ([]byte, error) {
 
 	buf.Write([]byte("["))
 	// add optional columns header as first row
+	cols := make([]interface{}, len(res.Request.Columns))
 	if sendColumnsHeader {
-		cols := make([]interface{}, len(res.Request.Columns))
 		for i, v := range res.Request.Columns {
 			cols[i] = v
 		}
-		err := enc.Encode(cols)
-		if err != nil {
-			log.Errorf("json error: %s in column header: %v", err.Error(), cols)
-			return nil, err
+		if outputFormat == "json" {
+			err := enc.Encode(cols)
+			if err != nil {
+				log.Errorf("json error: %s in column header: %v", err.Error(), cols)
+				return nil, err
+			}
 		}
 	}
 	// append result row by row
 	for i, row := range res.Result {
 		if i == 0 {
-			if sendColumnsHeader {
+			if sendColumnsHeader && outputFormat == "json" {
 				buf.Write([]byte(",\n"))
 			}
 		} else {
@@ -525,7 +527,11 @@ func (res *Response) JSON() ([]byte, error) {
 	if outputFormat == "wrapped_json" {
 		buf.Write([]byte("\n,\"failed\":"))
 		enc.Encode(res.Failed)
-		buf.Write([]byte(fmt.Sprintf("\n,\"total\":%d}", res.ResultTotal)))
+		if sendColumnsHeader {
+			buf.Write([]byte("\n,\"columns\":"))
+			enc.Encode(cols)
+		}
+		buf.Write([]byte(fmt.Sprintf("\n,\"total_count\":%d}}", res.ResultTotal)))
 	}
 	return buf.Bytes(), nil
 }

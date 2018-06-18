@@ -12,7 +12,7 @@ func TestRequestHeader(t *testing.T) {
 		"GET hosts\n\n",
 		"GET hosts\nColumns: name state\n\n",
 		"GET hosts\nColumns: name state\nFilter: state != 1\n\n",
-		"GET hosts\nOutputFormat: wrapped_json\n\n",
+		"GET hosts\nOutputFormat: wrapped_json\nColumnHeaders: on\n\n",
 		"GET hosts\nResponseHeader: fixed16\n\n",
 		"GET hosts\nColumns: name state\nFilter: state != 1\nFilter: is_executing = 1\nOr: 2\n\n",
 		"GET hosts\nColumns: name state\nFilter: state != 1\nFilter: is_executing = 1\nAnd: 2\nFilter: state = 1\nOr: 2\nFilter: name = test\n\n",
@@ -541,6 +541,54 @@ func TestRequestSortColumnNotRequested(t *testing.T) {
 		t.Error(err)
 	}
 	if err = assertEq(3, len(res[0])); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq("Test Business Process", res[0][0]); err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestRequestColumnsWrappedJson(t *testing.T) {
+	peer := StartTestPeer(1, 0, 0)
+	PauseTestPeers(peer)
+
+	res, err := peer.QueryString("GET hosts\nColumns: name state alias\nOutputFormat: wrapped_json\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(12, len(res)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq("Test Business Process", res[0][0]); err != nil {
+		t.Error(err)
+	}
+
+	res, err = peer.QueryString("GET hosts\nColumns: name state alias\nOutputFormat: wrapped_json\nColumnHeaders: on\nLimit: 5\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(5, len(res)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq("Test Business Process", res[0][0]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(int64(12), peer.Status["LastTotalCount"].(int64)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq("name", peer.Status["LastColumns"].([]string)[0]); err != nil {
+		t.Error(err)
+	}
+
+	res, err = peer.QueryString("GET hosts\nColumns: name state alias\nOutputFormat: json\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(12, len(res)); err != nil {
 		t.Error(err)
 	}
 	if err = assertEq("Test Business Process", res[0][0]); err != nil {

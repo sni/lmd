@@ -131,8 +131,9 @@ The default OutputFormat is `wrapped_json` but `json` is also supported.
 The `wrapped_json` format will put the normal `json` result in a hash with
 some more extra meta data:
 
+    - columns: the column names (if requested)
     - data: the original result.
-    - total: the number of matches in the result set _before_ the limit and offset applied.
+    - total_count: the number of matches in the result set _before_ the limit and offset applied.
     - failed: a hash of backends which have errored for some reason.
 
 ### Response Header ###
@@ -166,7 +167,7 @@ The sort header can be used to sort the results by one or more columns.
 Multiple sort header can be used.
 
     Sort: <column name> <asc/desc>
-    
+
 Sorting by custom variables is possible like this:
 
     Sort: custom_variables <name> <asc/desc>
