@@ -143,7 +143,10 @@ func TestRequestListFilter(t *testing.T) {
 	peer := StartTestPeer(1, 0, 0)
 	PauseTestPeers(peer)
 
-	res, _ := peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
+	res, err := peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := assertEq("gearman", res[0][0]); err != nil {
 		t.Fatal(err)
 	}
@@ -262,6 +265,9 @@ OutputFormat: wrapped_json
 ResponseHeader: fixed16
 `
 	res, err := peer.QueryString(query)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err = assertEq(3, len(res)); err != nil {
 		t.Error(err)
 	}
@@ -287,11 +293,17 @@ func TestRequestStats(t *testing.T) {
 	}
 
 	res, err := peer.QueryString("GET hosts\nColumns: name latency\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err = assertEq(40, len(res)); err != nil {
 		t.Error(err)
 	}
 
 	res, err = peer.QueryString("GET hosts\nStats: sum latency\nStats: avg latency\nStats: min has_been_checked\nStats: max execution_time\nStats: name !=\n")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if err = assertEq(9.6262454988, res[0][0]); err != nil {
 		t.Error(err)
@@ -323,6 +335,9 @@ func TestRequestStatsGroupBy(t *testing.T) {
 	}
 
 	res, err := peer.QueryString("GET hosts\nColumns: name\nStats: avg latency\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err = assertEq(12, len(res)); err != nil {
 		t.Error(err)
 	}
@@ -334,6 +349,9 @@ func TestRequestStatsGroupBy(t *testing.T) {
 	}
 
 	res, err = peer.QueryString("GET hosts\nColumns: name alias\nStats: avg latency\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err = assertEq(12, len(res)); err != nil {
 		t.Error(err)
 	}
@@ -377,6 +395,9 @@ func TestRequestStatsBroken(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res, err := peer.QueryString("GET hosts\nStats: sum name\nStats: avg contacts\nStats: min plugin_output\n")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err = assertEq(float64(0), res[0][0]); err != nil {
 		t.Error(err)
 	}
@@ -391,11 +412,17 @@ func TestRequestRefs(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res1, err := peer.QueryString("GET hosts\nColumns: name latency check_command\nLimit: 1\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err = assertEq(1, len(res1)); err != nil {
 		t.Error(err)
 	}
 
 	res2, err := peer.QueryString("GET services\nColumns: host_name host_latency host_check_command\nFilter: host_name = " + res1[0][0].(string) + "\nLimit: 1\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if err = assertEq(res1[0], res2[0]); err != nil {
 		t.Error(err)
@@ -495,6 +522,10 @@ func TestRequestSort(t *testing.T) {
 	}
 	if err = assertEq("Test Business Process", res[0][0]); err != nil {
 		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
 	}
 }
 
