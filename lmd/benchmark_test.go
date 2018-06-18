@@ -68,7 +68,7 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 		if err != nil {
 			panic(err.Error())
 		}
-		if len(res) != 901 {
+		if len(res) != 900 {
 			b.Fatalf("wrong result size, expected 901, got %d", len(res))
 		}
 		if len(res[0]) != 185 {

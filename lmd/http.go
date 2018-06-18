@@ -54,7 +54,7 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 	}
 
 	// Send JSON
-	j, err := res.JSON()
+	j, err := res.Bytes()
 	if err != nil {
 		c.errorOutput(err, w)
 		return

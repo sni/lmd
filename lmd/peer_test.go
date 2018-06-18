@@ -94,7 +94,7 @@ func TestParseResultWrappedJSON(t *testing.T) {
 	 ["host1", "desc1", 0, [1,2], {"a": 1}],
 	 ["host2", "desc2", 1, [1,2], {"a": 1}],
 	],
-	"total": 2}`)
+	"total_count": 2}`)
 
 	res, err := peer.parseResult(req, &data)
 

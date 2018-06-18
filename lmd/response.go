@@ -437,7 +437,7 @@ func addBuildResponseIndexColumn(table *Table, colName string, requestIndex int,
 
 // Send writes converts the result object to a livestatus answer and writes the resulting bytes back to the client.
 func (res *Response) Send(c net.Conn) (size int, err error) {
-	resBytes, err := res.JSON()
+	resBytes, err := res.Bytes()
 	if err != nil {
 		return
 	}
@@ -470,24 +470,23 @@ func (res *Response) Send(c net.Conn) (size int, err error) {
 	return
 }
 
-// JSON converts the response into a json structure
-func (res *Response) JSON() ([]byte, error) {
+// Bytes converts the response into a bytes array
+func (res *Response) Bytes() ([]byte, error) {
 	if res.Error != nil {
 		log.Warnf("sending error response: %d - %s", res.Code, res.Error.Error())
 		return []byte(res.Error.Error()), nil
 	}
 
-	outputFormat := res.Request.OutputFormat
-	if outputFormat == "" {
-		outputFormat = "json"
+	if res.Request.OutputFormat == "wrapped_json" {
+		return res.WrappedJSON()
 	}
+	return res.JSON()
+}
 
+// JSON converts the response into a json structure
+func (res *Response) JSON() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	enc := json.NewEncoder(buf)
-
-	if outputFormat == "wrapped_json" {
-		buf.Write([]byte("{\"data\":"))
-	}
 
 	// enable header row for regular requests, not for stats requests
 	isStatsRequest := len(res.Request.Stats) != 0
@@ -500,18 +499,16 @@ func (res *Response) JSON() ([]byte, error) {
 		for i, v := range res.Request.Columns {
 			cols[i] = v
 		}
-		if outputFormat == "json" {
-			err := enc.Encode(cols)
-			if err != nil {
-				log.Errorf("json error: %s in column header: %v", err.Error(), cols)
-				return nil, err
-			}
+		err := enc.Encode(cols)
+		if err != nil {
+			log.Errorf("json error: %s in column header: %v", err.Error(), cols)
+			return nil, err
 		}
 	}
 	// append result row by row
 	for i, row := range res.Result {
 		if i == 0 {
-			if sendColumnsHeader && outputFormat == "json" {
+			if sendColumnsHeader {
 				buf.Write([]byte(",\n"))
 			}
 		} else {
@@ -524,15 +521,47 @@ func (res *Response) JSON() ([]byte, error) {
 		}
 	}
 	buf.Write([]byte("]"))
-	if outputFormat == "wrapped_json" {
-		buf.Write([]byte("\n,\"failed\":"))
-		enc.Encode(res.Failed)
-		if sendColumnsHeader {
-			buf.Write([]byte("\n,\"columns\":"))
-			enc.Encode(cols)
+	return buf.Bytes(), nil
+}
+
+// WrappedJSON converts the response into a wrapped json structure
+func (res *Response) WrappedJSON() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	enc := json.NewEncoder(buf)
+
+	buf.Write([]byte("{\"data\":"))
+
+	// enable header row for regular requests, not for stats requests
+	isStatsRequest := len(res.Request.Stats) != 0
+	sendColumnsHeader := res.Request.SendColumnsHeader && !isStatsRequest
+
+	buf.Write([]byte("["))
+	// add optional columns header as first row
+	cols := make([]interface{}, len(res.Request.Columns))
+	if sendColumnsHeader {
+		for i, v := range res.Request.Columns {
+			cols[i] = v
 		}
-		buf.Write([]byte(fmt.Sprintf("\n,\"total_count\":%d}}", res.ResultTotal)))
 	}
+	// append result row by row
+	for i, row := range res.Result {
+		if i > 0 {
+			buf.Write([]byte(","))
+		}
+		err := enc.Encode(row)
+		if err != nil {
+			log.Errorf("json error: %s in row: %v", err.Error(), row)
+			return nil, err
+		}
+	}
+	buf.Write([]byte("]"))
+	buf.Write([]byte("\n,\"failed\":"))
+	enc.Encode(res.Failed)
+	if sendColumnsHeader {
+		buf.Write([]byte("\n,\"columns\":"))
+		enc.Encode(cols)
+	}
+	buf.Write([]byte(fmt.Sprintf("\n,\"total_count\":%d}}", res.ResultTotal)))
 	return buf.Bytes(), nil
 }
 
