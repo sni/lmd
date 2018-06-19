@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -571,6 +572,11 @@ func TestRequestColumnsWrappedJson(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var jsonTest interface{}
+	jErr := json.Unmarshal(*peer.lastResponse, &jsonTest)
+	if jErr != nil {
+		t.Fatal(jErr)
+	}
 	if err = assertEq(5, len(res)); err != nil {
 		t.Error(err)
 	}
@@ -587,6 +593,10 @@ func TestRequestColumnsWrappedJson(t *testing.T) {
 	res, err = peer.QueryString("GET hosts\nColumns: name state alias\nOutputFormat: json\n\n")
 	if err != nil {
 		t.Fatal(err)
+	}
+	jErr = json.Unmarshal(*peer.lastResponse, &jsonTest)
+	if jErr != nil {
+		t.Fatal(jErr)
 	}
 	if err = assertEq(12, len(res)); err != nil {
 		t.Error(err)
