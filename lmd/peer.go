@@ -1078,13 +1078,13 @@ func (p *Peer) parseResult(req *Request, resBytes *[]byte) (result [][]interface
 	if req.OutputFormat == "wrapped_json" {
 		dataBytes, dataType, _, jErr := jsonparser.Get(*resBytes, "columns")
 		if dataType == jsonparser.Array {
-			var columns []string
+			var columns [][]string
 			err = json.Unmarshal(dataBytes, &columns)
 			if err != nil {
-				log.Debugf("[%s] column header parse error: %s", p.Name, err.Error())
+				log.Debugf("[%s] columns header parse error: %s", p.Name, err.Error())
 			} else {
 				p.PeerLock.Lock()
-				p.Status["LastColumns"] = columns
+				p.Status["LastColumns"] = columns[0]
 				p.PeerLock.Unlock()
 			}
 		}
