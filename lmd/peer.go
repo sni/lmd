@@ -1081,7 +1081,7 @@ func (p *Peer) parseResult(req *Request, resBytes *[]byte) (result [][]interface
 			var columns [][]string
 			err = json.Unmarshal(dataBytes, &columns)
 			if err != nil {
-				log.Debugf("[%s] column header parse error: %s", p.Name, err.Error())
+				log.Debugf("[%s] columns header parse error: %s", p.Name, err.Error())
 			} else {
 				p.PeerLock.Lock()
 				p.Status["LastColumns"] = columns[0]
