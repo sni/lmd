@@ -1,5 +1,8 @@
 This file documents the revision history for the Livestatus Multitool Daemon
 
+1.3.2    Tue Jun 19 09:55:56 CEST 2018
+          - fix typo in wrapped_json output
+
 1.3.1    Mon Jun 18 14:09:13 CEST 2018
           - support sort by non-requested columns
           - changed `total` into `total_count` to be compatible with the naemon format
