@@ -559,9 +559,11 @@ func (res *Response) WrappedJSON() ([]byte, error) {
 	enc.Encode(res.Failed)
 	if sendColumnsHeader {
 		buf.Write([]byte("\n,\"columns\":"))
+		buf.Write([]byte("["))
 		enc.Encode(cols)
+		buf.Write([]byte("]"))
 	}
-	buf.Write([]byte(fmt.Sprintf("\n,\"total_count\":%d}}", res.ResultTotal)))
+	buf.Write([]byte(fmt.Sprintf("\n,\"total_count\":%d}", res.ResultTotal)))
 	return buf.Bytes(), nil
 }
 
