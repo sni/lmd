@@ -417,6 +417,12 @@ func addBuildResponseIndexColumn(table *Table, colName string, requestIndex int,
 	colName = strings.ToLower(colName)
 	i, ok := table.ColumnsIndex[colName]
 	if !ok {
+		if table.PassthroughOnly {
+			indexes = append(indexes, -1)
+			columns = append(columns, ResultColumn{Name: colName, Type: StringCol, Index: requestIndex, Hidden: hidden})
+			requestColumnsMap[colName] = requestIndex
+			return indexes, columns
+		}
 		if !fixBrokenClientsRequestColumn(&colName, table.Name) {
 			colName = "empty"
 		}
