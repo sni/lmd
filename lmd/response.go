@@ -512,7 +512,7 @@ func (res *Response) JSON() ([]byte, error) {
 		}
 	}
 	// append result row by row
-	for i, row := range res.Result {
+	for i := range res.Result {
 		if i == 0 {
 			if sendColumnsHeader {
 				buf.Write([]byte(",\n"))
@@ -520,9 +520,9 @@ func (res *Response) JSON() ([]byte, error) {
 		} else {
 			buf.Write([]byte(","))
 		}
-		err := enc.Encode(row)
+		err := enc.Encode(res.Result[i])
 		if err != nil {
-			log.Errorf("json error: %s in row: %v", err.Error(), row)
+			log.Errorf("json error: %s in row: %v", err.Error(), res.Result[i])
 			return nil, err
 		}
 	}
@@ -550,13 +550,13 @@ func (res *Response) WrappedJSON() ([]byte, error) {
 		}
 	}
 	// append result row by row
-	for i, row := range res.Result {
+	for i := range res.Result {
 		if i > 0 {
 			buf.Write([]byte(","))
 		}
-		err := enc.Encode(row)
+		err := enc.Encode(res.Result[i])
 		if err != nil {
-			log.Errorf("json error: %s in row: %v", err.Error(), row)
+			log.Errorf("json error: %s in row: %v", err.Error(), res.Result[i])
 			return nil, err
 		}
 	}
