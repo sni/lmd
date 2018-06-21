@@ -666,9 +666,10 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table, column
 	// build columns list
 	backendColumns := []string{}
 	virtColumns := []*ResultColumn{}
-	for _, col := range *columns {
+	for i, col := range *columns {
 		if col.Type == VirtCol {
-			virtColumns = append(virtColumns, &col)
+			colref := (*columns)[i]
+			virtColumns = append(virtColumns, &colref)
 		} else {
 			backendColumns = append(backendColumns, col.Name)
 		}
