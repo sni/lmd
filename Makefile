@@ -67,6 +67,7 @@ longtest: fmt dump
 	rm -f lmd/mock*.sock
 
 citest: deps
+	rm -f lmd/mock*.sock
 	#
 	# Checking gofmt errors
 	#
