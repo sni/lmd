@@ -7,8 +7,8 @@ GOVERSION:=$(shell \
     go version | \
     awk -F'go| ' '{ split($$5, a, /\./); printf ("%04d%04d", a[1], a[2]); exit; }' \
 )
-MINGOVERSION:=00010007
-MINGOVERSIONSTR:=1.7
+MINGOVERSION:=00010009
+MINGOVERSIONSTR:=1.9
 
 EXTERNAL_DEPS = \
 	github.com/BurntSushi/toml \
