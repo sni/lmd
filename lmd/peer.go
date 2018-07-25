@@ -947,7 +947,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	}
 	p.DataLock.Lock()
 	idIndex := p.Tables[table.Name].Index
-	missingIds := []string{}
+	missingIds := []int64{}
 	resIndex := make(map[string]bool)
 	for i := range res {
 		resRow := &res[i]
@@ -955,7 +955,8 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 		_, ok := idIndex[id]
 		if !ok {
 			log.Debugf("adding %s with id %s", name, id)
-			missingIds = append(missingIds, id)
+			id64, _ := strconv.ParseInt(id, 0, 64)
+			missingIds = append(missingIds, id64)
 		}
 		resIndex[id] = true
 	}
@@ -981,8 +982,12 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 			Columns:         keys,
 			ResponseFixed16: true,
 			OutputFormat:    "json",
-			FilterStr:       fmt.Sprintf("Filter: id = %s\nOr: %d\n", strings.Join(missingIds, "\nFilter: id = "), len(missingIds)),
+			FilterStr:       "",
 		}
+		for _, id := range missingIds {
+			req.FilterStr += fmt.Sprintf("Filter: id = %d\n", id)
+		}
+		req.FilterStr += fmt.Sprintf("Or: %d\n", len(missingIds))
 		res, err = p.Query(req)
 		if err != nil {
 			return
