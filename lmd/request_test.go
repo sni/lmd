@@ -213,9 +213,6 @@ func TestResponseErrorsFunc(t *testing.T) {
 		{"GET hosts\nOutputFormat: csv: none", "bad request: unrecognized outputformat, only json and wrapped_json is supported"},
 		{"GET hosts\nStatsAnd: 1", "bad request: not enough filter on stack in StatsAnd: 1"},
 		{"GET hosts\nStatsOr: 1", "bad request: not enough filter on stack in StatsOr: 1"},
-		{"GET hosts\nWaitTrigger: all", "bad request: WaitTrigger without WaitCondition"},
-		{"GET hosts\nWaitTrigger: all\nWaitCondition: last_check > 0", "bad request: WaitTrigger without WaitTimeout"},
-		{"GET hosts\nWaitTrigger: all\nWaitCondition: last_check > 0\nWaitTimeout: 10000", "bad request: WaitTrigger without WaitObject"},
 		{"GET hosts\nFilter: name", "bad request: filter header, must be Filter: <field> <operator> <value>"},
 		{"GET hosts\nFilter: name ~~ *^", "bad request: invalid regular expression: error parsing regexp: missing argument to repetition operator: `*` in filter Filter: name ~~ *^"},
 		{"GET hosts\nStats: name", "bad request: stats header, must be Stats: <field> <operator> <value> OR Stats: <sum|avg|min|max> <field>"},
@@ -488,7 +485,7 @@ func TestRequestBlocking(t *testing.T) {
 
 	// start long running query in background
 	go func() {
-		_, err1 := peer.QueryString("GET hosts\nColumns: name latency check_command\nLimit: 1\nWaitTrigger: all\nWaitObject: test\nWaitTimeout: 5000\nWaitCondition: last_check > 1473760401\n\n")
+		_, err1 := peer.QueryString("GET hosts\nColumns: name latency check_command\nLimit: 1\nWaitTrigger: all\nWaitTimeout: 5000\nWaitCondition: state = 99\n\n")
 		if err1 != nil {
 			t.Fatal(err1)
 		}

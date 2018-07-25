@@ -174,11 +174,15 @@ func (req *Request) String() (str string) {
 	}
 	if req.WaitTrigger != "" {
 		str += fmt.Sprintf("WaitTrigger: %s\n", req.WaitTrigger)
+	}
+	if req.WaitObject != "" {
 		str += fmt.Sprintf("WaitObject: %s\n", req.WaitObject)
+	}
+	if req.WaitTimeout > 0 {
 		str += fmt.Sprintf("WaitTimeout: %d\n", req.WaitTimeout)
-		for _, f := range req.WaitCondition {
-			str += f.String("WaitCondition")
-		}
+	}
+	for _, f := range req.WaitCondition {
+		str += f.String("WaitCondition")
 	}
 	for _, s := range req.Sort {
 		str += fmt.Sprintf("Sort: %s %s\n", s.Name, s.Direction.String())
@@ -237,7 +241,6 @@ func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
 		}
 	}
 
-	err = req.VerifyRequestIntegrity()
 	return
 }
 
@@ -277,24 +280,6 @@ func (req *Request) ParseRequestAction(firstLine *string) (valid bool, err error
 	}
 
 	err = fmt.Errorf("bad request: %s", *firstLine)
-	return
-}
-
-// VerifyRequestIntegrity checks for logical errors in the request
-// It returns any error encountered.
-func (req *Request) VerifyRequestIntegrity() (err error) {
-	if req.WaitTrigger != "" {
-		if req.WaitObject == "" {
-			err = errors.New("bad request: WaitTrigger without WaitObject")
-		}
-		if req.WaitTimeout == 0 {
-			err = errors.New("bad request: WaitTrigger without WaitTimeout")
-		}
-		if len(req.WaitCondition) == 0 {
-			err = errors.New("bad request: WaitTrigger without WaitCondition")
-		}
-		return
-	}
 	return
 }
 
@@ -632,6 +617,12 @@ func (req *Request) ParseRequestHeaderLine(line *string) (err error) {
 		return
 	case "waitcondition":
 		err = ParseFilter(matched[1], line, req.Table, &req.WaitCondition)
+		return
+	case "waitconditionand":
+		err = parseStatsOp("and", matched[1], line, req.Table, &req.WaitCondition)
+		return
+	case "waitconditionor":
+		err = parseStatsOp("or", matched[1], line, req.Table, &req.WaitCondition)
 		return
 	case "keepalive":
 		err = parseOnOff(&req.KeepAlive, line, matched[1])

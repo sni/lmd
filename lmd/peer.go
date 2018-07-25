@@ -1916,6 +1916,10 @@ func (p *Peer) GetVirtSubLMDValue(col *ResultColumn) (val interface{}, ok bool) 
 // WaitCondition waits for a given condition.
 // It returns true if the wait timed out or false if the condition matched successfully.
 func (p *Peer) WaitCondition(req *Request) bool {
+	// wait up to one minute if nothing specified
+	if req.WaitTimeout <= 0 {
+		req.WaitTimeout = 60 * 1000
+	}
 	c := make(chan struct{})
 	go func() {
 		// make sure we log panics properly
@@ -1933,7 +1937,8 @@ func (p *Peer) WaitCondition(req *Request) bool {
 				return
 			default:
 			}
-			// waiting for final update
+
+			// waiting for final update to complete
 			if lastUpdate > 0 {
 				curUpdate := p.StatusGet("LastUpdate").(int64)
 				// wait up to WaitTimeout till the update is complete
@@ -1944,24 +1949,38 @@ func (p *Peer) WaitCondition(req *Request) bool {
 				time.Sleep(time.Millisecond * 200)
 				continue
 			}
+
 			// get object to watch
-			var obj []interface{}
-			if req.Table == "hosts" || req.Table == "services" {
+			var found = false
+			if req.WaitObject != "" {
 				p.DataLock.RLock()
-				obj = p.Tables[req.Table].Index[req.WaitObject]
+				obj, ok := p.Tables[req.Table].Index[req.WaitObject]
 				p.DataLock.RUnlock()
-			} else {
-				log.Errorf("unsupported wait table: %s", req.Table)
-				close(c)
-				return
+				if !ok {
+					log.Errorf("WaitObject did not match any object: %s", req.WaitObject)
+					close(c)
+					return
+				}
+
+				found = true
+				for _, f := range req.WaitCondition {
+					if !p.MatchRowFilter(table, &refs, f, &obj, 0) {
+						found = false
+					}
+				}
+			} else if p.waitConditionTableMatches(table, &refs, &req.WaitCondition) {
+				found = true
 			}
-			if p.MatchRowFilter(table, &refs, req.WaitCondition[0], &obj, 0) {
+
+			if found {
 				// trigger update for all, wait conditions are run against the last object
 				// but multiple commands may have been sent
 				p.ScheduleImmediateUpdate()
 				lastUpdate = p.StatusGet("LastUpdate").(int64)
 				continue
 			}
+
+			// nothing matched, update tables
 			time.Sleep(time.Millisecond * 200)
 			if req.Table == "hosts" {
 				p.UpdateDeltaTableHosts("Filter: name = " + req.WaitObject + "\n")
@@ -1973,6 +1992,8 @@ func (p *Peer) WaitCondition(req *Request) bool {
 					return
 				}
 				p.UpdateDeltaTableServices("Filter: host_name = " + tmp[0] + "\nFilter: description = " + tmp[1] + "\n")
+			} else {
+				p.UpdateObjectByType(table)
 			}
 		}
 	}()
@@ -2295,6 +2316,25 @@ Rows:
 	}
 
 	return &localStats
+}
+
+func (p *Peer) waitConditionTableMatches(table *Table, refs *map[string][][]interface{}, filter *[]*Filter) bool {
+	p.DataLock.RLock()
+	defer p.DataLock.RUnlock()
+	data := p.Tables[table.Name].Data
+
+Rows:
+	for j := range data {
+		row := &(data[j])
+		// does our filter match?
+		for _, f := range *filter {
+			if !p.MatchRowFilter(table, refs, f, row, j) {
+				continue Rows
+			}
+		}
+		return true
+	}
+	return false
 }
 
 func createLocalStatsCopy(stats *[]*Filter) []*Filter {

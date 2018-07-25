@@ -25,6 +25,7 @@ type Table struct {
 	PassthroughOnly        bool
 	Virtual                bool
 	GroupBy                bool
+	WaitObject             []string
 }
 
 // UpdateType defines if and how the column is updated.
@@ -387,7 +388,7 @@ func (o *ObjectsType) AddTable(name string, table *Table) {
 
 // NewBackendsTable returns a new backends table
 func NewBackendsTable(name string) (t *Table) {
-	t = &Table{Name: name, Virtual: true}
+	t = &Table{Name: name, Virtual: true, WaitObject: []string{"name"}}
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
 	t.AddColumn("key", RefNoUpdate, VirtCol, "Id of this peer")
@@ -483,7 +484,7 @@ func NewStatusTable() (t *Table) {
 
 // NewTimeperiodsTable returns a new timeperiods table
 func NewTimeperiodsTable() (t *Table) {
-	t = &Table{Name: "timeperiods"}
+	t = &Table{Name: "timeperiods", WaitObject: []string{"name"}}
 	t.AddColumn("alias", StaticUpdate, StringCol, "The alias of the timeperiod")
 	t.AddColumn("name", StaticUpdate, StringCol, "The name of the timeperiod")
 	t.AddColumn("in", DynamicUpdate, IntCol, "Wether we are currently in this period (0/1)")
@@ -498,7 +499,7 @@ func NewTimeperiodsTable() (t *Table) {
 
 // NewContactsTable returns a new contacts table
 func NewContactsTable() (t *Table) {
-	t = &Table{Name: "contacts"}
+	t = &Table{Name: "contacts", WaitObject: []string{"name"}}
 	t.AddColumn("alias", StaticUpdate, StringCol, "The full name of the contact")
 	t.AddColumn("can_submit_commands", StaticUpdate, IntCol, "Wether the contact is allowed to submit commands (0/1)")
 	t.AddColumn("email", StaticUpdate, StringCol, "The email address of the contact")
@@ -519,7 +520,7 @@ func NewContactsTable() (t *Table) {
 
 // NewContactgroupsTable returns a new contactgroups table
 func NewContactgroupsTable() (t *Table) {
-	t = &Table{Name: "contactgroups"}
+	t = &Table{Name: "contactgroups", WaitObject: []string{"name"}}
 	t.AddColumn("alias", StaticUpdate, StringCol, "The alias of the contactgroup")
 	t.AddColumn("members", StaticUpdate, StringListCol, "A list of all members of this contactgroup")
 	t.AddColumn("name", StaticUpdate, StringCol, "The name of the contactgroup")
@@ -533,7 +534,7 @@ func NewContactgroupsTable() (t *Table) {
 
 // NewCommandsTable returns a new commands table
 func NewCommandsTable() (t *Table) {
-	t = &Table{Name: "commands"}
+	t = &Table{Name: "commands", WaitObject: []string{"name"}}
 	t.AddColumn("name", StaticUpdate, StringCol, "The name of the command")
 	t.AddColumn("line", StaticUpdate, StringCol, "The shell command line")
 
@@ -546,7 +547,7 @@ func NewCommandsTable() (t *Table) {
 
 // NewHostsTable returns a new hosts table
 func NewHostsTable() (t *Table) {
-	t = &Table{Name: "hosts"}
+	t = &Table{Name: "hosts", WaitObject: []string{"name"}}
 	t.AddColumn("accept_passive_checks", DynamicUpdate, IntCol, "Whether passive host checks are accepted (0/1)")
 	t.AddColumn("acknowledged", DynamicUpdate, IntCol, "Whether the current host problem has been acknowledged (0/1)")
 	t.AddColumn("action_url", StaticUpdate, StringCol, "An optional URL to custom actions or information about this host")
@@ -658,7 +659,7 @@ func NewHostsTable() (t *Table) {
 
 // NewHostgroupsTable returns a new hostgroups table
 func NewHostgroupsTable() (t *Table) {
-	t = &Table{Name: "hostgroups"}
+	t = &Table{Name: "hostgroups", WaitObject: []string{"name"}}
 	t.AddColumn("action_url", StaticUpdate, StringCol, "An optional URL to custom actions or information about the hostgroup")
 	t.AddColumn("alias", StaticUpdate, StringCol, "An alias of the hostgroup")
 	t.AddColumn("members", StaticUpdate, StringListCol, "A list of all host names that are members of the hostgroup")
@@ -689,7 +690,7 @@ func NewHostgroupsTable() (t *Table) {
 
 // NewServicesTable returns a new services table
 func NewServicesTable() (t *Table) {
-	t = &Table{Name: "services"}
+	t = &Table{Name: "services", WaitObject: []string{"host_name", "description"}}
 	t.AddColumn("accept_passive_checks", DynamicUpdate, IntCol, "Whether the service accepts passive checks (0/1)")
 	t.AddColumn("acknowledged", DynamicUpdate, IntCol, "Whether the current service problem has been acknowledged (0/1)")
 	t.AddColumn("acknowledgement_type", DynamicUpdate, IntCol, "The type of the acknownledgement (0: none, 1: normal, 2: sticky)")
@@ -796,7 +797,7 @@ func NewServicesTable() (t *Table) {
 
 // NewServicegroupsTable returns a new hostgroups table
 func NewServicegroupsTable() (t *Table) {
-	t = &Table{Name: "servicegroups"}
+	t = &Table{Name: "servicegroups", WaitObject: []string{"name"}}
 	t.AddColumn("action_url", StaticUpdate, StringCol, "An optional URL to custom notes or actions on the service group")
 	t.AddColumn("alias", StaticUpdate, StringCol, "An alias of the service group")
 	t.AddColumn("members", StaticUpdate, StringListCol, "A list of all members of the service group as host/service pairs")
@@ -821,7 +822,7 @@ func NewServicegroupsTable() (t *Table) {
 
 // NewCommentsTable returns a new comments table
 func NewCommentsTable() (t *Table) {
-	t = &Table{Name: "comments"}
+	t = &Table{Name: "comments", WaitObject: []string{"id"}}
 	t.AddColumn("author", StaticUpdate, StringCol, "The contact that entered the comment")
 	t.AddColumn("comment", StaticUpdate, StringCol, "A comment text")
 	t.AddColumn("entry_time", StaticUpdate, IntCol, "The time the entry was made as UNIX timestamp")
@@ -847,7 +848,7 @@ func NewCommentsTable() (t *Table) {
 
 // NewDowntimesTable returns a new downtimes table
 func NewDowntimesTable() (t *Table) {
-	t = &Table{Name: "downtimes"}
+	t = &Table{Name: "downtimes", WaitObject: []string{"id"}}
 	t.AddColumn("author", StaticUpdate, StringCol, "The contact that scheduled the downtime")
 	t.AddColumn("comment", StaticUpdate, StringCol, "A comment text")
 	t.AddColumn("duration", StaticUpdate, IntCol, "The duration of the downtime in seconds")
