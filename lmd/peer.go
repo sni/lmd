@@ -1972,6 +1972,11 @@ func (p *Peer) WaitCondition(req *Request) bool {
 				found = true
 			}
 
+			// invert wait condition logic
+			if req.WaitConditionNegate {
+				found = !found
+			}
+
 			if found {
 				// trigger update for all, wait conditions are run against the last object
 				// but multiple commands may have been sent

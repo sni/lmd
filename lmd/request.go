@@ -16,29 +16,30 @@ import (
 
 // Request defines a livestatus request object.
 type Request struct {
-	noCopy            noCopy
-	Table             string
-	Command           string
-	Columns           []string
-	Filter            []*Filter
-	FilterStr         string
-	Stats             []*Filter
-	StatsResult       map[string][]*Filter
-	Limit             int
-	Offset            int
-	Sort              []*SortField
-	ResponseFixed16   bool
-	OutputFormat      string
-	Backends          []string
-	BackendsMap       map[string]string
-	BackendErrors     map[string]string
-	SendColumnsHeader bool
-	SendStatsData     bool
-	WaitTimeout       int
-	WaitTrigger       string
-	WaitCondition     []*Filter
-	WaitObject        string
-	KeepAlive         bool
+	noCopy              noCopy
+	Table               string
+	Command             string
+	Columns             []string
+	Filter              []*Filter
+	FilterStr           string
+	Stats               []*Filter
+	StatsResult         map[string][]*Filter
+	Limit               int
+	Offset              int
+	Sort                []*SortField
+	ResponseFixed16     bool
+	OutputFormat        string
+	Backends            []string
+	BackendsMap         map[string]string
+	BackendErrors       map[string]string
+	SendColumnsHeader   bool
+	SendStatsData       bool
+	WaitTimeout         int
+	WaitTrigger         string
+	WaitCondition       []*Filter
+	WaitObject          string
+	WaitConditionNegate bool
+	KeepAlive           bool
 }
 
 // SortDirection can be either Asc or Desc
@@ -180,6 +181,9 @@ func (req *Request) String() (str string) {
 	}
 	if req.WaitTimeout > 0 {
 		str += fmt.Sprintf("WaitTimeout: %d\n", req.WaitTimeout)
+	}
+	if req.WaitConditionNegate {
+		str += fmt.Sprintf("WaitConditionNegate\n")
 	}
 	for _, f := range req.WaitCondition {
 		str += f.String("WaitCondition")
@@ -623,6 +627,9 @@ func (req *Request) ParseRequestHeaderLine(line *string) (err error) {
 		return
 	case "waitconditionor":
 		err = parseStatsOp("or", matched[1], line, req.Table, &req.WaitCondition)
+		return
+	case "waitconditionnegate":
+		req.WaitConditionNegate = true
 		return
 	case "keepalive":
 		err = parseOnOff(&req.KeepAlive, line, matched[1])
