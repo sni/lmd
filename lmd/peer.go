@@ -955,7 +955,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 		_, ok := idIndex[id]
 		if !ok {
 			log.Debugf("adding %s with id %s", name, id)
-			id64, _ := strconv.ParseInt(id, 0, 64)
+			id64 := int64((*resRow)[0].(float64))
 			missingIds = append(missingIds, id64)
 		}
 		resIndex[id] = true
