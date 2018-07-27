@@ -217,11 +217,14 @@ func (t *Table) GetInitialKeys(flags OptionalFlags) (keys []string) {
 
 // GetDynamicColumns returns a list of all dynamic columns along with their indexes.
 func (t *Table) GetDynamicColumns(flags OptionalFlags) (keys []string, indexes []int) {
+	offset := 0
 	for _, col := range t.Columns {
 		if col.Update == DynamicUpdate {
 			if col.Optional == NoFlags || flags&col.Optional != 0 {
 				keys = append(keys, col.Name)
-				indexes = append(indexes, col.Index)
+				indexes = append(indexes, col.Index-offset)
+			} else {
+				offset++
 			}
 		}
 	}
