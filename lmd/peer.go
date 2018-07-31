@@ -1412,6 +1412,7 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 				refs[fieldName][i] = refByName[key]
 				if refByName[key] == nil {
 					err = fmt.Errorf("%s '%s' ref not found from table %s, refmap contains %d elements", refCol.Name, row[refCol.RefIndex].(string), table.Name, len(refByName))
+					p.DataLock.RUnlock()
 					return
 				}
 			}
@@ -1421,6 +1422,7 @@ func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
 				refs[fieldName][i] = refByName[row[refCol.RefIndex].(string)]
 				if refByName[row[refCol.RefIndex].(string)] == nil {
 					err = fmt.Errorf("%s '%s' ref not found from table %s, refmap contains %d elements", refCol.Name, row[refCol.RefIndex].(string), table.Name, len(refByName))
+					p.DataLock.RUnlock()
 					return
 				}
 			}
