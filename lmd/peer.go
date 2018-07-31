@@ -891,7 +891,7 @@ func (p *Peer) getMissingTimestamps(table *Table, req *Request, res *[][]interfa
 	for i := range *res {
 		row := &(*res)[i]
 		for j, index := range indexList {
-			if (*row)[j].(float64) != data[i][index].(float64) {
+			if (*row)[j] != data[i][index] {
 				missing[(*row)[0].(float64)] = true
 				break
 			}
