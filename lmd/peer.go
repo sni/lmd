@@ -993,6 +993,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 			return
 		}
 		p.DataLock.Lock()
+		idIndex := p.Tables[table.Name].Index // update, might have changed meanwhile
 		data := p.Tables[table.Name]
 		for i := range res {
 			resRow := res[i]
