@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -496,14 +497,23 @@ func (res *Response) JSON() ([]byte, error) {
 
 	// enable header row for regular requests, not for stats requests
 	isStatsRequest := len(res.Request.Stats) != 0
-	sendColumnsHeader := res.Request.SendColumnsHeader && !isStatsRequest
+	sendColumnsHeader := res.Request.SendColumnsHeader
 
 	buf.Write([]byte("["))
 	// add optional columns header as first row
-	cols := make([]interface{}, len(res.Request.Columns))
+	cols := make([]interface{}, len(res.Request.Columns)+len(res.Request.Stats))
 	if sendColumnsHeader {
 		for i, v := range res.Request.Columns {
 			cols[i] = v
+		}
+		if isStatsRequest {
+			for i := range res.Request.Stats {
+				index := i + len(res.Request.Columns)
+				var buffer bytes.Buffer
+				buffer.WriteString("stats_")
+				buffer.WriteString(strconv.Itoa(i + 1))
+				cols[index] = buffer.String()
+			}
 		}
 		err := enc.Encode(cols)
 		if err != nil {
@@ -539,14 +549,24 @@ func (res *Response) WrappedJSON() ([]byte, error) {
 
 	// enable header row for regular requests, not for stats requests
 	isStatsRequest := len(res.Request.Stats) != 0
-	sendColumnsHeader := res.Request.SendColumnsHeader && !isStatsRequest
+	sendColumnsHeader := res.Request.SendColumnsHeader
 
 	buf.Write([]byte("["))
 	// add optional columns header as first row
-	cols := make([]interface{}, len(res.Request.Columns))
+	cols := make([]interface{}, len(res.Request.Columns)+len(res.Request.Stats))
 	if sendColumnsHeader {
 		for i, v := range res.Request.Columns {
 			cols[i] = v
+		}
+
+		if isStatsRequest {
+			for i := range res.Request.Stats {
+				index := i + len(res.Request.Columns)
+				var buffer bytes.Buffer
+				buffer.WriteString("stats_")
+				buffer.WriteString(strconv.Itoa(i + 1))
+				cols[index] = buffer.String()
+			}
 		}
 	}
 	// append result row by row
