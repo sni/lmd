@@ -1,5 +1,8 @@
 This file documents the revision history for the Livestatus Multitool Daemon
 
+next:
+          - support regular expressions in list filter context, ex.: GET hosts\nFilter: groups ~~ name
+
 1.3.3    Wed Jul 25 13:29:58 CEST 2018
           - support WaitConditionAnd and WaitConditionOr
           - support WaitConditionNegate
