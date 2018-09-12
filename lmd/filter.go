@@ -611,6 +611,26 @@ func matchStringListFilter(filter *Filter, value *interface{}) bool {
 			}
 		}
 		return true
+	case RegexMatch:
+		fallthrough
+	case RegexNoCaseMatch:
+		for i := 0; i < listLen; i++ {
+			listVal := list.Index(i).Interface()
+			if matchStringValueOperator(filter.Operator, &listVal, &filter.StrValue, filter.Regexp) {
+				return true
+			}
+		}
+		return false
+	case RegexMatchNot:
+		fallthrough
+	case RegexNoCaseMatchNot:
+		for i := 0; i < listLen; i++ {
+			listVal := list.Index(i).Interface()
+			if matchStringValueOperator(filter.Operator, &listVal, &filter.StrValue, filter.Regexp) {
+				return false
+			}
+		}
+		return true
 	}
 	log.Warnf("not implemented op: %v", filter.Operator)
 	return false
