@@ -2168,9 +2168,6 @@ func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (int, *[][]
 	req := res.Request
 	numPerRow := len(*indexes)
 	log.Tracef("BuildLocalResponseData: %s", p.Name)
-	p.DataLock.RLock()
-	table := p.Tables[req.Table].Table
-	p.DataLock.RUnlock()
 
 	// if a WaitTrigger is supplied, wait max ms till the condition is true
 	if req.WaitTrigger != "" {
@@ -2180,6 +2177,7 @@ func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (int, *[][]
 	p.DataLock.RLock()
 	defer p.DataLock.RUnlock()
 	data := p.Tables[req.Table].Data
+	table := p.Tables[req.Table].Table
 
 	// get data for special tables
 	if table.Name == "tables" || table.Name == "columns" {
