@@ -550,10 +550,10 @@ func (p *Peer) InitAllTables() bool {
 			return false
 		}
 		if t.Name == "status" {
-			// this may happen if we query another lmd daemon which has no backends ready yet
 			p.DataLock.RLock()
 			hasStatus := len(p.Tables["status"].Data) > 0
 			p.DataLock.RUnlock()
+			// this may happen if we query another lmd daemon which has no backends ready yet
 			if !hasStatus {
 				p.PeerLock.Lock()
 				p.Status["PeerStatus"] = PeerStatusDown
@@ -993,8 +993,11 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 			return
 		}
 		p.DataLock.Lock()
-		idIndex := p.Tables[table.Name].Index // update, might have changed meanwhile
 		data := p.Tables[table.Name]
+		idIndex := data.Index // update, might have changed meanwhile
+		if idIndex == nil {
+			log.Panicf("got null index")
+		}
 		for i := range res {
 			resRow := res[i]
 			id := fmt.Sprintf("%v", resRow[fieldIndex])
@@ -1664,7 +1667,7 @@ func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error
 	data := p.Tables[table.Name].Data
 	p.DataLock.RUnlock()
 	if len(res) != len(data) {
-		log.Debugf("[%s] site returned different number of objects, assuming backend has been restarted", p.Name)
+		log.Debugf("[%s] site returned different number of objects, assuming backend has been restarted, table: %s, expected: %d, received: %d", p.Name, table.Name, len(data), len(res))
 		restartRequired = true
 		return
 	}
