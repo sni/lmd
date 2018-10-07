@@ -98,8 +98,14 @@ const (
 	// LMD flag is set if the remote site is a LMD backend.
 	LMD = 1 << iota
 
+	// MultiBackend flag is set if the remote connection returns more than one site
+	MultiBackend
+
 	// LMDSub is a sub peer from within a remote LMD connection
 	LMDSub
+
+	// HTTPSub is a sub peer from within a remote HTTP connection (MultiBackend)
+	HTTPSub
 
 	// Shinken flag is set if the remote site is a shinken installation.
 	Shinken

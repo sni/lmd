@@ -601,7 +601,7 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 		PeerMapLock.RLock()
 		p := PeerMap[id]
 		PeerMapLock.RUnlock()
-		if p.Flags&LMD == LMD {
+		if p.Flags&MultiBackend == MultiBackend {
 			continue
 		}
 		p.DataLock.RLock()

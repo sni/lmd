@@ -321,6 +321,8 @@ func (p *Peer) updateLoop() {
 		case <-ticker.C:
 			if p.Flags&LMD == LMD {
 				p.periodicUpdateLMD(&ok)
+			} else if p.Flags&MultiBackend == MultiBackend {
+				p.periodicUpdateMultiBackends(&ok)
 			} else {
 				p.periodicUpdate(&ok, &lastTimeperiodUpdateMinute)
 			}
@@ -395,6 +397,7 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 }
 
 // periodicUpdateLMD runs the periodic updates from the update loop for LMD backends
+// it fetches the sites table and creates and updates LMDSub backends for them
 func (p *Peer) periodicUpdateLMD(ok *bool) {
 	p.PeerLock.RLock()
 	lastUpdate := p.Status["LastUpdate"].(int64)
@@ -405,6 +408,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool) {
 		return
 	}
 
+	// check main connection and update status table
 	*ok = p.UpdateAllTables()
 
 	// set last update timestamp, otherwise we would retry the connection every 500ms instead
@@ -435,7 +439,9 @@ func (p *Peer) periodicUpdateLMD(ok *bool) {
 		existing[subID] = true
 		subName := p.Name + "/" + rowHash["name"].(string)
 		subPeer, ok := PeerMap[subID]
-		if !ok {
+		if ok {
+			log.Debugf("[%s] already got a sub peer for id %s", p.Name, subID)
+		} else {
 			log.Debugf("[%s] starting sub peer for %s", p.Name, subName)
 			c := Connection{ID: subID, Name: subName, Source: p.Source}
 			subPeer = NewPeer(p.LocalConfig, &c, p.waitGroup, p.shutdownChannel)
@@ -455,7 +461,10 @@ func (p *Peer) periodicUpdateLMD(ok *bool) {
 			}
 			res, err := subPeer.query(req)
 			if err == nil {
-				subPeer.StatusSet("Section", res[0][0].(string))
+				section := res[0][0].(string)
+				section = strings.TrimPrefix(section, "Default")
+				section = strings.TrimPrefix(section, "/")
+				subPeer.StatusSet("Section", section)
 			}
 
 			subPeer.Start()
@@ -465,6 +474,101 @@ func (p *Peer) periodicUpdateLMD(ok *bool) {
 		subPeer.PeerLock.Lock()
 		subPeer.Status["SubPeerStatus"] = rowHash
 		subPeer.PeerLock.Unlock()
+	}
+	PeerMapLock.Unlock()
+
+	// remove exceeding peers
+	removed := 0
+	PeerMapLock.Lock()
+	for id, peer := range PeerMap {
+		if peer.ParentID == p.ID {
+			if _, ok := existing[id]; !ok {
+				log.Debugf("[%s] removing sub peer", peer.Name)
+				peer.Stop()
+				peer.Clear()
+				PeerMapRemove(id)
+				removed++
+			}
+		}
+	}
+	PeerMapLock.Unlock()
+}
+
+// periodicUpdateMultiBackends runs the periodic updates from the update loop for multi backends
+// it fetches the all sites and creates and updates HTTPSub backends for them
+func (p *Peer) periodicUpdateMultiBackends(ok *bool) {
+	p.PeerLock.RLock()
+	lastUpdate := p.Status["LastUpdate"].(int64)
+	p.PeerLock.RUnlock()
+
+	now := time.Now().Unix()
+	if now < lastUpdate+p.LocalConfig.Updateinterval {
+		return
+	}
+
+	// check main connection and update status table
+	*ok = p.UpdateAllTables()
+
+	sites, err := p.fetchRemotePeers()
+	if err != nil {
+		log.Infof("[%s] failed to fetch sites information: %s", p.Name, err.Error())
+		*ok = false
+		return
+	}
+
+	// set last update timestamp, otherwise we would retry the connection every 500ms instead
+	// of the update interval
+	p.StatusSet("LastUpdate", time.Now().Unix())
+
+	// check if we need to start/stop peers
+	log.Debugf("[%s] checking for changed remote multi backends", p.Name)
+	existing := make(map[string]bool)
+	PeerMapLock.Lock()
+	for _, siteRow := range sites {
+		var site map[string]interface{}
+		if s, ok := siteRow.(map[string]interface{}); ok {
+			site = s
+		} else {
+			continue
+		}
+		subID := site["id"].(string)
+		existing[subID] = true
+		subName := site["name"].(string)
+		subPeer, ok := PeerMap[subID]
+		if ok {
+			log.Debugf("[%s] already got a sub peer for id %s", p.Name, subID)
+		} else {
+			log.Debugf("[%s] starting sub peer for %s", p.Name, subName)
+			c := Connection{
+				ID:             subID,
+				Name:           subName,
+				Source:         p.Source,
+				RemoteName:     site["name"].(string),
+				TLSCertificate: p.Config.TLSCertificate,
+				TLSKey:         p.Config.TLSKey,
+				TLSCA:          p.Config.TLSCA,
+				TLSSkipVerify:  p.Config.TLSSkipVerify,
+				Auth:           p.Config.Auth,
+			}
+			subPeer = NewPeer(p.LocalConfig, &c, p.waitGroup, p.shutdownChannel)
+			subPeer.ParentID = p.ID
+			subPeer.Flags |= HTTPSub
+			subPeer.StatusSet("PeerParent", p.ID)
+			PeerMap[subID] = subPeer
+			PeerMapOrder = append(PeerMapOrder, c.ID)
+			section := site["section"].(string)
+			section = strings.TrimPrefix(section, "Default")
+			section = strings.TrimPrefix(section, "/")
+			subPeer.StatusSet("Section", section)
+
+			subPeer.Start()
+		}
+
+		// TODO: check
+		// update flags for existing sub peers
+		//subPeer.PeerLock.Lock()
+		//subPeer.Status["SubPeerStatus"] = site
+		//subPeer.PeerLock.Unlock()
 	}
 	PeerMapLock.Unlock()
 
@@ -539,7 +643,7 @@ func (p *Peer) InitAllTables() bool {
 	t1 := time.Now()
 	for _, n := range Objects.Order {
 		t := Objects.Tables[n]
-		if p.Flags&LMD == LMD && t.Name != "status" {
+		if p.Flags&MultiBackend == MultiBackend && t.Name != "status" {
 			// just create empty data pools
 			// real data is handled by separate peers
 			continue
@@ -563,16 +667,23 @@ func (p *Peer) InitAllTables() bool {
 				return false
 			}
 
+			// if its http and a status request, try a processinfo query to fetch all backends
+			if t.Name == "status" && p.Config.RemoteName == "" {
+				p.fetchRemotePeers()
+			}
+
 			p.checkStatusFlags(t)
 
-			// check thruk config tool settings
-			configtool, _ := p.fetchConfigTool()
-			if configtool != nil {
-				p.StatusSet("ConfigTool", configtool)
-			} else {
-				p.PeerLock.Lock()
-				delete(p.Status, "ConfigTool")
-				p.PeerLock.Unlock()
+			if p.Flags&MultiBackend != MultiBackend {
+				// check thruk config tool settings
+				configtool, _ := p.fetchConfigTool()
+				if configtool != nil {
+					p.StatusSet("ConfigTool", configtool)
+				} else {
+					p.PeerLock.Lock()
+					delete(p.Status, "ConfigTool")
+					p.PeerLock.Unlock()
+				}
 			}
 		}
 	}
@@ -637,7 +748,8 @@ func (p *Peer) UpdateAllTables() bool {
 		return p.InitAllTables()
 	}
 	duration := time.Since(t1)
-	if p.StatusGet("PeerStatus").(PeerStatus) != PeerStatusUp {
+	peerStatus := p.StatusGet("PeerStatus").(PeerStatus)
+	if peerStatus != PeerStatusUp && peerStatus != PeerStatusPending {
 		log.Infof("[%s] site soft recovered from short outage", p.Name)
 	}
 	p.resetErrors()
@@ -685,7 +797,8 @@ func (p *Peer) UpdateDeltaTables() bool {
 		return false
 	}
 	log.Debugf("[%s] delta update complete in: %s", p.Name, duration.String())
-	if p.StatusGet("PeerStatus").(PeerStatus) != PeerStatusUp {
+	peerStatus := p.StatusGet("PeerStatus").(PeerStatus)
+	if peerStatus != PeerStatusUp && peerStatus != PeerStatusPending {
 		log.Infof("[%s] site soft recovered from short outage", p.Name)
 	}
 	p.resetErrors()
@@ -1510,16 +1623,24 @@ func (p *Peer) checkStatusFlags(table *Table) {
 			p.Flags |= Shinken
 		}
 	} else if len(data) > 1 {
-		// getting more than one status is a sure sign for a LMD backend
-		if p.Flags&LMD != LMD {
-			log.Debugf("[%s] remote connection LMD flag set", p.Name)
-			p.Flags |= LMD
+		// getting more than one status sets the multibackend flag
+		if p.Flags&MultiBackend != MultiBackend {
+			log.Infof("[%s] remote connection MultiBackend flag set, got %d sites", p.Name, len(data))
+			p.Flags |= MultiBackend
+			// if its no http connection, then it must be LMD
+			if !strings.HasPrefix(p.Status["PeerAddr"].(string), "http") {
+				p.Flags |= LMD
+			}
 			p.PeerLock.Unlock()
 			p.DataLock.RUnlock()
 			// force immediate update to fetch all sites
 			p.StatusSet("LastUpdate", time.Now().Unix()-p.LocalConfig.Updateinterval)
 			ok := true
-			p.periodicUpdateLMD(&ok)
+			if p.Flags&LMD != LMD {
+				p.periodicUpdateLMD(&ok)
+			} else {
+				p.periodicUpdateMultiBackends(&ok)
+			}
 			return
 		}
 	} else if len(reIcinga2Version.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))) > 0 {
@@ -1586,6 +1707,47 @@ func (p *Peer) fetchConfigToolFromAddr(peerAddr string) (conf map[string]interfa
 		}
 	} else {
 		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %v", result), kind: ResponseError}
+	}
+	return
+}
+
+func (p *Peer) fetchRemotePeers() (sites []interface{}, err error) {
+	// no http client is a sure sign for no http connection
+	if p.HTTPClient == nil {
+		return
+	}
+	// try all http connections and use first working connection
+	for _, addr := range p.Config.Source {
+		if strings.HasPrefix(addr, "http") {
+			sites, err = p.fetchRemotePeersFromAddr(addr)
+			if sites != nil && len(sites) > 1 {
+				if p.Flags&MultiBackend != MultiBackend {
+					p.PeerLock.Lock()
+					log.Infof("[%s] remote connection MultiBackend flag set, got %d sites", p.Name, len(sites))
+					p.Flags |= MultiBackend
+					p.PeerLock.Unlock()
+					ok := true
+					p.periodicUpdateMultiBackends(&ok)
+				}
+				return
+			}
+		}
+	}
+	return
+}
+
+func (p *Peer) fetchRemotePeersFromAddr(peerAddr string) (sites []interface{}, err error) {
+	if !strings.HasPrefix(peerAddr, "http") {
+		return
+	}
+	data, res, err := p.HTTPRestQuery(peerAddr, "/thruk/r/v1/sites")
+	if err != nil {
+		return
+	}
+	if s, ok := data.([]interface{}); ok {
+		sites = s
+	} else {
+		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %v", res), kind: ResponseError}
 	}
 	return
 }
@@ -1705,7 +1867,7 @@ func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error
 		promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(res)))
 	case "status":
 		p.checkStatusFlags(table)
-		if p.Flags&LMD != LMD && len(data) >= 1 && p.StatusGet("ProgramStart") != data[0][table.ColumnsIndex["program_start"]] {
+		if p.Flags&MultiBackend != MultiBackend && len(data) >= 1 && p.StatusGet("ProgramStart") != data[0][table.ColumnsIndex["program_start"]] {
 			log.Infof("[%s] site has been restarted, recreating objects", p.Name)
 			restartRequired = true
 		}
@@ -1725,7 +1887,7 @@ func (p *Peer) skipTableUpdate(table *Table) bool {
 	if table.PassthroughOnly {
 		return true
 	}
-	if p.Flags&LMD == LMD && table.Name != "status" {
+	if p.Flags&MultiBackend == MultiBackend && table.Name != "status" {
 		return true
 	}
 	return false
@@ -2066,7 +2228,7 @@ func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) 
 }
 
 // HTTPPostQuery returns response array from thruk api
-func (p *Peer) HTTPPostQuery(peerAddr string, postData url.Values) (output []interface{}, result *HTTPResult, err error) {
+func (p *Peer) HTTPPostQueryResult(peerAddr string, postData url.Values) (result *HTTPResult, err error) {
 	p.HTTPClient.Timeout = time.Duration(p.LocalConfig.NetTimeout) * time.Second
 	response, err := p.HTTPClient.PostForm(completePeerHTTPAddr(peerAddr), postData)
 	if err != nil {
@@ -2090,11 +2252,19 @@ func (p *Peer) HTTPPostQuery(peerAddr string, postData url.Values) (output []int
 	}
 	if result.Rc != 0 {
 		err = &PeerError{msg: fmt.Sprintf("remote site returned rc: %d - %s", result.Rc, result.Output), kind: ResponseError}
+	}
+	return
+}
+
+// HTTPPostQuery returns response array from thruk api
+func (p *Peer) HTTPPostQuery(peerAddr string, postData url.Values) (output []interface{}, result *HTTPResult, err error) {
+	result, err = p.HTTPPostQueryResult(peerAddr, postData)
+	if err != nil {
 		return
 	}
-
 	err = json.Unmarshal(result.Output, &output)
 	if err != nil {
+		log.Panicf(err.Error())
 		return
 	}
 	remoteError := ""
@@ -2112,6 +2282,31 @@ func (p *Peer) HTTPPostQuery(peerAddr string, postData url.Values) (output []int
 			}
 			return
 		}
+	}
+	return
+}
+
+// HTTPRestQuery returns rest response from thruk api
+func (p *Peer) HTTPRestQuery(peerAddr string, uri string) (output interface{}, result *HTTPResult, err error) {
+	options := make(map[string]interface{})
+	options["action"] = "url"
+	options["commandoptions"] = []string{uri}
+	optionStr, _ := json.Marshal(options)
+	result, err = p.HTTPPostQueryResult(peerAddr, url.Values{
+		"data": {fmt.Sprintf("{\"credential\": \"%s\", \"options\": %s}", p.Config.Auth, optionStr)},
+	})
+	if err != nil {
+		return
+	}
+	// TODO: avoid double Unmarshal
+	var str string
+	err = json.Unmarshal(result.Output, &str)
+	if err != nil {
+		return
+	}
+	err = json.Unmarshal([]byte(str), &output)
+	if err != nil {
+		return
 	}
 	return
 }
@@ -2445,6 +2640,13 @@ func completePeerHTTPAddr(addr string) string {
 		return addr + "thruk/cgi-bin/remote.cgi"
 	}
 	return addr + "/thruk/cgi-bin/remote.cgi"
+}
+
+// completePeerHTTPAddrUrl returns autocompleted address for peer with given url
+func completePeerHTTPAddrUrl(addr string, url string) string {
+	addr = completePeerHTTPAddr(addr)
+	addr = strings.TrimSuffix(addr, "/thruk/cgi-bin/remote.cgi")
+	return (addr + url)
 }
 
 func (p *Peer) setBroken(details string) {
