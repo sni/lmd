@@ -440,7 +440,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool) {
 		subName := p.Name + "/" + rowHash["name"].(string)
 		subPeer, ok := PeerMap[subID]
 		if ok {
-			log.Debugf("[%s] already got a sub peer for id %s", p.Name, subID)
+			log.Tracef("[%s] already got a sub peer for id %s", p.Name, subID)
 		} else {
 			log.Debugf("[%s] starting sub peer for %s", p.Name, subName)
 			c := Connection{ID: subID, Name: subName, Source: p.Source}
@@ -536,7 +536,7 @@ func (p *Peer) periodicUpdateMultiBackends(ok *bool) {
 		subName := site["name"].(string)
 		subPeer, ok := PeerMap[subID]
 		if ok {
-			log.Debugf("[%s] already got a sub peer for id %s", p.Name, subID)
+			log.Tracef("[%s] already got a sub peer for id %s", p.Name, subID)
 		} else {
 			log.Debugf("[%s] starting sub peer for %s", p.Name, subName)
 			c := Connection{
@@ -1682,11 +1682,11 @@ func (p *Peer) fetchConfigToolFromAddr(peerAddr string) (conf map[string]interfa
 		return
 	}
 	options := make(map[string]interface{})
-	if p.Config.RemoteName != "" {
-		options["remote_name"] = []string{p.Config.RemoteName}
-	}
 	options["action"] = "raw"
 	options["sub"] = "get_processinfo"
+	if p.Config.RemoteName != "" {
+		options["remote_name"] = p.Config.RemoteName
+	}
 	optionStr, _ := json.Marshal(options)
 	output, result, err := p.HTTPPostQuery(peerAddr, url.Values{
 		"data": {fmt.Sprintf("{\"credential\": \"%s\", \"options\": %s}", p.Config.Auth, optionStr)},
@@ -2210,6 +2210,9 @@ func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) 
 	}
 	options["action"] = "raw"
 	options["sub"] = "_raw_query"
+	if p.Config.RemoteName != "" {
+		options["remote_name"] = p.Config.RemoteName
+	}
 	options["args"] = []string{strings.TrimSpace(query) + "\n"}
 	optionStr, _ := json.Marshal(options)
 
@@ -2227,7 +2230,7 @@ func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) 
 	return
 }
 
-// HTTPPostQuery returns response array from thruk api
+// HTTPPostQueryResult returns response array from thruk api
 func (p *Peer) HTTPPostQueryResult(peerAddr string, postData url.Values) (result *HTTPResult, err error) {
 	p.HTTPClient.Timeout = time.Duration(p.LocalConfig.NetTimeout) * time.Second
 	response, err := p.HTTPClient.PostForm(completePeerHTTPAddr(peerAddr), postData)
