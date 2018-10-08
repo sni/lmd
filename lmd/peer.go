@@ -2237,10 +2237,8 @@ func (p *Peer) HTTPPostQueryResult(peerAddr string, postData url.Values, headers
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	if headers != nil {
-		for k, v := range headers {
-			req.Header.Set(k, v)
-		}
+	for k, v := range headers {
+		req.Header.Set(k, v)
 	}
 	response, err := p.HTTPClient.Do(req)
 	if err != nil {
