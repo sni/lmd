@@ -193,6 +193,7 @@ func NewPeer(LocalConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 	p.Status["PeerParent"] = ""
 	p.Status["LastColumns"] = []string{}
 	p.Status["LastTotalCount"] = int64(0)
+	p.Status["ThrukVersion"] = float64(0)
 
 	/* initialize http client if there are any http(s) connections */
 	hasHTTP := false
@@ -1711,6 +1712,9 @@ func (p *Peer) fetchRemotePeers() (sites []interface{}, err error) {
 	if p.HTTPClient == nil {
 		return
 	}
+	if p.StatusGet("ThrukVersion").(float64) < 2.23 {
+		return
+	}
 	// try all http connections and use first working connection
 	for _, addr := range p.Config.Source {
 		if strings.HasPrefix(addr, "http") {
@@ -2211,9 +2215,14 @@ func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) 
 	options["args"] = []string{strings.TrimSpace(query) + "\n"}
 	optionStr, _ := json.Marshal(options)
 
+	headers := make(map[string]string)
+	if p.StatusGet("ThrukVersion").(float64) >= 2.23 {
+		headers["Accept"] = "application/livestatus"
+	}
+
 	output, result, err := p.HTTPPostQuery(peerAddr, url.Values{
 		"data": {fmt.Sprintf("{\"credential\": \"%s\", \"options\": %s}", p.Config.Auth, optionStr)},
-	}, map[string]string{"Accept": "application/livestatus"})
+	}, headers)
 	if err != nil {
 		return
 	}
@@ -2279,6 +2288,12 @@ func (p *Peer) HTTPPostQuery(peerAddr string, postData url.Values, headers map[s
 	result, err = p.HTTPPostQueryResult(peerAddr, postData, headers)
 	if err != nil {
 		return
+	}
+	if result.Version != "" {
+		thrukVersion, e := strconv.ParseFloat(result.Version, 64)
+		if e == nil {
+			p.StatusSet("ThrukVersion", thrukVersion)
+		}
 	}
 	if result.Raw != nil {
 		return
@@ -2671,6 +2686,7 @@ func (p *Peer) setBroken(details string) {
 	p.PeerLock.Lock()
 	p.Status["PeerStatus"] = PeerStatusBroken
 	p.Status["LastError"] = "broken: " + details
+	p.Status["ThrukVersion"] = float64(0)
 	p.PeerLock.Unlock()
 	p.Clear()
 }
