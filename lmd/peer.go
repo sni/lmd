@@ -563,12 +563,6 @@ func (p *Peer) periodicUpdateMultiBackends(ok *bool) {
 
 			subPeer.Start()
 		}
-
-		// TODO: check
-		// update flags for existing sub peers
-		//subPeer.PeerLock.Lock()
-		//subPeer.Status["SubPeerStatus"] = site
-		//subPeer.PeerLock.Unlock()
 	}
 	PeerMapLock.Unlock()
 
@@ -1720,7 +1714,7 @@ func (p *Peer) fetchRemotePeers() (sites []interface{}, err error) {
 	for _, addr := range p.Config.Source {
 		if strings.HasPrefix(addr, "http") {
 			sites, err = p.fetchRemotePeersFromAddr(addr)
-			if sites != nil && len(sites) > 1 {
+			if err == nil && len(sites) > 1 {
 				if p.Flags&MultiBackend != MultiBackend {
 					p.PeerLock.Lock()
 					log.Infof("[%s] remote connection MultiBackend flag set, got %d sites", p.Name, len(sites))
@@ -2301,7 +2295,6 @@ func (p *Peer) HTTPRestQuery(peerAddr string, uri string) (output interface{}, r
 	if err != nil {
 		return
 	}
-	// TODO: avoid double Unmarshal
 	var str string
 	err = json.Unmarshal(result.Output, &str)
 	if err != nil {
@@ -2643,13 +2636,6 @@ func completePeerHTTPAddr(addr string) string {
 		return addr + "thruk/cgi-bin/remote.cgi"
 	}
 	return addr + "/thruk/cgi-bin/remote.cgi"
-}
-
-// completePeerHTTPAddrUrl returns autocompleted address for peer with given url
-func completePeerHTTPAddrUrl(addr string, url string) string {
-	addr = completePeerHTTPAddr(addr)
-	addr = strings.TrimSuffix(addr, "/thruk/cgi-bin/remote.cgi")
-	return (addr + url)
 }
 
 func (p *Peer) setBroken(details string) {
