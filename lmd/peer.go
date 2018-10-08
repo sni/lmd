@@ -104,6 +104,7 @@ type HTTPResult struct {
 	Version string
 	Branch  string
 	Output  json.RawMessage
+	Raw     []byte
 }
 
 // PeerError is a custom error to distinguish between connection and response errors.
@@ -1684,7 +1685,7 @@ func (p *Peer) fetchConfigToolFromAddr(peerAddr string) (conf map[string]interfa
 	optionStr, _ := json.Marshal(options)
 	output, result, err := p.HTTPPostQuery(peerAddr, url.Values{
 		"data": {fmt.Sprintf("{\"credential\": \"%s\", \"options\": %s}", p.Config.Auth, optionStr)},
-	})
+	}, nil)
 	if err != nil {
 		return
 	}
@@ -2212,8 +2213,12 @@ func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) 
 
 	output, result, err := p.HTTPPostQuery(peerAddr, url.Values{
 		"data": {fmt.Sprintf("{\"credential\": \"%s\", \"options\": %s}", p.Config.Auth, optionStr)},
-	})
+	}, map[string]string{"Accept": "application/livestatus"})
 	if err != nil {
+		return
+	}
+	if result.Raw != nil {
+		res = result.Raw
 		return
 	}
 	if v, ok := output[2].(string); ok {
@@ -2225,9 +2230,19 @@ func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) 
 }
 
 // HTTPPostQueryResult returns response array from thruk api
-func (p *Peer) HTTPPostQueryResult(peerAddr string, postData url.Values) (result *HTTPResult, err error) {
+func (p *Peer) HTTPPostQueryResult(peerAddr string, postData url.Values, headers map[string]string) (result *HTTPResult, err error) {
 	p.HTTPClient.Timeout = time.Duration(p.LocalConfig.NetTimeout) * time.Second
-	response, err := p.HTTPClient.PostForm(completePeerHTTPAddr(peerAddr), postData)
+	req, err := http.NewRequest("POST", completePeerHTTPAddr(peerAddr), strings.NewReader(postData.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if headers != nil {
+		for k, v := range headers {
+			req.Header.Set(k, v)
+		}
+	}
+	response, err := p.HTTPClient.Do(req)
 	if err != nil {
 		return
 	}
@@ -2236,6 +2251,14 @@ func (p *Peer) HTTPPostQueryResult(peerAddr string, postData url.Values) (result
 		return
 	}
 
+	if len(contents) > 10 && bytes.HasPrefix(contents, []byte("200 ")) {
+		result = &HTTPResult{Raw: contents}
+		return
+	}
+	if len(contents) > 1 && contents[0] == '[' {
+		result = &HTTPResult{Raw: contents}
+		return
+	}
 	if len(contents) < 1 || contents[0] != '{' {
 		if len(contents) > 50 {
 			contents = contents[:50]
@@ -2254,14 +2277,17 @@ func (p *Peer) HTTPPostQueryResult(peerAddr string, postData url.Values) (result
 }
 
 // HTTPPostQuery returns response array from thruk api
-func (p *Peer) HTTPPostQuery(peerAddr string, postData url.Values) (output []interface{}, result *HTTPResult, err error) {
-	result, err = p.HTTPPostQueryResult(peerAddr, postData)
+func (p *Peer) HTTPPostQuery(peerAddr string, postData url.Values, headers map[string]string) (output []interface{}, result *HTTPResult, err error) {
+	result, err = p.HTTPPostQueryResult(peerAddr, postData, headers)
 	if err != nil {
+		return
+	}
+	if result.Raw != nil {
 		return
 	}
 	err = json.Unmarshal(result.Output, &output)
 	if err != nil {
-		log.Panicf(err.Error())
+		log.Errorf(err.Error())
 		return
 	}
 	remoteError := ""
@@ -2291,11 +2317,15 @@ func (p *Peer) HTTPRestQuery(peerAddr string, uri string) (output interface{}, r
 	optionStr, _ := json.Marshal(options)
 	result, err = p.HTTPPostQueryResult(peerAddr, url.Values{
 		"data": {fmt.Sprintf("{\"credential\": \"%s\", \"options\": %s}", p.Config.Auth, optionStr)},
-	})
+	}, map[string]string{"Accept": "application/json"})
 	if err != nil {
 		return
 	}
 	var str string
+	if result.Raw != nil {
+		err = json.Unmarshal([]byte(result.Raw), &output)
+		return
+	}
 	err = json.Unmarshal(result.Output, &str)
 	if err != nil {
 		return
