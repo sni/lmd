@@ -20,7 +20,7 @@ EXTERNAL_DEPS = \
 	github.com/julienschmidt/httprouter \
 	github.com/davecgh/go-spew/spew \
 	golang.org/x/tools/cmd/goimports \
-	github.com/golang/lint/golint \
+	golang.org/x/lint/golint \
 	github.com/fzipp/gocyclo \
 	github.com/client9/misspell/cmd/misspell \
 	github.com/jmhodges/copyfighter \
