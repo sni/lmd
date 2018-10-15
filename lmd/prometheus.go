@@ -8,6 +8,14 @@ import (
 )
 
 var (
+	promInfoCount = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: NAME,
+			Name:      "info",
+			Help:      "information about LMD",
+		},
+		[]string{"version"})
+
 	promFrontendConnections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: NAME,
@@ -154,6 +162,7 @@ func initPrometheus(LocalConfig *Config) (prometheusListener *net.Listener) {
 		}()
 		log.Infof("serving prometheus metrics at %s/metrics", LocalConfig.ListenPrometheus)
 	}
+	prometheus.Register(promInfoCount)
 	prometheus.Register(promFrontendConnections)
 	prometheus.Register(promFrontendBytesSend)
 	prometheus.Register(promFrontendBytesReceived)
@@ -168,5 +177,8 @@ func initPrometheus(LocalConfig *Config) (prometheusListener *net.Listener) {
 	prometheus.Register(promPeerUpdatedServices)
 	prometheus.Register(promHostCount)
 	prometheus.Register(promServiceCount)
+
+	promInfoCount.WithLabelValues(VERSION).Set(1)
+
 	return prometheusListener
 }
