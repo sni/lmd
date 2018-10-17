@@ -847,8 +847,6 @@ func NewCommentsTable() (t *Table) {
 	t.AddOptColumn("service_state", DynamicUpdate, IntCol, Naemon, "The current state of the service (0: OK, 1: WARN, 2: CRITICAL, 3: UNKNOWN)")
 	t.AddOptColumn("service_has_been_checked", DynamicUpdate, IntCol, Naemon, "Whether the service already has been checked (0/1)")
 
-	t.AddRefColumn("hosts", "host", "name", "host_name")
-
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
 
@@ -874,8 +872,6 @@ func NewDowntimesTable() (t *Table) {
 	t.AddColumn("service_description", StaticUpdate, StringCol, "Description of the service (also used as key)")
 	t.AddColumn("host_contacts", StaticUpdate, StringListCol, "A list of all contacts of the host, either direct or via a contact group")
 	t.AddColumn("service_contacts", StaticUpdate, StringListCol, "A list of all contacts of the service, either direct or via a contact group")
-
-	t.AddRefColumn("hosts", "host", "name", "host_name")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
