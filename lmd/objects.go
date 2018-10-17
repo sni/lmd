@@ -846,7 +846,7 @@ func NewCommentsTable() (t *Table) {
 	t.AddOptColumn("host_has_been_checked", DynamicUpdate, IntCol, Naemon, "Whether the host has already been checked (0/1)")
 	t.AddOptColumn("service_state", DynamicUpdate, IntCol, Naemon, "The current state of the service (0: OK, 1: WARN, 2: CRITICAL, 3: UNKNOWN)")
 	t.AddOptColumn("service_has_been_checked", DynamicUpdate, IntCol, Naemon, "Whether the service already has been checked (0/1)")
-	
+
 	t.AddRefColumn("hosts", "host", "name", "host_name")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
