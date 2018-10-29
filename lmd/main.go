@@ -52,7 +52,7 @@ type Connection struct {
 	ID             string
 	Source         []string
 	Auth           string
-	RemoteName     string
+	RemoteName     string `toml:"remote_name"`
 	Section        string
 	TLSCertificate string
 	TLSKey         string
