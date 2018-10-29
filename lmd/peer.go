@@ -664,7 +664,7 @@ func (p *Peer) InitAllTables() bool {
 			}
 
 			// if its http and a status request, try a processinfo query to fetch all backends
-			if t.Name == "status" && p.Config.RemoteName == "" {
+			if t.Name == "status" {
 				p.fetchRemotePeers()
 			}
 
@@ -1710,6 +1710,10 @@ func (p *Peer) fetchConfigToolFromAddr(peerAddr string) (conf map[string]interfa
 func (p *Peer) fetchRemotePeers() (sites []interface{}, err error) {
 	// no http client is a sure sign for no http connection
 	if p.HTTPClient == nil {
+		return
+	}
+	// we only fetch remote peers if not explicitly requested a single backend
+	if p.Config.RemoteName != "" {
 		return
 	}
 	if p.StatusGet("ThrukVersion").(float64) < 2.23 {
