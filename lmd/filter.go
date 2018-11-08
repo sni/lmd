@@ -583,7 +583,7 @@ func matchStringValueOperator(op Operator, valueA *interface{}, valueB *string, 
 }
 
 func matchStringListFilter(filter *Filter, value *interface{}) bool {
-	if *value == nil {
+	if *value == nil || reflect.TypeOf(*value).Kind() != reflect.Slice {
 		*value = make([]string, 0)
 	}
 	list := reflect.ValueOf(*value)
@@ -599,15 +599,19 @@ func matchStringListFilter(filter *Filter, value *interface{}) bool {
 		return filter.StrValue == "" && listLen != 0
 	case GreaterThan:
 		for i := 0; i < listLen; i++ {
-			if filter.StrValue == list.Index(i).Interface().(string) {
-				return true
+			if s, ok := list.Index(i).Interface().(string); ok {
+				if filter.StrValue == s {
+					return true
+				}
 			}
 		}
 		return false
 	case GroupContainsNot:
 		for i := 0; i < listLen; i++ {
-			if filter.StrValue == list.Index(i).Interface().(string) {
-				return false
+			if s, ok := list.Index(i).Interface().(string); ok {
+				if filter.StrValue == s {
+					return false
+				}
 			}
 		}
 		return true
@@ -637,7 +641,7 @@ func matchStringListFilter(filter *Filter, value *interface{}) bool {
 }
 
 func matchIntListFilter(filter *Filter, value *interface{}) bool {
-	if *value == nil {
+	if *value == nil || reflect.TypeOf(*value).Kind() != reflect.Slice {
 		*value = make([]float64, 0)
 	}
 	list := reflect.ValueOf(*value)

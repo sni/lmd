@@ -23,3 +23,47 @@ func TestStringFilter(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestStringListFilter(t *testing.T) {
+
+	var value interface{}
+	assertEq("", value) // make gosimple happy
+
+	value = []string{"abc", "def"}
+	if err := assertEq(true, matchStringListFilter(&Filter{Operator: GreaterThan, StrValue: "def"}, &value)); err != nil {
+		t.Error(err)
+	}
+
+	value = []float64{0}
+	if err := assertEq(false, matchStringListFilter(&Filter{Operator: GreaterThan, StrValue: ""}, &value)); err != nil {
+		t.Error(err)
+	}
+
+	// null json value should not panic
+	value = nil
+	if err := assertEq(false, matchStringListFilter(&Filter{Operator: GreaterThan, StrValue: ""}, &value)); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestIntListFilter(t *testing.T) {
+
+	var value interface{}
+	assertEq("", value) // make gosimple happy
+
+	value = []string{"abc", "def"}
+	if err := assertEq(false, matchIntListFilter(&Filter{Operator: GreaterThan, FloatValue: 1}, &value)); err != nil {
+		t.Error(err)
+	}
+
+	value = []float64{1, 2, 3, 4, 5}
+	if err := assertEq(true, matchIntListFilter(&Filter{Operator: GreaterThan, FloatValue: 5}, &value)); err != nil {
+		t.Error(err)
+	}
+
+	// null json value should not panic
+	value = nil
+	if err := assertEq(false, matchIntListFilter(&Filter{Operator: GreaterThan, FloatValue: 1}, &value)); err != nil {
+		t.Error(err)
+	}
+}
