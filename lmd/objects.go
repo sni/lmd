@@ -265,7 +265,7 @@ func (t *Table) AddColumnObject(col *Column) int {
 }
 
 // AddColumn adds a (normal) column.
-func (t *Table) AddColumn(Name string, Update UpdateType, Type ColumnType, Description string) int {
+func (t *Table) AddColumn(Name string, Update UpdateType, Type ColumnType, Description string) {
 	column := &Column{
 		Name:        Name,
 		Type:        Type,
@@ -280,11 +280,11 @@ func (t *Table) AddColumn(Name string, Update UpdateType, Type ColumnType, Descr
 		column.VirtMap = &virtMap
 		column.VirtType = column.VirtMap.Type
 	}
-	return t.AddColumnObject(column)
+	t.AddColumnObject(column)
 }
 
 // AddOptColumn adds a optional column.
-func (t *Table) AddOptColumn(Name string, Update UpdateType, Type ColumnType, Restrict OptionalFlags, Description string) int {
+func (t *Table) AddOptColumn(Name string, Update UpdateType, Type ColumnType, Restrict OptionalFlags, Description string) {
 	column := &Column{
 		Name:        Name,
 		Type:        Type,
@@ -292,7 +292,7 @@ func (t *Table) AddOptColumn(Name string, Update UpdateType, Type ColumnType, Re
 		Description: Description,
 		Optional:    Restrict,
 	}
-	return t.AddColumnObject(column)
+	t.AddColumnObject(column)
 }
 
 // AddRefColumn adds a reference column.

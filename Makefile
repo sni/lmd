@@ -25,6 +25,8 @@ EXTERNAL_DEPS = \
 	github.com/client9/misspell/cmd/misspell \
 	github.com/jmhodges/copyfighter \
 	honnef.co/go/tools/cmd/gosimple \
+	github.com/mvdan/unparam \
+	github.com/mdempsky/unconvert \
 
 
 all: deps fmt build
@@ -92,6 +94,8 @@ citest: deps
 	$(MAKE) mispell
 	$(MAKE) copyfighter
 	$(MAKE) gosimple
+	$(MAKE) unparam
+	$(MAKE) unconvert
 	$(MAKE) fmt
 	#
 	# Normal test cases
@@ -176,6 +180,20 @@ gosimple:
 	# See https://github.com/dominikh/go-tools/tree/master/cmd/gosimple
 	#
 	cd $(LAMPDDIR) && gosimple
+
+unparam:
+	#
+	# Check if all function parameters are actually used
+	# See https://github.com/mvdan/unparam
+	#
+	cd $(LAMPDDIR) && unparam -exported .
+
+unconvert:
+	#
+	# The unconvert program analyzes Go packages to identify unnecessary type conversions
+	# See https://github.com/mdempsky/unconvert
+	#
+	cd $(LAMPDDIR) && unconvert -v
 
 version:
 	OLDVERSION="$(shell grep "VERSION =" $(LAMPDDIR)/main.go | awk '{print $$3}' | tr -d '"')"; \

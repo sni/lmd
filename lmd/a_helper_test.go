@@ -108,7 +108,7 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 			if err != nil {
 				panic("could not read file: " + err.Error())
 			}
-			conn.Write([]byte(dat))
+			conn.Write(dat)
 			conn.Close()
 		}
 	}()

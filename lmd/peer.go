@@ -644,7 +644,7 @@ func (p *Peer) InitAllTables() bool {
 			// real data is handled by separate peers
 			continue
 		}
-		_, err = p.CreateObjectByType(t)
+		err = p.CreateObjectByType(t)
 		if err != nil {
 			log.Debugf("[%s] creating initial objects failed in table %s: %s", p.Name, t.Name, err.Error())
 			return false
@@ -954,7 +954,7 @@ func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated
 		indexList[i] = table.GetColumn(name).Index
 	}
 
-	missing, err := p.getMissingTimestamps(table, req, &res, indexList)
+	missing, err := p.getMissingTimestamps(table, &res, indexList)
 	if err != nil {
 		return
 	}
@@ -982,7 +982,7 @@ func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated
 }
 
 // getMissingTimestamps returns list of last_check dates which can be used to delta update
-func (p *Peer) getMissingTimestamps(table *Table, req *Request, res *[][]interface{}, indexList []int) (missing map[float64]bool, err error) {
+func (p *Peer) getMissingTimestamps(table *Table, res *[][]interface{}, indexList []int) (missing map[float64]bool, err error) {
 	missing = make(map[float64]bool)
 	p.DataLock.RLock()
 	data := p.Tables[table.Name].Data
@@ -1217,7 +1217,7 @@ func (p *Peer) parseResult(req *Request, resBytes *[]byte) (result [][]interface
 		resBytes = &dataBytes
 	}
 	result = make([][]interface{}, 0)
-	offset, jErr := jsonparser.ArrayEach(*resBytes, func(rowBytes []byte, dataType jsonparser.ValueType, offset int, aErr error) {
+	offset, jErr := jsonparser.ArrayEach(*resBytes, func(rowBytes []byte, _ jsonparser.ValueType, _ int, aErr error) {
 		row, dErr := djson.Decode(rowBytes)
 		if aErr != nil {
 			err = aErr
@@ -1470,7 +1470,7 @@ func (p *Peer) setNextAddrFromErr(err error) {
 
 // CreateObjectByType fetches all static and dynamic data from the remote site and creates the initial table.
 // It returns any error encountered.
-func (p *Peer) CreateObjectByType(table *Table) (_, err error) {
+func (p *Peer) CreateObjectByType(table *Table) (err error) {
 	// log table does not create objects
 	if table.PassthroughOnly {
 		return
@@ -2340,7 +2340,7 @@ func (p *Peer) HTTPRestQuery(peerAddr string, uri string) (output interface{}, r
 	}
 	var str string
 	if result.Raw != nil {
-		err = json.Unmarshal([]byte(result.Raw), &output)
+		err = json.Unmarshal(result.Raw, &output)
 		return
 	}
 	err = json.Unmarshal(result.Output, &str)
@@ -2430,7 +2430,7 @@ func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (int, *[][]
 	}
 
 	if len(res.Request.Stats) > 0 {
-		return 0, nil, p.gatherStatsResult(res, table, &data, numPerRow, indexes)
+		return 0, nil, p.gatherStatsResult(res, table, &data)
 	}
 	total, result := p.gatherResultRows(res, table, &data, numPerRow, indexes)
 	return total, result, nil
@@ -2526,7 +2526,7 @@ Rows:
 	return found, &result
 }
 
-func (p *Peer) gatherStatsResult(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) *map[string][]*Filter {
+func (p *Peer) gatherStatsResult(res *Response, table *Table, data *[][]interface{}) *map[string][]*Filter {
 	req := res.Request
 	refs := p.Tables[req.Table].Refs
 

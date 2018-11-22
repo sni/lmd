@@ -21,7 +21,7 @@ func (c *HTTPServerController) errorOutput(err error, w http.ResponseWriter) {
 	json.NewEncoder(w).Encode(j)
 }
 
-func (c *HTTPServerController) index(w http.ResponseWriter, request *http.Request, ps httprouter.Params) {
+func (c *HTTPServerController) index(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	fmt.Fprintf(w, "LMD %s\n", VERSION)
 }
 
@@ -82,7 +82,7 @@ func (c *HTTPServerController) table(w http.ResponseWriter, request *http.Reques
 	c.queryTable(w, requestData)
 }
 
-func (c *HTTPServerController) ping(w http.ResponseWriter, request *http.Request, ps httprouter.Params) {
+func (c *HTTPServerController) ping(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 
 	// Response data
@@ -233,7 +233,7 @@ func parseHTTPFilterRequestData(req *Request, val interface{}, prefix string) (e
 	return
 }
 
-func initializeHTTPRouter() (handler http.Handler, err error) {
+func initializeHTTPRouter() (handler http.Handler) {
 	router := httprouter.New()
 
 	// Controller

@@ -83,7 +83,7 @@ func TestMainFunc(t *testing.T) {
 	}
 }
 
-func TestMainReload(t *testing.T) {
+func TestMainReload(_ *testing.T) {
 	StartMockMainLoop([]string{"mock0.sock"}, "")
 	mainSignalChannel <- syscall.SIGHUP
 	waitTimeout(TestPeerWaitGroup, 5*time.Second)

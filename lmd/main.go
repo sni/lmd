@@ -120,9 +120,13 @@ func (c *configFiles) String() string {
 }
 
 // Set appends a config file to the list of config files.
-func (c *configFiles) Set(value string) error {
+func (c *configFiles) Set(value string) (err error) {
+	_, err = os.Stat(value)
+	if err != nil {
+		return
+	}
 	*c = append(*c, value)
-	return nil
+	return
 }
 
 // nodeAccessor manages cluster nodes and starts/stops peers.

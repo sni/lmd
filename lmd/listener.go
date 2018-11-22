@@ -329,11 +329,7 @@ func (l *Listener) LocalListenerHTTP(httpType string, listen string) {
 	}()
 
 	// Initialize HTTP router
-	router, err := initializeHTTPRouter()
-	if err != nil {
-		log.Fatalf("error initializing http server: %s", err.Error())
-		return
-	}
+	router := initializeHTTPRouter()
 	log.Infof("listening for rest queries on %s", listen)
 	l.waitGroupInit.Done()
 
