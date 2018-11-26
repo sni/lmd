@@ -647,6 +647,7 @@ func NewHostsTable() (t *Table) {
 
 	// shinken specific
 	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
+	t.AddOptColumn("business_impact", StaticUpdate, IntCol, Shinken, "An importance level. From 0 (not important) to 5 (top for business)")
 	t.AddOptColumn("source_problems", DynamicUpdate, StringListCol, Shinken, "The name of the source problems (host or service)")
 	t.AddOptColumn("impacts", DynamicUpdate, StringListCol, Shinken, "List of what the source impact (list of hosts and services)")
 	t.AddOptColumn("criticity", DynamicUpdate, IntCol, Shinken, "The importance we gave to this host between the minimum 0 and the maximum 5")
@@ -782,6 +783,7 @@ func NewServicesTable() (t *Table) {
 
 	// shinken specific
 	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
+	t.AddOptColumn("business_impact", StaticUpdate, IntCol, Shinken, "An importance level. From 0 (not important) to 5 (top for business)")
 	t.AddOptColumn("source_problems", DynamicUpdate, StringListCol, Shinken, "The name of the source problems (host or service)")
 	t.AddOptColumn("impacts", DynamicUpdate, StringListCol, Shinken, "List of what the source impact (list of hosts and services)")
 	t.AddOptColumn("criticity", DynamicUpdate, IntCol, Shinken, "The importance we gave to this service between the minimum 0 and the maximum 5")
@@ -901,6 +903,8 @@ func NewLogTable() (t *Table) {
 	t.AddColumn("command_name", StaticUpdate, StringCol, "The name of the command of the log entry (e.g. for notifications)")
 	t.AddColumn("current_service_contacts", StaticUpdate, StringListCol, "A list of all contacts of the service, either direct or via a contact group")
 	t.AddColumn("current_host_contacts", StaticUpdate, StringListCol, "A list of all contacts of this host, either direct or via a contact group")
+	t.AddColumn("current_host_display_name", StaticUpdate, StringCol, "The display name of the host the log entry is about (might be empty)")
+	t.AddColumn("current_host_groups", StaticUpdate, StringListCol, "A list of all host groups of the host the log entry is about (might be empty)")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
