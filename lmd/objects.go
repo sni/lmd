@@ -664,6 +664,7 @@ func NewHostsTable() (t *Table) {
 
 	// shinken specific
 	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
+	t.AddOptColumn("business_impact", StaticUpdate, IntCol, Shinken, "An importance level. From 0 (not important) to 5 (top for business)")
 	t.AddOptColumn("source_problems", DynamicUpdate, StringListCol, Shinken, "The name of the source problems (host or service)")
 	t.AddOptColumn("impacts", DynamicUpdate, StringListCol, Shinken, "List of what the source impact (list of hosts and services)")
 	t.AddOptColumn("criticity", DynamicUpdate, IntCol, Shinken, "The importance we gave to this host between the minimum 0 and the maximum 5")
@@ -799,6 +800,7 @@ func NewServicesTable() (t *Table) {
 
 	// shinken specific
 	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
+	t.AddOptColumn("business_impact", StaticUpdate, IntCol, Shinken, "An importance level. From 0 (not important) to 5 (top for business)")
 	t.AddOptColumn("source_problems", DynamicUpdate, StringListCol, Shinken, "The name of the source problems (host or service)")
 	t.AddOptColumn("impacts", DynamicUpdate, StringListCol, Shinken, "List of what the source impact (list of hosts and services)")
 	t.AddOptColumn("criticity", DynamicUpdate, IntCol, Shinken, "The importance we gave to this service between the minimum 0 and the maximum 5")
