@@ -3,6 +3,8 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -11,7 +13,13 @@ func BenchmarkParseResultJSON(b *testing.B) {
 	peer := StartTestPeer(1, 100, 1000)
 	PauseTestPeers(peer)
 
-	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nOutputFormat: json\n")))
+	columns := make([]string, 0)
+	for _, col := range peer.Tables["services"].Table.Columns {
+		if col.Update != RefUpdate && col.Name != "empty" && col.Optional == NoFlags {
+			columns = append(columns, col.Name)
+		}
+	}
+	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString(fmt.Sprintf("GET services\nOutputFormat: json\nColumns: %s\nColumnHeaders: on\n", strings.Join(columns, " ")))))
 	if err != nil {
 		panic(err.Error())
 	}
@@ -33,8 +41,8 @@ func BenchmarkParseResultJSON(b *testing.B) {
 		if len(res) != 901 {
 			b.Fatalf("wrong result size, expected 901, got %d", len(res))
 		}
-		if len(res[0]) != 185 {
-			b.Fatalf("wrong result size, expected 185, got %d", len(res[0]))
+		if len(res[0]) != 175 {
+			b.Fatalf("wrong result size, expected 175, got %d", len(res[0]))
 		}
 	}
 	b.StopTimer()
