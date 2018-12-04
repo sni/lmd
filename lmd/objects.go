@@ -505,6 +505,16 @@ func NewTimeperiodsTable() (t *Table) {
 	t.AddColumn("name", StaticUpdate, StringCol, "The name of the timeperiod")
 	t.AddColumn("in", DynamicUpdate, IntCol, "Wether we are currently in this period (0/1)")
 
+	// naemon specific
+	t.AddOptColumn("days", StaticUpdate, StringListCol, Naemon, "days")
+	t.AddOptColumn("exceptions_calendar_dates", StaticUpdate, StringListCol, Naemon, "exceptions_calendar_dates")
+	t.AddOptColumn("exceptions_month_date", StaticUpdate, StringListCol, Naemon, "exceptions_month_date")
+	t.AddOptColumn("exceptions_month_day", StaticUpdate, StringListCol, Naemon, "exceptions_month_day")
+	t.AddOptColumn("exceptions_month_week_day", StaticUpdate, StringListCol, Naemon, "exceptions_month_week_day")
+	t.AddOptColumn("exceptions_week_day", StaticUpdate, StringListCol, Naemon, "exceptions_week_day")
+	t.AddOptColumn("exclusions", StaticUpdate, StringListCol, Naemon, "exclusions")
+	t.AddOptColumn("id", StaticUpdate, IntCol, Naemon, "The id of the timeperiods")
+
 	t.AddColumn("lmd_last_cache_update", RefNoUpdate, VirtCol, "Timestamp of the last LMD update of this object.")
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
