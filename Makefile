@@ -15,6 +15,7 @@ EXTERNAL_DEPS = \
 	github.com/kdar/factorlog \
 	github.com/mgutz/ansi \
 	github.com/prometheus/client_golang/prometheus \
+	github.com/prometheus/client_golang/prometheus/promhttp \
 	github.com/buger/jsonparser \
 	github.com/a8m/djson \
 	github.com/julienschmidt/httprouter \

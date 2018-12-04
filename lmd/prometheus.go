@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
@@ -157,7 +158,7 @@ func initPrometheus(LocalConfig *Config) (prometheusListener *net.Listener) {
 				log.Fatalf("starting prometheus exporter failed: %s", err)
 			}
 			mux := http.NewServeMux()
-			mux.Handle("/metrics", prometheus.Handler())
+			mux.Handle("/metrics", promhttp.Handler())
 			http.Serve(l, mux)
 		}()
 		log.Infof("serving prometheus metrics at %s/metrics", LocalConfig.ListenPrometheus)
