@@ -28,6 +28,7 @@ EXTERNAL_DEPS = \
 	honnef.co/go/tools/cmd/gosimple \
 	github.com/mvdan/unparam \
 	github.com/mdempsky/unconvert \
+	honnef.co/go/tools/cmd/megacheck \
 
 
 all: deps fmt build
@@ -97,6 +98,7 @@ citest: deps
 	$(MAKE) gosimple
 	$(MAKE) unparam
 	$(MAKE) unconvert
+	$(MAKE) megacheck
 	$(MAKE) fmt
 	#
 	# Normal test cases
@@ -195,6 +197,13 @@ unconvert:
 	# See https://github.com/mdempsky/unconvert
 	#
 	cd $(LAMPDDIR) && unconvert -v
+
+megacheck:
+	#
+	# megacheck combines a few static code analyzer
+	# See honnef.co/go/tools/cmd/megacheck
+	#
+	cd $(LAMPDDIR) && megacheck .
 
 version:
 	OLDVERSION="$(shell grep "VERSION =" $(LAMPDDIR)/main.go | awk '{print $$3}' | tr -d '"')"; \
