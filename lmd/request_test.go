@@ -484,22 +484,30 @@ func TestRequestBlocking(t *testing.T) {
 	start := time.Now()
 
 	// start long running query in background
+	errs := make(chan error, 1)
 	go func() {
-		_, err1 := peer.QueryString("GET hosts\nColumns: name latency check_command\nLimit: 1\nWaitTrigger: all\nWaitTimeout: 5000\nWaitCondition: state = 99\n\n")
-		if err1 != nil {
-			t.Fatal(err1)
-		}
+		_, err := peer.QueryString("GET hosts\nColumns: name latency check_command\nLimit: 1\nWaitTrigger: all\nWaitTimeout: 5000\nWaitCondition: state = 99\n\n")
+		errs <- err
 	}()
 
 	// test how long next query will take
-	_, err2 := peer.QueryString("GET hosts\nColumns: name latency check_command\nLimit: 1\n\n")
-	if err2 != nil {
-		t.Fatal(err2)
+	_, err1 := peer.QueryString("GET hosts\nColumns: name latency check_command\nLimit: 1\n\n")
+	if err1 != nil {
+		t.Fatal(err1)
 	}
 
 	elapsed := time.Since(start)
 	if elapsed.Seconds() > 3 {
 		t.Error("query2 should return immediately")
+	}
+
+	// check non-blocking if there were any errors in the long running query so far
+	select {
+	case err2 := <-errs:
+		if err2 != nil {
+			t.Fatal(err2)
+		}
+	default:
 	}
 
 	if err := StopTestPeer(peer); err != nil {
