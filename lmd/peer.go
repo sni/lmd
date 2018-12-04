@@ -538,7 +538,7 @@ func (p *Peer) periodicUpdateMultiBackends(ok *bool) {
 		subName := site["name"].(string)
 		subPeer, ok := PeerMap[subID]
 		if ok {
-			log.Tracef("[%s] already got a sub peer for id %s", p.Name, subID)
+			log.Tracef("[%s] already got a sub peer for id %s", p.Name, subPeer.ID)
 		} else {
 			log.Debugf("[%s] starting sub peer for %s", p.Name, subName)
 			c := Connection{
@@ -1195,7 +1195,9 @@ func (p *Peer) parseResult(req *Request, resBytes *[]byte) (result [][]interface
 	}
 	if req.OutputFormat == "wrapped_json" {
 		dataBytes, dataType, _, jErr := jsonparser.Get(*resBytes, "columns")
-		if dataType == jsonparser.Array {
+		if jErr != nil {
+			log.Debugf("[%s] column header parse error: %s", p.Name, jErr.Error())
+		} else if dataType == jsonparser.Array {
 			var columns []string
 			err = json.Unmarshal(dataBytes, &columns)
 			if err != nil {
