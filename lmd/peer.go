@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"reflect"
 	"regexp"
 	"runtime/debug"
 	"strconv"
@@ -1905,7 +1906,7 @@ func (p *Peer) updateTimeperiodsData(table *Table, res [][]interface{}, indexes 
 	for i := range res {
 		row := res[i]
 		for j, k := range indexes {
-			if data[i][k] != row[j] {
+			if !reflect.DeepEqual(data[i][k], row[j]) {
 				changedTimeperiods[data[i][nameIndex].(string)] = data[i][k].(float64)
 			}
 			data[i][k] = row[j]
