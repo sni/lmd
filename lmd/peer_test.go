@@ -65,6 +65,9 @@ func TestParseResultJSON(t *testing.T) {
 
 	res, err := peer.parseResult(req, &data)
 
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := assertEq(2, len(res)); err != nil {
 		t.Fatal(err)
 	}
@@ -98,6 +101,9 @@ func TestParseResultWrappedJSON(t *testing.T) {
 
 	res, err := peer.parseResult(req, &data)
 
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := assertEq(2, len(res)); err != nil {
 		t.Fatal(err)
 	}

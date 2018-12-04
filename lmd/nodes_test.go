@@ -5,6 +5,9 @@ import (
 )
 
 func TestNodeManager(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping nodes test in short mode")
+	}
 	extraConfig := `
 		Listen = ['test.sock', 'http://127.0.0.1:8901']
 		Nodes = ['http://127.0.0.1:8901', 'http://127.0.0.2:8902']
