@@ -56,13 +56,8 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 	listen = fmt.Sprintf("mock%d_%d.sock", nr, time.Now().Nanosecond())
 	TestPeerWaitGroup.Add(1)
 
-	dataFolder := "../t/data"
-	tempFolder := ""
-	if numHosts > 0 || numServices > 0 {
-		// prepare data files
-		tempFolder = prepareTmpData(dataFolder, nr, numHosts, numServices)
-		dataFolder = tempFolder
-	}
+	// prepare data files
+	dataFolder := prepareTmpData("../t/data", nr, numHosts, numServices)
 
 	go func() {
 		os.Remove(listen)
@@ -73,9 +68,7 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 		defer func() {
 			os.Remove(listen)
 			l.Close()
-			if tempFolder != "" {
-				os.RemoveAll(tempFolder)
-			}
+			os.RemoveAll(dataFolder)
 			TestPeerWaitGroup.Done()
 		}()
 		startedChannel <- true
@@ -134,7 +127,10 @@ func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (t
 		if err != nil {
 			panic("failed to open temp file: " + err.Error())
 		}
-		if name == "hosts" || name == "services" {
+		if numHosts == 0 && name != "status" {
+			io.WriteString(file, "200           3\n[]\n")
+			err = file.Close()
+		} else if name == "hosts" || name == "services" {
 			err = file.Close()
 			prepareTmpDataHostService(dataFolder, tempFolder, table, numHosts, numServices)
 		} else {
@@ -174,7 +170,7 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 		nameIndex := table.GetColumn("host_name").Index
 		descIndex := table.GetColumn("description").Index
 		for x := 1; x <= numHosts; x++ {
-			for y := 1; y < numServices/numHosts; y++ {
+			for y := 1; y <= numServices/numHosts; y++ {
 				newObj := make([]interface{}, len(last))
 				copy(newObj, last)
 				newObj[nameIndex] = fmt.Sprintf("%s_%d", "testhost", x)

@@ -244,6 +244,9 @@ func (t *Table) AddColumnObject(col *Column) int {
 	if t.ColumnsIndex == nil {
 		t.ColumnsIndex = make(map[string]int)
 	}
+	if _, ok := t.ColumnsIndex[col.Name]; ok {
+		log.Panicf("table %s trying to add column twice: %s", t.Name, col.Name)
+	}
 	t.ColumnsIndex[col.Name] = Index
 	col.Index = Index
 	switch col.Update {
@@ -318,28 +321,32 @@ func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, LocalName s
 
 	// add fake columns for all columns from the referenced table
 	for _, col := range Objects.Tables[Ref].Columns {
-		if col.Name != Name {
-			// skip peer_key and such things from ref table
-			if col.Type == VirtCol {
-				continue
-			}
-			if col.Update == RefUpdate || col.Update == RefNoUpdate {
-				continue
-			}
-			refColName := Prefix + "_" + col.Name
-			if Prefix == "" {
-				refColName = col.Name
-			}
-			column := &Column{
-				Name:        refColName,
-				Type:        col.Type,
-				Update:      RefNoUpdate,
-				RefIndex:    RefIndex,
-				RefColIndex: col.Index,
-				Description: col.Description,
-			}
-			t.AddColumnObject(column)
+		if col.Name == Name {
+			continue
 		}
+		// skip peer_key and such things from ref table
+		if col.Type == VirtCol {
+			continue
+		}
+		if col.Update == RefUpdate || col.Update == RefNoUpdate {
+			continue
+		}
+		refColName := Prefix + "_" + col.Name
+		if Prefix == "" {
+			refColName = col.Name
+		}
+		if _, ok := t.ColumnsIndex[refColName]; ok {
+			continue
+		}
+		column := &Column{
+			Name:        refColName,
+			Type:        col.Type,
+			Update:      RefNoUpdate,
+			RefIndex:    RefIndex,
+			RefColIndex: col.Index,
+			Description: col.Description,
+		}
+		t.AddColumnObject(column)
 	}
 }
 
@@ -845,8 +852,9 @@ func NewCommentsTable() (t *Table) {
 	t.AddColumn("type", StaticUpdate, IntCol, "The type of the comment: 1 is host, 2 is service")
 	t.AddColumn("host_name", StaticUpdate, StringCol, "Host name")
 	t.AddColumn("service_description", StaticUpdate, StringCol, "Description of the service (also used as key)")
-	t.AddColumn("host_contacts", StaticUpdate, StringListCol, "A list of all contacts of the host, either direct or via a contact group")
-	t.AddColumn("service_contacts", StaticUpdate, StringListCol, "A list of all contacts of the service, either direct or via a contact group")
+
+	t.AddRefColumn("hosts", "host", "name", "host_name")
+	t.AddRefColumn("services", "service", "description", "service_description")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
@@ -871,8 +879,9 @@ func NewDowntimesTable() (t *Table) {
 	t.AddColumn("type", StaticUpdate, IntCol, "The type of the downtime: 0 if it is active, 1 if it is pending")
 	t.AddColumn("host_name", StaticUpdate, StringCol, "Host name")
 	t.AddColumn("service_description", StaticUpdate, StringCol, "Description of the service (also used as key)")
-	t.AddColumn("host_contacts", StaticUpdate, StringListCol, "A list of all contacts of the host, either direct or via a contact group")
-	t.AddColumn("service_contacts", StaticUpdate, StringListCol, "A list of all contacts of the service, either direct or via a contact group")
+
+	t.AddRefColumn("hosts", "host", "name", "host_name")
+	t.AddRefColumn("services", "service", "description", "service_description")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")

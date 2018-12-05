@@ -135,8 +135,9 @@ func (e *PeerError) Error() string {
 func (e *PeerError) Type() PeerErrorType { return e.kind }
 
 // AddItem adds an new entry to a datatable.
-func (d *DataTable) AddItem(row *[]interface{}) {
+func (d *DataTable) AddItem(row *[]interface{}, id string) {
 	d.Data = append(d.Data, *row)
+	d.Index[id] = *row
 }
 
 // RemoveItem removes an entry from a datatable.
@@ -146,6 +147,9 @@ func (d *DataTable) RemoveItem(row []interface{}) {
 		if fmt.Sprintf("%p", r) == fmt.Sprintf("%p", row) {
 			d.Data = append(d.Data[:i], d.Data[i+1:]...)
 			delete(d.Index, fmt.Sprintf("%v", r[d.Table.GetColumn("id").Index]))
+			for key := range d.Refs {
+				d.Refs[key] = append(d.Refs[key][:i], d.Refs[key][i+1:]...)
+			}
 			return
 		}
 	}
@@ -1103,15 +1107,14 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 		}
 		p.DataLock.Lock()
 		data := p.Tables[table.Name]
-		idIndex := data.Index // update, might have changed meanwhile
-		if idIndex == nil {
-			log.Panicf("got null index")
-		}
 		for i := range res {
 			resRow := res[i]
 			id := fmt.Sprintf("%v", resRow[fieldIndex])
-			idIndex[id] = resRow
-			data.AddItem(&resRow)
+			data.AddItem(&resRow, id)
+		}
+		err = p.updateReferences(table, &res)
+		if err != nil {
+			return
 		}
 		p.Tables[table.Name] = data
 		p.DataLock.Unlock()
@@ -1479,13 +1482,11 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 	}
 
 	keys := table.GetInitialKeys(p.Flags)
-	refs := make(map[string][][]interface{})
-	index := make(map[string][]interface{})
 
 	// complete virtual table ends here
 	if len(keys) == 0 || table.Virtual {
 		p.DataLock.Lock()
-		p.Tables[table.Name] = DataTable{Table: table, Data: make([][]interface{}, 1), Refs: refs, Index: index}
+		p.Tables[table.Name] = DataTable{Table: table, Data: make([][]interface{}, 1), Refs: nil, Index: nil}
 		p.DataLock.Unlock()
 		return
 	}
@@ -1513,42 +1514,14 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 
 	// expand references, create a hash entry for each reference type, ex.: hosts
 	// with an array containing the references (using the same index as the original row)
-	for _, refNum := range table.RefColCacheIndexes {
-		refCol := table.Columns[refNum]
-		fieldName := refCol.Name
-		refs[fieldName] = make([][]interface{}, len(res))
-		p.DataLock.RLock()
-		refByName := p.Tables[fieldName].Index
-		if refCol.Name == "services" {
-			hostnameIndex := table.ColumnsIndex["hostname_index"]
-			for i := range res {
-				row := res[i]
-				key := row[hostnameIndex].(string) + ";" + row[refCol.RefIndex].(string)
-				refs[fieldName][i] = refByName[key]
-				if refByName[key] == nil {
-					err = fmt.Errorf("%s '%s' ref not found from table %s, refmap contains %d elements", refCol.Name, row[refCol.RefIndex].(string), table.Name, len(refByName))
-					p.DataLock.RUnlock()
-					return
-				}
-			}
-		} else {
-			for i := range res {
-				row := res[i]
-				refs[fieldName][i] = refByName[row[refCol.RefIndex].(string)]
-				if refByName[row[refCol.RefIndex].(string)] == nil {
-					err = fmt.Errorf("%s '%s' ref not found from table %s, refmap contains %d elements", refCol.Name, row[refCol.RefIndex].(string), table.Name, len(refByName))
-					p.DataLock.RUnlock()
-					return
-				}
-			}
-		}
-		p.DataLock.RUnlock()
+	refs, err := p.initilizeReferences(table, &res)
+	if err != nil {
+		log.Errorf(err.Error())
+		return
 	}
-
-	p.createIndex(table, &res, &index)
+	index := p.createIndex(table, &res)
 
 	now := time.Now().Unix()
-
 	lastUpdate := make([]int64, 0)
 	if _, ok := table.ColumnsIndex["lmd_last_cache_update"]; ok {
 		lastUpdate = make([]int64, len(res))
@@ -1568,13 +1541,14 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 	return
 }
 
-func (p *Peer) createIndex(table *Table, res *[][]interface{}, index *map[string][]interface{}) {
+func (p *Peer) createIndex(table *Table, res *[][]interface{}) (index map[string][]interface{}) {
+	index = make(map[string][]interface{})
 	// create host lookup indexes
 	if table.Name == "hosts" {
 		indexField := table.ColumnsIndex["name"]
 		for i := range *res {
 			row := (*res)[i]
-			(*index)[row[indexField].(string)] = row
+			index[row[indexField].(string)] = row
 		}
 		promHostCount.WithLabelValues(p.Name).Set(float64(len((*res))))
 	}
@@ -1584,7 +1558,7 @@ func (p *Peer) createIndex(table *Table, res *[][]interface{}, index *map[string
 		indexField2 := table.ColumnsIndex["description"]
 		for i := range *res {
 			row := (*res)[i]
-			(*index)[row[indexField1].(string)+";"+row[indexField2].(string)] = row
+			index[row[indexField1].(string)+";"+row[indexField2].(string)] = row
 		}
 		promServiceCount.WithLabelValues(p.Name).Set(float64(len((*res))))
 	}
@@ -1592,7 +1566,7 @@ func (p *Peer) createIndex(table *Table, res *[][]interface{}, index *map[string
 		indexField := table.ColumnsIndex["name"]
 		for i := range *res {
 			row := (*res)[i]
-			(*index)[row[indexField].(string)] = row
+			index[row[indexField].(string)] = row
 		}
 	}
 	// create downtime / comment id lookup indexes
@@ -1600,9 +1574,10 @@ func (p *Peer) createIndex(table *Table, res *[][]interface{}, index *map[string
 		indexField := table.ColumnsIndex["id"]
 		for i := range *res {
 			row := (*res)[i]
-			(*index)[fmt.Sprintf("%v", row[indexField])] = row
+			index[fmt.Sprintf("%v", row[indexField])] = row
 		}
 	}
+	return
 }
 
 func (p *Peer) checkStatusFlags(table *Table) {
@@ -1944,7 +1919,7 @@ func (p *Peer) GetRowValue(col *ResultColumn, row *[]interface{}, rowNum int, ta
 		// reference columns
 		refObj := (*refs)[table.Columns[col.Column.RefIndex].Name][rowNum]
 		if refObj == nil {
-			log.Panicf("should not happen, ref not found in table %s", table.Name)
+			return (col.Column.GetEmptyValue())
 		}
 		if len(refObj) > col.Column.RefColIndex {
 			return refObj[col.Column.RefColIndex]
@@ -2750,4 +2725,99 @@ func (p *Peer) getTLSClientConfig() (*tls.Config, error) {
 	}
 
 	return config, nil
+}
+
+// initilizeReferences creates reference entries
+func (p *Peer) initilizeReferences(table *Table, res *[][]interface{}) (refs map[string][][]interface{}, err error) {
+	refs = make(map[string][][]interface{})
+	p.DataLock.RLock()
+	defer p.DataLock.RUnlock()
+
+	for _, refNum := range table.RefColCacheIndexes {
+		refCol := table.Columns[refNum]
+		refs[refCol.Name] = make([][]interface{}, len(*res))
+		if refCol.Name == "services" {
+			err = p.expandCrossServiceReferences(table, &refs, res, refCol, false)
+			if err != nil {
+				return
+			}
+		} else {
+			err = p.expandCrossReferences(table, &refs, res, refCol, false)
+			if err != nil {
+				return
+			}
+		}
+	}
+
+	return
+}
+
+// updateReferences updates reference entries
+func (p *Peer) updateReferences(table *Table, res *[][]interface{}) (err error) {
+	refs := p.Tables[table.Name].Refs
+	for _, refNum := range table.RefColCacheIndexes {
+		refCol := table.Columns[refNum]
+		if refCol.Name == "services" {
+			err = p.expandCrossServiceReferences(table, &refs, res, refCol, true)
+			if err != nil {
+				return
+			}
+		} else {
+			err = p.expandCrossReferences(table, &refs, res, refCol, true)
+			if err != nil {
+				return
+			}
+		}
+	}
+
+	return
+}
+
+// expandCrossReferences creates reference entries for cross referenced objects
+func (p *Peer) expandCrossReferences(table *Table, refs *map[string][][]interface{}, res *[][]interface{}, refCol *Column, add bool) (err error) {
+	fieldName := refCol.Name
+	refByName := p.Tables[fieldName].Index
+	for i := range *res {
+		row := (*res)[i]
+		if add {
+			(*refs)[fieldName] = append((*refs)[fieldName], refByName[row[refCol.RefIndex].(string)])
+		} else {
+			(*refs)[fieldName][i] = refByName[row[refCol.RefIndex].(string)]
+		}
+		if refByName[row[refCol.RefIndex].(string)] == nil {
+			err = fmt.Errorf("%s '%s' ref not found from table %s, refmap contains %d elements", refCol.Name, row[refCol.RefIndex].(string), table.Name, len(refByName))
+			return
+		}
+	}
+	return
+}
+
+// expandCrossServiceReferences creates reference entries for cross referenced services
+func (p *Peer) expandCrossServiceReferences(table *Table, refs *map[string][][]interface{}, res *[][]interface{}, refCol *Column, add bool) (err error) {
+	fieldName := refCol.Name
+	refByName := p.Tables[fieldName].Index
+	hostnameIndex := table.GetColumn("host_name").Index
+	for i := range *res {
+		row := (*res)[i]
+		if row[refCol.RefIndex].(string) == "" {
+			// this may happen for optional reference columns, ex. services in comments
+			if add {
+				(*refs)[fieldName] = append((*refs)[fieldName], nil)
+			} else {
+				(*refs)[fieldName][i] = nil
+			}
+			continue
+		}
+		key := row[hostnameIndex].(string) + ";" + row[refCol.RefIndex].(string)
+		if add {
+			(*refs)[fieldName] = append((*refs)[fieldName], refByName[key])
+		} else {
+			(*refs)[fieldName][i] = refByName[key]
+		}
+		if refByName[key] == nil {
+			err = fmt.Errorf("%s '%s' ref not found from table %s, refmap contains %d elements", refCol.Name, key, table.Name, len(refByName))
+			return
+		}
+	}
+	return
 }

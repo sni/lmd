@@ -141,14 +141,14 @@ func TestRequestHeaderFilter3(t *testing.T) {
 }
 
 func TestRequestListFilter(t *testing.T) {
-	peer := StartTestPeer(1, 0, 0)
+	peer := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, err := peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq("gearman", res[0][0]); err != nil {
+	if err := assertEq("testhost_1", res[0][0]); err != nil {
 		t.Fatal(err)
 	}
 
@@ -237,7 +237,7 @@ func TestResponseErrorsFunc(t *testing.T) {
 }
 
 func TestRequestNestedFilter(t *testing.T) {
-	peer := StartTestPeer(1, 0, 0)
+	peer := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	if err := assertEq(1, len(PeerMap)); err != nil {
@@ -246,11 +246,11 @@ func TestRequestNestedFilter(t *testing.T) {
 
 	query := `GET services
 Columns: host_name description state peer_key
-Filter: description ~~ session
-Filter: display_name ~~ session
+Filter: description ~~ testsvc_1
+Filter: display_name ~~ testsvc_1
 Or: 2
-Filter: description !~~ database
-Filter: display_name !~~ database
+Filter: host_name !~~ testhost_1
+Filter: host_name !~~ testhost_[2-6]
 And: 2
 And: 2
 Limit: 100
@@ -265,13 +265,13 @@ ResponseHeader: fixed16
 		t.Fatal(err)
 	}
 	if err = assertEq(3, len(res)); err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
-	if err = assertEq("tomcat", res[0][0]); err != nil {
+	if err = assertEq("testhost_7", res[0][0]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq("session_active", res[0][1]); err != nil {
+	if err = assertEq("testsvc_1", res[0][1]); err != nil {
 		t.Error(err)
 	}
 
@@ -323,7 +323,7 @@ func TestRequestStats(t *testing.T) {
 }
 
 func TestRequestStatsGroupBy(t *testing.T) {
-	peer := StartTestPeer(4, 0, 0)
+	peer := StartTestPeer(4, 10, 10)
 	PauseTestPeers(peer)
 
 	if err := assertEq(4, len(PeerMap)); err != nil {
@@ -334,13 +334,13 @@ func TestRequestStatsGroupBy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq(12, len(res)); err != nil {
+	if err = assertEq(10, len(res)); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq("gearman", res[1][0]); err != nil {
+	if err = assertEq("testhost_1", res[0][0]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(0.051033973694, res[1][1]); err != nil {
+	if err = assertEq(0.24065613747, res[1][1]); err != nil {
 		t.Error(err)
 	}
 
@@ -348,16 +348,16 @@ func TestRequestStatsGroupBy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq(12, len(res)); err != nil {
+	if err = assertEq(10, len(res)); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq("gearman", res[1][0]); err != nil {
+	if err = assertEq("testhost_1", res[0][0]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq("gearman", res[1][1]); err != nil {
+	if err = assertEq("tomcat", res[1][1]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(0.051033973694, res[1][2]); err != nil {
+	if err = assertEq(0.24065613747, res[1][2]); err != nil {
 		t.Error(err)
 	}
 
@@ -404,7 +404,7 @@ func TestRequestStatsBroken(t *testing.T) {
 }
 
 func TestRequestRefs(t *testing.T) {
-	peer := StartTestPeer(1, 0, 0)
+	peer := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res1, err := peer.QueryString("GET hosts\nColumns: name latency check_command\nLimit: 1\n\n")
@@ -430,20 +430,20 @@ func TestRequestRefs(t *testing.T) {
 }
 
 func TestRequestBrokenColumns(t *testing.T) {
-	peer := StartTestPeer(1, 0, 0)
+	peer := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	res, err := peer.QueryString("GET hosts\nColumns: host_name alias\nFilter: host_name = gearman\n\n")
+	res, err := peer.QueryString("GET hosts\nColumns: host_name alias\nFilter: host_name = testhost_1\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err = assertEq(1, len(res)); err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq("gearman", res[0][0]); err != nil {
+	if err = assertEq("testhost_1", res[0][0]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq("gearman", res[0][1]); err != nil {
+	if err = assertEq("tomcat", res[0][1]); err != nil {
 		t.Error(err)
 	}
 
@@ -453,20 +453,20 @@ func TestRequestBrokenColumns(t *testing.T) {
 }
 
 func TestRequestGroupByTable(t *testing.T) {
-	peer := StartTestPeer(1, 0, 0)
+	peer := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, err := peer.QueryString("GET servicesbyhostgroup\nColumns: host_name description host_groups groups host_alias host_address\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq(116, len(res)); err != nil {
+	if err = assertEq(10, len(res)); err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq("Test Business Process", res[0][0]); err != nil {
+	if err = assertEq("testhost_1", res[0][0]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq("Business Process", res[0][5]); err != nil {
+	if err = assertEq("127.0.0.2", res[0][5]); err != nil {
 		t.Error(err)
 	}
 
@@ -476,7 +476,7 @@ func TestRequestGroupByTable(t *testing.T) {
 }
 
 func TestRequestBlocking(t *testing.T) {
-	peer := StartTestPeer(1, 0, 0)
+	peer := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	start := time.Now()
@@ -514,7 +514,7 @@ func TestRequestBlocking(t *testing.T) {
 }
 
 func TestRequestSort(t *testing.T) {
-	peer := StartTestPeer(1, 0, 0)
+	peer := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, err := peer.QueryString("GET hosts\nColumns: name latency\nSort: latency asc\nLimit: 5\n\n")
@@ -524,7 +524,7 @@ func TestRequestSort(t *testing.T) {
 	if err = assertEq(5, len(res)); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq("Test Business Process", res[0][0]); err != nil {
+	if err = assertEq("testhost_4", res[0][0]); err != nil {
 		t.Error(err)
 	}
 
@@ -534,7 +534,7 @@ func TestRequestSort(t *testing.T) {
 }
 
 func TestRequestSortColumnNotRequested(t *testing.T) {
-	peer := StartTestPeer(1, 0, 0)
+	peer := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, err := peer.QueryString("GET hosts\nColumns: name state alias\nSort: latency asc\nSort: name asc\nLimit: 5\n\n")
@@ -547,7 +547,7 @@ func TestRequestSortColumnNotRequested(t *testing.T) {
 	if err = assertEq(3, len(res[0])); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq("Test Business Process", res[0][0]); err != nil {
+	if err = assertEq("testhost_1", res[0][0]); err != nil {
 		t.Error(err)
 	}
 
@@ -557,17 +557,17 @@ func TestRequestSortColumnNotRequested(t *testing.T) {
 }
 
 func TestRequestColumnsWrappedJson(t *testing.T) {
-	peer := StartTestPeer(1, 0, 0)
+	peer := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, err := peer.QueryString("GET hosts\nColumns: name state alias\nOutputFormat: wrapped_json\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq(12, len(res)); err != nil {
+	if err = assertEq(10, len(res)); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq("Test Business Process", res[0][0]); err != nil {
+	if err = assertEq("testhost_1", res[0][0]); err != nil {
 		t.Error(err)
 	}
 
@@ -583,10 +583,10 @@ func TestRequestColumnsWrappedJson(t *testing.T) {
 	if err = assertEq(5, len(res)); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq("Test Business Process", res[0][0]); err != nil {
+	if err = assertEq("testhost_1", res[0][0]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(int64(12), peer.Status["LastTotalCount"].(int64)); err != nil {
+	if err = assertEq(int64(10), peer.Status["LastTotalCount"].(int64)); err != nil {
 		t.Error(err)
 	}
 	if err = assertEq("name", peer.Status["LastColumns"].([]string)[0]); err != nil {
@@ -601,10 +601,10 @@ func TestRequestColumnsWrappedJson(t *testing.T) {
 	if jErr != nil {
 		t.Fatal(jErr)
 	}
-	if err = assertEq(12, len(res)); err != nil {
+	if err = assertEq(10, len(res)); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq("Test Business Process", res[0][0]); err != nil {
+	if err = assertEq("testhost_1", res[0][0]); err != nil {
 		t.Error(err)
 	}
 
