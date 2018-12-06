@@ -15,7 +15,7 @@ func BenchmarkParseResultJSON(b *testing.B) {
 
 	columns := make([]string, 0)
 	for _, col := range peer.Tables["services"].Table.Columns {
-		if col.Update != RefUpdate && col.Name != "empty" && col.Optional == NoFlags {
+		if col.Update != RefUpdate && col.Update != RefNoUpdate && col.Name != "empty" && col.Optional == NoFlags {
 			columns = append(columns, col.Name)
 		}
 	}
@@ -41,8 +41,8 @@ func BenchmarkParseResultJSON(b *testing.B) {
 		if len(res) != 1001 {
 			b.Fatalf("wrong result size, expected 1001, got %d", len(res))
 		}
-		if len(res[0]) != 175 {
-			b.Fatalf("wrong result size, expected 175, got %d", len(res[0]))
+		if len(res[0]) != len(columns) {
+			b.Fatalf("wrong result size, expected %d, got %d", len(columns), len(res[0]))
 		}
 	}
 	b.StopTimer()
@@ -57,7 +57,13 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 	peer := StartTestPeer(1, 100, 1000)
 	PauseTestPeers(peer)
 
-	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nOutputFormat: wrapped_json\n")))
+	columns := make([]string, 0)
+	for _, col := range peer.Tables["services"].Table.Columns {
+		if col.Update != RefUpdate && col.Update != RefNoUpdate && col.Name != "empty" && col.Optional == NoFlags {
+			columns = append(columns, col.Name)
+		}
+	}
+	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString(fmt.Sprintf("GET services\nOutputFormat: wrapped_json\nColumns: %s\nColumnHeaders: on\n", strings.Join(columns, " ")))))
 	if err != nil {
 		panic(err.Error())
 	}
@@ -79,8 +85,8 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 		if len(res) != 1000 {
 			b.Fatalf("wrong result size, expected 1000, got %d", len(res))
 		}
-		if len(res[0]) != 185 {
-			b.Fatalf("wrong result size, expected 185, got %d", len(res[0]))
+		if len(res[0]) != len(columns) {
+			b.Fatalf("wrong result size, expected %d, got %d", len(columns), len(res[0]))
 		}
 	}
 	b.StopTimer()
