@@ -134,6 +134,18 @@ func (e *PeerError) Error() string {
 // Type returns the error type.
 func (e *PeerError) Type() PeerErrorType { return e.kind }
 
+// PeerCommandError is a custom error when remote site returns something after sending a command
+type PeerCommandError struct {
+	err  error
+	code int
+	peer *Peer
+}
+
+// Error returns the error message as string.
+func (e *PeerCommandError) Error() string {
+	return e.err.Error()
+}
+
 // AddItem adds an new entry to a datatable.
 func (d *DataTable) AddItem(row *[]interface{}, id string) {
 	d.Data = append(d.Data, *row)
@@ -1162,6 +1174,14 @@ func (p *Peer) query(req *Request) ([][]interface{}, error) {
 		return nil, err
 	}
 	if req.Command != "" {
+		if len(*resBytes) > 0 {
+			tmp := strings.SplitN(strings.TrimSpace(string(*resBytes)), ":", 2)
+			if len(tmp) == 2 {
+				code, _ := strconv.Atoi(tmp[0])
+				return nil, &PeerCommandError{err: fmt.Errorf(strings.TrimSpace(tmp[1])), code: code, peer: p}
+			}
+			return nil, fmt.Errorf(tmp[0])
+		}
 		return nil, nil
 	}
 
@@ -1253,10 +1273,6 @@ func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn
 		if err != nil {
 			return nil, err
 		}
-		// commands do not send anything back
-		if req.Command != "" {
-			return nil, nil
-		}
 		return &res, nil
 	}
 
@@ -1286,12 +1302,6 @@ func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn
 			break
 		}
 	}
-
-	// commands do not send anything back, return after reading any response to be sure the server accepted the command
-	if req.Command != "" {
-		return nil, nil
-	}
-
 	res := buf.Bytes()
 	return &res, nil
 }
@@ -1433,6 +1443,11 @@ func extractConnType(rawAddr string) (string, string) {
 }
 
 func (p *Peer) setNextAddrFromErr(err error) {
+	switch err.(type) {
+	case *PeerCommandError:
+		// client errors do not affect remote site status
+		return
+	}
 	promPeerFailedConnections.WithLabelValues(p.Name).Inc()
 	p.PeerLock.Lock()
 	peerAddr := p.Status["PeerAddr"].(string)
@@ -2170,6 +2185,7 @@ func (p *Peer) HTTPQueryWithRetrys(peerAddr string, query string, retries int) (
 
 	// retry on broken pipe errors
 	for retry := 1; retry <= retries && err != nil; retry++ {
+		log.Debugf("[%s] errored: %s", p.Name, err.Error())
 		if strings.HasPrefix(err.Error(), "remote site returned rc: 0 - ERROR: broken pipe.") {
 			time.Sleep(1 * time.Second)
 			res, err = p.HTTPQuery(peerAddr, query)

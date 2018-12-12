@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -109,8 +110,12 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string) (bool, error) {
 		} else {
 			// send all pending commands so far
 			if len(commandsByPeer) > 0 {
-				SendCommands(&commandsByPeer)
+				code, msg := SendCommands(&commandsByPeer)
 				commandsByPeer = make(map[string][]string)
+				if code != 200 {
+					c.Write([]byte(fmt.Sprintf("%d: %s\n", code, msg)))
+					return false, nil
+				}
 				log.Infof("incoming command request from %s to %s finished in %s", remote, c.LocalAddr().String(), time.Since(t1))
 			}
 			if req.WaitTrigger != "" {
@@ -144,7 +149,11 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string) (bool, error) {
 	// send all remaining commands
 	if len(commandsByPeer) > 0 {
 		t1 := time.Now()
-		SendCommands(&commandsByPeer)
+		code, msg := SendCommands(&commandsByPeer)
+		if code != 200 {
+			c.Write([]byte(fmt.Sprintf("%d: %s\n", code, msg)))
+			return false, nil
+		}
 		log.Infof("incoming command request from %s to %s finished in %s", remote, c.LocalAddr().String(), time.Since(t1))
 	}
 
@@ -153,7 +162,10 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string) (bool, error) {
 
 // SendCommands sends commands for this request to all selected remote sites.
 // It returns any error encountered.
-func SendCommands(commandsByPeer *map[string][]string) {
+func SendCommands(commandsByPeer *map[string][]string) (code int, msg string) {
+	code = 200
+	msg = "OK"
+	resultChan := make(chan PeerCommandError, len(*commandsByPeer))
 	wg := &sync.WaitGroup{}
 	for pID := range *commandsByPeer {
 		PeerMapLock.RLock()
@@ -176,7 +188,12 @@ func SendCommands(commandsByPeer *map[string][]string) {
 			peer.PeerLock.Unlock()
 			_, err := peer.Query(commandRequest)
 			if err != nil {
-				log.Warnf("[%s] sending command failed: %s", peer.Name, err.Error())
+				switch err := err.(type) {
+				case *PeerCommandError:
+					resultChan <- *err
+				default:
+					log.Warnf("[%s] sending command failed: %s", peer.Name, err.Error())
+				}
 				return
 			}
 			log.Infof("[%s] send %d commands successfully.", peer.Name, len((*commandsByPeer)[peer.ID]))
@@ -187,6 +204,17 @@ func SendCommands(commandsByPeer *map[string][]string) {
 	}
 	// Wait up to 10 seconds for all commands being sent
 	waitTimeout(wg, 10)
+
+	// were there any errors?
+	select {
+	case err := <-resultChan:
+		log.Warnf("[%s] sending command failed: %s", err.peer.Name, err.Error())
+		code = err.code
+		msg = err.Error()
+	default:
+	}
+
+	return
 }
 
 // Listen start listening the actual connection
