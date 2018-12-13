@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -201,4 +202,16 @@ func TestMainConfig(t *testing.T) {
 	os.Remove("test1.ini")
 	os.Remove("test2.ini")
 	os.Remove("test3.ini")
+}
+
+func TestMainWaitTimeout(t *testing.T) {
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	t1 := time.Now()
+	timeout := 50 * time.Millisecond
+	waitTimeout(wg, timeout)
+	duration := time.Since(t1)
+	if duration < timeout {
+		t.Errorf("timeout too small: %s", duration)
+	}
 }

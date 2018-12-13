@@ -2393,7 +2393,7 @@ func SpinUpPeers(peers []string) {
 			}
 		}(p, waitgroup)
 	}
-	waitTimeout(waitgroup, 5)
+	waitTimeout(waitgroup, 5*time.Second)
 	log.Debugf("spin up completed")
 }
 

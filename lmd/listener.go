@@ -203,7 +203,7 @@ func SendCommands(commandsByPeer *map[string][]string) (code int, msg string) {
 		}(p)
 	}
 	// Wait up to 10 seconds for all commands being sent
-	waitTimeout(wg, 10)
+	waitTimeout(wg, 10*time.Second)
 
 	// were there any errors?
 	select {

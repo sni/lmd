@@ -516,15 +516,20 @@ func logThreaddump() {
 // waitTimeout waits for the waitgroup for the specified max timeout.
 // Returns true if waiting timed out.
 func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	if timeout < time.Millisecond*10 {
+		log.Panic("bogus timeout")
+	}
 	c := make(chan struct{})
+	t := time.NewTimer(timeout)
 	go func() {
 		defer close(c)
 		wg.Wait()
 	}()
 	select {
 	case <-c:
+		t.Stop()
 		return false // completed normally
-	case <-time.After(timeout):
+	case <-t.C:
 		return true // timed out
 	}
 }
