@@ -1,7 +1,9 @@
 This file documents the revision history for the Livestatus Multitool Daemon
 
-next:
+1.3.7    Tue Dec 18 14:12:03 CET 2018
           - send back external command result if supported by core
+          - add more naemon specific columns (sidhartha-sankar)
+          - add more shinken specific columns (David Gil)
 
 1.3.6    Thu Nov 15 11:02:21 CET 2018
           - fix parsing peers remote_name attribute
