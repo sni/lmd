@@ -2815,7 +2815,7 @@ func (p *Peer) expandCrossServiceReferences(table *Table, refs *map[string][][]i
 	hostnameIndex := table.GetColumn("host_name").Index
 	for i := range *res {
 		row := (*res)[i]
-		if row[refCol.RefIndex].(string) == "" {
+		if row[refCol.RefIndex] == nil || row[refCol.RefIndex].(string) == "" {
 			// this may happen for optional reference columns, ex. services in comments
 			if add {
 				(*refs)[fieldName] = append((*refs)[fieldName], nil)
