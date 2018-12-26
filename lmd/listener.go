@@ -173,39 +173,15 @@ func SendCommands(commandsByPeer *map[string][]string) (code int, msg string) {
 		PeerMapLock.RUnlock()
 		wg.Add(1)
 		go func(peer *Peer) {
-			// make sure we log panics properly
-			defer wg.Done()
 			defer logPanicExitPeer(peer)
-			commandRequest := &Request{
-				Command: strings.Join((*commandsByPeer)[peer.ID], "\n\n"),
-			}
-			peer.PeerLock.Lock()
-			peer.Status["LastQuery"] = time.Now().Unix()
-			if peer.Status["Idling"].(bool) {
-				peer.Status["Idling"] = false
-				log.Infof("[%s] switched back to normal update interval", peer.Name)
-			}
-			peer.PeerLock.Unlock()
-			_, err := peer.Query(commandRequest)
-			if err != nil {
-				switch err := err.(type) {
-				case *PeerCommandError:
-					resultChan <- *err
-				default:
-					log.Warnf("[%s] sending command failed: %s", peer.Name, err.Error())
-				}
-				return
-			}
-			log.Infof("[%s] send %d commands successfully.", peer.Name, len((*commandsByPeer)[peer.ID]))
-
-			// schedule immediate update
-			peer.ScheduleImmediateUpdate()
+			defer wg.Done()
+			peer.SendCommands(resultChan, (*commandsByPeer)[peer.ID])
 		}(p)
 	}
 	// Wait up to 10 seconds for all commands being sent
 	waitTimeout(wg, 10*time.Second)
 
-	// were there any errors?
+	// collect errors
 	select {
 	case err := <-resultChan:
 		log.Warnf("[%s] sending command failed: %s", err.peer.Name, err.Error())
@@ -277,6 +253,7 @@ func (l *Listener) LocalListenerLivestatus(connType string, listen string) {
 
 	// Close connection and log shutdown
 	go func() {
+		defer logPanicExit()
 		<-l.shutdownChannel
 		log.Infof("stopping %s listener on %s", connType, listen)
 		c.Close()

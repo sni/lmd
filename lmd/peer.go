@@ -2837,3 +2837,31 @@ func (p *Peer) expandCrossServiceReferences(table *Table, refs *map[string][][]i
 	}
 	return
 }
+
+// SendCommands sends list of commands
+func (p *Peer) SendCommands(resultChan chan PeerCommandError, commands []string) {
+	commandRequest := &Request{
+		Command: strings.Join(commands, "\n\n"),
+	}
+	p.PeerLock.Lock()
+	p.Status["LastQuery"] = time.Now().Unix()
+	if p.Status["Idling"].(bool) {
+		p.Status["Idling"] = false
+		log.Infof("[%s] switched back to normal update interval", p.Name)
+	}
+	p.PeerLock.Unlock()
+	_, err := p.Query(commandRequest)
+	if err != nil {
+		switch err := err.(type) {
+		case *PeerCommandError:
+			resultChan <- *err
+		default:
+			log.Warnf("[%s] sending command failed: %s", p.Name, err.Error())
+		}
+		return
+	}
+	log.Infof("[%s] send %d commands successfully.", p.Name, len(commands))
+
+	// schedule immediate update
+	p.ScheduleImmediateUpdate()
+}
