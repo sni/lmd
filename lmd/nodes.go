@@ -176,6 +176,7 @@ func (n *Nodes) Start() {
 
 	// Start loop in background
 	go func() {
+		defer logPanicExit()
 		n.loop()
 	}()
 }
@@ -230,6 +231,7 @@ func (n *Nodes) checkNodeAvailability() {
 		log.Tracef("pinging node %s...", node.HumanIdentifier())
 		wg.Add(1)
 		go func(wg *sync.WaitGroup, node *NodeAddress) {
+			defer logPanicExit()
 			callback := func(responseData interface{}) {
 				// Parse response
 				dataMap, ok := responseData.(map[string]interface{})
@@ -481,6 +483,7 @@ func (n *Nodes) SendQuery(node *NodeAddress, name string, parameters map[string]
 
 	// Trigger callback
 	go func() {
+		defer logPanicExit()
 		log.Tracef("calling callback for query (%s)", name)
 		callback(responseData)
 	}()
