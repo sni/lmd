@@ -92,7 +92,7 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 			}
 
 			if len(req.Filter) > 0 || len(req.Stats) > 0 {
-				conn.Write([]byte("200            3\n[]\n"))
+				conn.Write([]byte("200           3\n[]\n"))
 				conn.Close()
 				continue
 			}
