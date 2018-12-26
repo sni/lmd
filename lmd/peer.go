@@ -1340,15 +1340,14 @@ func (p *Peer) CheckResponseHeader(resBytes *[]byte) (err error) {
 		return
 	}
 	if resSize < 16 {
-		err = fmt.Errorf("[%s] uncomplete response header: %s", p.Name, string(*resBytes))
+		err = fmt.Errorf("[%s] uncomplete response header: '%s'", p.Name, string(*resBytes))
 		return
 	}
 	header := (*resBytes)[0:15]
 	resSize = resSize - 16
-
 	matched := reResponseHeader.FindStringSubmatch(string(header))
 	if len(matched) != 3 {
-		err = fmt.Errorf("[%s] uncomplete response header: %s", p.Name, string(header))
+		err = fmt.Errorf("[%s] uncomplete response header: '%s'", p.Name, string(header))
 		return
 	}
 	resCode, _ := strconv.Atoi(matched[1])
@@ -2838,11 +2837,8 @@ func (p *Peer) expandCrossServiceReferences(table *Table, refs *map[string][][]i
 	return
 }
 
-// SendCommands sends list of commands
-func (p *Peer) SendCommands(resultChan chan PeerCommandError, commands []string) {
-	commandRequest := &Request{
-		Command: strings.Join(commands, "\n\n"),
-	}
+// SendCommandsWithRetry sends list of commands and retries until the peer is completly down
+func (p *Peer) SendCommandsWithRetry(commands []string) (err error) {
 	p.PeerLock.Lock()
 	p.Status["LastQuery"] = time.Now().Unix()
 	if p.Status["Idling"].(bool) {
@@ -2850,11 +2846,47 @@ func (p *Peer) SendCommands(resultChan chan PeerCommandError, commands []string)
 		log.Infof("[%s] switched back to normal update interval", p.Name)
 	}
 	p.PeerLock.Unlock()
-	_, err := p.Query(commandRequest)
+
+	// check status of backend
+	for {
+		status := p.StatusGet("PeerStatus").(PeerStatus)
+		switch status {
+		case PeerStatusDown:
+			log.Debugf("[%s] cannot send command, peer is down", p.Name)
+			return fmt.Errorf("%s", p.StatusGet("LastError"))
+		case PeerStatusWarning, PeerStatusPending:
+			// wait till we get either a up or down
+			time.Sleep(1 * time.Second)
+		case PeerStatusUp:
+			err = p.SendCommands(commands)
+			if err == nil {
+				return
+			}
+			switch err.(type) {
+			case *PeerCommandError:
+				// client error, return immediately
+				return
+			default:
+				// retry again
+				time.Sleep(1 * time.Second)
+			}
+		default:
+			log.Panicf("[%s] PeerStatus %v not implemented", p.Name, status)
+		}
+	}
+}
+
+// SendCommands sends list of commands
+func (p *Peer) SendCommands(commands []string) (err error) {
+	commandRequest := &Request{
+		Command: strings.Join(commands, "\n\n"),
+	}
+	_, err = p.Query(commandRequest)
 	if err != nil {
-		switch err := err.(type) {
+		switch err.(type) {
 		case *PeerCommandError:
-			resultChan <- *err
+			log.Debugf("[%s] sending command failed (invalid query): %s", p.Name, err.Error())
+			return
 		default:
 			log.Warnf("[%s] sending command failed: %s", p.Name, err.Error())
 		}
@@ -2864,4 +2896,6 @@ func (p *Peer) SendCommands(resultChan chan PeerCommandError, commands []string)
 
 	// schedule immediate update
 	p.ScheduleImmediateUpdate()
+
+	return
 }

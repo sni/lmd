@@ -165,7 +165,7 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string) (bool, error) {
 func SendCommands(commandsByPeer *map[string][]string) (code int, msg string) {
 	code = 200
 	msg = "OK"
-	resultChan := make(chan PeerCommandError, len(*commandsByPeer))
+	resultChan := make(chan error, len(*commandsByPeer))
 	wg := &sync.WaitGroup{}
 	for pID := range *commandsByPeer {
 		PeerMapLock.RLock()
@@ -175,22 +175,35 @@ func SendCommands(commandsByPeer *map[string][]string) (code int, msg string) {
 		go func(peer *Peer) {
 			defer logPanicExitPeer(peer)
 			defer wg.Done()
-			peer.SendCommands(resultChan, (*commandsByPeer)[peer.ID])
+			resultChan <- peer.SendCommandsWithRetry((*commandsByPeer)[peer.ID])
 		}(p)
 	}
-	// Wait up to 10 seconds for all commands being sent
-	waitTimeout(wg, 10*time.Second)
 
-	// collect errors
-	select {
-	case err := <-resultChan:
-		log.Warnf("[%s] sending command failed: %s", err.peer.Name, err.Error())
-		code = err.code
-		msg = err.Error()
-	default:
+	// Wait up to 10 seconds for all commands being sent
+	if waitTimeout(wg, 9500*time.Millisecond) {
+		code = 202
+		msg = "sending command timed out but will continue in background"
+		return
 	}
 
-	return
+	// collect errors
+	for {
+		select {
+		case err := <-resultChan:
+			switch e := err.(type) {
+			case *PeerCommandError:
+				code = e.code
+				msg = e.Error()
+			default:
+				if err != nil {
+					code = 500
+					msg = err.Error()
+				}
+			}
+		default:
+			return
+		}
+	}
 }
 
 // Listen start listening the actual connection
