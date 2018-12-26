@@ -126,7 +126,7 @@ func TestAllOps(t *testing.T) {
 	PauseTestPeers(peer)
 
 	ops := []string{"=", "!=", "=~", "!=~", "~", "!~", "~~", "!~~", "<", "<=", ">", ">=", "!>="}
-	values := []string{"", " test", " 5", " 3.124", "{}"}
+	values := []string{"", " test", " 5", " 3.124", " {}"}
 
 	res, err := peer.QueryString("GET columns\nColumns: table name description\n\n")
 	if err != nil {
