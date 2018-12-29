@@ -1168,7 +1168,7 @@ func (p *Peer) query(req *Request) ([][]interface{}, error) {
 	p.PeerLock.Unlock()
 	promPeerBytesSend.WithLabelValues(p.Name).Set(float64(totalBytesSend))
 
-	resBytes, err := p.sendTo(req, query, peerAddr, conn, connType)
+	resBytes, err := p.getQueryResponse(req, query, peerAddr, conn, connType)
 	if err != nil {
 		log.Debugf("[%s] sending data/query failed: %s", p.Name, err)
 		return nil, err
@@ -1192,13 +1192,6 @@ func (p *Peer) query(req *Request) ([][]interface{}, error) {
 	p.lastResponse = resBytes
 	p.PeerLock.Unlock()
 
-	if req.ResponseFixed16 {
-		err = p.CheckResponseHeader(resBytes)
-		if err != nil {
-			return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes}
-		}
-		*resBytes = (*resBytes)[16:]
-	}
 	return p.parseResult(req, resBytes)
 }
 
@@ -1266,7 +1259,7 @@ func (p *Peer) parseResult(req *Request, resBytes *[]byte) (result [][]interface
 	return
 }
 
-func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn, connType string) (*[]byte, error) {
+func (p *Peer) getQueryResponse(req *Request, query string, peerAddr string, conn net.Conn, connType string) (*[]byte, error) {
 	// http connections
 	if connType == "http" {
 		res, err := p.HTTPQueryWithRetrys(peerAddr, query, 2)
@@ -1275,13 +1268,17 @@ func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn
 		}
 		return &res, nil
 	}
+	return p.getSocketQueryResponse(req, query, conn)
+}
 
+func (p *Peer) getSocketQueryResponse(req *Request, query string, conn net.Conn) (*[]byte, error) {
 	// tcp/unix connections
 	// set read timeout
 	conn.SetDeadline(time.Now().Add(time.Duration(p.LocalConfig.NetTimeout) * time.Second))
 	fmt.Fprintf(conn, "%s", query)
 
 	// close write part of connection
+	// but only on commands, it'll breaks larger responses with stunnel / xinetd constructs
 	if req.Command != "" {
 		switch c := conn.(type) {
 		case *net.TCPConn:
@@ -1291,10 +1288,19 @@ func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn
 		}
 	}
 
-	// read result from connection into result buffer
-	buf := new(bytes.Buffer)
+	// read result with fixed result size
+	if req.ResponseFixed16 {
+		return p.parseResponseFixedSize(req, conn)
+	}
+
+	return p.parseResponseUndefinedSize(conn)
+}
+
+func (p *Peer) parseResponseUndefinedSize(conn net.Conn) (*[]byte, error) {
+	// read result from connection into result buffer with undefined result size
+	body := new(bytes.Buffer)
 	for {
-		_, err := io.CopyN(buf, conn, 65536)
+		_, err := io.CopyN(body, conn, 65536)
 		if err != nil {
 			if err != io.EOF {
 				return nil, err
@@ -1302,7 +1308,33 @@ func (p *Peer) sendTo(req *Request, query string, peerAddr string, conn net.Conn
 			break
 		}
 	}
-	res := buf.Bytes()
+	res := body.Bytes()
+	return &res, nil
+}
+
+func (p *Peer) parseResponseFixedSize(req *Request, conn net.Conn) (*[]byte, error) {
+	header := new(bytes.Buffer)
+	_, err := io.CopyN(header, conn, 16)
+	resBytes := header.Bytes()
+	if err != nil {
+		return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: &resBytes}
+	}
+	_, expSize, err := p.parseResponseHeader(&resBytes)
+	if err != nil {
+		return nil, err
+	}
+	body := new(bytes.Buffer)
+	_, err = io.CopyN(body, conn, expSize)
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+	conn.Close()
+	res := body.Bytes()
+	resSize := int64(len(res))
+	if expSize != resSize {
+		err = fmt.Errorf("[%s] bad response size, expected %d, got %d", p.Name, expSize, resSize)
+		return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: &res}
+	}
 	return &res, nil
 }
 
@@ -1331,9 +1363,9 @@ func (p *Peer) QueryString(str string) ([][]interface{}, error) {
 	return p.Query(req)
 }
 
-// CheckResponseHeader verifies the return code and content length of livestatus answer.
-// It returns an error if something is wrong with the header.
-func (p *Peer) CheckResponseHeader(resBytes *[]byte) (err error) {
+// parseResponseHeader verifies the return code and content length of livestatus answer.
+// It returns the body size or an error if something is wrong with the header.
+func (p *Peer) parseResponseHeader(resBytes *[]byte) (resCode int, expSize int64, err error) {
 	resSize := len(*resBytes)
 	if resSize == 0 {
 		err = fmt.Errorf("[%s] empty response, got 0 bytes", p.Name)
@@ -1343,22 +1375,17 @@ func (p *Peer) CheckResponseHeader(resBytes *[]byte) (err error) {
 		err = fmt.Errorf("[%s] uncomplete response header: '%s'", p.Name, string(*resBytes))
 		return
 	}
-	header := (*resBytes)[0:15]
-	resSize = resSize - 16
-	matched := reResponseHeader.FindStringSubmatch(string(header))
+	header := string((*resBytes)[0:15])
+	matched := reResponseHeader.FindStringSubmatch(header)
 	if len(matched) != 3 {
-		err = fmt.Errorf("[%s] uncomplete response header: '%s'", p.Name, string(header))
+		err = fmt.Errorf("[%s] incorrect response header: '%s'", p.Name, header)
 		return
 	}
-	resCode, _ := strconv.Atoi(matched[1])
-	expSize, _ := strconv.Atoi(matched[2])
+	resCode, _ = strconv.Atoi(matched[1])
+	expSize, _ = strconv.ParseInt(matched[2], 10, 64)
 
 	if resCode != 200 {
 		err = fmt.Errorf("[%s] bad response: %s", p.Name, string(*resBytes))
-		return
-	}
-	if expSize != resSize {
-		err = fmt.Errorf("[%s] bad response size, expected %d, got %d", p.Name, expSize, resSize)
 		return
 	}
 	return
