@@ -203,7 +203,11 @@ staticcheck:
 	# staticcheck combines a few static code analyzer
 	# See honnef.co/go/tools/cmd/staticcheck
 	#
-	cd $(LAMPDDIR) && staticcheck .
+	@if [ $$( printf '%s\n' $(GOVERSION) 00010010 | sort | head -n 1 ) = $(GOVERSION) ]; then \
+		echo "staticcheck requires at least go 1.10"; \
+	else \
+		cd $(LAMPDDIR) && staticcheck . ; \
+	fi
 
 version:
 	OLDVERSION="$(shell grep "VERSION =" $(LAMPDDIR)/main.go | awk '{print $$3}' | tr -d '"')"; \
