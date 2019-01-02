@@ -44,6 +44,7 @@ const (
 type DataTable struct {
 	Table      *Table
 	Data       [][]interface{}
+	ColumnsMap map[int]int // maps table column indexes with data subindexes
 	Refs       map[string][][]interface{}
 	Index      map[string][]interface{}
 	LastUpdate []int64
@@ -1524,10 +1525,16 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 
 	keys := table.GetInitialKeys(p.Flags)
 
+	columnsMap := make(map[int]int)
+	for i, peerCol := range keys {
+		tableColIndex := table.ColumnsIndex[peerCol]
+		columnsMap[tableColIndex] = i
+	}
+
 	// complete virtual table ends here
 	if len(keys) == 0 || table.Virtual {
 		p.DataLock.Lock()
-		p.Tables[table.Name] = DataTable{Table: table, Data: make([][]interface{}, 1), Refs: nil, Index: nil}
+		p.Tables[table.Name] = DataTable{Table: table, Data: make([][]interface{}, 1), Refs: nil, Index: nil, ColumnsMap: columnsMap}
 		p.DataLock.Unlock()
 		return
 	}
@@ -1572,7 +1579,7 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 	}
 
 	p.DataLock.Lock()
-	p.Tables[table.Name] = DataTable{Table: table, Data: res, Refs: refs, Index: index, LastUpdate: lastUpdate}
+	p.Tables[table.Name] = DataTable{Table: table, Data: res, Refs: refs, Index: index, LastUpdate: lastUpdate, ColumnsMap: columnsMap}
 	p.DataLock.Unlock()
 	p.PeerLock.Lock()
 	p.Status["LastUpdate"] = now
@@ -2485,6 +2492,7 @@ func (p *Peer) getError() string {
 
 func (p *Peer) gatherResultRows(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) (int, *[][]interface{}) {
 	req := res.Request
+	columns := p.Tables[req.Table].ColumnsMap
 	refs := p.Tables[req.Table].Refs
 	result := make([][]interface{}, 0)
 
@@ -2520,8 +2528,8 @@ Rows:
 				// reference columns come after the non-ref columns
 				if i >= len(*row) {
 					resRow[k] = p.GetRowValue(&(res.Columns[k]), row, j, table, &refs)
-				} else {
-					resRow[k] = (*row)[i]
+				} else if col, ok := columns[i]; ok {
+					resRow[k] = (*row)[col]
 				}
 			}
 			// fill null values with something useful
