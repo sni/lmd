@@ -2492,6 +2492,7 @@ func (p *Peer) getError() string {
 
 func (p *Peer) gatherResultRows(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) (int, *[][]interface{}) {
 	req := res.Request
+	columns := p.Tables[req.Table].ColumnsMap
 	refs := p.Tables[req.Table].Refs
 	result := make([][]interface{}, 0)
 
@@ -2527,8 +2528,8 @@ Rows:
 				// reference columns come after the non-ref columns
 				if i >= len(*row) {
 					resRow[k] = p.GetRowValue(&(res.Columns[k]), row, j, table, &refs)
-				} else {
-					resRow[k] = (*row)[i]
+				} else if col, ok := columns[i]; ok {
+					resRow[k] = (*row)[col]
 				}
 			}
 			// fill null values with something useful
