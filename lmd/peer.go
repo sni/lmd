@@ -1208,7 +1208,7 @@ func (p *Peer) parseResult(req *Request, resBytes *[]byte) (result [][]interface
 
 	if len(*resBytes) == 0 || (string((*resBytes)[0]) != "{" && string((*resBytes)[0]) != "[") {
 		err = errors.New(strings.TrimSpace(string(*resBytes)))
-		return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes}
+		return nil, &PeerError{msg: fmt.Sprintf("response does not look like a json result: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
 	}
 	if req.OutputFormat == "wrapped_json" {
 		dataBytes, dataType, _, jErr := jsonparser.Get(*resBytes, "columns")
@@ -1263,13 +1263,28 @@ func (p *Peer) parseResult(req *Request, resBytes *[]byte) (result [][]interface
 func (p *Peer) getQueryResponse(req *Request, query string, peerAddr string, conn net.Conn, connType string) (*[]byte, error) {
 	// http connections
 	if connType == "http" {
-		res, err := p.HTTPQueryWithRetrys(peerAddr, query, 2)
+		return p.getHTTPQueryResponse(req, query, peerAddr)
+	}
+	return p.getSocketQueryResponse(req, query, conn)
+}
+
+func (p *Peer) getHTTPQueryResponse(req *Request, query string, peerAddr string) (*[]byte, error) {
+	res, err := p.HTTPQueryWithRetrys(peerAddr, query, 2)
+	if err != nil {
+		return nil, err
+	}
+	if req.ResponseFixed16 {
+		expSize, err := p.parseResponseHeader(&res)
 		if err != nil {
 			return nil, err
 		}
-		return &res, nil
+		res = res[16:]
+		if int64(len(res)) != expSize {
+			err = fmt.Errorf("[%s] bad response size, expected %d, got %d", p.Name, expSize, len(res))
+			return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: &res}
+		}
 	}
-	return p.getSocketQueryResponse(req, query, conn)
+	return &res, nil
 }
 
 func (p *Peer) getSocketQueryResponse(req *Request, query string, conn net.Conn) (*[]byte, error) {
@@ -1320,7 +1335,7 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn net.Conn) (*[]byte, err
 	if err != nil {
 		return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: &resBytes}
 	}
-	_, expSize, err := p.parseResponseHeader(&resBytes)
+	expSize, err := p.parseResponseHeader(&resBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -1366,7 +1381,7 @@ func (p *Peer) QueryString(str string) ([][]interface{}, error) {
 
 // parseResponseHeader verifies the return code and content length of livestatus answer.
 // It returns the body size or an error if something is wrong with the header.
-func (p *Peer) parseResponseHeader(resBytes *[]byte) (resCode int, expSize int64, err error) {
+func (p *Peer) parseResponseHeader(resBytes *[]byte) (expSize int64, err error) {
 	resSize := len(*resBytes)
 	if resSize == 0 {
 		err = fmt.Errorf("[%s] empty response, got 0 bytes", p.Name)
@@ -1382,7 +1397,7 @@ func (p *Peer) parseResponseHeader(resBytes *[]byte) (resCode int, expSize int64
 		err = fmt.Errorf("[%s] incorrect response header: '%s'", p.Name, header)
 		return
 	}
-	resCode, _ = strconv.Atoi(matched[1])
+	resCode, _ := strconv.Atoi(matched[1])
 	expSize, _ = strconv.ParseInt(matched[2], 10, 64)
 
 	if resCode != 200 {
