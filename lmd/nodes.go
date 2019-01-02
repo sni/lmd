@@ -454,7 +454,7 @@ func (n *Nodes) SendQuery(node *NodeAddress, name string, parameters map[string]
 	url := node.url + "query"
 	res, err := n.HTTPClient.Post(url, contentType, bytes.NewBuffer(rawRequest))
 	if err != nil {
-		log.Tracef("error sending query (%s) to node (%s): %s", name, node, err.Error())
+		log.Warnf("error sending query (%s) to node (%s): %s", name, node, err.Error())
 		return err
 	}
 
