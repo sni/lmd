@@ -25,7 +25,6 @@ EXTERNAL_DEPS = \
 	github.com/fzipp/gocyclo \
 	github.com/client9/misspell/cmd/misspell \
 	github.com/jmhodges/copyfighter \
-	honnef.co/go/tools/cmd/gosimple \
 	github.com/mvdan/unparam \
 	github.com/mdempsky/unconvert \
 	honnef.co/go/tools/cmd/staticcheck \
@@ -95,7 +94,6 @@ citest: deps
 	$(MAKE) cyclo
 	$(MAKE) misspell
 	$(MAKE) copyfighter
-	$(MAKE) gosimple
 	$(MAKE) unparam
 	$(MAKE) unconvert
 	$(MAKE) staticcheck
@@ -176,13 +174,6 @@ copyfighter:
 	# See https://github.com/jmhodges/copyfighter
 	#
 	cd $(LAMPDDIR) && copyfighter .
-
-gosimple:
-	#
-	# Check if something could be made simpler
-	# See https://github.com/dominikh/go-tools/tree/master/cmd/gosimple
-	#
-	cd $(LAMPDDIR) && gosimple
 
 unparam:
 	#
