@@ -44,6 +44,7 @@ const (
 type DataTable struct {
 	Table      *Table
 	Data       [][]interface{}
+	ColumnsMap map[int]int // maps table column indexes with data subindexes
 	Refs       map[string][][]interface{}
 	Index      map[string][]interface{}
 	LastUpdate []int64
@@ -1527,7 +1528,7 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 	// complete virtual table ends here
 	if len(keys) == 0 || table.Virtual {
 		p.DataLock.Lock()
-		p.Tables[table.Name] = DataTable{Table: table, Data: make([][]interface{}, 1), Refs: nil, Index: nil}
+		p.Tables[table.Name] = DataTable{Table: table, Data: make([][]interface{}, 1), Refs: nil, Index: nil, ColumnsMap: make(map[int]int)}
 		p.DataLock.Unlock()
 		return
 	}
@@ -1571,8 +1572,14 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 		}
 	}
 
+	columnsMap := make(map[int]int)
+	for i, peerCol := range keys {
+		tableColIndex := table.ColumnsIndex[peerCol]
+		columnsMap[tableColIndex] = i
+	}
+
 	p.DataLock.Lock()
-	p.Tables[table.Name] = DataTable{Table: table, Data: res, Refs: refs, Index: index, LastUpdate: lastUpdate}
+	p.Tables[table.Name] = DataTable{Table: table, Data: res, Refs: refs, Index: index, LastUpdate: lastUpdate, ColumnsMap: columnsMap}
 	p.DataLock.Unlock()
 	p.PeerLock.Lock()
 	p.Status["LastUpdate"] = now
