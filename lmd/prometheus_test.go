@@ -12,7 +12,7 @@ func TestPrometheus(t *testing.T) {
 	peer := StartTestPeerExtra(2, 10, 10, extraConfig)
 	PauseTestPeers(peer)
 
-	netClient := NewLMDHTTPClient(&tls.Config{})
+	netClient := NewLMDHTTPClient(&tls.Config{}, "")
 	response, err := netClient.Get("http://127.0.0.1:50999/metrics")
 	if err != nil {
 		t.Fatal(err)

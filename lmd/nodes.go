@@ -60,7 +60,7 @@ func NewNodes(LocalConfig *Config, addresses []string, listen string, waitGroupI
 		stopChannel:     make(chan bool),
 	}
 	tlsConfig := &tls.Config{InsecureSkipVerify: LocalConfig.SkipSSLCheck > 0}
-	n.HTTPClient = NewLMDHTTPClient(tlsConfig)
+	n.HTTPClient = NewLMDHTTPClient(tlsConfig, "")
 	PeerMapLock.RLock()
 	for id := range PeerMap {
 		n.backends = append(n.backends, id)

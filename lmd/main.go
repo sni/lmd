@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	_ "net/http/pprof"
+	"net/url"
 	"os"
 	"os/signal"
 	"regexp"
@@ -58,6 +59,7 @@ type Connection struct {
 	TLSKey         string
 	TLSCA          string
 	TLSSkipVerify  int
+	Proxy          string
 }
 
 // Equals checks if two connection objects are identical.
@@ -432,7 +434,7 @@ func setVerboseFlags(LocalConfig *Config) {
 }
 
 // NewLMDHTTPClient creates a http.Client with the given tls.Config
-func NewLMDHTTPClient(tlsConfig *tls.Config) *http.Client {
+func NewLMDHTTPClient(tlsConfig *tls.Config, proxy string) *http.Client {
 	tr := &http.Transport{
 		Dial: (&net.Dialer{
 			Timeout:   10 * time.Second,
@@ -440,6 +442,13 @@ func NewLMDHTTPClient(tlsConfig *tls.Config) *http.Client {
 		}).Dial,
 		TLSHandshakeTimeout: 10 * time.Second,
 		TLSClientConfig:     tlsConfig,
+	}
+	if proxy != "" {
+		proxyURL, err := url.Parse(proxy)
+		if err != nil {
+			log.Fatalf("ERROR: cannot parse proxy into url '%s': %s\n", proxy, err.Error())
+		}
+		tr.Proxy = http.ProxyURL(proxyURL)
 	}
 	netClient := &http.Client{
 		Timeout:   time.Second * 30,

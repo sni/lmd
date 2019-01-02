@@ -225,7 +225,7 @@ func NewPeer(LocalConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 		if err != nil {
 			log.Fatalf("failed to initialize peer: %s", err.Error())
 		}
-		p.HTTPClient = NewLMDHTTPClient(tlsConfig)
+		p.HTTPClient = NewLMDHTTPClient(tlsConfig, config.Proxy)
 	}
 
 	return &p
