@@ -1525,10 +1525,16 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 
 	keys := table.GetInitialKeys(p.Flags)
 
+	columnsMap := make(map[int]int)
+	for i, peerCol := range keys {
+		tableColIndex := table.ColumnsIndex[peerCol]
+		columnsMap[tableColIndex] = i
+	}
+
 	// complete virtual table ends here
 	if len(keys) == 0 || table.Virtual {
 		p.DataLock.Lock()
-		p.Tables[table.Name] = DataTable{Table: table, Data: make([][]interface{}, 1), Refs: nil, Index: nil, ColumnsMap: make(map[int]int)}
+		p.Tables[table.Name] = DataTable{Table: table, Data: make([][]interface{}, 1), Refs: nil, Index: nil, ColumnsMap: columnsMap}
 		p.DataLock.Unlock()
 		return
 	}
@@ -1570,12 +1576,6 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 		for i := range res {
 			lastUpdate[i] = now
 		}
-	}
-
-	columnsMap := make(map[int]int)
-	for i, peerCol := range keys {
-		tableColIndex := table.ColumnsIndex[peerCol]
-		columnsMap[tableColIndex] = i
 	}
 
 	p.DataLock.Lock()
