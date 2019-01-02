@@ -93,7 +93,7 @@ citest: deps
 	#
 	$(MAKE) lint
 	$(MAKE) cyclo
-	$(MAKE) mispell
+	$(MAKE) misspell
 	$(MAKE) copyfighter
 	$(MAKE) gosimple
 	$(MAKE) unparam
@@ -163,7 +163,7 @@ cyclo:
 	#
 	cd $(LAMPDDIR) && gocyclo -over 20 . | ../t/filter_cyclo_exceptions.sh
 
-mispell:
+misspell:
 	#
 	# Check if there are common spell errors.
 	# See https://github.com/client9/misspell
