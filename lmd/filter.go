@@ -558,9 +558,9 @@ func matchStringValueOperator(op Operator, valueA *interface{}, valueB *string, 
 	case Unequal:
 		return strA != strB
 	case EqualNocase:
-		return strings.ToLower(strA) == strings.ToLower(strB)
+		return strings.EqualFold(strA, strB)
 	case UnequalNocase:
-		return strings.ToLower(strA) != strings.ToLower(strB)
+		return !strings.EqualFold(strA, strB)
 	case RegexMatch:
 		return (*regex).MatchString(strA)
 	case RegexMatchNot:
