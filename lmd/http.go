@@ -46,8 +46,14 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 	// Fetch backend data
 	req.ExpandRequestedBackends() // ParseRequests()
 
-	// Ask request object to send query, get response
-	res, err := req.GetResponse()
+	var res *Response
+	if d, exists := requestData["distributed"]; exists && d.(bool) {
+		// force local answer to avoid recursion
+		res, err = NewResponse(req)
+	} else {
+		// Ask request object to send query, get response, might get distributed
+		res, err = req.GetResponse()
+	}
 	if err != nil {
 		c.errorOutput(err, w)
 		return
@@ -81,19 +87,32 @@ func (c *HTTPServerController) table(w http.ResponseWriter, request *http.Reques
 	c.queryTable(w, requestData)
 }
 
-func (c *HTTPServerController) ping(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
+func (c *HTTPServerController) ping(w http.ResponseWriter, request *http.Request, _ httprouter.Params) {
+	// Read request data
+	requestData := make(map[string]interface{})
+	defer request.Body.Close()
+	decoder := json.NewDecoder(request.Body)
+	if err := decoder.Decode(&requestData); err != nil {
+		c.errorOutput(fmt.Errorf("request not understood"), w)
+		return
+	}
+	c.queryPing(w, requestData)
+}
 
+func (c *HTTPServerController) queryPing(w http.ResponseWriter, _ map[string]interface{}) {
 	// Response data
+	w.Header().Set("Content-Type", "application/json")
 	id := nodeAccessor.ID
 	j := make(map[string]interface{})
 	j["identifier"] = id
+	j["peers"] = nodeAccessor.assignedBackends
+	j["version"] = Version()
 
 	// Send data
 	json.NewEncoder(w).Encode(j)
 }
 
-func (c *HTTPServerController) query(w http.ResponseWriter, request *http.Request, ps httprouter.Params) {
+func (c *HTTPServerController) query(w http.ResponseWriter, request *http.Request, _ httprouter.Params) {
 	// Read request data
 	contentType := request.Header.Get("Content-Type")
 	requestData := make(map[string]interface{})
@@ -112,7 +131,7 @@ func (c *HTTPServerController) query(w http.ResponseWriter, request *http.Reques
 
 	switch requestedFunction {
 	case "ping":
-		c.ping(w, request, ps)
+		c.queryPing(w, requestData)
 	case "table":
 		c.queryTable(w, requestData)
 	default:

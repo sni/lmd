@@ -100,6 +100,9 @@ func NewResponse(req *Request) (res *Response, err error) {
 		if _, ok := req.BackendsMap[p.ID]; !ok {
 			continue
 		}
+		if !nodeAccessor.IsOurBackend(p.ID) {
+			continue
+		}
 		selectedPeers = append(selectedPeers, p.ID)
 
 		// spin up required?
@@ -109,6 +112,12 @@ func NewResponse(req *Request) (res *Response, err error) {
 		}
 	}
 	PeerMapLock.RUnlock()
+
+	if len(selectedPeers) == 0 {
+		res.Result = make([][]interface{}, 0)
+		res.PostProcessing()
+		return
+	}
 
 	// only use the first backend when requesting table or columns table
 	if table.Name == "tables" || table.Name == "columns" {

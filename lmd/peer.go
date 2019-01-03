@@ -486,6 +486,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 				subPeer.StatusSet("Section", section)
 			}
 
+			nodeAccessor.assignedBackends = append(nodeAccessor.assignedBackends, subID)
 			subPeer.Start()
 		}
 
@@ -580,6 +581,7 @@ func (p *Peer) periodicUpdateMultiBackends(ok *bool, force bool) {
 			section = strings.TrimPrefix(section, "/")
 			subPeer.StatusSet("Section", section)
 
+			nodeAccessor.assignedBackends = append(nodeAccessor.assignedBackends, subID)
 			subPeer.Start()
 		}
 	}

@@ -73,14 +73,13 @@ func NewNodes(LocalConfig *Config, addresses []string, listen string, waitGroupI
 		WaitGroupInit:   waitGroupInit,
 		ShutdownChannel: shutdownChannel,
 		stopChannel:     make(chan bool),
+		nodeBackends:    make(map[string][]string),
 	}
 	tlsConfig := &tls.Config{InsecureSkipVerify: LocalConfig.SkipSSLCheck > 0}
 	n.HTTPClient = NewLMDHTTPClient(tlsConfig, "")
-	PeerMapLock.RLock()
-	for id := range PeerMap {
-		n.backends = append(n.backends, id)
+	for _, c := range LocalConfig.Connections {
+		n.backends = append(n.backends, c.ID)
 	}
-	PeerMapLock.RUnlock()
 	partsListen := reNodeAddress.FindStringSubmatch(listen)
 	for _, address := range addresses {
 		parts := reNodeAddress.FindStringSubmatch(address)
@@ -236,6 +235,7 @@ func (n *Nodes) checkNodeAvailability() {
 	if !initializing {
 		newOnlineNodes = append(newOnlineNodes, n.thisNode)
 	}
+	redistribute := false
 	for _, node := range n.nodeAddresses {
 		if !initializing && node.isMe {
 			// Skip this node unless we're initializing
@@ -243,44 +243,20 @@ func (n *Nodes) checkNodeAvailability() {
 		}
 		requestData := make(map[string]interface{})
 		requestData["identifier"] = ownIdentifier
+		requestData["peers"] = strings.Join(n.nodeBackends[node.id], ";")
 		log.Tracef("pinging node %s...", node)
 		wg.Add(1)
 		go func(wg *sync.WaitGroup, node *NodeAddress) {
 			defer logPanicExit()
-			n.SendQuery(node, "ping", requestData, func(responseData interface{}) {
-				// Parse response
-				dataMap, ok := responseData.(map[string]interface{})
-				log.Tracef("got response from %s", node)
-				if !ok {
-					return
-				}
+			isOnline, forceRedistribute := n.sendPing(node, initializing, requestData)
+			if forceRedistribute {
+				redistribute = true
+			}
+			if isOnline {
+				newOnlineNodes = append(newOnlineNodes, node)
+			}
+			wg.Done()
 
-				// Node id
-				responseIdentifier := dataMap["identifier"].(string)
-				if node.id == "" {
-					node.id = responseIdentifier
-				} else if node.id != responseIdentifier {
-					log.Infof("partner node %s restarted", node)
-					delete(n.nodeBackends, node.id)
-					node.id = responseIdentifier
-				}
-
-				// Check whose response it is
-				if responseIdentifier == ownIdentifier {
-					// This node
-					if initializing {
-						n.thisNode = node
-						node.isMe = true
-						newOnlineNodes = append(newOnlineNodes, node)
-						log.Debugf("identified this node as %s", node)
-					}
-				} else {
-					// Partner node
-					newOnlineNodes = append(newOnlineNodes, node)
-					log.Tracef("discovered partner node: %s", node)
-				}
-				wg.Done()
-			})
 		}(&wg, node)
 	}
 
@@ -299,7 +275,7 @@ func (n *Nodes) checkNodeAvailability() {
 	}
 
 	// Redistribute backends
-	if n.onlineNodes.String() != newOnlineNodes.String() {
+	if redistribute || n.onlineNodes.String() != newOnlineNodes.String() {
 		n.onlineNodes = newOnlineNodes
 		n.redistribute()
 	}
@@ -341,22 +317,22 @@ func (n *Nodes) redistribute() {
 	assignedBackends := make([][]string, numberAllNodes) // for each node
 	nodeBackends := make(map[string][]string)
 	distributedCount := 0
-	numberAssignedBackends := 0
 	for i, number := range assignedNumberBackends {
-		numberAssignedBackends += number
-		if number != 0 {
-			// number == 0 means no backends for that node
-			list := make([]string, number)
-			for j := 0; j < number; j++ {
-				if len(n.backends) > distributedCount+j {
-					list[j] = n.backends[distributedCount+j]
+		if number <= 0 {
+			continue
+		}
+		list := make([]string, 0)
+		for j := 0; j < number; j++ {
+			if len(n.backends) > distributedCount+j {
+				if n.backends[distributedCount+j] != "" {
+					list = append(list, n.backends[distributedCount+j])
 				}
 			}
-			distributedCount += number
-			assignedBackends[i] = list
-			id := allNodes[i].id
-			nodeBackends[id] = list
 		}
+		distributedCount += number
+		assignedBackends[i] = list
+		id := allNodes[i].id
+		nodeBackends[id] = list
 	}
 	n.nodeBackends = nodeBackends
 	ourBackends := assignedBackends[ownIndex]
@@ -365,6 +341,21 @@ func (n *Nodes) redistribute() {
 }
 
 func (n *Nodes) updateBackends(ourBackends []string) {
+	// append sub peers
+	PeerMapLock.RLock()
+	for _, p := range PeerMap {
+		if p.ParentID == "" {
+			continue
+		}
+		for _, id := range ourBackends {
+			if id == p.ParentID {
+				ourBackends = append(ourBackends, p.ID)
+				break
+			}
+		}
+	}
+	PeerMapLock.RUnlock()
+
 	// Determine backends this node is now (not anymore) responsible for
 	var addBackends []string
 	var rmvBackends []string
@@ -436,6 +427,9 @@ func (n *Nodes) getOnlineNodes() (ownIndex int, nodeOnline []bool, numberAllNode
 
 // IsOurBackend checks if backend is managed by this node.
 func (n *Nodes) IsOurBackend(backend string) bool {
+	if !nodeAccessor.IsClustered() {
+		return true
+	}
 	ourBackends := n.assignedBackends
 	for _, ourBackend := range ourBackends {
 		if ourBackend == backend {
@@ -517,5 +511,74 @@ func generateUUID() (uuid string) {
 
 	uuid = fmt.Sprintf("%X-%X-%X-%X-%X", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 
+	return
+}
+
+func (n *Nodes) sendPing(node *NodeAddress, initializing bool, requestData map[string]interface{}) (isOnline bool, forceRedistribute bool) {
+	done := make(chan bool)
+	ownIdentifier := n.ID
+	n.SendQuery(node, "ping", requestData, func(responseData interface{}) {
+		defer func() { done <- true }()
+		// Parse response
+		dataMap, ok := responseData.(map[string]interface{})
+		log.Tracef("got response from %s", node)
+		if !ok {
+			return
+		}
+
+		// Node id
+		responseIdentifier := dataMap["identifier"].(string)
+		if node.id == "" {
+			node.id = responseIdentifier
+		} else if node.id != responseIdentifier {
+			log.Infof("partner node %s restarted", node)
+			delete(n.nodeBackends, node.id)
+			node.id = responseIdentifier
+			forceRedistribute = true
+		}
+
+		// check version
+		versionMismatch := false
+		if _, exists := dataMap["version"]; !exists {
+			versionMismatch = true
+		} else {
+			v := dataMap["version"].(string)
+			if v != Version() {
+				versionMismatch = true
+			}
+		}
+		if versionMismatch {
+			log.Debugf("version mismatch with node %s, deactivating", node)
+			forceRedistribute = true
+			delete(n.nodeBackends, node.id)
+		}
+
+		// Check whose response it is
+		if responseIdentifier == ownIdentifier {
+			// This node
+			if initializing {
+				n.thisNode = node
+				node.isMe = true
+				isOnline = true
+				log.Debugf("identified this node as %s", node)
+			}
+		} else if !versionMismatch {
+			// Partner node
+			isOnline = true
+			log.Tracef("discovered partner node: %s", node)
+
+			// receive and update remote peer list
+			if _, exists := dataMap["peers"]; exists && dataMap["peers"] != nil {
+				peers := dataMap["peers"].([]interface{})
+				nodeList := []string{}
+				for _, id := range peers {
+					nodeList = append(nodeList, id.(string))
+				}
+				n.nodeBackends[node.id] = nodeList
+			}
+		}
+	})
+
+	<-done
 	return
 }

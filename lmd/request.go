@@ -332,7 +332,7 @@ func (req *Request) getDistributedResponse() (*Response, error) {
 	// Cluster mode (don't send this request; send sub-requests, build response)
 	var wg sync.WaitGroup
 	collectedDatasets := make(chan [][]interface{}, len(nodeAccessor.nodeBackends))
-	collectedFailedHashes := make(chan map[string]interface{}, len(nodeAccessor.nodeBackends))
+	collectedFailedHashes := make(chan map[string]string, len(nodeAccessor.nodeBackends))
 	for nodeID, nodeBackends := range nodeAccessor.nodeBackends {
 		node := nodeAccessor.Node(nodeID)
 		// limit to requested backends if necessary
@@ -342,7 +342,20 @@ func (req *Request) getDistributedResponse() (*Response, error) {
 		// skip node if it doesn't have relevant backends
 		if len(subBackends) == 0 {
 			collectedDatasets <- [][]interface{}{}
-			collectedFailedHashes <- map[string]interface{}{}
+			collectedFailedHashes <- map[string]string{}
+			continue
+		}
+
+		if node.isMe {
+			// answer locally
+			req.SendStatsData = true
+			res, err := NewResponse(req)
+			if err != nil {
+				return nil, err
+			}
+			req.SendStatsData = false
+			collectedDatasets <- res.Result
+			collectedFailedHashes <- res.Failed
 			continue
 		}
 
@@ -363,6 +376,10 @@ func (req *Request) getDistributedResponse() (*Response, error) {
 			if !ok {
 				return
 			}
+			failedHashStrings := make(map[string]string, len(failedHash))
+			for key, val := range failedHash {
+				failedHashStrings[key] = fmt.Sprintf("%v", val)
+			}
 
 			// Parse data (table rows)
 			rowsVariants, ok := hash["data"].([]interface{})
@@ -380,7 +397,7 @@ func (req *Request) getDistributedResponse() (*Response, error) {
 
 			// Collect data
 			collectedDatasets <- rows
-			collectedFailedHashes <- failedHash
+			collectedFailedHashes <- failedHashStrings
 		})
 		if err != nil {
 			return nil, err
@@ -435,6 +452,9 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 	if req.Table != "" {
 		requestData["table"] = req.Table
 	}
+
+	// avoid recursion
+	requestData["distributed"] = true
 
 	// Set backends for this sub-request
 	requestData["backends"] = subBackends
@@ -504,7 +524,7 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 }
 
 // mergeDistributedResponse returns response object with merged result from distributed requests
-func (req *Request) mergeDistributedResponse(collectedDatasets chan [][]interface{}, collectedFailedHashes chan map[string]interface{}) *Response {
+func (req *Request) mergeDistributedResponse(collectedDatasets chan [][]interface{}, collectedFailedHashes chan map[string]string) *Response {
 	// Build response object
 	res := &Response{
 		Code:    200,
@@ -514,14 +534,12 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan [][]interfac
 
 	// Merge data
 	isStatsRequest := len(req.Stats) != 0
+	req.StatsResult = make(map[string][]*Filter)
 	for currentRows := range collectedDatasets {
 		if isStatsRequest {
 			// Stats request
 			// Value (sum), count (number of elements)
 			hasColumns := len(req.Columns)
-			if req.StatsResult == nil {
-				req.StatsResult = make(map[string][]*Filter)
-			}
 			for _, row := range currentRows {
 				// apply stats querys
 				key := ""
@@ -540,8 +558,9 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan [][]interfac
 				}
 				for i := range row {
 					data := reflect.ValueOf(row[i])
-					value, count := data.Index(0).Interface().(float64), int(data.Index(1).Interface().(float64))
-					req.StatsResult[key][i].ApplyValue(value, count)
+					value := data.Index(0).Interface()
+					count := data.Index(1).Interface()
+					req.StatsResult[key][i].ApplyValue(numberToFloat(&value), int(numberToFloat(&count)))
 				}
 			}
 		} else {
@@ -549,8 +568,7 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan [][]interfac
 			res.Result = append(res.Result, currentRows...)
 			currentFailedHash := <-collectedFailedHashes
 			for id, val := range currentFailedHash {
-				str, _ := val.(string)
-				res.Failed[id] = str
+				res.Failed[id] = val
 			}
 		}
 	}
