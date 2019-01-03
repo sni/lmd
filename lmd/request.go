@@ -200,12 +200,10 @@ func (req *Request) String() (str string) {
 func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
 	req = &Request{SendColumnsHeader: false, KeepAlive: false}
 	firstLine, err := b.ReadString('\n')
-	if err != nil {
-		// Network errors will be logged in the listener
-		if _, ok := err.(net.Error); ok {
-			req = nil
-			return
-		}
+	// Network errors will be logged in the listener
+	if _, ok := err.(net.Error); ok {
+		req = nil
+		return
 	}
 	size += len(firstLine)
 	firstLine = strings.TrimSpace(firstLine)
