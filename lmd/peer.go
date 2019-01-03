@@ -339,9 +339,9 @@ func (p *Peer) updateLoop() {
 			return
 		case <-ticker.C:
 			if p.Flags&LMD == LMD {
-				p.periodicUpdateLMD(&ok)
+				p.periodicUpdateLMD(&ok, false)
 			} else if p.Flags&MultiBackend == MultiBackend {
-				p.periodicUpdateMultiBackends(&ok)
+				p.periodicUpdateMultiBackends(&ok, false)
 			} else {
 				p.periodicUpdate(&ok, &lastTimeperiodUpdateMinute)
 			}
@@ -417,13 +417,13 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 
 // periodicUpdateLMD runs the periodic updates from the update loop for LMD backends
 // it fetches the sites table and creates and updates LMDSub backends for them
-func (p *Peer) periodicUpdateLMD(ok *bool) {
+func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 	p.PeerLock.RLock()
 	lastUpdate := p.Status["LastUpdate"].(int64)
 	p.PeerLock.RUnlock()
 
 	now := time.Now().Unix()
-	if now < lastUpdate+p.LocalConfig.Updateinterval {
+	if !force && now < lastUpdate+p.LocalConfig.Updateinterval {
 		return
 	}
 
@@ -515,13 +515,13 @@ func (p *Peer) periodicUpdateLMD(ok *bool) {
 
 // periodicUpdateMultiBackends runs the periodic updates from the update loop for multi backends
 // it fetches the all sites and creates and updates HTTPSub backends for them
-func (p *Peer) periodicUpdateMultiBackends(ok *bool) {
+func (p *Peer) periodicUpdateMultiBackends(ok *bool, force bool) {
 	p.PeerLock.RLock()
 	lastUpdate := p.Status["LastUpdate"].(int64)
 	p.PeerLock.RUnlock()
 
 	now := time.Now().Unix()
-	if now < lastUpdate+p.LocalConfig.Updateinterval {
+	if !force && now < lastUpdate+p.LocalConfig.Updateinterval {
 		return
 	}
 
@@ -1673,9 +1673,9 @@ func (p *Peer) checkStatusFlags(table *Table) {
 			p.StatusSet("LastUpdate", time.Now().Unix()-p.LocalConfig.Updateinterval)
 			ok := true
 			if p.Flags&LMD != LMD {
-				p.periodicUpdateLMD(&ok)
+				p.periodicUpdateLMD(&ok, true)
 			} else {
-				p.periodicUpdateMultiBackends(&ok)
+				p.periodicUpdateMultiBackends(&ok, true)
 			}
 			return
 		}
@@ -1770,7 +1770,7 @@ func (p *Peer) fetchRemotePeers() (sites []interface{}, err error) {
 					p.Flags |= MultiBackend
 					p.PeerLock.Unlock()
 					ok := true
-					p.periodicUpdateMultiBackends(&ok)
+					p.periodicUpdateMultiBackends(&ok, true)
 				}
 				return
 			}
