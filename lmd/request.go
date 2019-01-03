@@ -290,8 +290,6 @@ func (req *Request) ParseRequestAction(firstLine *string) (valid bool, err error
 // GetResponse builds the response for a given request.
 // It returns the Response object and any error encountered.
 func (req *Request) GetResponse() (*Response, error) {
-	log.Tracef("GetResponse")
-
 	// Run single request if possible
 	if nodeAccessor == nil || !nodeAccessor.IsClustered() {
 		// Single mode (send request and return response)
@@ -333,23 +331,25 @@ func (req *Request) getDistributedResponse() (*Response, error) {
 
 	// Cluster mode (don't send this request; send sub-requests, build response)
 	var wg sync.WaitGroup
-	nodeBackends := nodeAccessor.nodeBackends
-	collectedDatasets := make(chan [][]interface{}, len(nodeBackends))
-	collectedFailedHashes := make(chan map[string]interface{}, len(nodeBackends))
-	for nodeID, nodeBackends := range nodeBackends {
+	collectedDatasets := make(chan [][]interface{}, len(nodeAccessor.nodeBackends))
+	collectedFailedHashes := make(chan map[string]interface{}, len(nodeAccessor.nodeBackends))
+	for nodeID, nodeBackends := range nodeAccessor.nodeBackends {
 		node := nodeAccessor.Node(nodeID)
-		// Limit to requested backends if necessary
+		// limit to requested backends if necessary
 		// nodeBackends: all backends handled by current node
 		subBackends := req.getSubBackends(allBackendsRequested, nodeBackends)
-		// Skip node if it doesn't have relevant backends
+
+		// skip node if it doesn't have relevant backends
 		if len(subBackends) == 0 {
 			collectedDatasets <- [][]interface{}{}
 			collectedFailedHashes <- map[string]interface{}{}
 			continue
 		}
 
-		// Callback
-		callback := func(responseData interface{}) {
+		requestData := req.buildDistributedRequestData(subBackends)
+		wg.Add(1)
+		// Send query to remote node
+		err := nodeAccessor.SendQuery(node, "table", requestData, func(responseData interface{}) {
 			defer wg.Done()
 
 			// Hash containing metadata in addition to rows
@@ -381,17 +381,10 @@ func (req *Request) getDistributedResponse() (*Response, error) {
 			// Collect data
 			collectedDatasets <- rows
 			collectedFailedHashes <- failedHash
-		}
-
-		requestData := req.buildDistributedRequestData(subBackends)
-
-		// Send query to node
-		wg.Add(1)
-		err := nodeAccessor.SendQuery(node, "table", requestData, callback)
+		})
 		if err != nil {
 			return nil, err
 		}
-
 	}
 
 	// Wait for all requests
@@ -403,8 +396,8 @@ func (req *Request) getDistributedResponse() (*Response, error) {
 	close(collectedDatasets)
 
 	// Double-check that we have the right number of datasets
-	if len(collectedDatasets) != len(nodeBackends) {
-		err := fmt.Errorf("got %d instead of %d datasets", len(collectedDatasets), len(nodeBackends))
+	if len(collectedDatasets) != len(nodeAccessor.nodeBackends) {
+		err := fmt.Errorf("got %d instead of %d datasets", len(collectedDatasets), len(nodeAccessor.nodeBackends))
 		return nil, err
 	}
 
@@ -421,6 +414,9 @@ func (req *Request) getDistributedResponse() (*Response, error) {
 func (req *Request) getSubBackends(allBackendsRequested bool, nodeBackends []string) (subBackends []string) {
 	// nodeBackends: all backends handled by current node
 	for _, nodeBackend := range nodeBackends {
+		if nodeBackend == "" {
+			continue
+		}
 		isRequested := allBackendsRequested
 		for _, requestedBackend := range req.Backends {
 			if requestedBackend == nodeBackend {

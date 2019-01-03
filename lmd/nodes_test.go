@@ -24,7 +24,7 @@ func TestNodeManager(t *testing.T) {
 	if nodeAccessor.thisNode == nil {
 		t.Fatalf("thisNode should not be nil")
 	}
-	if !(nodeAccessor.thisNode.HumanIdentifier() != "") {
+	if !(nodeAccessor.thisNode.String() != "") {
 		t.Fatalf("got a name")
 	}
 

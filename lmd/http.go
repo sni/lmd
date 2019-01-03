@@ -60,7 +60,6 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 		return
 	}
 	fmt.Fprintf(w, "%s", j)
-
 }
 
 func (c *HTTPServerController) table(w http.ResponseWriter, request *http.Request, ps httprouter.Params) {

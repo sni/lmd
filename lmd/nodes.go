@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -26,8 +28,8 @@ type Nodes struct {
 	heartbeatTimeout int
 	backends         []string
 	thisNode         *NodeAddress
-	nodeAddresses    []*NodeAddress
-	onlineNodes      []*NodeAddress
+	nodeAddresses    NodeAddressList
+	onlineNodes      NodeAddressList
 	assignedBackends []string
 	nodeBackends     map[string][]string
 	stopChannel      chan bool
@@ -42,14 +44,27 @@ type NodeAddress struct {
 	isMe bool
 }
 
-// HumanIdentifier returns the node address.
+// String returns the node address.
 // If the node has been discovered, its id is prepended.
-func (a *NodeAddress) HumanIdentifier() string {
-	human := fmt.Sprintf("%s:%d", a.ip, a.port)
+func (a *NodeAddress) String() string {
+	addr := fmt.Sprintf("%s:%d", a.ip, a.port)
 	if a.id != "" {
-		human = fmt.Sprintf("[%s] %s", a.id, human)
+		return fmt.Sprintf("[%s] %s", a.id, addr)
 	}
-	return human // :)
+	return addr
+}
+
+// NodeAddressList is a list of nodeaddresses
+type NodeAddressList []*NodeAddress
+
+// String returns the stringified node address list.
+func (a *NodeAddressList) String() string {
+	s := []string{}
+	for _, l := range *a {
+		s = append(s, l.String())
+	}
+	sort.Strings(s)
+	return strings.Join(s, ",")
 }
 
 // NewNodes creates a new cluster manager.
@@ -216,7 +231,7 @@ func (n *Nodes) checkNodeAvailability() {
 	if ownIdentifier == "" {
 		panic("not initialized")
 	}
-	var newOnlineNodes []*NodeAddress
+	var newOnlineNodes NodeAddressList
 	initializing := n.thisNode == nil
 	if !initializing {
 		newOnlineNodes = append(newOnlineNodes, n.thisNode)
@@ -228,14 +243,14 @@ func (n *Nodes) checkNodeAvailability() {
 		}
 		requestData := make(map[string]interface{})
 		requestData["identifier"] = ownIdentifier
-		log.Tracef("pinging node %s...", node.HumanIdentifier())
+		log.Tracef("pinging node %s...", node)
 		wg.Add(1)
 		go func(wg *sync.WaitGroup, node *NodeAddress) {
 			defer logPanicExit()
-			callback := func(responseData interface{}) {
+			n.SendQuery(node, "ping", requestData, func(responseData interface{}) {
 				// Parse response
 				dataMap, ok := responseData.(map[string]interface{})
-				log.Tracef("got response from %s", node.HumanIdentifier())
+				log.Tracef("got response from %s", node)
 				if !ok {
 					return
 				}
@@ -245,7 +260,7 @@ func (n *Nodes) checkNodeAvailability() {
 				if node.id == "" {
 					node.id = responseIdentifier
 				} else if node.id != responseIdentifier {
-					log.Infof("partner node %s restarted", node.HumanIdentifier())
+					log.Infof("partner node %s restarted", node)
 					delete(n.nodeBackends, node.id)
 					node.id = responseIdentifier
 				}
@@ -257,16 +272,15 @@ func (n *Nodes) checkNodeAvailability() {
 						n.thisNode = node
 						node.isMe = true
 						newOnlineNodes = append(newOnlineNodes, node)
-						log.Debugf("identified this node as %s", node.HumanIdentifier())
+						log.Debugf("identified this node as %s", node)
 					}
 				} else {
 					// Partner node
 					newOnlineNodes = append(newOnlineNodes, node)
-					log.Tracef("discovered partner node: %s", node.HumanIdentifier())
+					log.Tracef("discovered partner node: %s", node)
 				}
 				wg.Done()
-			}
-			n.SendQuery(node, "ping", requestData, callback)
+			})
 		}(&wg, node)
 	}
 
@@ -285,9 +299,10 @@ func (n *Nodes) checkNodeAvailability() {
 	}
 
 	// Redistribute backends
-	n.onlineNodes = newOnlineNodes
-	n.redistribute()
-
+	if n.onlineNodes.String() != newOnlineNodes.String() {
+		n.onlineNodes = newOnlineNodes
+		n.redistribute()
+	}
 }
 
 // redistribute assigns the peers to the available nodes.
@@ -297,6 +312,7 @@ func (n *Nodes) redistribute() {
 	numberBackends := len(n.backends)
 	ownIndex, nodeOnline, numberAllNodes, numberAvailableNodes := n.getOnlineNodes()
 	allNodes := n.nodeAddresses
+	log.Infof("redistributing peers within cluster, %d/%d nodes online", numberAvailableNodes, numberAllNodes)
 
 	// Assign items to nodes
 	assignedNumberBackends := make([]int, numberAllNodes) // for each node
@@ -454,7 +470,7 @@ func (n *Nodes) SendQuery(node *NodeAddress, name string, parameters map[string]
 	url := node.url + "query"
 	res, err := n.HTTPClient.Post(url, contentType, bytes.NewBuffer(rawRequest))
 	if err != nil {
-		log.Warnf("error sending query (%s) to node (%s): %s", name, node, err.Error())
+		log.Debugf("error sending query (%s) to node (%s): %s", name, node, err.Error())
 		return err
 	}
 
