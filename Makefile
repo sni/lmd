@@ -194,7 +194,7 @@ staticcheck:
 	# staticcheck combines a few static code analyzer
 	# See honnef.co/go/tools/cmd/staticcheck
 	#
-	@if [ $$( printf '%s\n' $(GOVERSION) 00010009 | sort | head -n 1 ) = $(GOVERSION) ]; then \
+	@if [ $$( printf '%s\n' $(GOVERSION) 00010010 | sort -n | head -n 1 ) != 00010010 ]; then \
 		echo "staticcheck requires at least go 1.10"; \
 	else \
 		cd $(LAMPDDIR) && staticcheck . ; \
