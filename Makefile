@@ -180,7 +180,11 @@ unparam:
 	# Check if all function parameters are actually used
 	# See https://github.com/mvdan/unparam
 	#
-	cd $(LAMPDDIR) && unparam -exported .
+	@if [ $$( printf '%s\n' $(GOVERSION) 00010010 | sort -n | head -n 1 ) != 00010010 ]; then \
+		echo "unparam requires at least go 1.10"; \
+	else \
+		cd $(LAMPDDIR) && unparam -exported . ; \
+	fi
 
 unconvert:
 	#
