@@ -773,7 +773,7 @@ func (p *Peer) UpdateAllTables() bool {
 	p.Status["LastUpdate"] = time.Now().Unix()
 	p.Status["LastFullUpdate"] = time.Now().Unix()
 	p.PeerLock.Unlock()
-	log.Infof("[%s] update complete in: %s", p.Name, duration.String())
+	log.Debugf("[%s] update complete in: %s", p.Name, duration.String())
 	promPeerUpdates.WithLabelValues(p.Name).Inc()
 	promPeerUpdateDuration.WithLabelValues(p.Name).Set(duration.Seconds())
 	return true
@@ -1271,7 +1271,7 @@ func (p *Peer) getQueryResponse(req *Request, query string, peerAddr string, con
 }
 
 func (p *Peer) getHTTPQueryResponse(req *Request, query string, peerAddr string) (*[]byte, error) {
-	res, err := p.HTTPQueryWithRetrys(peerAddr, query, 2)
+	res, err := p.HTTPQueryWithRetrys(req, peerAddr, query, 2)
 	if err != nil {
 		return nil, err
 	}
@@ -1726,7 +1726,7 @@ func (p *Peer) fetchConfigToolFromAddr(peerAddr string) (conf map[string]interfa
 		options["remote_name"] = p.Config.RemoteName
 	}
 	optionStr, _ := json.Marshal(options)
-	output, result, err := p.HTTPPostQuery(peerAddr, url.Values{
+	output, result, err := p.HTTPPostQuery(nil, peerAddr, url.Values{
 		"data": {fmt.Sprintf("{\"credential\": \"%s\", \"options\": %s}", p.Config.Auth, optionStr)},
 	}, nil)
 	if err != nil {
@@ -2230,15 +2230,15 @@ func (p *Peer) WaitCondition(req *Request) bool {
 }
 
 // HTTPQueryWithRetrys calls HTTPQuery with given amount of retries.
-func (p *Peer) HTTPQueryWithRetrys(peerAddr string, query string, retries int) (res []byte, err error) {
-	res, err = p.HTTPQuery(peerAddr, query)
+func (p *Peer) HTTPQueryWithRetrys(req *Request, peerAddr string, query string, retries int) (res []byte, err error) {
+	res, err = p.HTTPQuery(req, peerAddr, query)
 
 	// retry on broken pipe errors
 	for retry := 1; retry <= retries && err != nil; retry++ {
 		log.Debugf("[%s] errored: %s", p.Name, err.Error())
 		if strings.HasPrefix(err.Error(), "remote site returned rc: 0 - ERROR: broken pipe.") {
 			time.Sleep(1 * time.Second)
-			res, err = p.HTTPQuery(peerAddr, query)
+			res, err = p.HTTPQuery(req, peerAddr, query)
 			if err == nil {
 				log.Debugf("[%s] site returned successful result after %d retries", p.Name, retry)
 			}
@@ -2249,7 +2249,7 @@ func (p *Peer) HTTPQueryWithRetrys(peerAddr string, query string, retries int) (
 
 // HTTPQuery sends a query over http to a Thruk backend.
 // It returns the livestatus answers and any encountered error.
-func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) {
+func (p *Peer) HTTPQuery(req *Request, peerAddr string, query string) (res []byte, err error) {
 	options := make(map[string]interface{})
 	if p.Config.RemoteName != "" {
 		options["backends"] = []string{p.Config.RemoteName}
@@ -2267,7 +2267,7 @@ func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) 
 		headers["Accept"] = "application/livestatus"
 	}
 
-	output, result, err := p.HTTPPostQuery(peerAddr, url.Values{
+	output, result, err := p.HTTPPostQuery(req, peerAddr, url.Values{
 		"data": {fmt.Sprintf("{\"credential\": \"%s\", \"options\": %s}", p.Config.Auth, optionStr)},
 	}, headers)
 	if err != nil {
@@ -2286,7 +2286,7 @@ func (p *Peer) HTTPQuery(peerAddr string, query string) (res []byte, err error) 
 }
 
 // HTTPPostQueryResult returns response array from thruk api
-func (p *Peer) HTTPPostQueryResult(peerAddr string, postData url.Values, headers map[string]string) (result *HTTPResult, err error) {
+func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url.Values, headers map[string]string) (result *HTTPResult, err error) {
 	p.HTTPClient.Timeout = time.Duration(p.LocalConfig.NetTimeout) * time.Second
 	req, err := http.NewRequest("POST", completePeerHTTPAddr(peerAddr), strings.NewReader(postData.Encode()))
 	if err != nil {
@@ -2305,6 +2305,10 @@ func (p *Peer) HTTPPostQueryResult(peerAddr string, postData url.Values, headers
 		return
 	}
 
+	if query != nil && query.Command != "" {
+		result = &HTTPResult{Raw: contents}
+		return
+	}
 	if len(contents) > 10 && bytes.HasPrefix(contents, []byte("200 ")) {
 		result = &HTTPResult{Raw: contents}
 		return
@@ -2331,8 +2335,8 @@ func (p *Peer) HTTPPostQueryResult(peerAddr string, postData url.Values, headers
 }
 
 // HTTPPostQuery returns response array from thruk api
-func (p *Peer) HTTPPostQuery(peerAddr string, postData url.Values, headers map[string]string) (output []interface{}, result *HTTPResult, err error) {
-	result, err = p.HTTPPostQueryResult(peerAddr, postData, headers)
+func (p *Peer) HTTPPostQuery(req *Request, peerAddr string, postData url.Values, headers map[string]string) (output []interface{}, result *HTTPResult, err error) {
+	result, err = p.HTTPPostQueryResult(req, peerAddr, postData, headers)
 	if err != nil {
 		return
 	}
@@ -2375,7 +2379,7 @@ func (p *Peer) HTTPRestQuery(peerAddr string, uri string) (output interface{}, r
 	options["action"] = "url"
 	options["commandoptions"] = []string{uri}
 	optionStr, _ := json.Marshal(options)
-	result, err = p.HTTPPostQueryResult(peerAddr, url.Values{
+	result, err = p.HTTPPostQueryResult(nil, peerAddr, url.Values{
 		"data": {fmt.Sprintf("{\"credential\": \"%s\", \"options\": %s}", p.Config.Auth, optionStr)},
 	}, map[string]string{"Accept": "application/json"})
 	if err != nil {
@@ -2938,7 +2942,6 @@ func (p *Peer) SendCommands(commands []string) (err error) {
 		switch err.(type) {
 		case *PeerCommandError:
 			log.Debugf("[%s] sending command failed (invalid query): %s", p.Name, err.Error())
-			return
 		default:
 			log.Warnf("[%s] sending command failed: %s", p.Name, err.Error())
 		}
