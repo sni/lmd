@@ -1314,7 +1314,7 @@ func (p *Peer) getSocketQueryResponse(req *Request, query string, conn net.Conn)
 	return p.parseResponseUndefinedSize(conn)
 }
 
-func (p *Peer) parseResponseUndefinedSize(conn net.Conn) (*[]byte, error) {
+func (p *Peer) parseResponseUndefinedSize(conn io.Reader) (*[]byte, error) {
 	// read result from connection into result buffer with undefined result size
 	body := new(bytes.Buffer)
 	for {
@@ -1330,7 +1330,7 @@ func (p *Peer) parseResponseUndefinedSize(conn net.Conn) (*[]byte, error) {
 	return &res, nil
 }
 
-func (p *Peer) parseResponseFixedSize(req *Request, conn net.Conn) (*[]byte, error) {
+func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) (*[]byte, error) {
 	header := new(bytes.Buffer)
 	_, err := io.CopyN(header, conn, 16)
 	resBytes := header.Bytes()
