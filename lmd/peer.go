@@ -2919,13 +2919,14 @@ func (p *Peer) SendCommandsWithRetry(commands []string) (err error) {
 				return
 			}
 			switch err.(type) {
-			case *PeerCommandError:
-				// client error, return immediately
-				return
-			default:
-				// retry again
-				time.Sleep(1 * time.Second)
+			case *PeerError:
+				// connection error, try again
+				if err.(*PeerError).kind == ConnectionError {
+					time.Sleep(1 * time.Second)
+					continue
+				}
 			}
+			return
 		default:
 			log.Panicf("[%s] PeerStatus %v not implemented", p.Name, status)
 		}
