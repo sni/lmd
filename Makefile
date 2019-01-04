@@ -133,6 +133,8 @@ clean:
 	rm -f $(LAMPDDIR)/lmd
 	rm -f $(LAMPDDIR)/cover.out
 	rm -f $(LAMPDDIR)/coverage.html
+	rm -f $(LAMPDDIR)/*.sock
+	rm -f lmd-*.html
 
 fmt:
 	cd $(LAMPDDIR) && goimports -w .
@@ -203,6 +205,14 @@ staticcheck:
 	else \
 		cd $(LAMPDDIR) && staticcheck . ; \
 	fi
+
+goreporter: clean
+	#
+	# The goreporter program creates a static-analyisis report
+	# See https://github.com/360EntSecGroup-Skylar/goreporter
+	#
+	go get -u github.com/360EntSecGroup-Skylar/goreporter
+	cd $(LAMPDDIR) && goreporter -p . -r ../
 
 version:
 	OLDVERSION="$(shell grep "VERSION =" $(LAMPDDIR)/main.go | awk '{print $$3}' | tr -d '"')"; \
