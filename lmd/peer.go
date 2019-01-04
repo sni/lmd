@@ -2904,6 +2904,7 @@ func (p *Peer) SendCommandsWithRetry(commands []string) (err error) {
 	p.PeerLock.Unlock()
 
 	// check status of backend
+	retries := 0
 	for {
 		status := p.StatusGet("PeerStatus").(PeerStatus)
 		switch status {
@@ -2922,11 +2923,22 @@ func (p *Peer) SendCommandsWithRetry(commands []string) (err error) {
 			case *PeerError:
 				// connection error, try again
 				if err.(*PeerError).kind == ConnectionError {
+					if retries > 0 {
+						/* this indicates a problem with the command itself:
+						   the peer is up, we send a command -> peer is down
+						   then peer comes up again, we send the command again
+						   and the peer is immediately down again. This means
+						   the command probably worked, but something else failed,
+						   so don't repeat the command in an endless loop
+						*/
+						return fmt.Errorf("sending command failed, number of retries exceeded")
+					}
+					retries++
 					time.Sleep(1 * time.Second)
 					continue
 				}
 			}
-			return
+			return fmt.Errorf("%s", p.StatusGet("LastError"))
 		default:
 			log.Panicf("[%s] PeerStatus %v not implemented", p.Name, status)
 		}
