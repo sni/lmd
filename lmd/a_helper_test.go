@@ -84,10 +84,15 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 			}
 
 			if req.Command != "" {
-				conn.Close()
-				if req.Command == "COMMAND [0] MOCK_EXIT" {
+				switch req.Command {
+				case "COMMAND [0] MOCK_EXIT":
+					conn.Close()
 					return
+				case "COMMAND [0] test_ok":
+				case "COMMAND [0] test_broken":
+					conn.Write([]byte("400: command broken\n"))
 				}
+				conn.Close()
 				continue
 			}
 
