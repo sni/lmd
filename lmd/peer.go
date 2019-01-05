@@ -1732,13 +1732,15 @@ func (p *Peer) fetchConfigToolFromAddr(peerAddr string) (conf map[string]interfa
 	if err != nil {
 		return
 	}
-	if data, ok := output[2].(map[string]interface{}); ok {
-		for k := range data {
-			if processinfo, ok2 := data[k].(map[string]interface{}); ok2 {
-				if c, ok2 := processinfo["configtool"]; ok2 {
-					if v, ok3 := c.(map[string]interface{}); ok3 {
-						conf = v
-						return
+	if len(output) >= 3 {
+		if data, ok := output[2].(map[string]interface{}); ok {
+			for k := range data {
+				if processinfo, ok2 := data[k].(map[string]interface{}); ok2 {
+					if c, ok2 := processinfo["configtool"]; ok2 {
+						if v, ok3 := c.(map[string]interface{}); ok3 {
+							conf = v
+							return
+						}
 					}
 				}
 			}

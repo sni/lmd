@@ -322,7 +322,7 @@ func CheckOpenFilesLimit(b *testing.B, minimum uint64) {
 	}
 }
 
-func StartHTTPMockServer(t *testing.T) *httptest.Server {
+func StartHTTPMockServer(t *testing.T) (*httptest.Server, func()) {
 	var data struct {
 		Credential string
 		Options    struct {
@@ -331,27 +331,48 @@ func StartHTTPMockServer(t *testing.T) *httptest.Server {
 			Sub    string
 		}
 	}
+	nr := 0
+	numHosts := 5
+	numServices := 10
+	dataFolder := prepareTmpData("../t/data", nr, numHosts, numServices)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		err := json.Unmarshal([]byte(r.PostFormValue("data")), &data)
 		if err != nil {
 			t.Fatalf("failed to parse request: %s", err.Error())
 		}
 		if data.Options.Sub == "_raw_query" {
-			switch strings.TrimSpace(data.Options.Args[0]) {
-			case "COMMAND [0] test_ok":
+			query := strings.Split(strings.TrimSpace(data.Options.Args[0]), "\n")
+			switch {
+			case regexp.MustCompile(`^GET\ \w+`).MatchString(query[0]):
+				table := regexp.MustCompile(`^GET\ (\w+)`).FindStringSubmatch(query[0])
+				dat, err := ioutil.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, table[1]))
+				if err != nil {
+					panic("could not read file: " + err.Error())
+				}
+				fmt.Fprint(w, string(dat))
 				return
-			case "COMMAND [0] test_broken":
+			case query[0] == "COMMAND [0] test_ok":
+				return
+			case query[0] == "COMMAND [0] test_broken":
 				fmt.Fprintln(w, "400: command broken")
 				return
 			}
 		}
+		if data.Options.Sub == "get_processinfo" {
+			fmt.Fprintln(w, "{\"rc\":0, \"version\":\"\", \"output\":[]}")
+			return
+		}
 		t.Fatalf("unknown test request: %v", r)
 	}))
-	return ts
+	cleanup := func() {
+		ts.Close()
+		os.RemoveAll(dataFolder)
+	}
+	return ts, cleanup
 }
 
-func GetHTTPMockServerPeer(t *testing.T) (ts *httptest.Server, peer *Peer) {
-	ts = StartHTTPMockServer(t)
+func GetHTTPMockServerPeer(t *testing.T) (peer *Peer, cleanup func()) {
+	ts, cleanup := StartHTTPMockServer(t)
 	testPeerShutdownChannel := make(chan bool)
 	peer = NewPeer(&GlobalTestConfig, &Connection{Source: []string{ts.URL}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
 	return

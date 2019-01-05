@@ -645,8 +645,8 @@ func TestCommands(t *testing.T) {
 }
 
 func TestHTTPCommands(t *testing.T) {
-	ts, peer := GetHTTPMockServerPeer(t)
-	defer ts.Close()
+	peer, cleanup := GetHTTPMockServerPeer(t)
+	defer cleanup()
 
 	res, err := peer.QueryString("COMMAND [0] test_ok")
 	if err != nil {
@@ -668,5 +668,15 @@ func TestHTTPCommands(t *testing.T) {
 	}
 	if err2 := assertEq(err.(*PeerCommandError).code, 400); err2 != nil {
 		t.Error(err2)
+	}
+}
+
+func TestHTTPPeer(t *testing.T) {
+	peer, cleanup := GetHTTPMockServerPeer(t)
+	defer cleanup()
+
+	ok := peer.InitAllTables()
+	if err := assertEq(ok, true); err != nil {
+		t.Error(err)
 	}
 }
