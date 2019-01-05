@@ -7,6 +7,8 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"reflect"
 	"regexp"
@@ -318,4 +320,39 @@ func CheckOpenFilesLimit(b *testing.B, minimum uint64) {
 	if rLimit.Cur < minimum {
 		b.Skip(fmt.Sprintf("skipping test, open files limit too low, need at least %d, current: %d", minimum, rLimit.Cur))
 	}
+}
+
+func StartHTTPMockServer(t *testing.T) *httptest.Server {
+	var data struct {
+		Credential string
+		Options    struct {
+			Action string
+			Args   []string
+			Sub    string
+		}
+	}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		err := json.Unmarshal([]byte(r.PostFormValue("data")), &data)
+		if err != nil {
+			t.Fatalf("failed to parse request: %s", err.Error())
+		}
+		if data.Options.Sub == "_raw_query" {
+			switch strings.TrimSpace(data.Options.Args[0]) {
+			case "COMMAND [0] test_ok":
+				return
+			case "COMMAND [0] test_broken":
+				fmt.Fprintln(w, "400: command broken")
+				return
+			}
+		}
+		t.Fatalf("unknown test request: %v", r)
+	}))
+	return ts
+}
+
+func GetHTTPMockServerPeer(t *testing.T) (ts *httptest.Server, peer *Peer) {
+	ts = StartHTTPMockServer(t)
+	testPeerShutdownChannel := make(chan bool)
+	peer = NewPeer(&GlobalTestConfig, &Connection{Source: []string{ts.URL}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
+	return
 }
