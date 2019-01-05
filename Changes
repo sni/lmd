@@ -1,5 +1,8 @@
 This file documents the revision history for the Livestatus Multitool Daemon
 
+next:
+          - fix returning command errors
+
 1.4.1    Fri Jan  4 23:24:02 CET 2019
           - limit number of command retries
           - send command errors for http backends as well

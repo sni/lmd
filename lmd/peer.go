@@ -2937,6 +2937,8 @@ func (p *Peer) SendCommandsWithRetry(commands []string) (err error) {
 					time.Sleep(1 * time.Second)
 					continue
 				}
+			case *PeerCommandError:
+				return err
 			}
 			return fmt.Errorf("%s", p.StatusGet("LastError"))
 		default:
@@ -2954,7 +2956,7 @@ func (p *Peer) SendCommands(commands []string) (err error) {
 	if err != nil {
 		switch err.(type) {
 		case *PeerCommandError:
-			log.Debugf("[%s] sending command failed (invalid query): %s", p.Name, err.Error())
+			log.Debugf("[%s] sending command failed (invalid query) - %d: %s", p.Name, err.(*PeerCommandError).code, err.Error())
 		default:
 			log.Warnf("[%s] sending command failed: %s", p.Name, err.Error())
 		}
