@@ -324,11 +324,11 @@ func CheckOpenFilesLimit(b *testing.B, minimum uint64) {
 
 func StartHTTPMockServer(t *testing.T) (*httptest.Server, func()) {
 	var data struct {
-		Credential string
-		Options    struct {
-			Action string
-			Args   []string
-			Sub    string
+		// Credential string  // unused
+		Options struct {
+			// Action string // unused
+			Args []string
+			Sub  string
 		}
 	}
 	nr := 0
