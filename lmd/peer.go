@@ -2307,7 +2307,7 @@ func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url
 		return
 	}
 
-	if query != nil && query.Command != "" {
+	if query != nil && query.Command != "" && len(contents) == 0 {
 		result = &HTTPResult{Raw: contents}
 		return
 	}

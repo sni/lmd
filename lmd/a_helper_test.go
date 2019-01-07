@@ -352,9 +352,10 @@ func StartHTTPMockServer(t *testing.T) (*httptest.Server, func()) {
 				fmt.Fprint(w, string(dat))
 				return
 			case query[0] == "COMMAND [0] test_ok":
+				fmt.Fprintln(w, "{\"rc\":0,\"version \":\"2.26\",\"branch\":\"2\",\"output\":[null,0,\"\",null]}")
 				return
 			case query[0] == "COMMAND [0] test_broken":
-				fmt.Fprintln(w, "400: command broken")
+				fmt.Fprintln(w, "{\"rc\":0,\"version\":\"2.26\",\"branch\":\"2\",\"output\":[null,0,\"400: command broken\",null]}")
 				return
 			}
 		}
