@@ -2921,10 +2921,10 @@ func (p *Peer) SendCommandsWithRetry(commands []string) (err error) {
 			if err == nil {
 				return
 			}
-			switch err.(type) {
+			switch err := err.(type) {
 			case *PeerError:
 				// connection error, try again
-				if err.(*PeerError).kind == ConnectionError {
+				if err.kind == ConnectionError {
 					if retries > 0 {
 						/* this indicates a problem with the command itself:
 						   the peer is up, we send a command -> peer is down
@@ -2956,9 +2956,9 @@ func (p *Peer) SendCommands(commands []string) (err error) {
 	}
 	_, err = p.Query(commandRequest)
 	if err != nil {
-		switch err.(type) {
+		switch err := err.(type) {
 		case *PeerCommandError:
-			log.Debugf("[%s] sending command failed (invalid query) - %d: %s", p.Name, err.(*PeerCommandError).code, err.Error())
+			log.Debugf("[%s] sending command failed (invalid query) - %d: %s", p.Name, err.code, err.Error())
 		default:
 			log.Warnf("[%s] sending command failed: %s", p.Name, err.Error())
 		}
