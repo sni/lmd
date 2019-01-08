@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -341,26 +342,36 @@ func StartHTTPMockServer(t *testing.T) (*httptest.Server, func()) {
 			t.Fatalf("failed to parse request: %s", err.Error())
 		}
 		if data.Options.Sub == "_raw_query" {
-			query := strings.Split(strings.TrimSpace(data.Options.Args[0]), "\n")
+			req, _, err := NewRequest(bufio.NewReader(strings.NewReader(data.Options.Args[0])))
+			if err != nil {
+				t.Fatalf("failed to parse request: %s", err.Error())
+			}
 			switch {
-			case regexp.MustCompile(`^GET\ \w+`).MatchString(query[0]):
-				table := regexp.MustCompile(`^GET\ (\w+)`).FindStringSubmatch(query[0])
-				dat, err := ioutil.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, table[1]))
+			case req.Table != "":
+				dat, err := ioutil.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, req.Table))
 				if err != nil {
 					panic("could not read file: " + err.Error())
 				}
 				fmt.Fprint(w, string(dat))
 				return
-			case query[0] == "COMMAND [0] test_ok":
-				fmt.Fprintln(w, "{\"rc\":0,\"version \":\"2.26\",\"branch\":\"2\",\"output\":[null,0,\"\",null]}")
+			case req.Command == "COMMAND [0] test_ok":
+				if v, ok := r.Header["Accept"]; ok && v[0] == "application/livestatus" {
+					fmt.Fprintln(w, "")
+				} else {
+					fmt.Fprintln(w, "{\"rc\":0,\"version \":\"2.20\",\"branch\":\"1\",\"output\":[null,0,\"\",null]}")
+				}
 				return
-			case query[0] == "COMMAND [0] test_broken":
-				fmt.Fprintln(w, "{\"rc\":0,\"version\":\"2.26\",\"branch\":\"2\",\"output\":[null,0,\"400: command broken\",null]}")
+			case req.Command == "COMMAND [0] test_broken":
+				if v, ok := r.Header["Accept"]; ok && v[0] == "application/livestatus" {
+					fmt.Fprintln(w, "400: command broken")
+				} else {
+					fmt.Fprintln(w, "{\"rc\":0,\"version\":\"2.20\",\"branch\":\"1\",\"output\":[null,0,\"400: command broken\",null]}")
+				}
 				return
 			}
 		}
 		if data.Options.Sub == "get_processinfo" {
-			fmt.Fprintln(w, "{\"rc\":0, \"version\":\"\", \"output\":[]}")
+			fmt.Fprintln(w, "{\"rc\":0, \"version\":\"2.20\", \"output\":[]}")
 			return
 		}
 		t.Fatalf("unknown test request: %v", r)

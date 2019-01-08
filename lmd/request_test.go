@@ -663,11 +663,43 @@ func TestHTTPCommands(t *testing.T) {
 	if res != nil {
 		t.Errorf("result for unsuccessful command should be empty")
 	}
-	if err2 := assertEq(err.Error(), "command broken"); err2 != nil {
+	if err2 := assertEq("command broken", err.Error()); err2 != nil {
 		t.Error(err2)
 	}
-	if err2 := assertEq(err.(*PeerCommandError).code, 400); err2 != nil {
+	if err2 := assertEq(400, err.(*PeerCommandError).code); err2 != nil {
 		t.Error(err2)
+	}
+	if err2 := assertEq(2.20, peer.StatusGet("ThrukVersion")); err2 != nil {
+		t.Errorf("version set correctly: %s", err2.Error())
+	}
+
+	// newer thruk versions return result directly
+	thrukVersion := 2.26
+	peer.StatusSet("ThrukVersion", thrukVersion)
+
+	res, err = peer.QueryString("COMMAND [0] test_ok")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != nil {
+		t.Errorf("result for successful command should be empty")
+	}
+
+	res, err = peer.QueryString("COMMAND [0] test_broken")
+	if err == nil {
+		t.Fatal("expected error for broken command")
+	}
+	if res != nil {
+		t.Errorf("result for unsuccessful command should be empty")
+	}
+	if err2 := assertEq("command broken", err.Error()); err2 != nil {
+		t.Error(err2)
+	}
+	if err2 := assertEq(400, err.(*PeerCommandError).code); err2 != nil {
+		t.Error(err2)
+	}
+	if err2 := assertEq(thrukVersion, peer.StatusGet("ThrukVersion")); err2 != nil {
+		t.Errorf("version unchanged: %s", err2.Error())
 	}
 }
 

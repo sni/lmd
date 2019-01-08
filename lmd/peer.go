@@ -1177,6 +1177,7 @@ func (p *Peer) query(req *Request) ([][]interface{}, error) {
 		return nil, err
 	}
 	if req.Command != "" {
+		*resBytes = bytes.TrimSpace(*resBytes)
 		if len(*resBytes) > 0 {
 			tmp := strings.SplitN(strings.TrimSpace(string(*resBytes)), ":", 2)
 			if len(tmp) == 2 {
@@ -2307,9 +2308,11 @@ func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url
 		return
 	}
 
-	if query != nil && query.Command != "" && len(contents) == 0 {
-		result = &HTTPResult{Raw: contents}
-		return
+	if query != nil && query.Command != "" {
+		if len(contents) == 0 || contents[0] != '{' {
+			result = &HTTPResult{Raw: contents}
+			return
+		}
 	}
 	if len(contents) > 10 && bytes.HasPrefix(contents, []byte("200 ")) {
 		result = &HTTPResult{Raw: contents}
