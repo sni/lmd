@@ -53,7 +53,11 @@ var VirtKeyMap = map[string]VirtKeyMapTupel{
 	"section":                 {Index: -20, Key: "Section", Type: StringCol},
 	"parent":                  {Index: -21, Key: "PeerParent", Type: StringCol},
 	"configtool":              {Index: -22, Key: "", Type: HashMapCol},
-	"empty":                   {Index: -23, Key: "", Type: StringCol},
+	"federation_key":          {Index: -23, Key: "", Type: StringCol},
+	"federation_name":         {Index: -24, Key: "", Type: StringCol},
+	"federation_addr":         {Index: -25, Key: "", Type: StringCol},
+	"federation_type":         {Index: -26, Key: "", Type: StringCol},
+	"empty":                   {Index: -27, Key: "", Type: StringCol},
 }
 
 // Response contains the livestatus response data as long with some meta data

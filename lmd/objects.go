@@ -424,6 +424,10 @@ func NewBackendsTable(name string) (t *Table) {
 	t.AddColumn("parent", RefNoUpdate, VirtCol, "Parent id when having cascaded LMDs.")
 	t.AddColumn("lmd_version", RefNoUpdate, VirtCol, "LMD version string.")
 	t.AddColumn("configtool", RefNoUpdate, VirtCol, "Thruks config tool configuration if available.")
+	t.AddColumn("federation_key", RefNoUpdate, VirtCol, "original key when using nested federation")
+	t.AddColumn("federation_name", RefNoUpdate, VirtCol, "original name when using nested federation")
+	t.AddColumn("federation_addr", RefNoUpdate, VirtCol, "original address when using nested federation")
+	t.AddColumn("federation_type", RefNoUpdate, VirtCol, "original type when using nested federation")
 
 	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return

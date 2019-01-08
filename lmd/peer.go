@@ -580,6 +580,10 @@ func (p *Peer) periodicUpdateMultiBackends(ok *bool, force bool) {
 			section = strings.TrimPrefix(section, "Default")
 			section = strings.TrimPrefix(section, "/")
 			subPeer.StatusSet("Section", section)
+			subPeer.StatusSet("SubKey", site["id"].(string))
+			subPeer.StatusSet("SubName", site["name"].(string))
+			subPeer.StatusSet("SubAddr", site["addr"].(string))
+			subPeer.StatusSet("SubType", site["type"].(string))
 
 			nodeAccessor.assignedBackends = append(nodeAccessor.assignedBackends, subID)
 			subPeer.Start()
@@ -2027,6 +2031,8 @@ func (p *Peer) GetVirtRowValue(col *ResultColumn, row *[]interface{}, rowNum int
 		return value
 	case HashMapCol:
 		return value
+	case StringListCol:
+		return value
 	case TimeCol:
 		val := int64(numberToFloat(&value))
 		if val < 0 {
@@ -2096,6 +2102,30 @@ func (p *Peer) GetVirtRowComputedValue(col *ResultColumn, row *[]interface{}, ro
 	case "configtool":
 		if _, ok := p.Status["ConfigTool"]; ok {
 			value = p.Status["ConfigTool"]
+		} else {
+			value = ""
+		}
+	case "federation_addr":
+		if _, ok := p.Status["SubAddr"]; ok {
+			value = p.Status["SubAddr"]
+		} else {
+			value = ""
+		}
+	case "federation_type":
+		if _, ok := p.Status["SubType"]; ok {
+			value = p.Status["SubType"]
+		} else {
+			value = ""
+		}
+	case "federation_name":
+		if _, ok := p.Status["SubName"]; ok {
+			value = p.Status["SubName"]
+		} else {
+			value = ""
+		}
+	case "federation_key":
+		if _, ok := p.Status["SubKey"]; ok {
+			value = p.Status["SubKey"]
 		} else {
 			value = ""
 		}
