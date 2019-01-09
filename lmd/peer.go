@@ -211,6 +211,11 @@ func NewPeer(LocalConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 	p.Status["LastColumns"] = []string{}
 	p.Status["LastTotalCount"] = int64(0)
 	p.Status["ThrukVersion"] = float64(0)
+	p.Status["SubKey"] = ""
+	p.Status["SubName"] = ""
+	p.Status["SubAddr"] = ""
+	p.Status["SubType"] = ""
+	p.Status["SubThrukUrl"] = ""
 
 	/* initialize http client if there are any http(s) connections */
 	hasHTTP := false
@@ -584,6 +589,9 @@ func (p *Peer) periodicUpdateMultiBackends(ok *bool, force bool) {
 			subPeer.StatusSet("SubName", site["name"].(string))
 			subPeer.StatusSet("SubAddr", site["addr"].(string))
 			subPeer.StatusSet("SubType", site["type"].(string))
+			if v, ok := site["federation_thruk_url"]; ok && v != nil {
+				subPeer.StatusSet("SubThrukUrl", v.(string))
+			}
 
 			nodeAccessor.assignedBackends = append(nodeAccessor.assignedBackends, subID)
 			subPeer.Start()
@@ -708,6 +716,11 @@ func (p *Peer) InitAllTables() bool {
 	}
 
 	p.DataLock.RLock()
+	if len(p.Tables["status"].Data) == 0 {
+		// not ready yet
+		p.DataLock.RUnlock()
+		return false
+	}
 	programStart := p.Tables["status"].Data[0][p.Tables["status"].Table.ColumnsIndex["program_start"]]
 	p.DataLock.RUnlock()
 
@@ -2126,6 +2139,12 @@ func (p *Peer) GetVirtRowComputedValue(col *ResultColumn, row *[]interface{}, ro
 	case "federation_key":
 		if _, ok := p.Status["SubKey"]; ok {
 			value = p.Status["SubKey"]
+		} else {
+			value = ""
+		}
+	case "federation_thruk_url":
+		if _, ok := p.Status["SubType"]; ok {
+			value = p.Status["SubType"]
 		} else {
 			value = ""
 		}

@@ -57,7 +57,8 @@ var VirtKeyMap = map[string]VirtKeyMapTupel{
 	"federation_name":         {Index: -24, Key: "", Type: StringCol},
 	"federation_addr":         {Index: -25, Key: "", Type: StringCol},
 	"federation_type":         {Index: -26, Key: "", Type: StringCol},
-	"empty":                   {Index: -27, Key: "", Type: StringCol},
+	"federation_thruk_url":    {Index: -27, Key: "", Type: StringCol},
+	"empty":                   {Index: -28, Key: "", Type: StringCol},
 }
 
 // Response contains the livestatus response data as long with some meta data
@@ -621,6 +622,10 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 		PeerMapLock.RLock()
 		p := PeerMap[id]
 		PeerMapLock.RUnlock()
+		if p == nil {
+			log.Errorf("got no backend for id: %s", id)
+			continue
+		}
 		if p.Flags&MultiBackend == MultiBackend {
 			continue
 		}

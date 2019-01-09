@@ -428,6 +428,7 @@ func NewBackendsTable(name string) (t *Table) {
 	t.AddColumn("federation_name", RefNoUpdate, VirtCol, "original name when using nested federation")
 	t.AddColumn("federation_addr", RefNoUpdate, VirtCol, "original address when using nested federation")
 	t.AddColumn("federation_type", RefNoUpdate, VirtCol, "original type when using nested federation")
+	t.AddColumn("federation_thruk_url", RefNoUpdate, VirtCol, "original thruk url when using nested federation")
 
 	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
