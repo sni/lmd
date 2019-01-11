@@ -211,11 +211,10 @@ func NewPeer(LocalConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 	p.Status["LastColumns"] = []string{}
 	p.Status["LastTotalCount"] = int64(0)
 	p.Status["ThrukVersion"] = float64(0)
-	p.Status["SubKey"] = ""
-	p.Status["SubName"] = ""
-	p.Status["SubAddr"] = ""
-	p.Status["SubType"] = ""
-	p.Status["SubThrukUrl"] = ""
+	p.Status["SubKey"] = []string{}
+	p.Status["SubName"] = []string{}
+	p.Status["SubAddr"] = []string{}
+	p.Status["SubType"] = []string{}
 
 	/* initialize http client if there are any http(s) connections */
 	hasHTTP := false
@@ -578,21 +577,17 @@ func (p *Peer) periodicUpdateMultiBackends(ok *bool, force bool) {
 			subPeer = NewPeer(p.LocalConfig, &c, p.waitGroup, p.shutdownChannel)
 			subPeer.ParentID = p.ID
 			subPeer.Flags |= HTTPSub
-			subPeer.StatusSet("PeerParent", p.ID)
-			PeerMap[subID] = subPeer
-			PeerMapOrder = append(PeerMapOrder, c.ID)
+			subPeer.Status["PeerParent"] = p.ID
 			section := site["section"].(string)
 			section = strings.TrimPrefix(section, "Default")
 			section = strings.TrimPrefix(section, "/")
-			subPeer.StatusSet("Section", section)
-			subPeer.StatusSet("SubKey", site["id"].(string))
-			subPeer.StatusSet("SubName", site["name"].(string))
-			subPeer.StatusSet("SubAddr", site["addr"].(string))
-			subPeer.StatusSet("SubType", site["type"].(string))
-			if v, ok := site["federation_thruk_url"]; ok && v != nil {
-				subPeer.StatusSet("SubThrukUrl", v.(string))
-			}
-
+			subPeer.Status["Section"] = section
+			subPeer.setFederationInfo(site, "SubKey", "key")
+			subPeer.setFederationInfo(site, "SubName", "name")
+			subPeer.setFederationInfo(site, "SubAddr", "addr")
+			subPeer.setFederationInfo(site, "SubType", "type")
+			PeerMap[subID] = subPeer
+			PeerMapOrder = append(PeerMapOrder, c.ID)
 			nodeAccessor.assignedBackends = append(nodeAccessor.assignedBackends, subID)
 			subPeer.Start()
 		}
@@ -2122,31 +2117,25 @@ func (p *Peer) GetVirtRowComputedValue(col *ResultColumn, row *[]interface{}, ro
 		if _, ok := p.Status["SubAddr"]; ok {
 			value = p.Status["SubAddr"]
 		} else {
-			value = ""
+			value = []string{}
 		}
 	case "federation_type":
 		if _, ok := p.Status["SubType"]; ok {
 			value = p.Status["SubType"]
 		} else {
-			value = ""
+			value = []string{}
 		}
 	case "federation_name":
 		if _, ok := p.Status["SubName"]; ok {
 			value = p.Status["SubName"]
 		} else {
-			value = ""
+			value = []string{}
 		}
 	case "federation_key":
 		if _, ok := p.Status["SubKey"]; ok {
 			value = p.Status["SubKey"]
 		} else {
-			value = ""
-		}
-	case "federation_thruk_url":
-		if _, ok := p.Status["SubType"]; ok {
-			value = p.Status["SubType"]
-		} else {
-			value = ""
+			value = []string{}
 		}
 	default:
 		log.Panicf("cannot handle virtual column: %s", col.Name)
@@ -3022,4 +3011,19 @@ func (p *Peer) SendCommands(commands []string) (err error) {
 	p.ScheduleImmediateUpdate()
 
 	return
+}
+
+// setFederationInfo updates federation information for /site request
+func (p *Peer) setFederationInfo(data map[string]interface{}, statuskey, datakey string) {
+	if _, ok := data["federation_"+datakey]; ok {
+		if v, ok := data["federation_"+datakey].([]interface{}); ok {
+			list := []string{}
+			for _, d := range v {
+				list = append(list, d.(string))
+			}
+			p.Status[statuskey] = list
+			return
+		}
+	}
+	p.Status[statuskey] = []string{data[datakey].(string)}
 }
