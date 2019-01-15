@@ -3025,5 +3025,9 @@ func (p *Peer) setFederationInfo(data map[string]interface{}, statuskey, datakey
 			return
 		}
 	}
-	p.Status[statuskey] = []string{data[datakey].(string)}
+	if v, ok := data[datakey].(string); ok {
+		p.Status[statuskey] = []string{v}
+		return
+	}
+	p.Status[statuskey] = []string{}
 }
