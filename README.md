@@ -31,7 +31,7 @@ Requirements
 
 You will need
 
- - Go >= 1.7
+ - Go >= 1.10
 
 to compile lmd.
 
@@ -214,5 +214,5 @@ Some ideas may or may not be implemented in the future
   This is implemented for log table and commands anyway already. Just requires an additional header.
 - Cache last 24h of logfiles to speed up most logfile requests
 - Fix updating comments (takes too long after sending commands)
-- Add lmd federation mode to cascade multiple lmds
 - Make use of lmd_last_cache_update in federation mode
+- deduplicate large stringlists like contacts, maybe hostgroups and servicegroups
