@@ -144,7 +144,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 	}
 	// if all backends are down, send an error instead of an empty result
 	if res.Request.OutputFormat != "wrapped_json" && len(res.Failed) > 0 && len(res.Failed) == len(req.Backends) {
-		res.Code = 400
+		res.Code = 502
 		err = &PeerError{msg: res.Failed[req.Backends[0]], kind: ConnectionError}
 		return
 	}

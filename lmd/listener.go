@@ -127,8 +127,12 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string) (bool, error) {
 			response, rErr := req.GetResponse()
 			if rErr != nil {
 				if netErr, ok := rErr.(net.Error); ok {
-					(&Response{Code: 500, Request: req, Error: netErr}).Send(c)
+					(&Response{Code: 502, Request: req, Error: netErr}).Send(c)
 					return false, netErr
+				}
+				if peerErr, ok := rErr.(*PeerError); ok && peerErr.kind == ConnectionError {
+					(&Response{Code: 502, Request: req, Error: peerErr}).Send(c)
+					return false, peerErr
 				}
 				(&Response{Code: 400, Request: req, Error: rErr}).Send(c)
 				return false, rErr
