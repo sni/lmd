@@ -2182,7 +2182,7 @@ func (p *Peer) WaitCondition(req *Request) bool {
 	c := make(chan struct{})
 	go func() {
 		// make sure we log panics properly
-		defer logPanicExit()
+		defer logPanicExitPeer(p)
 
 		p.DataLock.RLock()
 		table := p.Tables[req.Table].Table
