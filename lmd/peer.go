@@ -2789,6 +2789,7 @@ func (p *Peer) setBroken(details string) {
 func logPanicExitPeer(p *Peer) {
 	if r := recover(); r != nil {
 		log.Errorf("[%s] Panic: %s", p.Name, r)
+		log.Errorf("[%s] Version: %s", p.Name, Version())
 		log.Errorf("[%s] %s", p.Name, debug.Stack())
 		if p.lastRequest != nil {
 			log.Errorf("[%s] LastQuery:", p.Name)

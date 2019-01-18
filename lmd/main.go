@@ -605,6 +605,7 @@ func ReadConfig(files []string) (conf *Config) {
 func logPanicExit() {
 	if r := recover(); r != nil {
 		log.Errorf("Panic: %s", r)
+		log.Errorf("Version: %s", Version())
 		log.Errorf("%s", debug.Stack())
 		os.Exit(1)
 	}
