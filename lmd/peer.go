@@ -1141,6 +1141,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 		}
 		err = p.updateReferences(table, &res)
 		if err != nil {
+			p.DataLock.Unlock()
 			return
 		}
 		p.Tables[table.Name] = data
