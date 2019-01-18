@@ -1134,6 +1134,11 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 		}
 		p.DataLock.Lock()
 		data := p.Tables[table.Name]
+		if data.Index == nil {
+			// should not happen but might indicate a recent restart or backend issue
+			p.DataLock.Unlock()
+			return
+		}
 		for i := range res {
 			resRow := res[i]
 			id := fmt.Sprintf("%v", resRow[fieldIndex])
