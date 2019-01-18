@@ -2474,10 +2474,10 @@ func SpinUpPeers(peers []string) {
 		waitgroup.Add(1)
 		go func(peer *Peer, wg *sync.WaitGroup) {
 			// make sure we log panics properly
-			defer logPanicExit()
-
+			defer logPanicExitPeer(peer)
 			defer wg.Done()
-			p.StatusSet("Idling", false)
+
+			peer.StatusSet("Idling", false)
 			log.Infof("[%s] switched back to normal update interval", peer.Name)
 			if peer.StatusGet("PeerStatus").(PeerStatus) == PeerStatusUp {
 				log.Debugf("[%s] spin up update", peer.Name)
