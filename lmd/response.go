@@ -311,8 +311,8 @@ func (res *Response) PostProcessing() {
 	}
 
 	// apply request limit
-	if res.Request.Limit > 0 && res.Request.Limit < len(res.Result) {
-		res.Result = res.Result[0:res.Request.Limit]
+	if res.Request.Limit != nil && *res.Request.Limit >= 0 && *res.Request.Limit < len(res.Result) {
+		res.Result = res.Result[0:*res.Request.Limit]
 	}
 
 	// final calculation of stats querys

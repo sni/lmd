@@ -24,7 +24,7 @@ type Request struct {
 	FilterStr           string
 	Stats               []*Filter
 	StatsResult         map[string][]*Filter
-	Limit               int
+	Limit               *int
 	Offset              int
 	Sort                []*SortField
 	ResponseFixed16     bool
@@ -155,8 +155,8 @@ func (req *Request) String() (str string) {
 	if len(req.Backends) > 0 {
 		str += "Backends: " + strings.Join(req.Backends, " ") + "\n"
 	}
-	if req.Limit > 0 {
-		str += fmt.Sprintf("Limit: %d\n", req.Limit)
+	if req.Limit != nil {
+		str += fmt.Sprintf("Limit: %d\n", *req.Limit)
 	}
 	if req.Offset > 0 {
 		str += fmt.Sprintf("Offset: %d\n", req.Offset)
@@ -493,8 +493,8 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 	// Limit
 	// An upper limit is used to make sorting possible
 	// Offset is 0 for sub-request (sorting)
-	if req.Limit != 0 {
-		requestData["limit"] = req.Limit + req.Offset
+	if req.Limit != nil && *req.Limit != 0 {
+		requestData["limit"] = *req.Limit + req.Offset
 	}
 
 	// Sort order
@@ -605,7 +605,8 @@ func (req *Request) ParseRequestHeaderLine(line *string) (err error) {
 		err = parseSortHeader(&req.Sort, matched[1])
 		return
 	case "limit":
-		err = parseIntHeader(&req.Limit, matched[0], matched[1], 0)
+		req.Limit = new(int)
+		err = parseIntHeader(req.Limit, matched[0], matched[1], 0)
 		return
 	case "offset":
 		err = parseIntHeader(&req.Offset, matched[0], matched[1], 0)

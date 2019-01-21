@@ -58,7 +58,7 @@ func TestRequestHeaderTable(t *testing.T) {
 func TestRequestHeaderLimit(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nLimit: 10\n"))
 	req, _, _ := NewRequest(buf)
-	if err := assertEq(10, req.Limit); err != nil {
+	if err := assertEq(10, *req.Limit); err != nil {
 		t.Fatal(err)
 	}
 }
