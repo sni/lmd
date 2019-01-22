@@ -157,7 +157,8 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 
 	// Limit
 	if val, ok := requestData["limit"]; ok {
-		req.Limit = int(val.(float64))
+		req.Limit = new(int)
+		*req.Limit = int(val.(float64))
 	}
 
 	// Filter String in livestatus syntax

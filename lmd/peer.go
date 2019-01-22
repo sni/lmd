@@ -2591,7 +2591,7 @@ Rows:
 		found++
 		// check if we have enough result rows already
 		// we still need to count how many result we would have...
-		if limit > 0 && found > limit {
+		if limit >= 0 && found > limit {
 			continue Rows
 		}
 
@@ -2706,11 +2706,13 @@ func createLocalStatsCopy(stats *[]*Filter) []*Filter {
 	return localStats
 }
 func optimizeResultLimit(req *Request, table *Table) (limit int) {
-	if req.Limit > 0 && table.IsDefaultSortOrder(&req.Sort) {
-		limit = req.Limit
+	if req.Limit != nil && table.IsDefaultSortOrder(&req.Sort) {
+		limit = *req.Limit
 		if req.Offset > 0 {
 			limit += req.Offset
 		}
+	} else {
+		limit = -1
 	}
 	return
 }
