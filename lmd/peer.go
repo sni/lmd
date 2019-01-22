@@ -2516,6 +2516,14 @@ func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (int, *[][]
 	data := p.Tables[req.Table].Data
 	table := p.Tables[req.Table].Table
 
+	// peer might have gone down meanwhile, ex. after waiting for a waittrigger, so check again
+	if table == nil || !p.isOnline() {
+		res.Lock.Lock()
+		res.Failed[p.ID] = p.getError()
+		res.Lock.Unlock()
+		return 0, nil, nil
+	}
+
 	// get data for special tables
 	if table.Name == "tables" || table.Name == "columns" {
 		data = Objects.GetTableColumnsData()
