@@ -394,30 +394,36 @@ func checkFlags() {
 		os.Exit(2)
 	}
 
-	if flagPidfile != "" {
-		if _, err := os.Stat(flagPidfile); err == nil {
-			dat, _ := ioutil.ReadFile(flagPidfile)
-			pid, _ := strconv.ParseInt(strings.TrimSpace(string(dat)), 10, 64)
-			process, err := os.FindProcess(int(pid))
-			if err == nil {
-				err = process.Signal(syscall.Signal(0))
-				if err == nil {
-					fmt.Fprintf(os.Stderr, "ERROR: pidfile '%s' does already exist (and process %d is still running)\n", flagPidfile, pid)
+	createPidFile(flagPidfile)
+}
+
+func createPidFile(path string) {
+	//write the pid id if file path is defined
+	if path == "" {
+		return
+	}
+	// check existing pid
+	if dat, err := ioutil.ReadFile(path); err == nil {
+		if pid, err := strconv.Atoi(strings.TrimSpace(string(dat))); err == nil {
+			if process, err := os.FindProcess(pid); err == nil {
+				if err := process.Signal(syscall.Signal(0)); err == nil {
+					fmt.Fprintf(os.Stderr, "ERROR: lmd already running: %d\n", pid)
 					os.Exit(2)
 				}
 			}
-			fmt.Fprintf(os.Stderr, "WARNING: removing stale pidfile '%s'\n", flagPidfile)
-			os.Remove(flagPidfile)
 		}
+		fmt.Fprintf(os.Stderr, "WARNING: removing stale pidfile %s\n", path)
 	}
+	err := ioutil.WriteFile(path, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0664)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: Could not write pidfile: %s\n", err.Error())
+		os.Exit(2)
+	}
+}
 
-	// write pidfile
-	if flagPidfile != "" {
-		err := ioutil.WriteFile(flagPidfile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0640)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "ERROR: could not write pidfile '%s': %s\n", flagPidfile, err.Error())
-			os.Exit(2)
-		}
+func deletePidFile(f string) {
+	if f != "" {
+		os.Remove(f)
 	}
 }
 
@@ -468,9 +474,7 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		}
 		waitGroupListener.Wait()
 		waitGroupPeers.Wait()
-		if flagPidfile != "" {
-			os.Remove(flagPidfile)
-		}
+		deletePidFile(flagPidfile)
 		return (0)
 	case syscall.SIGINT:
 		fallthrough
@@ -483,9 +487,7 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		}
 		// wait one second which should be enough for the listeners
 		waitTimeout(waitGroupListener, time.Second)
-		if flagPidfile != "" {
-			os.Remove(flagPidfile)
-		}
+		deletePidFile(flagPidfile)
 		return (1)
 	case syscall.SIGHUP:
 		log.Infof("got sighup, reloading configuration...")
@@ -607,6 +609,7 @@ func logPanicExit() {
 		log.Errorf("Panic: %s", r)
 		log.Errorf("Version: %s", Version())
 		log.Errorf("%s", debug.Stack())
+		deletePidFile(flagPidfile)
 		os.Exit(1)
 	}
 }

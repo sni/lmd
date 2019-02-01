@@ -2813,6 +2813,7 @@ func logPanicExitPeer(p *Peer) {
 			log.Errorf("[%s] LastResponse:", p.Name)
 			log.Errorf("[%s] %s", p.Name, string(*(p.lastResponse)))
 		}
+		deletePidFile(flagPidfile)
 		os.Exit(1)
 	}
 }
