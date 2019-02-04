@@ -57,6 +57,10 @@ SkipSSLCheck = 0
 # Uncomment to export runtime statistics in prometheus format
 #ListenPrometheus = "127.0.0.1:8080"
 
+# Sets the encoding of the output. Valid options are utf8, latin1
+# Defaults to utf8
+DataEncoding = "utf8"
+
 # use tcp connections
 [[Connections]]
 name   = "Monitoring Site A"

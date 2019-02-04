@@ -28,6 +28,8 @@ EXTERNAL_DEPS = \
 	github.com/mvdan/unparam \
 	github.com/mdempsky/unconvert \
 	honnef.co/go/tools/cmd/staticcheck \
+	github.com/paulrosania/go-charset/charset \
+	github.com/paulrosania/go-charset/data \
 
 
 all: deps fmt build

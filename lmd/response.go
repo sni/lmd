@@ -11,6 +11,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/paulrosania/go-charset/charset"
+	_ "github.com/paulrosania/go-charset/data"
 )
 
 // ResultColumn is a column container for results
@@ -510,6 +513,17 @@ func (res *Response) Bytes() ([]byte, error) {
 	return res.JSON()
 }
 
+func toLatin1(utf8 string) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	w, err := charset.NewWriter("latin1", buf)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Fprint(w, utf8)
+	w.Close()
+	return buf.Bytes(), nil
+}
+
 // JSON converts the response into a json structure
 func (res *Response) JSON() ([]byte, error) {
 	buf := new(bytes.Buffer)
@@ -557,7 +571,17 @@ func (res *Response) JSON() ([]byte, error) {
 		}
 	}
 	buf.Write([]byte("]"))
-	return buf.Bytes(), nil
+
+	var returnBuf = buf.Bytes()
+	if DataEncoding == "latin1" {
+		encBuf, err := toLatin1(buf.String())
+		if err != nil {
+			log.Errorf("Latin1 encoding error: %v - using UTF8", err)
+		} else {
+			returnBuf = encBuf
+		}
+	}
+	return returnBuf, nil
 }
 
 // WrappedJSON converts the response into a wrapped json structure
@@ -608,7 +632,17 @@ func (res *Response) WrappedJSON() ([]byte, error) {
 		enc.Encode(cols)
 	}
 	buf.Write([]byte(fmt.Sprintf("\n,\"total_count\":%d}", res.ResultTotal)))
-	return buf.Bytes(), nil
+
+	var returnBuf = buf.Bytes()
+	if DataEncoding == "latin1" {
+		encBuf, err := toLatin1(buf.String())
+		if err != nil {
+			log.Errorf("Latin1 encoding error: %v - using UTF8", err)
+		} else {
+			returnBuf = encBuf
+		}
+	}
+	return returnBuf, nil
 }
 
 // BuildLocalResponse builds local data table result for all selected peers

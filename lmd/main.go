@@ -97,6 +97,7 @@ type Config struct {
 	IdleTimeout         int64
 	IdleInterval        int64
 	StaleBackendTimeout int
+	DataEncoding        string
 }
 
 // PeerMap contains a map of available remote peers.
@@ -146,6 +147,9 @@ var flagProfile string
 var once sync.Once
 var mainSignalChannel chan os.Signal
 var lastMainRestart = time.Now().Unix()
+
+// DataEncoding contains the desired output encoding
+var DataEncoding string
 
 // initialize objects structure
 func init() {
@@ -197,6 +201,7 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	setDefaults(&LocalConfig)
 	setVerboseFlags(&LocalConfig)
 	InitLogging(&LocalConfig)
+	setDataEncoding(&LocalConfig)
 
 	osSignalChannel := make(chan os.Signal, 1)
 	signal.Notify(osSignalChannel, syscall.SIGHUP)
@@ -569,6 +574,18 @@ func setDefaults(conf *Config) {
 	}
 	if conf.StaleBackendTimeout <= 0 {
 		conf.StaleBackendTimeout = 30
+	}
+}
+
+func setDataEncoding(conf *Config) {
+	if strings.ToLower(conf.DataEncoding) == "latin1" {
+		DataEncoding = "latin1"
+	} else if strings.ToLower(conf.DataEncoding) == "utf8" {
+		DataEncoding = "utf8"
+	} else {
+		log.Warnf("Invalid encoding: %s, assuming utf8", conf.DataEncoding)
+		log.Warnf("%s", "Valid data encodings are: utf8, latin1")
+		DataEncoding = "utf8"
 	}
 }
 
