@@ -95,8 +95,8 @@ func (op *GroupOperator) String() string {
 	return ""
 }
 
-var reRequestAction = regexp.MustCompile(`^GET ([a-z]+)$`)
-var reRequestCommand = regexp.MustCompile(`^COMMAND (\[\d+\].*)$`)
+var reRequestAction = regexp.MustCompile(`^GET +([a-z]+)$`)
+var reRequestCommand = regexp.MustCompile(`^COMMAND +(\[\d+\].*)$`)
 
 // ParseRequest reads from a connection and returns a single requests.
 // It returns a the requests and any errors encountered.
@@ -576,12 +576,13 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan [][]interfac
 // ParseRequestHeaderLine parses a single request line
 // It returns any error encountered.
 func (req *Request) ParseRequestHeaderLine(line *string) (err error) {
-	matched := strings.SplitN(*line, ": ", 2)
+	matched := strings.SplitN(*line, ":", 2)
 	if len(matched) != 2 {
 		err = fmt.Errorf("bad request header: %s", *line)
 		return
 	}
 	matched[0] = strings.ToLower(matched[0])
+	matched[1] = strings.TrimLeft(matched[1], " ")
 
 	switch matched[0] {
 	case "filter":
