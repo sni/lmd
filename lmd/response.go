@@ -132,15 +132,9 @@ func NewResponse(req *Request) (res *Response, err error) {
 
 	if table.PassthroughOnly {
 		// passthrough requests, ex.: log table
-		err = res.BuildPassThroughResult(selectedPeers, table, &columns)
-		if err != nil {
-			return
-		}
+		res.BuildPassThroughResult(selectedPeers, table, &columns)
 	} else {
-		err = res.BuildLocalResponse(selectedPeers, &indexes)
-		if err != nil {
-			return
-		}
+		res.BuildLocalResponse(selectedPeers, &indexes)
 	}
 	// if all backends are down, send an error instead of an empty result
 	if res.Request.OutputFormat != "wrapped_json" && len(res.Failed) > 0 && len(res.Failed) == len(req.Backends) {
@@ -612,7 +606,7 @@ func (res *Response) WrappedJSON() ([]byte, error) {
 }
 
 // BuildLocalResponse builds local data table result for all selected peers
-func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
+func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) {
 	res.Result = make([][]interface{}, 0)
 
 	waitgroup := &sync.WaitGroup{}
@@ -669,7 +663,6 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) error {
 	log.Tracef("waiting...")
 	waitgroup.Wait()
 	log.Tracef("waiting for all local data computations done")
-	return nil
 }
 
 // AppendPeerResult appends result for given peer
@@ -710,7 +703,7 @@ func (res *Response) AppendPeerResult(peer *Peer, indexes *[]int) {
 
 // BuildPassThroughResult passes a query transparently to one or more remote sites and builds the response
 // from that.
-func (res *Response) BuildPassThroughResult(peers []string, table *Table, columns *[]ResultColumn) error {
+func (res *Response) BuildPassThroughResult(peers []string, table *Table, columns *[]ResultColumn) {
 	res.Result = make([][]interface{}, 0)
 
 	// build columns list
@@ -754,7 +747,6 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table, column
 	log.Tracef("waiting...")
 	waitgroup.Wait()
 	log.Debugf("waiting for passed through requests done")
-	return nil
 }
 
 // PassThrougQuery runs a passthrough query on a single peer and appends the result
