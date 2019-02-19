@@ -665,6 +665,8 @@ func NewHostsTable() (t *Table) {
 
 	// naemon specific
 	t.AddOptColumn("obsess", DynamicUpdate, IntCol, Naemon, "The obsessing over host")
+	t.AddOptColumn("depends_exec", StaticUpdate, StringListCol, Naemon, "List of hosts this hosts depends on for execution.")
+	t.AddOptColumn("depends_notify", StaticUpdate, StringListCol, Naemon, "List of hosts this hosts depends on for notification.")
 
 	// shinken specific
 	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
@@ -801,6 +803,8 @@ func NewServicesTable() (t *Table) {
 
 	// naemon specific
 	t.AddOptColumn("obsess", DynamicUpdate, IntCol, Naemon, "The obsessing over service")
+	t.AddOptColumn("depends_exec", StaticUpdate, StringListCol, Naemon, "List of hosts this hosts depends on for execution.")
+	t.AddOptColumn("depends_notify", StaticUpdate, StringListCol, Naemon, "List of hosts this hosts depends on for notification.")
 
 	// shinken specific
 	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
