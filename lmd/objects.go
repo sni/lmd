@@ -803,8 +803,9 @@ func NewServicesTable() (t *Table) {
 
 	// naemon specific
 	t.AddOptColumn("obsess", DynamicUpdate, IntCol, Naemon, "The obsessing over service")
-	t.AddOptColumn("depends_exec", StaticUpdate, StringListCol, Naemon, "List of hosts this hosts depends on for execution.")
-	t.AddOptColumn("depends_notify", StaticUpdate, StringListCol, Naemon, "List of hosts this hosts depends on for notification.")
+	t.AddOptColumn("depends_exec", StaticUpdate, StringListCol, Naemon, "List of services this services depends on for execution.")
+	t.AddOptColumn("depends_notify", StaticUpdate, StringListCol, Naemon, "List of services this services depends on for notification.")
+	t.AddOptColumn("parents", StaticUpdate, StringListCol, Naemon, "List of services descriptions this services depends on.")
 
 	// shinken specific
 	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
