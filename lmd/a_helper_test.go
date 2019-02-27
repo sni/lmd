@@ -168,8 +168,14 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 	if name == "hosts" {
 		nameIndex := table.GetColumn("name").Index
 		for x := 1; x <= numHosts; x++ {
-			newObj := make([]interface{}, len(last))
-			copy(newObj, last)
+			var newObj []interface{}
+			if x >= num {
+				newObj = make([]interface{}, len(last))
+				copy(newObj, last)
+			} else {
+				newObj = make([]interface{}, len(raw[x]))
+				copy(newObj, raw[x])
+			}
 			newObj[nameIndex] = fmt.Sprintf("%s_%d", "testhost", x)
 			newData = append(newData, newObj)
 		}
@@ -177,10 +183,18 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 	if name == "services" {
 		nameIndex := table.GetColumn("host_name").Index
 		descIndex := table.GetColumn("description").Index
+		count := 0
 		for x := 1; x <= numHosts; x++ {
 			for y := 1; y <= numServices/numHosts; y++ {
-				newObj := make([]interface{}, len(last))
-				copy(newObj, last)
+				var newObj []interface{}
+				count = count + 1
+				if count >= num {
+					newObj = make([]interface{}, len(last))
+					copy(newObj, last)
+				} else {
+					newObj = make([]interface{}, len(raw[count]))
+					copy(newObj, raw[count])
+				}
 				newObj[nameIndex] = fmt.Sprintf("%s_%d", "testhost", x)
 				newObj[descIndex] = fmt.Sprintf("%s_%d", "testsvc", y)
 				newData = append(newData, newObj)
