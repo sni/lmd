@@ -138,7 +138,7 @@ clean:
 
 fmt:
 	cd $(LAMPDDIR) && goimports -w .
-	cd $(LAMPDDIR) && go tool vet -all -shadow -assign -atomic -bool -composites -copylocks -nilfunc -rangeloops -unsafeptr -unreachable .
+	cd $(LAMPDDIR) && go vet -all -shadow -assign -atomic -bool -composites -copylocks -nilfunc -rangeloops -unsafeptr -unreachable .
 	cd $(LAMPDDIR) && gofmt -w -s .
 
 versioncheck:
