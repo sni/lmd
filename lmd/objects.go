@@ -658,6 +658,7 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("process_performance_data", DynamicUpdate, IntCol, "Whether processing of performance data is enabled (0/1)")
 	t.AddColumn("retry_interval", StaticUpdate, IntCol, "Number of basic interval lengths between checks when retrying after a soft error")
 	t.AddColumn("scheduled_downtime_depth", DynamicUpdate, IntCol, "The number of downtimes this host is currently in")
+	t.AddColumn("services", StaticUpdate, StringListCol, "The services associated with the host")
 	t.AddColumn("state", DynamicUpdate, IntCol, "The current state of the host (0: up, 1: down, 2: unreachable)")
 	t.AddColumn("state_type", DynamicUpdate, IntCol, "The current state of the host (0: up, 1: down, 2: unreachable)")
 	t.AddColumn("staleness", DynamicUpdate, FloatCol, "Staleness indicator for this host")
@@ -680,6 +681,8 @@ func NewHostsTable() (t *Table) {
 	t.AddOptColumn("got_business_rule", DynamicUpdate, IntCol, Shinken, "Whether the host state is an business rule based host or not (0/1)")
 	t.AddOptColumn("parent_dependencies", DynamicUpdate, StringCol, Shinken, "List of the dependencies (logical, network or business one) of this host.")
 
+	t.AddColumn("services_with_info", RefNoUpdate, VirtCol, "The services, including info, that is associated with the host")
+	t.AddColumn("services_with_state", RefNoUpdate, VirtCol, "The services, including state info, that is associated with the host")
 	t.AddColumn("lmd_last_cache_update", RefNoUpdate, VirtCol, "Timestamp of the last LMD update of this object.")
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")

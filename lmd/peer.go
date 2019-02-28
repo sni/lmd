@@ -2113,6 +2113,35 @@ func (p *Peer) GetVirtRowComputedValue(col *ResultColumn, row *[]interface{}, ro
 		} else {
 			value = 0
 		}
+	case "services_with_state":
+		fallthrough
+	case "services_with_info":
+		// test
+		servicesIndex := table.ColumnsIndex["services"]
+		services := (*row)[servicesIndex]
+		hostnameIndex := table.ColumnsIndex["name"]
+		hostName := (*row)[hostnameIndex].(string)
+		var res []interface{}
+		for _, v := range services.([]interface{}) {
+			var serviceValue []interface{}
+			var serviceID strings.Builder
+
+			serviceID.WriteString(hostName)
+			serviceID.WriteString(";")
+			serviceID.WriteString(v.(string))
+
+			serviceInfo := p.Tables["services"].Index[serviceID.String()]
+			stateIndex := p.Tables["services"].Table.GetColumn("state").Index
+			checkedIndex := p.Tables["services"].Table.GetColumn("has_been_checked").Index
+
+			serviceValue = append(serviceValue, v.(string), serviceInfo[stateIndex], serviceInfo[checkedIndex])
+			if col.Name == "services_with_info" {
+				outputIndex := p.Tables["services"].Table.GetColumn("plugin_output").Index
+				serviceValue = append(serviceValue, serviceInfo[outputIndex])
+			}
+			res = append(res, serviceValue)
+		}
+		value = res
 	case "configtool":
 		if _, ok := p.Status["ConfigTool"]; ok {
 			value = p.Status["ConfigTool"]
