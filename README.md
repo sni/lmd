@@ -4,6 +4,7 @@ LMD - Livestatus Multitool Daemon
 [![Build Status](https://travis-ci.org/sni/lmd.svg?branch=master)](https://travis-ci.org/sni/lmd)
 [![Go Report Card](https://goreportcard.com/badge/github.com/sni/lmd)](https://goreportcard.com/report/github.com/sni/lmd)
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](http://www.gnu.org/licenses/gpl-3.0)
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fsni%2Flmd.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fsni%2Flmd?ref=badge_shield)
 
 
 What is this
@@ -216,3 +217,7 @@ Some ideas may or may not be implemented in the future
 - Fix updating comments (takes too long after sending commands)
 - Make use of lmd_last_cache_update in federation mode
 - deduplicate large stringlists like contacts, maybe hostgroups and servicegroups
+
+
+## License
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fsni%2Flmd.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fsni%2Flmd?ref=badge_large)
