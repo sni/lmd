@@ -45,7 +45,8 @@ const (
 // https://github.com/golang/go/issues/8005#issuecomment-190753527
 type noCopy struct{}
 
-func (*noCopy) Lock() {}
+func (*noCopy) Lock()   {}
+func (*noCopy) UnLock() {}
 
 // Connection defines a single connection configuration.
 type Connection struct {
