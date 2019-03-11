@@ -71,6 +71,15 @@ var (
 		},
 		[]string{"peer"},
 	)
+	promPeerQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: NAME,
+			Subsystem: "peer",
+			Name:      "backend_queries",
+			Help:      "Peer Backend Query Counter",
+		},
+		[]string{"peer"},
+	)
 	promPeerBytesSend = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: NAME,
@@ -170,6 +179,7 @@ func initPrometheus(LocalConfig *Config) (prometheusListener *net.Listener) {
 	prometheus.Register(promPeerUpdateInterval)
 	prometheus.Register(promPeerConnections)
 	prometheus.Register(promPeerFailedConnections)
+	prometheus.Register(promPeerQueries)
 	prometheus.Register(promPeerBytesSend)
 	prometheus.Register(promPeerBytesReceived)
 	prometheus.Register(promPeerUpdates)

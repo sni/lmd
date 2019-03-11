@@ -54,6 +54,9 @@ NetTimeout = 120
 # Set to 1 to disabled any ssl verification checks.
 SkipSSLCheck = 0
 
+# Use keepalive for backend peer connections.
+BackendKeepAlive = true
+
 # Uncomment to export runtime statistics in prometheus format
 #ListenPrometheus = "127.0.0.1:8080"
 

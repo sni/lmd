@@ -72,6 +72,7 @@ type Peer struct {
 	lastRequest     *Request
 	lastResponse    *[]byte
 	HTTPClient      *http.Client
+	connectionCache chan net.Conn
 }
 
 // PeerStatus contains the different states a peer can have
@@ -186,6 +187,7 @@ func NewPeer(LocalConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 		DataLock:        NewLoggingLock(config.Name + "DataLock"),
 		Config:          config,
 		LocalConfig:     LocalConfig,
+		connectionCache: make(chan net.Conn, 10),
 	}
 	p.Status["PeerKey"] = p.ID
 	p.Status["PeerName"] = p.Name
@@ -444,6 +446,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 		Columns:         columns,
 		ResponseFixed16: true,
 		OutputFormat:    "json",
+		KeepAlive:       p.LocalConfig.BackendKeepAlive,
 	}
 	res, err := p.query(req)
 	if err != nil {
@@ -481,6 +484,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 				Columns:         []string{"section"},
 				ResponseFixed16: true,
 				OutputFormat:    "json",
+				KeepAlive:       p.LocalConfig.BackendKeepAlive,
 			}
 			res, err := subPeer.query(req)
 			if err == nil {
@@ -860,6 +864,7 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 		ResponseFixed16: true,
 		OutputFormat:    "json",
 		FilterStr:       filterStr,
+		KeepAlive:       p.LocalConfig.BackendKeepAlive,
 	}
 	res, err := p.Query(req)
 	if err != nil {
@@ -910,6 +915,7 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 		ResponseFixed16: true,
 		OutputFormat:    "json",
 		FilterStr:       filterStr,
+		KeepAlive:       p.LocalConfig.BackendKeepAlive,
 	}
 	res, err := p.Query(req)
 	if err != nil {
@@ -974,6 +980,7 @@ func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated
 		Columns:         scanColumns,
 		ResponseFixed16: true,
 		OutputFormat:    "json",
+		KeepAlive:       p.LocalConfig.BackendKeepAlive,
 	}
 	res, err := p.Query(req)
 	if err != nil {
@@ -1055,6 +1062,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 		ResponseFixed16: true,
 		OutputFormat:    "json",
 		FilterStr:       "Stats: id != -1\nStats: max id\n",
+		KeepAlive:       p.LocalConfig.BackendKeepAlive,
 	}
 	res, err := p.Query(req)
 	if err != nil {
@@ -1080,6 +1088,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 		Columns:         []string{"id"},
 		ResponseFixed16: true,
 		OutputFormat:    "json",
+		KeepAlive:       p.LocalConfig.BackendKeepAlive,
 	}
 	res, err = p.Query(req)
 	if err != nil {
@@ -1123,6 +1132,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 			ResponseFixed16: true,
 			OutputFormat:    "json",
 			FilterStr:       "",
+			KeepAlive:       p.LocalConfig.BackendKeepAlive,
 		}
 		for _, id := range missingIds {
 			req.FilterStr += fmt.Sprintf("Filter: id = %d\n", id)
@@ -1165,9 +1175,18 @@ func (p *Peer) query(req *Request) ([][]interface{}, error) {
 		log.Debugf("[%s] connection failed: %s", p.Name, err)
 		return nil, err
 	}
-	if conn != nil {
-		defer conn.Close()
+	if connType == "http" {
+		req.KeepAlive = false
 	}
+	defer func() {
+		if req.KeepAlive && err != nil && connType != "http" {
+			// give back connection
+			log.Tracef("[%s] put cached connection back", p.Name)
+			p.connectionCache <- conn
+		} else if conn != nil {
+			conn.Close()
+		}
+	}()
 
 	if p.Flags&LMDSub == LMDSub {
 		// add backends filter for lmd sub peers
@@ -1188,6 +1207,7 @@ func (p *Peer) query(req *Request) ([][]interface{}, error) {
 	peerAddr := p.Status["PeerAddr"].(string)
 	p.PeerLock.Unlock()
 	promPeerBytesSend.WithLabelValues(p.Name).Set(float64(totalBytesSend))
+	promPeerQueries.WithLabelValues(p.Name).Inc()
 
 	resBytes, err := p.getQueryResponse(req, query, peerAddr, conn, connType)
 	if err != nil {
@@ -1316,7 +1336,7 @@ func (p *Peer) getSocketQueryResponse(req *Request, query string, conn net.Conn)
 
 	// close write part of connection
 	// but only on commands, it'll breaks larger responses with stunnel / xinetd constructs
-	if req.Command != "" {
+	if req.Command != "" && !req.KeepAlive {
 		switch c := conn.(type) {
 		case *net.TCPConn:
 			c.CloseWrite()
@@ -1365,7 +1385,9 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) (*[]byte
 	if err != nil && err != io.EOF {
 		return nil, err
 	}
-	conn.Close()
+	if !req.KeepAlive {
+		conn.Close()
+	}
 	res := body.Bytes()
 	resSize := int64(len(res))
 	if expSize != resSize {
@@ -1438,6 +1460,15 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 	for x := 0; x < numSources; x++ {
 		var peerAddr string
 		peerAddr, connType = extractConnType(p.StatusGet("PeerAddr").(string))
+		conn = p.GetCachedConnection()
+		if conn != nil {
+			// make sure it is still useable
+			_, err = conn.Read(make([]byte, 0))
+			if err == nil {
+				return
+			}
+			conn.Close()
+		}
 		switch connType {
 		case "tcp":
 			fallthrough
@@ -1492,6 +1523,18 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 	return nil, "", &PeerError{msg: err.Error(), kind: ConnectionError}
 }
 
+// GetCachedConnection returns the next free cached connection or nil of none found
+func (p *Peer) GetCachedConnection() (conn net.Conn) {
+	select {
+	case conn = <-p.connectionCache:
+		log.Tracef("[%s] using cached connection", p.Name)
+		return
+	default:
+		log.Tracef("[%s] no cached connection found", p.Name)
+		return nil
+	}
+}
+
 func extractConnType(rawAddr string) (string, string) {
 	connType := "unix"
 	if strings.HasPrefix(rawAddr, "http") {
@@ -1513,9 +1556,9 @@ func (p *Peer) setNextAddrFromErr(err error) {
 	}
 	promPeerFailedConnections.WithLabelValues(p.Name).Inc()
 	p.PeerLock.Lock()
+	defer p.PeerLock.Unlock()
 	peerAddr := p.Status["PeerAddr"].(string)
 	log.Debugf("[%s] connection error %s: %s", p.Name, peerAddr, err)
-	defer p.PeerLock.Unlock()
 	p.Status["LastError"] = err.Error()
 	p.ErrorCount++
 
@@ -1530,6 +1573,18 @@ func (p *Peer) setNextAddrFromErr(err error) {
 	}
 	p.Status["CurPeerAddrNum"] = nextNum
 	p.Status["PeerAddr"] = p.Source[nextNum]
+
+	// invalidate connection cache
+cache:
+	for {
+		select {
+		case conn := <-p.connectionCache:
+			conn.Close()
+		default:
+			break cache
+		}
+	}
+	p.connectionCache = make(chan net.Conn, 10)
 
 	if p.Status["PeerStatus"].(PeerStatus) == PeerStatusUp || p.Status["PeerStatus"].(PeerStatus) == PeerStatusPending {
 		p.Status["PeerStatus"] = PeerStatusWarning
@@ -1586,6 +1641,7 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 			Columns:         keys,
 			ResponseFixed16: true,
 			OutputFormat:    "json",
+			KeepAlive:       p.LocalConfig.BackendKeepAlive,
 		}
 		res, err = p.Query(req)
 	}
@@ -1886,6 +1942,7 @@ func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error
 		Columns:         keys,
 		ResponseFixed16: true,
 		OutputFormat:    "json",
+		KeepAlive:       p.LocalConfig.BackendKeepAlive,
 	}
 	res, err := p.Query(req)
 	if err != nil {

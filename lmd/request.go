@@ -164,6 +164,9 @@ func (req *Request) String() (str string) {
 	if req.SendColumnsHeader {
 		str += fmt.Sprintf("ColumnHeaders: on\n")
 	}
+	if req.KeepAlive {
+		str += fmt.Sprintf("KeepAlive: on\n")
+	}
 	for _, f := range req.Filter {
 		str += f.String("")
 	}

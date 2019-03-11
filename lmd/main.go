@@ -97,6 +97,7 @@ type Config struct {
 	IdleTimeout         int64
 	IdleInterval        int64
 	StaleBackendTimeout int
+	BackendKeepAlive    bool
 }
 
 // PeerMap contains a map of available remote peers.
@@ -579,10 +580,10 @@ func PrintVersion() {
 
 // ReadConfig reads all config files.
 // It returns a Config object.
-func ReadConfig(files []string) (conf *Config) {
+func ReadConfig(files []string) *Config {
 	// combine listeners from all files
 	var allListeners []string
-
+	conf := &Config{BackendKeepAlive: true}
 	for _, configFile := range files {
 		if _, err := os.Stat(configFile); err != nil {
 			fmt.Fprintf(os.Stderr, "ERROR: could not load configuration from %s: %s\nuse --help to see all options.\n", configFile, err.Error())
@@ -601,7 +602,7 @@ func ReadConfig(files []string) (conf *Config) {
 
 	promPeerUpdateInterval.Set(float64(conf.Updateinterval))
 
-	return
+	return conf
 }
 
 func logPanicExit() {
