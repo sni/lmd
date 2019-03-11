@@ -268,17 +268,17 @@ func (t *Table) AddColumnObject(col *Column) int {
 }
 
 // AddColumn adds a (normal) column.
-func (t *Table) AddColumn(Name string, Update UpdateType, Type ColumnType, Description string) {
+func (t *Table) AddColumn(name string, update UpdateType, coltype ColumnType, description string) {
 	column := &Column{
-		Name:        Name,
-		Type:        Type,
-		Update:      Update,
-		Description: Description,
+		Name:        name,
+		Type:        coltype,
+		Update:      update,
+		Description: description,
 	}
 	if column.Type == VirtCol {
-		virtMap, ok := VirtKeyMap[Name]
+		virtMap, ok := VirtKeyMap[name]
 		if !ok {
-			panic("no VirtKeyMap entry for " + Name)
+			panic("no VirtKeyMap entry for " + name)
 		}
 		column.VirtMap = &virtMap
 		column.VirtType = column.VirtMap.Type
@@ -287,13 +287,13 @@ func (t *Table) AddColumn(Name string, Update UpdateType, Type ColumnType, Descr
 }
 
 // AddOptColumn adds a optional column.
-func (t *Table) AddOptColumn(Name string, Update UpdateType, Type ColumnType, Restrict OptionalFlags, Description string) {
+func (t *Table) AddOptColumn(name string, update UpdateType, coltype ColumnType, restrict OptionalFlags, description string) {
 	column := &Column{
-		Name:        Name,
-		Type:        Type,
-		Update:      Update,
-		Description: Description,
-		Optional:    Restrict,
+		Name:        name,
+		Type:        coltype,
+		Update:      update,
+		Description: description,
+		Optional:    restrict,
 	}
 	t.AddColumnObject(column)
 }
@@ -303,24 +303,24 @@ func (t *Table) AddOptColumn(Name string, Update UpdateType, Type ColumnType, Re
 // Prefix: column prefix for the added columns
 // Name: column name in the referenced table
 // LocalName: column name which holds the reference value
-func (t *Table) AddRefColumn(Ref string, Prefix string, Name string, LocalName string) {
-	_, Ok := Objects.Tables[Ref]
+func (t *Table) AddRefColumn(ref string, Prefix string, Name string, LocalName string) {
+	_, Ok := Objects.Tables[ref]
 	if !Ok {
-		panic("no such reference " + Ref + " from column " + LocalName)
+		panic("no such reference " + ref + " from column " + LocalName)
 	}
 
 	// virtual column containing the information required to connect the referenced object
 	RefColumn := Column{
-		Name:        Ref, // type of reference, ex.: hosts
+		Name:        ref, // type of reference, ex.: hosts
 		Type:        RefCol,
 		Update:      RefUpdate,
 		RefIndex:    t.ColumnsIndex[LocalName],              // contains the index from the local column, ex: host_name in services
-		RefColIndex: Objects.Tables[Ref].ColumnsIndex[Name], // contains the index from the remote column, ex: name in host
+		RefColIndex: Objects.Tables[ref].ColumnsIndex[Name], // contains the index from the remote column, ex: name in host
 	}
 	RefIndex := t.AddColumnObject(&RefColumn)
 
 	// add fake columns for all columns from the referenced table
-	for _, col := range Objects.Tables[Ref].Columns {
+	for _, col := range Objects.Tables[ref].Columns {
 		if col.Name == Name {
 			continue
 		}

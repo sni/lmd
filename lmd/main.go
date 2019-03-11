@@ -195,10 +195,10 @@ func main() {
 }
 
 func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
-	LocalConfig := *(ReadConfig(flagConfigFile))
-	setDefaults(&LocalConfig)
-	setVerboseFlags(&LocalConfig)
-	InitLogging(&LocalConfig)
+	localConfig := *(ReadConfig(flagConfigFile))
+	setDefaults(&localConfig)
+	setVerboseFlags(&localConfig)
+	InitLogging(&localConfig)
 
 	osSignalChannel := make(chan os.Signal, 1)
 	signal.Notify(osSignalChannel, syscall.SIGHUP)
@@ -215,11 +215,11 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	waitGroupListener := &sync.WaitGroup{}
 	waitGroupPeers := &sync.WaitGroup{}
 
-	if len(LocalConfig.Connections) == 0 {
+	if len(localConfig.Connections) == 0 {
 		log.Fatalf("no connections defined")
 	}
 
-	if len(LocalConfig.Listen) == 0 {
+	if len(localConfig.Listen) == 0 {
 		log.Fatalf("no listeners defined")
 	}
 
@@ -228,13 +228,13 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	}
 
 	// initialize prometheus
-	prometheusListener := initPrometheus(&LocalConfig)
+	prometheusListener := initPrometheus(&localConfig)
 
 	// start local listeners
-	initializeListeners(&LocalConfig, waitGroupListener, waitGroupInit, shutdownChannel)
+	initializeListeners(&localConfig, waitGroupListener, waitGroupInit, shutdownChannel)
 
 	// start remote connections
-	initializePeers(&LocalConfig, waitGroupPeers, waitGroupInit, shutdownChannel)
+	initializePeers(&localConfig, waitGroupPeers, waitGroupInit, shutdownChannel)
 
 	once.Do(PrintVersion)
 
@@ -256,14 +256,14 @@ func Version() string {
 	return fmt.Sprintf("%s (Build: %s)", VERSION, Build)
 }
 
-func initializeListeners(LocalConfig *Config, waitGroupListener *sync.WaitGroup, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) {
+func initializeListeners(localConfig *Config, waitGroupListener *sync.WaitGroup, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) {
 	ListenersNew := make(map[string]*Listener)
 
 	// close all listeners which are no longer defined
 	ListenersLock.Lock()
 	for con, l := range Listeners {
 		found := false
-		for _, listen := range LocalConfig.Listen {
+		for _, listen := range localConfig.Listen {
 			if listen == con {
 				found = true
 				break
@@ -276,14 +276,14 @@ func initializeListeners(LocalConfig *Config, waitGroupListener *sync.WaitGroup,
 	}
 
 	// open new listeners
-	for _, listen := range LocalConfig.Listen {
+	for _, listen := range localConfig.Listen {
 		if l, ok := Listeners[listen]; ok {
 			l.shutdownChannel = shutdownChannel
-			l.LocalConfig = LocalConfig
+			l.LocalConfig = localConfig
 			ListenersNew[listen] = l
 		} else {
 			waitGroupInit.Add(1)
-			l := NewListener(LocalConfig, listen, waitGroupInit, waitGroupListener, shutdownChannel)
+			l := NewListener(localConfig, listen, waitGroupInit, waitGroupListener, shutdownChannel)
 			ListenersNew[listen] = l
 		}
 	}
@@ -292,11 +292,11 @@ func initializeListeners(LocalConfig *Config, waitGroupListener *sync.WaitGroup,
 	ListenersLock.Unlock()
 }
 
-func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) {
+func initializePeers(localConfig *Config, waitGroupPeers *sync.WaitGroup, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) {
 	// This node's http address (http://*:1234), to be used as address pattern
 	var nodeListenAddress string
 	rx := regexp.MustCompile("^(https?)://(.*?):(.*)")
-	for _, listen := range LocalConfig.Listen {
+	for _, listen := range localConfig.Listen {
 		parts := rx.FindStringSubmatch(listen)
 		if len(parts) != 4 {
 			continue
@@ -309,7 +309,7 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 	PeerMapLock.Lock()
 	for id := range PeerMap {
 		found := false // id exists
-		for _, c := range LocalConfig.Connections {
+		for _, c := range localConfig.Connections {
 			if c.ID == id {
 				found = true
 			}
@@ -325,9 +325,9 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 	// Create/set Peer objects
 	PeerMapNew := make(map[string]*Peer)
 	PeerMapOrderNew := make([]string, 0)
-	var backends []string
-	for i := range LocalConfig.Connections {
-		c := LocalConfig.Connections[i]
+	backends := make([]string, len(localConfig.Connections))
+	for i := range localConfig.Connections {
+		c := localConfig.Connections[i]
 		// Keep peer if connection settings unchanged
 		var p *Peer
 		PeerMapLock.RLock()
@@ -337,7 +337,7 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 				p.PeerLock.Lock()
 				p.waitGroup = waitGroupPeers
 				p.shutdownChannel = shutdownChannel
-				p.LocalConfig = LocalConfig
+				p.LocalConfig = localConfig
 				p.PeerLock.Unlock()
 			}
 		}
@@ -345,7 +345,7 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 
 		// Create new peer otherwise
 		if p == nil {
-			p = NewPeer(LocalConfig, &c, waitGroupPeers, shutdownChannel)
+			p = NewPeer(localConfig, &c, waitGroupPeers, shutdownChannel)
 		}
 
 		// Check for duplicate id
@@ -368,8 +368,8 @@ func initializePeers(LocalConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 	PeerMapLock.Unlock()
 
 	// Node accessor
-	nodeAddresses := LocalConfig.Nodes
-	nodeAccessor = NewNodes(LocalConfig, nodeAddresses, nodeListenAddress, waitGroupInit, shutdownChannel)
+	nodeAddresses := localConfig.Nodes
+	nodeAccessor = NewNodes(localConfig, nodeAddresses, nodeListenAddress, waitGroupInit, shutdownChannel)
 	nodeAccessor.Initialize() // starts peers in single mode
 	nodeAccessor.Start()      // nodes loop starts/stops peers in cluster mode
 

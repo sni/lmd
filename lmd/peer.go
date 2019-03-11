@@ -1506,9 +1506,9 @@ func (p *Peer) GetConnection() (conn net.Conn, connType PeerConnType, err error)
 			if !strings.Contains(host, ":") {
 				switch uri.Scheme {
 				case "http":
-					host = host + ":80"
+					host += ":80"
 				case "https":
-					host = host + ":443"
+					host += ":443"
 				default:
 					err = &PeerError{msg: fmt.Sprintf("unknown scheme: %s", uri.Scheme), kind: ConnectionError}
 				}
