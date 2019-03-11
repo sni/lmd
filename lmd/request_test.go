@@ -50,7 +50,7 @@ func TestRequestHeader(t *testing.T) {
 func TestRequestHeaderTable(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\n"))
 	req, _, _ := NewRequest(buf)
-	if err := assertEq("hosts", req.Table); err != nil {
+	if err := assertEq(HOSTS, req.Table); err != nil {
 		t.Fatal(err)
 	}
 }

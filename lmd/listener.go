@@ -26,11 +26,11 @@ type Listener struct {
 }
 
 // NewListener creates a new Listener object
-func NewListener(LocalConfig *Config, listen string, waitGroupInit *sync.WaitGroup, waitGroupDone *sync.WaitGroup, shutdownChannel chan bool) *Listener {
+func NewListener(localConfig *Config, listen string, waitGroupInit *sync.WaitGroup, waitGroupDone *sync.WaitGroup, shutdownChannel chan bool) *Listener {
 	l := Listener{
 		ConnectionString: listen,
 		shutdownChannel:  shutdownChannel,
-		LocalConfig:      LocalConfig,
+		LocalConfig:      localConfig,
 		waitGroupDone:    waitGroupDone,
 		waitGroupInit:    waitGroupInit,
 	}
@@ -72,7 +72,8 @@ func QueryServer(c net.Conn) error {
 			(&Response{Code: 400, Request: &Request{}, Error: err}).Send(c)
 			return err
 		}
-		if len(reqs) > 0 {
+		switch {
+		case len(reqs) > 0:
 			keepAlive, err = ProcessRequests(reqs, c, remote)
 
 			// keep open keepalive request until either the client closes the connection or the deadline timeout is hit
@@ -81,11 +82,11 @@ func QueryServer(c net.Conn) error {
 				c.SetDeadline(time.Now().Add(time.Duration(10) * time.Second))
 				continue
 			}
-		} else if keepAlive {
+		case keepAlive:
 			// wait up to deadline after the last keep alive request
 			time.Sleep(100 * time.Millisecond)
 			continue
-		} else {
+		default:
 			err = errors.New("bad request: empty request")
 			(&Response{Code: 400, Request: &Request{}, Error: err}).Send(c)
 			return err
@@ -220,20 +221,21 @@ func (l *Listener) Listen() {
 	}()
 	l.waitGroupDone.Add(1)
 	listen := l.ConnectionString
-	if strings.HasPrefix(listen, "https://") {
+	switch {
+	case strings.HasPrefix(listen, "https://"):
 		listen = strings.TrimPrefix(listen, "https://")
 		l.LocalListenerHTTP("https", listen)
-	} else if strings.HasPrefix(listen, "http://") {
+	case strings.HasPrefix(listen, "http://"):
 		listen = strings.TrimPrefix(listen, "http://")
 		l.LocalListenerHTTP("http", listen)
-	} else if strings.HasPrefix(listen, "tls://") {
+	case strings.HasPrefix(listen, "tls://"):
 		listen = strings.TrimPrefix(listen, "tls://")
 		listen = strings.TrimPrefix(listen, "*") // * means all interfaces
 		l.LocalListenerLivestatus("tls", listen)
-	} else if strings.Contains(listen, ":") {
+	case strings.Contains(listen, ":"):
 		listen = strings.TrimPrefix(listen, "*") // * means all interfaces
 		l.LocalListenerLivestatus("tcp", listen)
-	} else {
+	default:
 		// remove stale sockets on start
 		if _, err := os.Stat(listen); err == nil {
 			log.Warnf("removing stale socket: %s", listen)
@@ -365,18 +367,18 @@ func (l *Listener) LocalListenerHTTP(httpType string, listen string) {
 
 }
 
-func getTLSListenerConfig(LocalConfig *Config) (config *tls.Config, err error) {
-	if LocalConfig.TLSCertificate == "" || LocalConfig.TLSKey == "" {
+func getTLSListenerConfig(localConfig *Config) (config *tls.Config, err error) {
+	if localConfig.TLSCertificate == "" || localConfig.TLSKey == "" {
 		log.Fatalf("TLSCertificate and TLSKey configuration items are required for tls connections")
 	}
-	cer, err := tls.LoadX509KeyPair(LocalConfig.TLSCertificate, LocalConfig.TLSKey)
+	cer, err := tls.LoadX509KeyPair(localConfig.TLSCertificate, localConfig.TLSKey)
 	if err != nil {
 		return nil, err
 	}
 	config = &tls.Config{Certificates: []tls.Certificate{cer}}
-	if len(LocalConfig.TLSClientPems) > 0 {
+	if len(localConfig.TLSClientPems) > 0 {
 		caCertPool := x509.NewCertPool()
-		for _, file := range LocalConfig.TLSClientPems {
+		for _, file := range localConfig.TLSClientPems {
 			caCert, err := ioutil.ReadFile(file)
 			if err != nil {
 				return nil, err

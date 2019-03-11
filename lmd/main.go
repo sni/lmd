@@ -429,15 +429,15 @@ func deletePidFile(f string) {
 	}
 }
 
-func setVerboseFlags(LocalConfig *Config) {
+func setVerboseFlags(localConfig *Config) {
 	if flagVerbose {
-		LocalConfig.LogLevel = "Info"
+		localConfig.LogLevel = "Info"
 	}
 	if flagVeryVerbose {
-		LocalConfig.LogLevel = "Debug"
+		localConfig.LogLevel = "Debug"
 	}
 	if flagTraceVerbose {
-		LocalConfig.LogLevel = "Trace"
+		localConfig.LogLevel = "Trace"
 	}
 }
 

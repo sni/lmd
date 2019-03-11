@@ -200,7 +200,7 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 	if val, ok := requestData["columns"]; ok {
 		for _, column := range val.([]interface{}) {
 			name := column.(string)
-			if name != "empty" {
+			if name != EMPTY {
 				columns = append(columns, name)
 			}
 		}
@@ -240,7 +240,8 @@ func parseHTTPFilterRequestData(req *Request, val interface{}, prefix string) (e
 	}
 
 	// Parse and store filter
-	for _, filterLine := range filterLines {
+	for i := range filterLines {
+		filterLine := filterLines[i]
 		filterLine = strings.TrimSpace(filterLine)
 		if filterLine == "" {
 			continue

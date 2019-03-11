@@ -117,6 +117,22 @@ const (
 	Naemon
 )
 
+// table names as constants
+const (
+	// STATUS is the status table
+	STATUS = "status"
+	// HOSTS is the hosts table
+	HOSTS = "hosts"
+	// SERVICES is the services table
+	SERVICES = "services"
+)
+
+// colum names as constants
+const (
+	// EMPTY is a placeholder for none-existing columns
+	EMPTY = "empty"
+)
+
 // GetEmptyValue returns an empty placeholder representation for the given column type
 func (c *Column) GetEmptyValue() interface{} {
 	switch c.Type {
@@ -183,13 +199,13 @@ func (t *Table) IsDefaultSortOrder(sort *[]*SortField) bool {
 		return true
 	}
 	if len(*sort) == 2 {
-		if t.Name == "services" {
+		if t.Name == SERVICES {
 			if (*sort)[0].Name == "host_name" && (*sort)[0].Direction == Asc && (*sort)[1].Name == "description" && (*sort)[1].Direction == Asc {
 				return true
 			}
 		}
 	} else if len(*sort) == 1 {
-		if t.Name == "hosts" {
+		if t.Name == HOSTS {
 			if (*sort)[0].Name == "name" && (*sort)[0].Direction == Asc {
 				return true
 			}
@@ -303,10 +319,10 @@ func (t *Table) AddOptColumn(name string, update UpdateType, coltype ColumnType,
 // Prefix: column prefix for the added columns
 // Name: column name in the referenced table
 // LocalName: column name which holds the reference value
-func (t *Table) AddRefColumn(ref string, Prefix string, Name string, LocalName string) {
+func (t *Table) AddRefColumn(ref string, prefix string, name string, localName string) {
 	_, Ok := Objects.Tables[ref]
 	if !Ok {
-		panic("no such reference " + ref + " from column " + LocalName)
+		panic("no such reference " + ref + " from column " + localName)
 	}
 
 	// virtual column containing the information required to connect the referenced object
@@ -314,14 +330,14 @@ func (t *Table) AddRefColumn(ref string, Prefix string, Name string, LocalName s
 		Name:        ref, // type of reference, ex.: hosts
 		Type:        RefCol,
 		Update:      RefUpdate,
-		RefIndex:    t.ColumnsIndex[LocalName],              // contains the index from the local column, ex: host_name in services
-		RefColIndex: Objects.Tables[ref].ColumnsIndex[Name], // contains the index from the remote column, ex: name in host
+		RefIndex:    t.ColumnsIndex[localName],              // contains the index from the local column, ex: host_name in services
+		RefColIndex: Objects.Tables[ref].ColumnsIndex[name], // contains the index from the remote column, ex: name in host
 	}
 	RefIndex := t.AddColumnObject(&RefColumn)
 
 	// add fake columns for all columns from the referenced table
 	for _, col := range Objects.Tables[ref].Columns {
-		if col.Name == Name {
+		if col.Name == name {
 			continue
 		}
 		// skip peer_key and such things from ref table
@@ -331,8 +347,8 @@ func (t *Table) AddRefColumn(ref string, Prefix string, Name string, LocalName s
 		if col.Update == RefUpdate || col.Update == RefNoUpdate {
 			continue
 		}
-		refColName := Prefix + "_" + col.Name
-		if Prefix == "" {
+		refColName := prefix + "_" + col.Name
+		if prefix == "" {
 			refColName = col.Name
 		}
 		if _, ok := t.ColumnsIndex[refColName]; ok {
@@ -375,14 +391,14 @@ func InitObjects() {
 	Objects.AddTable("columns", NewColumnsTable("columns"))
 	Objects.AddTable("tables", NewColumnsTable("tables"))
 
-	Objects.AddTable("status", NewStatusTable())
+	Objects.AddTable(STATUS, NewStatusTable())
 	Objects.AddTable("timeperiods", NewTimeperiodsTable())
 	Objects.AddTable("contacts", NewContactsTable())
 	Objects.AddTable("contactgroups", NewContactgroupsTable())
 	Objects.AddTable("commands", NewCommandsTable())
-	Objects.AddTable("hosts", NewHostsTable())
+	Objects.AddTable(HOSTS, NewHostsTable())
 	Objects.AddTable("hostgroups", NewHostgroupsTable())
-	Objects.AddTable("services", NewServicesTable())
+	Objects.AddTable(SERVICES, NewServicesTable())
 	Objects.AddTable("servicegroups", NewServicegroupsTable())
 	Objects.AddTable("comments", NewCommentsTable())
 	Objects.AddTable("downtimes", NewDowntimesTable())
@@ -410,7 +426,7 @@ func NewBackendsTable(name string) (t *Table) {
 	t.AddColumn("key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("name", RefNoUpdate, VirtCol, "Name of this peer")
 	t.AddColumn("addr", RefNoUpdate, VirtCol, "Address of this peer")
-	t.AddColumn("status", RefNoUpdate, VirtCol, "Status of this peer (0 - UP, 1 - Stale, 2 - Down, 4 - Pending)")
+	t.AddColumn(STATUS, RefNoUpdate, VirtCol, "Status of this peer (0 - UP, 1 - Stale, 2 - Down, 4 - Pending)")
 	t.AddColumn("bytes_send", RefNoUpdate, VirtCol, "Bytes send to this peer")
 	t.AddColumn("bytes_received", RefNoUpdate, VirtCol, "Bytes received from this peer")
 	t.AddColumn("queries", RefNoUpdate, VirtCol, "Number of queries sent to this peer")
@@ -429,7 +445,7 @@ func NewBackendsTable(name string) (t *Table) {
 	t.AddColumn("federation_addr", RefNoUpdate, VirtCol, "original addresses when using nested federation")
 	t.AddColumn("federation_type", RefNoUpdate, VirtCol, "original types when using nested federation")
 
-	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
+	t.AddColumn(EMPTY, VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -441,13 +457,13 @@ func NewColumnsTable(name string) (t *Table) {
 	t.AddColumn("type", VirtUpdate, StringCol, "The data type of the column (int, float, string, list)")
 	t.AddColumn("description", VirtUpdate, StringCol, "A description of the column")
 
-	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
+	t.AddColumn(EMPTY, VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
 // NewStatusTable returns a new status table
 func NewStatusTable() (t *Table) {
-	t = &Table{Name: "status"}
+	t = &Table{Name: STATUS}
 	t.AddColumn("program_start", DynamicUpdate, IntCol, "The time of the last program start as UNIX timestamp")
 	t.AddColumn("accept_passive_host_checks", DynamicUpdate, IntCol, "The number of host checks since program start")
 	t.AddColumn("accept_passive_service_checks", DynamicUpdate, IntCol, "The number of completed service checks since program start")
@@ -498,7 +514,7 @@ func NewStatusTable() (t *Table) {
 	t.AddColumn("peer_response_time", RefNoUpdate, VirtCol, "Duration of last update in seconds")
 	t.AddColumn("configtool", RefNoUpdate, VirtCol, "Thruks config tool configuration if available.")
 
-	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
+	t.AddColumn(EMPTY, VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -523,7 +539,7 @@ func NewTimeperiodsTable() (t *Table) {
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
 
-	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
+	t.AddColumn(EMPTY, VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -544,7 +560,7 @@ func NewContactsTable() (t *Table) {
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
 
-	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
+	t.AddColumn(EMPTY, VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -558,7 +574,7 @@ func NewContactgroupsTable() (t *Table) {
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
 
-	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
+	t.AddColumn(EMPTY, VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -571,13 +587,13 @@ func NewCommandsTable() (t *Table) {
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
 
-	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
+	t.AddColumn(EMPTY, VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
 // NewHostsTable returns a new hosts table
 func NewHostsTable() (t *Table) {
-	t = &Table{Name: "hosts", WaitObject: []string{"name"}}
+	t = &Table{Name: HOSTS, WaitObject: []string{"name"}}
 	t.AddColumn("accept_passive_checks", DynamicUpdate, IntCol, "Whether passive host checks are accepted (0/1)")
 	t.AddColumn("acknowledged", DynamicUpdate, IntCol, "Whether the current host problem has been acknowledged (0/1)")
 	t.AddColumn("action_url", StaticUpdate, StringCol, "An optional URL to custom actions or information about this host")
@@ -686,7 +702,7 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("last_state_change_order", RefNoUpdate, VirtCol, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked.")
 	t.AddColumn("has_long_plugin_output", RefNoUpdate, VirtCol, "Flag wether this host has long_plugin_output or not")
 
-	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
+	t.AddColumn(EMPTY, VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -717,13 +733,13 @@ func NewHostgroupsTable() (t *Table) {
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
 
-	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
+	t.AddColumn(EMPTY, VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
 // NewServicesTable returns a new services table
 func NewServicesTable() (t *Table) {
-	t = &Table{Name: "services", WaitObject: []string{"host_name", "description"}}
+	t = &Table{Name: SERVICES, WaitObject: []string{"host_name", "description"}}
 	t.AddColumn("accept_passive_checks", DynamicUpdate, IntCol, "Whether the service accepts passive checks (0/1)")
 	t.AddColumn("acknowledged", DynamicUpdate, IntCol, "Whether the current service problem has been acknowledged (0/1)")
 	t.AddColumn("acknowledgement_type", DynamicUpdate, IntCol, "The type of the acknownledgement (0: none, 1: normal, 2: sticky)")
@@ -819,7 +835,7 @@ func NewServicesTable() (t *Table) {
 	t.AddOptColumn("got_business_rule", DynamicUpdate, IntCol, Shinken, "Whether the service state is an business rule based host or not (0/1)")
 	t.AddOptColumn("parent_dependencies", DynamicUpdate, StringCol, Shinken, "List of the dependencies (logical, network or business one) of this service.")
 
-	t.AddRefColumn("hosts", "host", "name", "host_name")
+	t.AddRefColumn(HOSTS, "host", "name", "host_name")
 
 	t.AddColumn("lmd_last_cache_update", RefNoUpdate, VirtCol, "Timestamp of the last LMD update of this object.")
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
@@ -828,7 +844,7 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("state_order", RefNoUpdate, VirtCol, "The service state suitable for sorting. Unknown and Critical state are switched.")
 	t.AddColumn("has_long_plugin_output", RefNoUpdate, VirtCol, "Flag wether this service has long_plugin_output or not")
 
-	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
+	t.AddColumn(EMPTY, VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -853,7 +869,7 @@ func NewServicegroupsTable() (t *Table) {
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
 
-	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
+	t.AddColumn(EMPTY, VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -874,13 +890,13 @@ func NewCommentsTable() (t *Table) {
 	t.AddColumn("host_name", StaticUpdate, StringCol, "Host name")
 	t.AddColumn("service_description", StaticUpdate, StringCol, "Description of the service (also used as key)")
 
-	t.AddRefColumn("hosts", "host", "name", "host_name")
-	t.AddRefColumn("services", "service", "description", "service_description")
+	t.AddRefColumn(HOSTS, "host", "name", "host_name")
+	t.AddRefColumn(SERVICES, "service", "description", "service_description")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
 
-	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
+	t.AddColumn(EMPTY, VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -901,13 +917,13 @@ func NewDowntimesTable() (t *Table) {
 	t.AddColumn("host_name", StaticUpdate, StringCol, "Host name")
 	t.AddColumn("service_description", StaticUpdate, StringCol, "Description of the service (also used as key)")
 
-	t.AddRefColumn("hosts", "host", "name", "host_name")
-	t.AddRefColumn("services", "service", "description", "service_description")
+	t.AddRefColumn(HOSTS, "host", "name", "host_name")
+	t.AddRefColumn(SERVICES, "service", "description", "service_description")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
 
-	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
+	t.AddColumn(EMPTY, VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -935,7 +951,7 @@ func NewLogTable() (t *Table) {
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
 
-	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
+	t.AddColumn(EMPTY, VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -945,13 +961,13 @@ func NewHostsByGroupTable() (t *Table) {
 	t.AddColumn("name", StaticUpdate, StringCol, "Host name")
 	t.AddColumn("hostgroup_name", StaticUpdate, StringCol, "Host group name")
 
-	t.AddRefColumn("hosts", "", "name", "name")
+	t.AddRefColumn(HOSTS, "", "name", "name")
 	t.AddRefColumn("hostgroups", "hostgroup", "name", "hostgroup_name")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
 
-	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
+	t.AddColumn(EMPTY, VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -962,14 +978,14 @@ func NewServicesByGroupTable() (t *Table) {
 	t.AddColumn("description", StaticUpdate, StringCol, "Service description")
 	t.AddColumn("servicegroup_name", StaticUpdate, StringCol, "Service group name")
 
-	t.AddRefColumn("hosts", "host", "name", "host_name")
-	t.AddRefColumn("services", "", "description", "description")
+	t.AddRefColumn(HOSTS, "host", "name", "host_name")
+	t.AddRefColumn(SERVICES, "", "description", "description")
 	t.AddRefColumn("servicegroups", "servicegroup", "name", "servicegroup_name")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
 
-	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
+	t.AddColumn(EMPTY, VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }
 
@@ -980,13 +996,13 @@ func NewServicesByHostgroupTable() (t *Table) {
 	t.AddColumn("description", StaticUpdate, StringCol, "Service description")
 	t.AddColumn("hostgroup_name", StaticUpdate, StringCol, "Host group name")
 
-	t.AddRefColumn("hosts", "host", "name", "host_name")
-	t.AddRefColumn("services", "", "description", "description")
+	t.AddRefColumn(HOSTS, "host", "name", "host_name")
+	t.AddRefColumn(SERVICES, "", "description", "description")
 	t.AddRefColumn("hostgroups", "hostgroup", "name", "hostgroup_name")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
 
-	t.AddColumn("empty", VirtUpdate, VirtCol, "placeholder for unknown columns")
+	t.AddColumn(EMPTY, VirtUpdate, VirtCol, "placeholder for unknown columns")
 	return
 }

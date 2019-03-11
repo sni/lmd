@@ -135,13 +135,14 @@ func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (t
 		if err != nil {
 			panic("failed to open temp file: " + err.Error())
 		}
-		if numHosts == 0 && name != "status" {
+		switch {
+		case numHosts == 0 && name != STATUS:
 			io.WriteString(file, "200           3\n[]\n")
 			err = file.Close()
-		} else if name == "hosts" || name == "services" {
+		case name == HOSTS || name == SERVICES:
 			err = file.Close()
 			prepareTmpDataHostService(dataFolder, tempFolder, table, numHosts, numServices)
-		} else {
+		default:
 			io.Copy(file, template)
 			err = file.Close()
 		}
@@ -165,7 +166,7 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 	num := len(raw)
 	last := raw[num-1]
 	newData := [][]interface{}{}
-	if name == "hosts" {
+	if name == HOSTS {
 		nameIndex := table.GetColumn("name").Index
 		for x := 1; x <= numHosts; x++ {
 			var newObj []interface{}
@@ -180,14 +181,14 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 			newData = append(newData, newObj)
 		}
 	}
-	if name == "services" {
+	if name == SERVICES {
 		nameIndex := table.GetColumn("host_name").Index
 		descIndex := table.GetColumn("description").Index
 		count := 0
 		for x := 1; x <= numHosts; x++ {
 			for y := 1; y <= numServices/numHosts; y++ {
 				var newObj []interface{}
-				count = count + 1
+				count++
 				if count >= num {
 					newObj = make([]interface{}, len(last))
 					copy(newObj, last)

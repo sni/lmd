@@ -68,16 +68,16 @@ func (a *NodeAddressList) String() string {
 }
 
 // NewNodes creates a new cluster manager.
-func NewNodes(LocalConfig *Config, addresses []string, listen string, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) *Nodes {
+func NewNodes(localConfig *Config, addresses []string, listen string, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) *Nodes {
 	n := &Nodes{
 		WaitGroupInit:   waitGroupInit,
 		ShutdownChannel: shutdownChannel,
 		stopChannel:     make(chan bool),
 		nodeBackends:    make(map[string][]string),
 	}
-	tlsConfig := &tls.Config{InsecureSkipVerify: LocalConfig.SkipSSLCheck > 0}
+	tlsConfig := &tls.Config{InsecureSkipVerify: localConfig.SkipSSLCheck > 0}
 	n.HTTPClient = NewLMDHTTPClient(tlsConfig, "")
-	for _, c := range LocalConfig.Connections {
+	for _, c := range localConfig.Connections {
 		n.backends = append(n.backends, c.ID)
 	}
 	partsListen := reNodeAddress.FindStringSubmatch(listen)

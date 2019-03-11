@@ -14,8 +14,8 @@ func BenchmarkParseResultJSON(b *testing.B) {
 	PauseTestPeers(peer)
 
 	columns := make([]string, 0)
-	for _, col := range peer.Tables["services"].Table.Columns {
-		if col.Update != RefUpdate && col.Update != RefNoUpdate && col.Name != "empty" && col.Optional == NoFlags {
+	for _, col := range peer.Tables[SERVICES].Table.Columns {
+		if col.Update != RefUpdate && col.Update != RefNoUpdate && col.Name != EMPTY && col.Optional == NoFlags {
 			columns = append(columns, col.Name)
 		}
 	}
@@ -58,8 +58,8 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 	PauseTestPeers(peer)
 
 	columns := make([]string, 0)
-	for _, col := range peer.Tables["services"].Table.Columns {
-		if col.Update != RefUpdate && col.Update != RefNoUpdate && col.Name != "empty" && col.Optional == NoFlags {
+	for _, col := range peer.Tables[SERVICES].Table.Columns {
+		if col.Update != RefUpdate && col.Update != RefNoUpdate && col.Name != EMPTY && col.Optional == NoFlags {
 			columns = append(columns, col.Name)
 		}
 	}

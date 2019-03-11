@@ -21,13 +21,14 @@ func InitLogging(conf *Config) {
 	var logFormatter factorlog.Formatter
 	var targetWriter io.Writer
 	var err error
-	if conf.LogFile == "" {
+	switch {
+	case conf.LogFile == "":
 		logFormatter = factorlog.NewStdFormatter(logColors + logFormat + logColorReset)
 		targetWriter = os.Stdout
-	} else if strings.ToLower(conf.LogFile) == "stderr" {
+	case strings.ToLower(conf.LogFile) == "stderr":
 		logFormatter = factorlog.NewStdFormatter(logColors + logFormat + logColorReset)
 		targetWriter = os.Stderr
-	} else {
+	default:
 		logFormatter = factorlog.NewStdFormatter(logFormat)
 		targetWriter, err = os.OpenFile(conf.LogFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 	}

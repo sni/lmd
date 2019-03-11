@@ -241,7 +241,7 @@ func ParseFilter(value string, line *string, table string, stack *[]*Filter) (er
 	i, Ok := Objects.Tables[table].ColumnsIndex[columnName]
 	if !Ok {
 		if !fixBrokenClientsRequestColumn(&columnName, table) {
-			columnName = "empty"
+			columnName = EMPTY
 		}
 		i = Objects.Tables[table].ColumnsIndex[columnName]
 	}
@@ -544,11 +544,12 @@ func matchStringFilter(filter *Filter, value *interface{}) bool {
 
 func matchStringValueOperator(op Operator, valueA *interface{}, valueB *string, regex *regexp.Regexp) bool {
 	var strA string
-	if s, ok := (*valueA).(string); ok {
+	switch s := (*valueA).(type) {
+	case string:
 		strA = s
-	} else if *valueA == nil {
+	case nil:
 		strA = ""
-	} else {
+	default:
 		strA = fmt.Sprintf("%v", *valueA)
 	}
 	strB := *valueB
@@ -737,9 +738,9 @@ func fixBrokenClientsRequestColumn(columnName *string, table string) bool {
 	fixedColumnName := *columnName
 
 	switch table {
-	case "services":
+	case SERVICES:
 		fixedColumnName = strings.TrimPrefix(fixedColumnName, "service_")
-	case "hosts":
+	case HOSTS:
 		fixedColumnName = strings.TrimPrefix(fixedColumnName, "host_")
 	}
 
