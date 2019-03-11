@@ -30,7 +30,7 @@ var reHTTPTooOld = regexp.MustCompile(`Can.t locate object method`)
 var reHTTPOMDError = regexp.MustCompile(`<h1>(OMD:.*?)</h1>`)
 var reShinkenVersion = regexp.MustCompile(`-shinken$`)
 var reIcinga2Version = regexp.MustCompile(`^r[\d\.-]+$`)
-var reNaemonVersion = regexp.MustCompile(`-naemon$`)
+var reNaemonVersion = regexp.MustCompile(`^([\d\.]+).*-naemon$`)
 
 const (
 	// UpdateAdditionalDelta is the number of seconds to add to the last_check filter on delta updates
@@ -1746,6 +1746,7 @@ func (p *Peer) checkStatusFlags(table *Table) {
 	}
 	p.PeerLock.Lock()
 	row := data[0]
+	naemonVersions := reNaemonVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))
 	switch {
 	case len(reShinkenVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))) > 0:
 		if p.Flags&Shinken != Shinken {
@@ -1778,10 +1779,16 @@ func (p *Peer) checkStatusFlags(table *Table) {
 			log.Debugf("[%s] remote connection Icinga2 flag set", p.Name)
 			p.Flags |= Icinga2
 		}
-	case len(reNaemonVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))) > 0:
+	case len(naemonVersions) > 0:
 		if p.Flags&Naemon != Naemon {
 			log.Debugf("[%s] remote connection Naemon flag set", p.Name)
 			p.Flags |= Naemon
+		}
+		if p.Flags&Naemon1_0_10 != Naemon1_0_10 {
+			if VersionNumeric(naemonVersions[1]) >= VersionNumeric("1.0.10") {
+				log.Debugf("[%s] remote connection Naemon 1.0.10 flag set", p.Name)
+				p.Flags |= Naemon1_0_10
+			}
 		}
 	}
 	p.PeerLock.Unlock()

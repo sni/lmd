@@ -89,7 +89,7 @@ type Column struct {
 }
 
 // OptionalFlags is used to set flags for optionial columns.
-type OptionalFlags byte
+type OptionalFlags int
 
 const (
 	// NoFlags is set if there are no flags at all.
@@ -115,6 +115,9 @@ const (
 
 	// Naemon flag is set if the remote site is a naemon installation.
 	Naemon
+
+	// Naemon1_0_10 flag is set if the remote site is a naemon installation with version 1.0.10 or greater.
+	Naemon1_0_10
 )
 
 // table names as constants
@@ -681,8 +684,8 @@ func NewHostsTable() (t *Table) {
 
 	// naemon specific
 	t.AddOptColumn("obsess", DynamicUpdate, IntCol, Naemon, "The obsessing over host")
-	t.AddOptColumn("depends_exec", StaticUpdate, StringListCol, Naemon, "List of hosts this hosts depends on for execution.")
-	t.AddOptColumn("depends_notify", StaticUpdate, StringListCol, Naemon, "List of hosts this hosts depends on for notification.")
+	t.AddOptColumn("depends_exec", StaticUpdate, StringListCol, Naemon1_0_10, "List of hosts this hosts depends on for execution.")
+	t.AddOptColumn("depends_notify", StaticUpdate, StringListCol, Naemon1_0_10, "List of hosts this hosts depends on for notification.")
 
 	// shinken specific
 	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
@@ -819,9 +822,9 @@ func NewServicesTable() (t *Table) {
 
 	// naemon specific
 	t.AddOptColumn("obsess", DynamicUpdate, IntCol, Naemon, "The obsessing over service")
-	t.AddOptColumn("depends_exec", StaticUpdate, StringListCol, Naemon, "List of services this services depends on for execution.")
-	t.AddOptColumn("depends_notify", StaticUpdate, StringListCol, Naemon, "List of services this services depends on for notification.")
-	t.AddOptColumn("parents", StaticUpdate, StringListCol, Naemon, "List of services descriptions this services depends on.")
+	t.AddOptColumn("depends_exec", StaticUpdate, StringListCol, Naemon1_0_10, "List of services this services depends on for execution.")
+	t.AddOptColumn("depends_notify", StaticUpdate, StringListCol, Naemon1_0_10, "List of services this services depends on for notification.")
+	t.AddOptColumn("parents", StaticUpdate, StringListCol, Naemon1_0_10, "List of services descriptions this services depends on.")
 
 	// shinken specific
 	t.AddOptColumn("is_impact", DynamicUpdate, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
