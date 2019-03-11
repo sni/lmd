@@ -100,6 +100,19 @@ const (
 	ResponseError
 )
 
+// PeerConnType contains the different connection types
+type PeerConnType int
+
+// A peer can be up, warning, down and pending.
+// It is pending right after start and warning when the connection fails
+// but the stale timeout is not yet hit.
+const (
+	ConnTypeTCP PeerConnType = iota
+	ConnTypeUnix
+	ConnTypeTLS
+	ConnTypeHTTP
+)
+
 // HTTPResult contains the livestatus result as long with some meta data.
 type HTTPResult struct {
 	Rc      int
@@ -1175,11 +1188,11 @@ func (p *Peer) query(req *Request) ([][]interface{}, error) {
 		log.Debugf("[%s] connection failed: %s", p.Name, err)
 		return nil, err
 	}
-	if connType == "http" {
+	if connType == ConnTypeHTTP {
 		req.KeepAlive = false
 	}
 	defer func() {
-		if req.KeepAlive && err != nil && connType != "http" {
+		if req.KeepAlive && err != nil && connType != ConnTypeHTTP {
 			// give back connection
 			log.Tracef("[%s] put cached connection back", p.Name)
 			p.connectionCache <- conn
@@ -1301,9 +1314,9 @@ func (p *Peer) parseResult(req *Request, resBytes *[]byte) (result [][]interface
 	return
 }
 
-func (p *Peer) getQueryResponse(req *Request, query string, peerAddr string, conn net.Conn, connType string) (*[]byte, error) {
+func (p *Peer) getQueryResponse(req *Request, query string, peerAddr string, conn net.Conn, connType PeerConnType) (*[]byte, error) {
 	// http connections
-	if connType == "http" {
+	if connType == ConnTypeHTTP {
 		return p.getHTTPQueryResponse(req, query, peerAddr)
 	}
 	return p.getSocketQueryResponse(req, query, conn)
@@ -1454,7 +1467,7 @@ func (p *Peer) parseResponseHeader(resBytes *[]byte) (expSize int64, err error) 
 // In case of a http connection, it just trys a tcp connect, but does not
 // return anything.
 // It returns the connection object and any error encountered.
-func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
+func (p *Peer) GetConnection() (conn net.Conn, connType PeerConnType, err error) {
 	numSources := len(p.Source)
 
 	for x := 0; x < numSources; x++ {
@@ -1470,11 +1483,11 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 			conn.Close()
 		}
 		switch connType {
-		case "tcp":
-			fallthrough
-		case "unix":
-			conn, err = net.DialTimeout(connType, peerAddr, time.Duration(p.LocalConfig.ConnectTimeout)*time.Second)
-		case "tls":
+		case ConnTypeTCP:
+			conn, err = net.DialTimeout("tcp", peerAddr, time.Duration(p.LocalConfig.ConnectTimeout)*time.Second)
+		case ConnTypeUnix:
+			conn, err = net.DialTimeout("unix", peerAddr, time.Duration(p.LocalConfig.ConnectTimeout)*time.Second)
+		case ConnTypeTLS:
 			tlsConfig, cErr := p.getTLSClientConfig()
 			if cErr != nil {
 				err = cErr
@@ -1483,7 +1496,7 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 				dialer.Timeout = time.Duration(p.LocalConfig.ConnectTimeout) * time.Second
 				conn, err = tls.DialWithDialer(dialer, "tcp", peerAddr, tlsConfig)
 			}
-		case "http":
+		case ConnTypeHTTP:
 			// test at least basic tcp connect
 			uri, uErr := url.Parse(peerAddr)
 			if uErr != nil {
@@ -1520,7 +1533,7 @@ func (p *Peer) GetConnection() (conn net.Conn, connType string, err error) {
 		p.setNextAddrFromErr(err)
 	}
 
-	return nil, "", &PeerError{msg: err.Error(), kind: ConnectionError}
+	return nil, ConnTypeUnix, &PeerError{msg: err.Error(), kind: ConnectionError}
 }
 
 // GetCachedConnection returns the next free cached connection or nil of none found
@@ -1535,15 +1548,15 @@ func (p *Peer) GetCachedConnection() (conn net.Conn) {
 	}
 }
 
-func extractConnType(rawAddr string) (string, string) {
-	connType := "unix"
+func extractConnType(rawAddr string) (string, PeerConnType) {
+	connType := ConnTypeUnix
 	if strings.HasPrefix(rawAddr, "http") {
-		connType = "http"
+		connType = ConnTypeHTTP
 	} else if strings.HasPrefix(rawAddr, "tls://") {
-		connType = "tls"
+		connType = ConnTypeTLS
 		rawAddr = strings.TrimPrefix(rawAddr, "tls://")
 	} else if strings.Contains(rawAddr, ":") {
-		connType = "tcp"
+		connType = ConnTypeTCP
 	}
 	return rawAddr, connType
 }
