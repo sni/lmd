@@ -1,0 +1,32 @@
+linters-settings:
+  gocyclo:
+    min-complexity: 20
+  goconst:
+    min-len: 3
+    min-occurrences: 5
+  lll:
+    line-length: 120
+linters:
+  enable-all: true
+  disable:
+    - maligned
+    - prealloc
+    - nakedret
+    - gochecknoglobals
+    - errcheck
+    - lll
+    - gochecknoinits
+    - dupl
+  fast: false
+
+issues:
+  max-same-issues: 0
+  exclude-use-default: true
+  exclude:
+    - "TLS InsecureSkipVerify may be true"
+    - "`noCopy` is unused"
+    - "cyclomatic complexity .* of func `TestNodeManager` is high"
+    - "cyclomatic complexity .* of func `.*ParseRequestHeaderLine` is high"
+    - "cyclomatic complexity .* of func `.*GetVirtRowComputedValue` is high"
+    - "cyclomatic complexity .* of func `.*Less` is high"
+    - "cyclomatic complexity .* of func `matchStringListFilter` is high"
