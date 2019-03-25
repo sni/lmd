@@ -702,6 +702,7 @@ func NewHostsTable() (t *Table) {
 
 	t.AddColumn("services_with_info", RefNoUpdate, VirtCol, "The services, including info, that is associated with the host")
 	t.AddColumn("services_with_state", RefNoUpdate, VirtCol, "The services, including state info, that is associated with the host")
+	t.AddColumn("comments_with_info", RefNoUpdate, VirtCol, "A list of all comments of the host with id, author and comment")
 	t.AddColumn("lmd_last_cache_update", RefNoUpdate, VirtCol, "Timestamp of the last LMD update of this object.")
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
@@ -843,6 +844,7 @@ func NewServicesTable() (t *Table) {
 
 	t.AddRefColumn(HOSTS, "host", "name", "host_name")
 
+	t.AddColumn("comments_with_info", RefNoUpdate, VirtCol, "A list of all comments of the host with id, author and comment")
 	t.AddColumn("lmd_last_cache_update", RefNoUpdate, VirtCol, "Timestamp of the last LMD update of this object.")
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
