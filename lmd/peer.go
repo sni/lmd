@@ -2221,9 +2221,20 @@ func (p *Peer) GetVirtRowComputedValue(col *ResultColumn, row *[]interface{}, ro
 			res = append(res, serviceValue)
 		}
 		value = res
+	case "host_comments_with_info":
+		fallthrough
 	case "comments_with_info":
-		commentsIndex := table.ColumnsIndex["comments"]
-		comments := (*row)[commentsIndex]
+		var comments interface{}
+		if col.Name == "host_comments_with_info" {
+			hostNameIndex := table.ColumnsIndex["host_name"]
+			hostName := (*row)[hostNameIndex]
+			host := p.Tables["hosts"].Index[hostName.(string)]
+			commentsIndex := p.Tables["hosts"].Table.GetColumn("comments").Index
+			comments = host[commentsIndex]
+		} else {
+			commentsIndex := table.ColumnsIndex["comments"]
+			comments = (*row)[commentsIndex]
+		}
 		var res []interface{}
 		for _, commentID := range comments.([]interface{}) {
 			var commentWithInfo []interface{}
