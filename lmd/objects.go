@@ -702,6 +702,7 @@ func NewHostsTable() (t *Table) {
 
 	t.AddColumn("services_with_info", RefNoUpdate, VirtCol, "The services, including info, that is associated with the host")
 	t.AddColumn("services_with_state", RefNoUpdate, VirtCol, "The services, including state info, that is associated with the host")
+	t.AddColumn("comments_with_info", RefNoUpdate, VirtCol, "A list of all comments of the host with id, author and comment")
 	t.AddColumn("lmd_last_cache_update", RefNoUpdate, VirtCol, "Timestamp of the last LMD update of this object.")
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
@@ -842,7 +843,9 @@ func NewServicesTable() (t *Table) {
 	t.AddOptColumn("parent_dependencies", DynamicUpdate, StringCol, Shinken, "List of the dependencies (logical, network or business one) of this service.")
 
 	t.AddRefColumn(HOSTS, "host", "name", "host_name")
+	t.AddColumn("host_comments_with_info", RefNoUpdate, VirtCol, "A list of all comments of the host with id, author and comment")
 
+	t.AddColumn("comments_with_info", RefNoUpdate, VirtCol, "A list of all comments of the host with id, author and comment")
 	t.AddColumn("lmd_last_cache_update", RefNoUpdate, VirtCol, "Timestamp of the last LMD update of this object.")
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
@@ -897,6 +900,7 @@ func NewCommentsTable() (t *Table) {
 	t.AddColumn("service_description", StaticUpdate, StringCol, "Description of the service (also used as key)")
 
 	t.AddRefColumn(HOSTS, "host", "name", "host_name")
+	t.AddColumn("host_comments_with_info", RefNoUpdate, VirtCol, "A list of all comments of the host with id, author and comment")
 	t.AddRefColumn(SERVICES, "service", "description", "service_description")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
@@ -924,6 +928,7 @@ func NewDowntimesTable() (t *Table) {
 	t.AddColumn("service_description", StaticUpdate, StringCol, "Description of the service (also used as key)")
 
 	t.AddRefColumn(HOSTS, "host", "name", "host_name")
+	t.AddColumn("host_comments_with_info", RefNoUpdate, VirtCol, "A list of all comments of the host with id, author and comment")
 	t.AddRefColumn(SERVICES, "service", "description", "service_description")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
@@ -968,6 +973,7 @@ func NewHostsByGroupTable() (t *Table) {
 	t.AddColumn("hostgroup_name", StaticUpdate, StringCol, "Host group name")
 
 	t.AddRefColumn(HOSTS, "", "name", "name")
+	t.AddColumn("host_comments_with_info", RefNoUpdate, VirtCol, "A list of all comments of the host with id, author and comment")
 	t.AddRefColumn("hostgroups", "hostgroup", "name", "hostgroup_name")
 
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
@@ -985,6 +991,7 @@ func NewServicesByGroupTable() (t *Table) {
 	t.AddColumn("servicegroup_name", StaticUpdate, StringCol, "Service group name")
 
 	t.AddRefColumn(HOSTS, "host", "name", "host_name")
+	t.AddColumn("host_comments_with_info", RefNoUpdate, VirtCol, "A list of all comments of the host with id, author and comment")
 	t.AddRefColumn(SERVICES, "", "description", "description")
 	t.AddRefColumn("servicegroups", "servicegroup", "name", "servicegroup_name")
 
@@ -1003,6 +1010,7 @@ func NewServicesByHostgroupTable() (t *Table) {
 	t.AddColumn("hostgroup_name", StaticUpdate, StringCol, "Host group name")
 
 	t.AddRefColumn(HOSTS, "host", "name", "host_name")
+	t.AddColumn("host_comments_with_info", RefNoUpdate, VirtCol, "A list of all comments of the host with id, author and comment")
 	t.AddRefColumn(SERVICES, "", "description", "description")
 	t.AddRefColumn("hostgroups", "hostgroup", "name", "hostgroup_name")
 
