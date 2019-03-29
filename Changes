@@ -1,5 +1,15 @@
 This file documents the revision history for the Livestatus Multitool Daemon
 
+1.5.0    Fri Mar 29 17:39:22 CET 2019
+          - add new columns:
+            - (host_)comments_with_info
+            - host dependencies
+            - service dependencies
+            - service parents
+            - services_with_info
+            - services_with_state
+          - Use keepalive for backend peer connections
+
 1.4.3    Mon Jan 14 10:57:05 CET 2019
           - fix parsing http results
 
