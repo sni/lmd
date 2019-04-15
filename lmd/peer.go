@@ -2220,7 +2220,11 @@ func (p *Peer) GetVirtRowComputedValue(col *ResultColumn, row *[]interface{}, ro
 			}
 			res = append(res, serviceValue)
 		}
-		value = res
+		if len(res) > 0 {
+			value = res
+		} else {
+			value = []string{}
+		}
 	case "host_comments_with_info":
 		fallthrough
 	case "comments_with_info":
