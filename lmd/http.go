@@ -44,7 +44,7 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 	}
 
 	// Fetch backend data
-	req.ExpandRequestedBackends() // ParseRequests()
+	req.ExpandRequestedBackends()
 
 	var res *Response
 	if d, exists := requestData["distributed"]; exists && d.(bool) {
@@ -145,9 +145,9 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 	req.Table = requestData["table"].(string)
 
 	// Send header row by default
-	req.SendColumnsHeader = true
+	req.ColumnsHeaders = true
 	if val, ok := requestData["sendcolumnsheader"]; ok {
-		req.SendColumnsHeader = val.(bool)
+		req.ColumnsHeaders = val.(bool)
 	}
 
 	// Offset

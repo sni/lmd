@@ -40,16 +40,6 @@ const (
 	MinFullScanInterval = 30
 )
 
-// DataTable contains the actual data with a reference to the table.
-type DataTable struct {
-	Table      *Table
-	Data       [][]interface{}
-	ColumnsMap map[int]int // maps table column indexes with data subindexes
-	Refs       map[string][][]interface{}
-	Index      map[string][]interface{}
-	LastUpdate []int64
-}
-
 // Peer is the object which handles collecting and updating data and connections.
 type Peer struct {
 	noCopy          noCopy
@@ -59,7 +49,7 @@ type Peer struct {
 	Source          []string
 	PeerLock        *LoggingLock // must be used for Peer.Status access
 	DataLock        *LoggingLock // must be used for Peer.Table access
-	Tables          map[string]DataTable
+	Tables          map[string]DataStore
 	Status          map[string]interface{}
 	ErrorCount      int
 	ErrorLogged     bool
@@ -161,28 +151,6 @@ func (e *PeerCommandError) Error() string {
 	return e.err.Error()
 }
 
-// AddItem adds an new entry to a datatable.
-func (d *DataTable) AddItem(row *[]interface{}, id string) {
-	d.Data = append(d.Data, *row)
-	d.Index[id] = *row
-}
-
-// RemoveItem removes an entry from a datatable.
-func (d *DataTable) RemoveItem(row []interface{}) {
-	for i := range d.Data {
-		r := d.Data[i]
-		if fmt.Sprintf("%p", r) == fmt.Sprintf("%p", row) {
-			d.Data = append(d.Data[:i], d.Data[i+1:]...)
-			delete(d.Index, fmt.Sprintf("%v", r[d.Table.GetColumn("id").Index]))
-			for key := range d.Refs {
-				d.Refs[key] = append(d.Refs[key][:i], d.Refs[key][i+1:]...)
-			}
-			return
-		}
-	}
-	log.Panicf("element not found")
-}
-
 // NewPeer creates a new peer object.
 // It returns the created peer.
 func NewPeer(localConfig *Config, config *Connection, waitGroup *sync.WaitGroup, shutdownChannel chan bool) *Peer {
@@ -190,7 +158,7 @@ func NewPeer(localConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 		Name:            config.Name,
 		ID:              config.ID,
 		Source:          config.Source,
-		Tables:          make(map[string]DataTable),
+		Tables:          make(map[string]DataStore),
 		Status:          make(map[string]interface{}),
 		ErrorCount:      0,
 		waitGroup:       waitGroup,
@@ -693,7 +661,8 @@ func (p *Peer) InitAllTables() bool {
 			log.Debugf("[%s] creating initial objects failed in table %s: %s", p.Name, t.Name, err.Error())
 			return false
 		}
-		if t.Name == STATUS {
+		switch t.Name {
+		case STATUS:
 			p.DataLock.RLock()
 			hasStatus := len(p.Tables[STATUS].Data) > 0
 			p.DataLock.RUnlock()
@@ -725,6 +694,10 @@ func (p *Peer) InitAllTables() bool {
 					p.PeerLock.Unlock()
 				}
 			}
+		case "hosts":
+			promHostCount.WithLabelValues(p.Name).Set(float64(len(p.Tables["hosts"].Data)))
+		case "services":
+			promServiceCount.WithLabelValues(p.Name).Set(float64(len(p.Tables["services"].Data)))
 		}
 	}
 
@@ -734,7 +707,7 @@ func (p *Peer) InitAllTables() bool {
 		p.DataLock.RUnlock()
 		return false
 	}
-	programStart := p.Tables[STATUS].Data[0][p.Tables[STATUS].Table.ColumnsIndex["program_start"]]
+	programStart := p.Tables[STATUS].Data[0].GetValueByName("program_start")
 	p.DataLock.RUnlock()
 
 	duration := time.Since(t1)
@@ -856,7 +829,7 @@ func (p *Peer) UpdateDeltaTables() bool {
 	return true
 }
 
-// UpdateDeltaTableHosts update services by fetching all dynamic data with a last_check filter on the timestamp since
+// UpdateDeltaTableHosts update hosts by fetching all dynamic data with a last_check filter on the timestamp since
 // the previous update with additional UpdateAdditionalDelta seconds.
 // It returns any error encountered.
 func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
@@ -886,7 +859,6 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	}
 	p.DataLock.Lock()
 	nameindex := p.Tables[table.Name].Index
-	lastUpdate := p.Tables[table.Name].LastUpdate
 	fieldIndex := len(keys) - 1
 	now := time.Now().Unix()
 	for i := range res {
@@ -895,10 +867,7 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 		if dataRow == nil {
 			continue
 		}
-		for j, k := range indexes {
-			dataRow[k] = (*resRow)[j]
-		}
-		lastUpdate[i] = now
+		dataRow.UpdateValues(resRow, &indexes, now)
 	}
 	p.DataLock.Unlock()
 	promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(res)))
@@ -937,7 +906,6 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	}
 	p.DataLock.Lock()
 	nameindex := p.Tables[table.Name].Index
-	lastUpdate := p.Tables[table.Name].LastUpdate
 	fieldIndex1 := len(keys) - 2
 	fieldIndex2 := len(keys) - 1
 	now := time.Now().Unix()
@@ -947,10 +915,7 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 		if dataRow == nil {
 			continue
 		}
-		for j, k := range indexes {
-			dataRow[k] = (*resRow)[j]
-		}
-		lastUpdate[i] = now
+		dataRow.UpdateValues(resRow, &indexes, now)
 	}
 	p.DataLock.Unlock()
 	promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(res)))
@@ -1051,12 +1016,9 @@ func (p *Peer) getMissingTimestamps(table *Table, res *[][]interface{}, indexLis
 		return
 	}
 	for i := range *res {
-		row := &(*res)[i]
-		for j, index := range indexList {
-			if (*row)[j] != data[i][index] {
-				missing[(*row)[0].(float64)] = true
-				break
-			}
+		row := (*res)[i]
+		if data[i].CheckChangedValues(&row, &indexList) {
+			missing[row[0].(float64)] = true
 		}
 	}
 	p.DataLock.RUnlock()
@@ -1083,16 +1045,15 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	if err != nil {
 		return
 	}
-	var last []interface{}
+	var maxID float64
 	p.DataLock.RLock()
 	entries := len(p.Tables[table.Name].Data)
 	if entries > 0 {
-		last = p.Tables[table.Name].Data[entries-1]
+		maxID = p.Tables[table.Name].Data[entries-1].GetValueByName("id").(float64)
 	}
 	p.DataLock.RUnlock()
-	fieldIndex := table.ColumnsIndex["id"]
 
-	if len(res) == 0 || float64(entries) == res[0][0].(float64) && (entries == 0 || last[fieldIndex].(float64) == res[0][1].(float64)) {
+	if len(res) == 0 || float64(entries) == res[0][0].(float64) && (entries == 0 || res[0][1].(float64) == maxID) {
 		log.Debugf("[%s] %s did not change", p.Name, name)
 		return
 	}
@@ -1133,7 +1094,6 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 			log.Debugf("removing %s with id %s", name, id)
 			tmp := idIndex[id]
 			data.RemoveItem(tmp)
-			delete(idIndex, id)
 		}
 	}
 	p.Tables[table.Name] = data
@@ -1166,13 +1126,11 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 		}
 		for i := range res {
 			resRow := res[i]
-			id := fmt.Sprintf("%v", resRow[fieldIndex])
-			data.AddItem(&resRow, id)
-		}
-		err = p.updateReferences(table, &res)
-		if err != nil {
-			p.DataLock.Unlock()
-			return
+			row, nErr := NewDataRow(&data, &resRow, 0)
+			if nErr != nil {
+				return nErr
+			}
+			data.AddItem(row)
 		}
 		p.Tables[table.Name] = data
 		p.DataLock.Unlock()
@@ -1641,7 +1599,10 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 	// complete virtual table ends here
 	if len(keys) == 0 || table.Virtual {
 		p.DataLock.Lock()
-		p.Tables[table.Name] = DataTable{Table: table, Data: make([][]interface{}, 1), Refs: nil, Index: nil, ColumnsMap: columnsMap}
+		data := DataStore{Peer: p, Table: table, ColumnsMap: columnsMap}
+		rows := make([][]interface{}, 1)
+		data.InsertData(&rows)
+		p.Tables[table.Name] = data
 		p.DataLock.Unlock()
 		return
 	}
@@ -1668,71 +1629,18 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 		log.Debugf("[%s] fetched %d initial %s objects", p.Name, len(res), table.Name)
 	}
 
-	// expand references, create a hash entry for each reference type, ex.: hosts
-	// with an array containing the references (using the same index as the original row)
-	refs, err := p.initilizeReferences(table, &res)
-	if err != nil {
-		log.Errorf(err.Error())
-		return
-	}
-	index := p.createIndex(table, &res)
-
 	now := time.Now().Unix()
-	lastUpdate := make([]int64, 0)
-	if _, ok := table.ColumnsIndex["lmd_last_cache_update"]; ok {
-		lastUpdate = make([]int64, len(res))
-		for i := range res {
-			lastUpdate[i] = now
-		}
-	}
+	data := DataStore{Peer: p, Table: table, ColumnsMap: columnsMap}
+	data.InsertData(&res)
 
 	p.DataLock.Lock()
-	p.Tables[table.Name] = DataTable{Table: table, Data: res, Refs: refs, Index: index, LastUpdate: lastUpdate, ColumnsMap: columnsMap}
+	p.Tables[table.Name] = data
 	p.DataLock.Unlock()
 	p.PeerLock.Lock()
 	p.Status["LastUpdate"] = now
 	p.Status["LastFullUpdate"] = now
 	p.PeerLock.Unlock()
 
-	return
-}
-
-func (p *Peer) createIndex(table *Table, res *[][]interface{}) (index map[string][]interface{}) {
-	index = make(map[string][]interface{})
-	// create host lookup indexes
-	if table.Name == HOSTS {
-		indexField := table.ColumnsIndex["name"]
-		for i := range *res {
-			row := (*res)[i]
-			index[row[indexField].(string)] = row
-		}
-		promHostCount.WithLabelValues(p.Name).Set(float64(len((*res))))
-	}
-	// create service lookup indexes
-	if table.Name == SERVICES {
-		indexField1 := table.ColumnsIndex["host_name"]
-		indexField2 := table.ColumnsIndex["description"]
-		for i := range *res {
-			row := (*res)[i]
-			index[row[indexField1].(string)+";"+row[indexField2].(string)] = row
-		}
-		promServiceCount.WithLabelValues(p.Name).Set(float64(len((*res))))
-	}
-	if table.Name == "hostgroups" || table.Name == "servicegroups" {
-		indexField := table.ColumnsIndex["name"]
-		for i := range *res {
-			row := (*res)[i]
-			index[row[indexField].(string)] = row
-		}
-	}
-	// create downtime / comment id lookup indexes
-	if table.Name == "comments" || table.Name == "downtimes" {
-		indexField := table.ColumnsIndex["id"]
-		for i := range *res {
-			row := (*res)[i]
-			index[fmt.Sprintf("%v", row[indexField])] = row
-		}
-	}
 	return
 }
 
@@ -1746,9 +1654,10 @@ func (p *Peer) checkStatusFlags(table *Table) {
 	}
 	p.PeerLock.Lock()
 	row := data[0]
-	naemonVersions := reNaemonVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))
+	livestatusVersion := row.GetValueByName("livestatus_version").(string)
+	naemonVersions := reNaemonVersion.FindStringSubmatch(livestatusVersion)
 	switch {
-	case len(reShinkenVersion.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))) > 0:
+	case len(reShinkenVersion.FindStringSubmatch(livestatusVersion)) > 0:
 		if p.Flags&Shinken != Shinken {
 			log.Debugf("[%s] remote connection Shinken flag set", p.Name)
 			p.Flags |= Shinken
@@ -1774,7 +1683,7 @@ func (p *Peer) checkStatusFlags(table *Table) {
 			}
 			return
 		}
-	case len(reIcinga2Version.FindStringSubmatch(row[table.GetColumn("livestatus_version").Index].(string))) > 0:
+	case len(reIcinga2Version.FindStringSubmatch(livestatusVersion)) > 0:
 		if p.Flags&Icinga2 != Icinga2 {
 			log.Debugf("[%s] remote connection Icinga2 flag set", p.Name)
 			p.Flags |= Icinga2
@@ -1905,40 +1814,31 @@ func (p *Peer) GetGroupByData(table *Table) (res [][]interface{}, err error) {
 	defer p.DataLock.RUnlock()
 	switch table.Name {
 	case "hostsbygroup":
-		index1 := p.Tables[HOSTS].Table.ColumnsIndex["name"]
-		index2 := p.Tables[HOSTS].Table.ColumnsIndex["groups"]
 		for _, row := range p.Tables[HOSTS].Data {
-			name := row[index1].(string)
-			if v, ok := (row[index2]).([]interface{}); ok {
+			name := row.GetValueByName("name").(string)
+			if v, ok := (row.GetValueByName("groups")).([]interface{}); ok {
 				for _, group := range v {
 					res = append(res, []interface{}{name, group})
 				}
 			}
 		}
 	case "servicesbygroup":
-		index1 := p.Tables[SERVICES].Table.ColumnsIndex["host_name"]
-		index2 := p.Tables[SERVICES].Table.ColumnsIndex["description"]
-		index3 := p.Tables[SERVICES].Table.ColumnsIndex["groups"]
 		for _, row := range p.Tables[SERVICES].Data {
-			hostName := row[index1].(string)
-			description := row[index2].(string)
-			if v, ok := (row[index3]).([]interface{}); ok {
+			hostName := row.GetValueByName("host_name").(string)
+			description := row.GetValueByName("description").(string)
+			if v, ok := (row.GetValueByName("groups")).([]interface{}); ok {
 				for _, group := range v {
 					res = append(res, []interface{}{hostName, description, group})
 				}
 			}
 		}
 	case "servicesbyhostgroup":
-		index1 := p.Tables[SERVICES].Table.ColumnsIndex["host_name"]
-		index2 := p.Tables[SERVICES].Table.ColumnsIndex["description"]
-		hostGroupsColumn := p.Tables[SERVICES].Table.GetResultColumn("host_groups")
-		refs := p.Tables[SERVICES].Refs
+		hostGroupsCol := p.Tables[SERVICES].Table.GetRequestColumn("host_groups")
 		for rowNum := range p.Tables[SERVICES].Data {
 			row := p.Tables[SERVICES].Data[rowNum]
-			hostName := row[index1].(string)
-			description := row[index2].(string)
-			groups := p.GetRowValue(hostGroupsColumn, &row, rowNum, p.Tables[SERVICES].Table, &refs)
-			if v, ok := (groups).([]interface{}); ok {
+			hostName := row.GetValueByName("host_name").(string)
+			description := row.GetValueByName("description").(string)
+			if v, ok := (row.GetValueByRequestColumn(hostGroupsCol)).([]interface{}); ok {
 				for _, group := range v {
 					res = append(res, []interface{}{hostName, description, group})
 				}
@@ -1984,9 +1884,7 @@ func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error
 		p.updateTimeperiodsData(table, res, indexes)
 	} else {
 		p.DataLock.Lock()
-		_, hasLastCacheUpdate := table.ColumnsIndex["lmd_last_cache_update"]
 		now := time.Now().Unix()
-		lastUpdate := p.Tables[table.Name].LastUpdate
 		indexLength := len(indexes)
 		for i := range res {
 			row := res[i]
@@ -1995,12 +1893,7 @@ func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error
 				p.DataLock.Unlock()
 				return
 			}
-			for j, k := range indexes {
-				data[i][k] = row[j]
-			}
-			if hasLastCacheUpdate {
-				lastUpdate[i] = now
-			}
+			data[i].UpdateValues(&row, &indexes, now)
 		}
 		p.DataLock.Unlock()
 	}
@@ -2012,12 +1905,13 @@ func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error
 		promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(res)))
 	case STATUS:
 		p.checkStatusFlags(table)
-		if p.Flags&MultiBackend != MultiBackend && len(data) >= 1 && p.StatusGet("ProgramStart") != data[0][table.ColumnsIndex["program_start"]] {
+		if p.Flags&MultiBackend != MultiBackend && len(data) >= 1 && p.StatusGet("ProgramStart") != data[0].GetValueByName("program_start") {
 			log.Infof("[%s] site has been restarted, recreating objects", p.Name)
 			restartRequired = true
 		}
 		return
 	}
+
 	return
 }
 
@@ -2039,20 +1933,16 @@ func (p *Peer) skipTableUpdate(table *Table) bool {
 }
 
 func (p *Peer) updateTimeperiodsData(table *Table, res [][]interface{}, indexes []int) {
-	changedTimeperiods := make(map[string]float64)
-	nameIndex := table.ColumnsIndex["name"]
+	changedTimeperiods := make(map[string]bool)
 	p.DataLock.Lock()
 	data := p.Tables[table.Name].Data
 	now := time.Now().Unix()
 	for i := range res {
 		row := res[i]
-		for j, k := range indexes {
-			if data[i][k] != row[j] {
-				changedTimeperiods[data[i][nameIndex].(string)] = data[i][k].(float64)
-			}
-			data[i][k] = row[j]
-			data[i][0] = now
+		if data[i].CheckChangedValues(&row, &indexes) {
+			changedTimeperiods[data[i].GetValueByName("name").(string)] = true
 		}
+		data[i].UpdateValues(&row, &indexes, now)
 	}
 	p.DataLock.Unlock()
 	// Update hosts and services with those changed timeperiods
@@ -2061,265 +1951,6 @@ func (p *Peer) updateTimeperiodsData(table *Table, res [][]interface{}, indexes 
 		p.UpdateDeltaTableHosts("Filter: check_period = " + name + "\nFilter: notification_period = " + name + "\nOr: 2\n")
 		p.UpdateDeltaTableServices("Filter: check_period = " + name + "\nFilter: notification_period = " + name + "\nOr: 2\n")
 	}
-}
-
-// GetRowValue returns the value for a given index in a data row and resolves
-// any virtual or reference column.
-// The result is returned as interface.
-func (p *Peer) GetRowValue(col *ResultColumn, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}) interface{} {
-	if col.Column.Index >= len(*row) {
-		if col.Type == VirtCol {
-			return p.GetVirtRowValue(col, row, rowNum, table, refs)
-		}
-
-		// this happens if we are requesting an optional column from the wrong backend
-		// ex.: shinken specific columns from a non-shinken backend
-		if col.Column.RefIndex == 0 {
-			if _, ok := (*refs)[col.Column.Name]; !ok {
-				// return empty placeholder matching the column type
-				return (col.Column.GetEmptyValue())
-			}
-		}
-
-		// reference columns
-		refObj := (*refs)[table.Columns[col.Column.RefIndex].Name][rowNum]
-		if refObj == nil {
-			return (col.Column.GetEmptyValue())
-		}
-		if len(refObj) > col.Column.RefColIndex {
-			return refObj[col.Column.RefColIndex]
-		}
-
-		// this happens if we are requesting an optional column from the wrong backend
-		// ex.: shinken specific columns from a non-shinken backend
-		// -> return empty placeholder matching the column type
-		return (col.Column.GetEmptyValue())
-	}
-	return (*row)[col.Column.Index]
-}
-
-// GetVirtRowValue returns the actual value for a virtual column.
-func (p *Peer) GetVirtRowValue(col *ResultColumn, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}) interface{} {
-	p.PeerLock.RLock()
-	value, ok := p.Status[col.Column.VirtMap.Key]
-	p.PeerLock.RUnlock()
-	if p.Flags&LMDSub == LMDSub {
-		val, ok2 := p.GetVirtSubLMDValue(col)
-		if ok2 {
-			value = val
-		}
-	}
-	if !ok {
-		value = p.GetVirtRowComputedValue(col, row, rowNum, table, refs)
-	}
-	colType := col.Column.VirtType
-	switch colType {
-	case IntCol:
-		fallthrough
-	case FloatCol:
-		return numberToFloat(&value)
-	case StringCol:
-		return value
-	case CustomVarCol:
-		return value
-	case HashMapCol:
-		return value
-	case StringListCol:
-		return value
-	case TimeCol:
-		val := int64(numberToFloat(&value))
-		if val < 0 {
-			val = 0
-		}
-		return val
-	default:
-		log.Panicf("not implemented")
-	}
-	return nil
-}
-
-// GetVirtRowComputedValue returns a computed virtual value for the given column.
-func (p *Peer) GetVirtRowComputedValue(col *ResultColumn, row *[]interface{}, rowNum int, table *Table, refs *map[string][][]interface{}) (value interface{}) {
-	switch col.Name {
-	case EMPTY:
-		// return empty string as placeholder for nonexisting columns
-		value = ""
-	case "lmd_last_cache_update":
-		// return timestamp of last update for this data row
-		value = p.Tables[table.Name].LastUpdate[rowNum]
-	case "lmd_version":
-		// return lmd version
-		value = fmt.Sprintf("%s-%s", NAME, Version())
-	case "last_state_change_order":
-		// return last_state_change or program_start
-		lastStateChange := numberToFloat(&((*row)[table.ColumnsIndex["last_state_change"]]))
-		if lastStateChange == 0 {
-			value = p.Status["ProgramStart"]
-		} else {
-			value = lastStateChange
-		}
-	case "host_last_state_change_order":
-		// return last_state_change or program_start
-		val := p.GetRowValue(table.GetResultColumn("host_last_state_change"), row, rowNum, table, refs)
-		lastStateChange := numberToFloat(&val)
-		if lastStateChange == 0 {
-			value = p.Status["ProgramStart"]
-		} else {
-			value = lastStateChange
-		}
-	case "state_order":
-		// return 4 instead of 2, which makes critical come first
-		// this way we can use this column to sort by state
-		state := numberToFloat(&((*row)[table.ColumnsIndex["state"]]))
-		if state == 2 {
-			value = 4
-		} else {
-			value = state
-		}
-	case "has_long_plugin_output":
-		// return 1 if there is long_plugin_output
-		val := (*row)[table.ColumnsIndex["long_plugin_output"]].(string)
-		if val != "" {
-			value = 1
-		} else {
-			value = 0
-		}
-	case "host_has_long_plugin_output":
-		// return 1 if there is long_plugin_output
-		val := p.GetRowValue(table.GetResultColumn("long_plugin_output"), row, rowNum, table, refs).(string)
-		if val != "" {
-			value = 1
-		} else {
-			value = 0
-		}
-	case "services_with_state":
-		fallthrough
-	case "services_with_info":
-		// test
-		servicesIndex := table.ColumnsIndex["services"]
-		services := (*row)[servicesIndex]
-		hostnameIndex := table.ColumnsIndex["name"]
-		hostName := (*row)[hostnameIndex].(string)
-		var res []interface{}
-		for _, v := range services.([]interface{}) {
-			var serviceValue []interface{}
-			var serviceID strings.Builder
-
-			serviceID.WriteString(hostName)
-			serviceID.WriteString(";")
-			serviceID.WriteString(v.(string))
-
-			serviceInfo := p.Tables["services"].Index[serviceID.String()]
-			stateIndex := p.Tables["services"].Table.GetColumn("state").Index
-			checkedIndex := p.Tables["services"].Table.GetColumn("has_been_checked").Index
-
-			serviceValue = append(serviceValue, v.(string), serviceInfo[stateIndex], serviceInfo[checkedIndex])
-			if col.Name == "services_with_info" {
-				outputIndex := p.Tables["services"].Table.GetColumn("plugin_output").Index
-				serviceValue = append(serviceValue, serviceInfo[outputIndex])
-			}
-			res = append(res, serviceValue)
-		}
-		if len(res) > 0 {
-			value = res
-		} else {
-			value = []string{}
-		}
-	case "host_comments_with_info":
-		fallthrough
-	case "comments_with_info":
-		var comments interface{}
-		if col.Name == "host_comments_with_info" {
-			hostNameIndex := table.ColumnsIndex["host_name"]
-			hostName := (*row)[hostNameIndex]
-			host := p.Tables["hosts"].Index[hostName.(string)]
-			commentsIndex := p.Tables["hosts"].Table.GetColumn("comments").Index
-			comments = host[commentsIndex]
-		} else {
-			commentsIndex := table.ColumnsIndex["comments"]
-			comments = (*row)[commentsIndex]
-		}
-		var res []interface{}
-		for _, commentID := range comments.([]interface{}) {
-			var commentWithInfo []interface{}
-
-			commentIDStr := strconv.FormatFloat(commentID.(float64), 'f', 0, 64)
-			comment := p.Tables["comments"].Index[commentIDStr]
-
-			authorIndex := p.Tables["comments"].Table.GetColumn("author").Index
-			commentIndex := p.Tables["comments"].Table.GetColumn("comment").Index
-
-			commentWithInfo = append(commentWithInfo, commentID, comment[authorIndex], comment[commentIndex])
-			res = append(res, commentWithInfo)
-		}
-		if len(res) > 0 {
-			value = res
-		} else {
-			value = []string{}
-		}
-	case "configtool":
-		if _, ok := p.Status["ConfigTool"]; ok {
-			value = p.Status["ConfigTool"]
-		} else {
-			value = ""
-		}
-	case "federation_addr":
-		if _, ok := p.Status["SubAddr"]; ok {
-			value = p.Status["SubAddr"]
-		} else {
-			value = []string{}
-		}
-	case "federation_type":
-		if _, ok := p.Status["SubType"]; ok {
-			value = p.Status["SubType"]
-		} else {
-			value = []string{}
-		}
-	case "federation_name":
-		if _, ok := p.Status["SubName"]; ok {
-			value = p.Status["SubName"]
-		} else {
-			value = []string{}
-		}
-	case "federation_key":
-		if _, ok := p.Status["SubKey"]; ok {
-			value = p.Status["SubKey"]
-		} else {
-			value = []string{}
-		}
-	default:
-		log.Panicf("cannot handle virtual column: %s", col.Name)
-	}
-	return
-}
-
-// GetVirtSubLMDValue returns status values for LMDSub backends
-func (p *Peer) GetVirtSubLMDValue(col *ResultColumn) (val interface{}, ok bool) {
-	ok = true
-	peerData := p.StatusGet("SubPeerStatus").(map[string]interface{})
-	if peerData == nil {
-		return nil, false
-	}
-	switch col.Name {
-	case STATUS:
-		// return worst state of LMD and LMDSubs state
-		parentVal := p.StatusGet("PeerStatus").(PeerStatus)
-		if parentVal != PeerStatusUp {
-			val = parentVal
-		} else {
-			val, ok = peerData[col.Name]
-		}
-	case "last_error":
-		// return worst state of LMD and LMDSubs state
-		parentVal := p.StatusGet("LastError").(string)
-		val, ok = peerData[col.Name]
-		if parentVal != "" && (!ok || val.(string) == "") {
-			val = parentVal
-		}
-	default:
-		val, ok = peerData[col.Name]
-	}
-	return
 }
 
 // WaitCondition waits for a given condition.
@@ -2335,8 +1966,7 @@ func (p *Peer) WaitCondition(req *Request) bool {
 		defer logPanicExitPeer(p)
 
 		p.DataLock.RLock()
-		table := p.Tables[req.Table].Table
-		refs := p.Tables[req.Table].Refs
+		store := p.Tables[req.Table]
 		p.DataLock.RUnlock()
 		var lastUpdate int64
 		for {
@@ -2373,11 +2003,11 @@ func (p *Peer) WaitCondition(req *Request) bool {
 
 				found = true
 				for _, f := range req.WaitCondition {
-					if !p.MatchRowFilter(table, &refs, f, &obj, 0) {
+					if !obj.MatchFilter(f) {
 						found = false
 					}
 				}
-			} else if p.waitConditionTableMatches(table, &refs, &req.WaitCondition) {
+			} else if p.waitConditionTableMatches(&store, &req.WaitCondition) {
 				found = true
 			}
 
@@ -2408,7 +2038,7 @@ func (p *Peer) WaitCondition(req *Request) bool {
 				}
 				p.UpdateDeltaTableServices("Filter: host_name = " + tmp[0] + "\nFilter: description = " + tmp[1] + "\n")
 			default:
-				p.UpdateObjectByType(table)
+				p.UpdateObjectByType(store.Table)
 			}
 		}
 	}()
@@ -2646,9 +2276,8 @@ func SpinUpPeers(peers []string) {
 }
 
 // BuildLocalResponseData returnss the result data for a given request
-func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (int, *[][]interface{}, *map[string][]*Filter) {
+func (p *Peer) BuildLocalResponseData(res *Response) (int, *[][]interface{}, *map[string][]*Filter) {
 	req := res.Request
-	numPerRow := len(*indexes)
 	log.Tracef("BuildLocalResponseData: %s", p.Name)
 
 	// if a WaitTrigger is supplied, wait max ms till the condition is true
@@ -2658,10 +2287,9 @@ func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (int, *[][]
 
 	p.DataLock.RLock()
 	defer p.DataLock.RUnlock()
-	data := p.Tables[req.Table].Data
-	table := p.Tables[req.Table].Table
 
 	// peer might have gone down meanwhile, ex. after waiting for a waittrigger, so check again
+	table := p.Tables[req.Table].Table
 	if table == nil || !p.isOnline() {
 		res.Lock.Lock()
 		res.Failed[p.ID] = p.getError()
@@ -2670,18 +2298,21 @@ func (p *Peer) BuildLocalResponseData(res *Response, indexes *[]int) (int, *[][]
 	}
 
 	// get data for special tables
+	var data DataStore
 	if table.Name == "tables" || table.Name == "columns" {
-		data = Objects.GetTableColumnsData()
+		data = *(Objects.GetTableColumnsData(table))
+	} else {
+		data = p.Tables[req.Table]
 	}
 
-	if len(data) == 0 {
+	if len(data.Data) == 0 {
 		return 0, nil, nil
 	}
 
 	if len(res.Request.Stats) > 0 {
-		return 0, nil, p.gatherStatsResult(res, table, &data)
+		return 0, nil, p.gatherStatsResult(res, &data)
 	}
-	total, result := p.gatherResultRows(res, table, &data, numPerRow, indexes)
+	total, result := p.gatherResultRows(res, &data)
 	return total, result, nil
 }
 
@@ -2713,23 +2344,22 @@ func (p *Peer) getError() string {
 	return fmt.Sprintf("%v", p.StatusGet("LastError"))
 }
 
-func (p *Peer) gatherResultRows(res *Response, table *Table, data *[][]interface{}, numPerRow int, indexes *[]int) (int, *[][]interface{}) {
-	req := res.Request
-	columns := p.Tables[req.Table].ColumnsMap
-	refs := p.Tables[req.Table].Refs
+func (p *Peer) gatherResultRows(res *Response, store *DataStore) (int, *[][]interface{}) {
+	found := 0
 	result := make([][]interface{}, 0)
+	req := res.Request
+	numPerRow := len(res.Request.RequestColumns)
 
 	// if there is no sort header or sort by name only,
 	// we can drastically reduce the result set by applying the limit here already
-	limit := optimizeResultLimit(req, table)
+	limit := optimizeResultLimit(req, store.Table)
 
-	found := 0
 Rows:
-	for j := range *data {
-		row := &((*data)[j])
+	for j := range store.Data {
+		row := store.Data[j]
 		// does our filter match?
 		for _, f := range req.Filter {
-			if !p.MatchRowFilter(table, &refs, f, row, j) {
+			if !row.MatchFilter(f) {
 				continue Rows
 			}
 		}
@@ -2740,61 +2370,49 @@ Rows:
 			continue Rows
 		}
 
-		// build result row
+		// build result row (including columns we need for sorting)
 		resRow := make([]interface{}, numPerRow)
-		for k, i := range *(indexes) {
-			if i < 0 {
-				// virtual columns
-				resRow[k] = p.GetRowValue(&(res.Columns[k]), row, j, table, &refs)
-			} else {
-				// check if this is a reference column
-				// reference columns come after the non-ref columns
-				if i >= len(*row) {
-					resRow[k] = p.GetRowValue(&(res.Columns[k]), row, j, table, &refs)
-				} else if col, ok := columns[i]; ok {
-					resRow[k] = (*row)[col]
-				}
-			}
+		for k := 0; k < numPerRow; k++ {
+			col := res.Request.RequestColumns[k]
+			resRow[k] = row.GetValueByRequestColumn(&col)
 			// fill null values with something useful
 			if resRow[k] == nil {
-				resRow[k] = table.Columns[i].GetEmptyValue()
+				resRow[k] = col.Column.GetEmptyValue()
 			}
 		}
 		result = append(result, resRow)
 	}
 
 	// sanitize broken custom var data from icinga2
-	for j, i := range *(indexes) {
-		if i > 0 && table.Columns[i].Type == CustomVarCol {
-			for k := range result {
-				resRow := &(result[k])
-				(*resRow)[j] = interfaceToCustomVarHash(&(*resRow)[j])
+	for k := 0; k < numPerRow; k++ {
+		col := res.Request.RequestColumns[k]
+		if col.Column.Type == CustomVarCol {
+			for j := range result {
+				resRow := &(result[j])
+				(*resRow)[k] = interfaceToCustomVarHash(&(*resRow)[k])
 			}
 		}
 	}
-
 	return found, &result
 }
 
-func (p *Peer) gatherStatsResult(res *Response, table *Table, data *[][]interface{}) *map[string][]*Filter {
-	req := res.Request
-	refs := p.Tables[req.Table].Refs
-
+func (p *Peer) gatherStatsResult(res *Response, store *DataStore) *map[string][]*Filter {
 	localStats := make(map[string][]*Filter)
+	req := res.Request
 
 Rows:
-	for j := range *data {
-		row := &((*data)[j])
+	for j := range store.Data {
+		row := store.Data[j]
 		// does our filter match?
 		for _, f := range req.Filter {
-			if !p.MatchRowFilter(table, &refs, f, row, j) {
+			if !row.MatchFilter(f) {
 				continue Rows
 			}
 		}
 
 		key := ""
 		if len(req.Columns) > 0 {
-			key = p.getStatsKey(&res.Columns, table, &refs, row, j)
+			key = row.getStatsKey(res)
 		}
 
 		if _, ok := localStats[key]; !ok {
@@ -2806,12 +2424,12 @@ Rows:
 			// avg/sum/min/max are passed through, they dont have filter
 			// counter must match their filter
 			if s.StatsType == Counter {
-				if p.MatchRowFilter(table, &refs, s, row, j) {
+				if row.MatchFilter(s) {
 					localStats[key][i].Stats++
 					localStats[key][i].StatsCount++
 				}
 			} else {
-				val := p.GetRowValue(s.Column, row, j, table, &refs)
+				val := row.GetValueByRequestColumn(s.Column)
 				localStats[key][i].ApplyValue(numberToFloat(&val), 1)
 			}
 		}
@@ -2820,17 +2438,16 @@ Rows:
 	return &localStats
 }
 
-func (p *Peer) waitConditionTableMatches(table *Table, refs *map[string][][]interface{}, filter *[]*Filter) bool {
+func (p *Peer) waitConditionTableMatches(store *DataStore, filter *[]*Filter) bool {
 	p.DataLock.RLock()
 	defer p.DataLock.RUnlock()
-	data := p.Tables[table.Name].Data
 
 Rows:
-	for j := range data {
-		row := &(data[j])
+	for j := range store.Data {
+		row := store.Data[j]
 		// does our filter match?
 		for _, f := range *filter {
-			if !p.MatchRowFilter(table, refs, f, row, j) {
+			if !row.MatchFilter(f) {
 				continue Rows
 			}
 		}
@@ -2862,55 +2479,11 @@ func optimizeResultLimit(req *Request, table *Table) (limit int) {
 	return
 }
 
-func (p *Peer) getStatsKey(columns *[]ResultColumn, table *Table, refs *map[string][][]interface{}, row *[]interface{}, rowNum int) string {
-	keyValues := []string{}
-	for i := range *columns {
-		col := (*columns)[i]
-		value := p.GetRowValue(&col, row, rowNum, table, refs)
-		keyValues = append(keyValues, fmt.Sprintf("%v", value))
-	}
-	return strings.Join(keyValues, ";")
-}
-
 func (p *Peer) clearLastRequest() {
 	p.PeerLock.Lock()
 	p.lastRequest = nil
 	p.lastResponse = nil
 	p.PeerLock.Unlock()
-}
-
-// MatchRowFilter returns true if the given filter matches the given datarow.
-func (p *Peer) MatchRowFilter(table *Table, refs *map[string][][]interface{}, filter *Filter, row *[]interface{}, rowNum int) bool {
-	// recursive group filter
-	filterLength := len(filter.Filter)
-	if filterLength > 0 {
-		for _, f := range filter.Filter {
-			subresult := p.MatchRowFilter(table, refs, f, row, rowNum)
-			switch filter.GroupOperator {
-			case And:
-				// if all conditions must match and we failed already, exit early
-				if !subresult {
-					return false
-				}
-			case Or:
-				// if only one condition must match and we got that already, exit early
-				if subresult {
-					return true
-				}
-			}
-		}
-		// if this is an AND filter and we did not return yet, this means all have matched.
-		// else its an OR filter and none has matched so far.
-		return filter.GroupOperator == And
-	}
-
-	// normal field filter
-	if filter.Column.Column.Index < len(*row) {
-		// directly access the row value
-		return (filter.MatchFilter(&((*row)[filter.Column.Column.Index])))
-	}
-	value := p.GetRowValue(filter.Column, row, rowNum, table, refs)
-	return (filter.MatchFilter(&value))
 }
 
 func (p *Peer) checkIcinga2Reload() bool {
@@ -3003,101 +2576,6 @@ func (p *Peer) getTLSClientConfig() (*tls.Config, error) {
 	}
 
 	return config, nil
-}
-
-// initilizeReferences creates reference entries
-func (p *Peer) initilizeReferences(table *Table, res *[][]interface{}) (refs map[string][][]interface{}, err error) {
-	refs = make(map[string][][]interface{})
-	p.DataLock.RLock()
-	defer p.DataLock.RUnlock()
-
-	for _, refNum := range table.RefColCacheIndexes {
-		refCol := table.Columns[refNum]
-		refs[refCol.Name] = make([][]interface{}, len(*res))
-		if refCol.Name == SERVICES {
-			err = p.expandCrossServiceReferences(table, &refs, res, refCol, false)
-			if err != nil {
-				return
-			}
-		} else {
-			err = p.expandCrossReferences(table, &refs, res, refCol, false)
-			if err != nil {
-				return
-			}
-		}
-	}
-
-	return
-}
-
-// updateReferences updates reference entries
-func (p *Peer) updateReferences(table *Table, res *[][]interface{}) (err error) {
-	refs := p.Tables[table.Name].Refs
-	for _, refNum := range table.RefColCacheIndexes {
-		refCol := table.Columns[refNum]
-		if refCol.Name == SERVICES {
-			err = p.expandCrossServiceReferences(table, &refs, res, refCol, true)
-			if err != nil {
-				return
-			}
-		} else {
-			err = p.expandCrossReferences(table, &refs, res, refCol, true)
-			if err != nil {
-				return
-			}
-		}
-	}
-
-	return
-}
-
-// expandCrossReferences creates reference entries for cross referenced objects
-func (p *Peer) expandCrossReferences(table *Table, refs *map[string][][]interface{}, res *[][]interface{}, refCol *Column, add bool) (err error) {
-	fieldName := refCol.Name
-	refByName := p.Tables[fieldName].Index
-	for i := range *res {
-		row := (*res)[i]
-		if add {
-			(*refs)[fieldName] = append((*refs)[fieldName], refByName[row[refCol.RefIndex].(string)])
-		} else {
-			(*refs)[fieldName][i] = refByName[row[refCol.RefIndex].(string)]
-		}
-		if refByName[row[refCol.RefIndex].(string)] == nil {
-			err = fmt.Errorf("%s '%s' ref not found from table %s, refmap contains %d elements", refCol.Name, row[refCol.RefIndex].(string), table.Name, len(refByName))
-			return
-		}
-	}
-	return
-}
-
-// expandCrossServiceReferences creates reference entries for cross referenced services
-func (p *Peer) expandCrossServiceReferences(table *Table, refs *map[string][][]interface{}, res *[][]interface{}, refCol *Column, add bool) (err error) {
-	fieldName := refCol.Name
-	refByName := p.Tables[fieldName].Index
-	hostnameIndex := table.GetColumn("host_name").Index
-	for i := range *res {
-		row := (*res)[i]
-		if row[refCol.RefIndex] == nil || row[refCol.RefIndex].(string) == "" {
-			// this may happen for optional reference columns, ex. services in comments
-			if add {
-				(*refs)[fieldName] = append((*refs)[fieldName], nil)
-			} else {
-				(*refs)[fieldName][i] = nil
-			}
-			continue
-		}
-		key := row[hostnameIndex].(string) + ";" + row[refCol.RefIndex].(string)
-		if add {
-			(*refs)[fieldName] = append((*refs)[fieldName], refByName[key])
-		} else {
-			(*refs)[fieldName][i] = refByName[key]
-		}
-		if refByName[key] == nil {
-			err = fmt.Errorf("%s '%s' ref not found from table %s, refmap contains %d elements", refCol.Name, key, table.Name, len(refByName))
-			return
-		}
-	}
-	return
 }
 
 // SendCommandsWithRetry sends list of commands and retries until the peer is completly down

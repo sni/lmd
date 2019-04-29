@@ -6,6 +6,17 @@ linters-settings:
     min-occurrences: 5
   lll:
     line-length: 120
+  gocritic:
+    enabled-tags:
+      - performance
+      - style
+      - experimental
+    disabled-checks:
+      - emptyFallthrough
+      - paramTypeCombine
+      - ptrToRefParam
+      - unnamedResult
+      - exitAfterDefer
 linters:
   enable-all: true
   disable:

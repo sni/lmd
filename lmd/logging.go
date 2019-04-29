@@ -25,7 +25,7 @@ func InitLogging(conf *Config) {
 	case conf.LogFile == "":
 		logFormatter = factorlog.NewStdFormatter(logColors + logFormat + logColorReset)
 		targetWriter = os.Stdout
-	case strings.ToLower(conf.LogFile) == "stderr":
+	case strings.EqualFold(conf.LogFile, "stderr"):
 		logFormatter = factorlog.NewStdFormatter(logColors + logFormat + logColorReset)
 		targetWriter = os.Stderr
 	default:
@@ -42,15 +42,15 @@ func InitLogging(conf *Config) {
 	log.SetFormatter(logFormatter)
 	log.SetOutput(targetWriter)
 	log.SetVerbosity(1)
-	if strings.ToLower(LogLevel) == "off" {
+	if strings.EqualFold(LogLevel, "off") {
 		log.SetMinMaxSeverity(factorlog.StringToSeverity("PANIC"), factorlog.StringToSeverity("PANIC"))
 		log.SetVerbosity(0)
 	} else {
 		log.SetMinMaxSeverity(factorlog.StringToSeverity(strings.ToUpper(LogLevel)), factorlog.StringToSeverity("PANIC"))
-		if strings.ToLower(LogLevel) == "trace" {
+		if strings.EqualFold(LogLevel, "trace") {
 			log.SetVerbosity(3)
 		}
-		if strings.ToLower(LogLevel) == "debug" {
+		if strings.EqualFold(LogLevel, "debug") {
 			log.SetVerbosity(2)
 		}
 	}

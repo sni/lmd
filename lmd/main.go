@@ -310,8 +310,8 @@ func initializePeers(localConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 	PeerMapLock.Lock()
 	for id := range PeerMap {
 		found := false // id exists
-		for _, c := range localConfig.Connections {
-			if c.ID == id {
+		for i := range localConfig.Connections {
+			if localConfig.Connections[i].ID == id {
 				found = true
 			}
 		}
@@ -401,7 +401,7 @@ func checkFlags() {
 }
 
 func createPidFile(path string) {
-	//write the pid id if file path is defined
+	// write the pid id if file path is defined
 	if path == "" {
 		return
 	}

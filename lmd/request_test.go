@@ -81,7 +81,6 @@ func TestRequestHeaderColumns(t *testing.T) {
 
 func TestRequestHeaderSort(t *testing.T) {
 	req, _, _ := NewRequest(bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: latency state name\nSort: name desc\nSort: state asc\n")))
-	req.BuildResponseIndexes(Objects.Tables[req.Table])
 	if err := assertEq(SortField{Name: "name", Direction: Desc, Index: 2}, *req.Sort[0]); err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +91,6 @@ func TestRequestHeaderSort(t *testing.T) {
 
 func TestRequestHeaderSortCust(t *testing.T) {
 	req, _, _ := NewRequest(bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name custom_variables\nSort: custom_variables TEST asc\n")))
-	req.BuildResponseIndexes(Objects.Tables[req.Table])
 	if err := assertEq(SortField{Name: "custom_variables", Direction: Asc, Index: 1, Args: "TEST"}, *req.Sort[0]); err != nil {
 		t.Fatal(err)
 	}
@@ -548,6 +546,52 @@ func TestRequestSortColumnNotRequested(t *testing.T) {
 		t.Error(err)
 	}
 	if err = assertEq("testhost_1", res[0][0]); err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestRequestUnknownOptionalColumns(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	res, err := peer.QueryString("GET hosts\nColumns: name is_impact\nLimit: 1\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(1, len(res)); err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("testhost_1", res[0][0]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(float64(-1), res[0][1]); err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestRequestUnknownOptionalRefsColumns(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	res, err := peer.QueryString("GET services\nColumns: host_name host_is_impact\nLimit: 1\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(1, len(res)); err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("testhost_1", res[0][0]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(float64(-1), res[0][1]); err != nil {
 		t.Error(err)
 	}
 

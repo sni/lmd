@@ -77,8 +77,8 @@ func NewNodes(localConfig *Config, addresses []string, listen string, waitGroupI
 	}
 	tlsConfig := &tls.Config{InsecureSkipVerify: localConfig.SkipSSLCheck > 0}
 	n.HTTPClient = NewLMDHTTPClient(tlsConfig, "")
-	for _, c := range localConfig.Connections {
-		n.backends = append(n.backends, c.ID)
+	for i := range localConfig.Connections {
+		n.backends = append(n.backends, localConfig.Connections[i].ID)
 	}
 	partsListen := reNodeAddress.FindStringSubmatch(listen)
 	for _, address := range addresses {

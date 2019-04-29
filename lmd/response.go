@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"sort"
@@ -12,57 +11,6 @@ import (
 	"sync"
 	"time"
 )
-
-// ResultColumn is a column container for results
-type ResultColumn struct {
-	Name   string
-	Type   ColumnType
-	Column *Column // reference to the real column
-	Index  int     // index in the request
-	Hidden bool    // true if column is not used in the output and ex. just for sorting
-}
-
-// VirtKeyMapTupel is used to define the virtual key mapping in the VirtKeyMap
-type VirtKeyMapTupel struct {
-	Index int
-	Key   string
-	Type  ColumnType
-}
-
-// VirtKeyMap maps the virtual columns with the peer status map entry.
-// If the entry is empty, then there must be a corresponding resolve function in the GetRowValue() function.
-var VirtKeyMap = map[string]VirtKeyMapTupel{
-	"key":                     {Index: -1, Key: "PeerKey", Type: StringCol},
-	"name":                    {Index: -2, Key: "PeerName", Type: StringCol},
-	"addr":                    {Index: -4, Key: "PeerAddr", Type: StringCol},
-	STATUS:                    {Index: -5, Key: "PeerStatus", Type: IntCol},
-	"bytes_send":              {Index: -6, Key: "BytesSend", Type: IntCol},
-	"bytes_received":          {Index: -7, Key: "BytesReceived", Type: IntCol},
-	"queries":                 {Index: -8, Key: "Querys", Type: IntCol},
-	"last_error":              {Index: -9, Key: "LastError", Type: StringCol},
-	"last_online":             {Index: -10, Key: "LastOnline", Type: TimeCol},
-	"last_update":             {Index: -11, Key: "LastUpdate", Type: TimeCol},
-	"response_time":           {Index: -12, Key: "ReponseTime", Type: FloatCol},
-	"state_order":             {Index: -13, Key: "", Type: IntCol},
-	"last_state_change_order": {Index: -14, Key: "", Type: IntCol},
-	"has_long_plugin_output":  {Index: -15, Key: "", Type: IntCol},
-	"idling":                  {Index: -16, Key: "Idling", Type: IntCol},
-	"last_query":              {Index: -17, Key: "LastQuery", Type: TimeCol},
-	"lmd_last_cache_update":   {Index: -18, Key: "", Type: IntCol},
-	"lmd_version":             {Index: -19, Key: "", Type: StringCol},
-	"section":                 {Index: -20, Key: "Section", Type: StringCol},
-	"parent":                  {Index: -21, Key: "PeerParent", Type: StringCol},
-	"configtool":              {Index: -22, Key: "", Type: HashMapCol},
-	"federation_key":          {Index: -23, Key: "", Type: StringListCol},
-	"federation_name":         {Index: -24, Key: "", Type: StringListCol},
-	"federation_addr":         {Index: -25, Key: "", Type: StringListCol},
-	"federation_type":         {Index: -26, Key: "", Type: StringListCol},
-	"services_with_state":     {Index: -27, Key: "", Type: StringListCol},
-	"services_with_info":      {Index: -28, Key: "", Type: StringListCol},
-	"host_comments_with_info": {Index: -29, Key: "", Type: StringListCol},
-	"comments_with_info":      {Index: -30, Key: "", Type: StringListCol},
-	EMPTY:                     {Index: -31, Key: "", Type: StringCol},
-}
 
 // Response contains the livestatus response data as long with some meta data
 type Response struct {
@@ -74,7 +22,6 @@ type Response struct {
 	Request     *Request
 	Error       error
 	Failed      map[string]string
-	Columns     []ResultColumn
 }
 
 // NewResponse creates a new response object for a given request
@@ -91,12 +38,6 @@ func NewResponse(req *Request) (res *Response, err error) {
 	}
 
 	table := Objects.Tables[req.Table]
-
-	indexes, columns, err := req.BuildResponseIndexes(table)
-	if err != nil {
-		return
-	}
-	res.Columns = columns
 
 	// check if we have to spin up updates, if so, do it parallel
 	selectedPeers := []string{}
@@ -129,17 +70,20 @@ func NewResponse(req *Request) (res *Response, err error) {
 
 	// only use the first backend when requesting table or columns table
 	if table.Name == "tables" || table.Name == "columns" {
-		selectedPeers = []string{PeerMapOrder[0]}
-	} else if !table.PassthroughOnly && len(spinUpPeers) > 0 {
-		SpinUpPeers(spinUpPeers)
+		res.AppendPeerResult(PeerMap[PeerMapOrder[0]])
+	} else {
+		if !table.PassthroughOnly && len(spinUpPeers) > 0 {
+			SpinUpPeers(spinUpPeers)
+		}
+
+		if table.PassthroughOnly {
+			// passthrough requests, ex.: log table
+			res.BuildPassThroughResult(selectedPeers, table)
+		} else {
+			res.BuildLocalResponse(selectedPeers)
+		}
 	}
 
-	if table.PassthroughOnly {
-		// passthrough requests, ex.: log table
-		res.BuildPassThroughResult(selectedPeers, table, &columns)
-	} else {
-		res.BuildLocalResponse(selectedPeers, &indexes)
-	}
 	// if all backends are down, send an error instead of an empty result
 	if res.Request.OutputFormat != WRAPPEDJSON && len(res.Failed) > 0 && len(res.Failed) == len(req.Backends) {
 		res.Code = 502
@@ -164,10 +108,10 @@ func (res *Response) Less(i, j int) bool {
 	for _, s := range res.Request.Sort {
 		Type := StringFakeSortCol
 		if s.Index != -1 {
-			Type = res.Columns[s.Index].Column.Type
+			Type = res.Request.RequestColumns[s.Index].Column.Type
 		}
 		if Type == VirtCol {
-			Type = res.Columns[s.Index].Column.VirtType
+			Type = res.Request.RequestColumns[s.Index].Column.VirtType
 		}
 		switch Type {
 		case TimeCol:
@@ -282,7 +226,7 @@ func (res *Response) PostProcessing() {
 
 		// remove hidden columns from result, for ex. columns used for sorting only
 		firstHiddenColumnIndex := -1
-		for i, col := range res.Columns {
+		for i, col := range res.Request.RequestColumns {
 			// first hidden column breaks the loop, because hidden columns are appended at the end of all columns
 			if col.Hidden {
 				firstHiddenColumnIndex = i
@@ -396,70 +340,6 @@ func finalStatsApply(s *Filter, res *interface{}) {
 	}
 }
 
-// BuildResponseIndexes returns a list of used indexes and columns for this request.
-func (req *Request) BuildResponseIndexes(table *Table) (indexes []int, columns []ResultColumn, err error) {
-	log.Tracef("BuildResponseIndexes")
-	requestColumnsMap := make(map[string]int)
-	// if no column header was given, return all columns
-	// but only if this is no stats query
-	if len(req.Columns) == 0 && len(req.Stats) == 0 {
-		req.SendColumnsHeader = true
-		for _, col := range table.Columns {
-			if col.Update != RefUpdate && col.Name != EMPTY {
-				req.Columns = append(req.Columns, col.Name)
-			}
-		}
-	}
-	// build array of requested columns as ResultColumn objects list
-	for j, colName := range req.Columns {
-		indexes, columns = addBuildResponseIndexColumn(table, colName, j, requestColumnsMap, indexes, columns, false)
-	}
-
-	// check wether our sort columns do exist in the output
-	for _, s := range req.Sort {
-		_, Ok := table.ColumnsIndex[s.Name]
-		if !Ok {
-			err = errors.New("bad request: table " + req.Table + " has no column " + s.Name + " to sort")
-			return
-		}
-		i, Ok := requestColumnsMap[s.Name]
-		if !Ok {
-			i = len(columns)
-			indexes, columns = addBuildResponseIndexColumn(table, s.Name, i, requestColumnsMap, indexes, columns, true)
-		}
-		s.Index = i
-	}
-
-	return
-}
-func addBuildResponseIndexColumn(table *Table, colName string, requestIndex int, requestColumnsMap map[string]int, indexes []int, columns []ResultColumn, hidden bool) ([]int, []ResultColumn) {
-	colName = strings.ToLower(colName)
-	i, ok := table.ColumnsIndex[colName]
-	if !ok {
-		if table.PassthroughOnly {
-			indexes = append(indexes, -1)
-			columns = append(columns, ResultColumn{Name: colName, Type: StringCol, Index: requestIndex, Hidden: hidden})
-			requestColumnsMap[colName] = requestIndex
-			return indexes, columns
-		}
-		if !fixBrokenClientsRequestColumn(&colName, table.Name) {
-			colName = EMPTY
-		}
-		i = table.ColumnsIndex[colName]
-	}
-	col := table.Columns[i]
-	if table.Columns[i].Type == VirtCol {
-		indexes = append(indexes, col.VirtMap.Index)
-		columns = append(columns, ResultColumn{Name: colName, Type: VirtCol, Index: requestIndex, Column: col, Hidden: hidden})
-		requestColumnsMap[colName] = requestIndex
-		return indexes, columns
-	}
-	indexes = append(indexes, i)
-	columns = append(columns, ResultColumn{Name: colName, Type: col.Type, Index: requestIndex, Column: col, Hidden: hidden})
-	requestColumnsMap[colName] = requestIndex
-	return indexes, columns
-}
-
 // Send writes converts the result object to a livestatus answer and writes the resulting bytes back to the client.
 func (res *Response) Send(c net.Conn) (size int, err error) {
 	resBytes, err := res.Bytes()
@@ -515,18 +395,22 @@ func (res *Response) JSON() ([]byte, error) {
 
 	// enable header row for regular requests, not for stats requests
 	isStatsRequest := len(res.Request.Stats) != 0
-	sendColumnsHeader := res.Request.SendColumnsHeader
+	sendColumnsHeader := res.SendColumnsHeader()
 
 	buf.Write([]byte("["))
 	// add optional columns header as first row
-	cols := make([]interface{}, len(res.Request.Columns)+len(res.Request.Stats))
+	cols := make([]interface{}, len(res.Request.RequestColumns)+len(res.Request.Stats))
 	if sendColumnsHeader {
-		for i, v := range res.Request.Columns {
-			cols[i] = v
+		for k := 0; k < len(res.Request.RequestColumns); k++ {
+			if k < len(res.Request.Columns) {
+				cols[k] = res.Request.Columns[k]
+			} else {
+				cols[k] = res.Request.RequestColumns[k].Column.Name
+			}
 		}
 		if isStatsRequest {
 			for i := range res.Request.Stats {
-				index := i + len(res.Request.Columns)
+				index := i + len(res.Request.RequestColumns)
 				var buffer bytes.Buffer
 				buffer.WriteString("stats_")
 				buffer.WriteString(strconv.Itoa(i + 1))
@@ -567,14 +451,18 @@ func (res *Response) WrappedJSON() ([]byte, error) {
 
 	// enable header row for regular requests, not for stats requests
 	isStatsRequest := len(res.Request.Stats) != 0
-	sendColumnsHeader := res.Request.SendColumnsHeader
+	sendColumnsHeader := res.SendColumnsHeader()
 
 	buf.Write([]byte("["))
 	// add optional columns header as first row
 	cols := make([]interface{}, len(res.Request.Columns)+len(res.Request.Stats))
 	if sendColumnsHeader {
-		for i, v := range res.Request.Columns {
-			cols[i] = v
+		for k := 0; k < len(res.Request.RequestColumns); k++ {
+			if k < len(res.Request.Columns) {
+				cols[k] = res.Request.Columns[k]
+			} else {
+				cols[k] = res.Request.RequestColumns[k].Column.Name
+			}
 		}
 
 		if isStatsRequest {
@@ -610,7 +498,7 @@ func (res *Response) WrappedJSON() ([]byte, error) {
 }
 
 // BuildLocalResponse builds local data table result for all selected peers
-func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) {
+func (res *Response) BuildLocalResponse(peers []string) {
 	res.Result = make([][]interface{}, 0)
 
 	waitgroup := &sync.WaitGroup{}
@@ -635,7 +523,7 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) {
 		if table != nil && table.Virtual {
 			// append results serially for local calculations
 			// no need to create goroutines for simple sites queries
-			res.AppendPeerResult(p, indexes)
+			res.AppendPeerResult(p)
 			continue
 		}
 
@@ -649,7 +537,7 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) {
 		if table.Name == STATUS {
 			// append results serially for simple calculations
 			// no need to create goroutines for simple status queries
-			res.AppendPeerResult(p, indexes)
+			res.AppendPeerResult(p)
 			continue
 		}
 
@@ -661,7 +549,7 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) {
 			log.Tracef("[%s] starting local data computation", peer.Name)
 			defer wg.Done()
 
-			res.AppendPeerResult(peer, indexes)
+			res.AppendPeerResult(peer)
 		}(p, waitgroup)
 	}
 	log.Tracef("waiting...")
@@ -670,8 +558,8 @@ func (res *Response) BuildLocalResponse(peers []string, indexes *[]int) {
 }
 
 // AppendPeerResult appends result for given peer
-func (res *Response) AppendPeerResult(peer *Peer, indexes *[]int) {
-	total, result, statsResult := peer.BuildLocalResponseData(res, indexes)
+func (res *Response) AppendPeerResult(peer *Peer) {
+	total, result, statsResult := peer.BuildLocalResponseData(res)
 	log.Tracef("[%s] result ready", peer.Name)
 
 	if result != nil {
@@ -707,15 +595,15 @@ func (res *Response) AppendPeerResult(peer *Peer, indexes *[]int) {
 
 // BuildPassThroughResult passes a query transparently to one or more remote sites and builds the response
 // from that.
-func (res *Response) BuildPassThroughResult(peers []string, table *Table, columns *[]ResultColumn) {
+func (res *Response) BuildPassThroughResult(peers []string, table *Table) {
 	res.Result = make([][]interface{}, 0)
 
 	// build columns list
 	backendColumns := []string{}
-	virtColumns := []*ResultColumn{}
-	for i, col := range *columns {
+	virtColumns := []*RequestColumn{}
+	for i, col := range res.Request.RequestColumns {
 		if col.Type == VirtCol {
-			colref := (*columns)[i]
+			colref := res.Request.RequestColumns[i]
 			virtColumns = append(virtColumns, &colref)
 		} else {
 			backendColumns = append(backendColumns, col.Name)
@@ -754,7 +642,7 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table, column
 }
 
 // PassThrougQuery runs a passthrough query on a single peer and appends the result
-func (res *Response) PassThrougQuery(peer *Peer, table *Table, virtColumns []*ResultColumn, backendColumns []string) {
+func (res *Response) PassThrougQuery(peer *Peer, table *Table, virtColumns []*RequestColumn, backendColumns []string) {
 	req := res.Request
 	passthroughRequest := &Request{
 		Table:           req.Table,
@@ -777,13 +665,16 @@ func (res *Response) PassThrougQuery(peer *Peer, table *Table, virtColumns []*Re
 	}
 	// insert virtual values, like peer_addr or name
 	if len(virtColumns) > 0 {
+		store := DataStore{Table: table, Peer: peer}
+		data := make([]interface{}, 0)
+		tmpRow, _ := NewDataRow(&store, &data, 0)
 		for rowNum := range result {
 			row := result[rowNum]
 			for _, col := range virtColumns {
 				i := col.Index
 				row = append(row, 0)
 				copy(row[i+1:], row[i:])
-				row[i] = peer.GetRowValue(col, &row, rowNum, table, nil)
+				row[i] = tmpRow.getVirtRowValue(col)
 			}
 			result[rowNum] = row
 		}
@@ -806,4 +697,15 @@ func (res *Response) PassThrougQuery(peer *Peer, table *Table, virtColumns []*Re
 		}
 	}
 	res.Lock.Unlock()
+}
+
+// determines if the response should contain the columns header
+func (res *Response) SendColumnsHeader() bool {
+	if len(res.Request.Stats) > 0 {
+		return false
+	}
+	if res.Request.ColumnsHeaders || len(res.Request.Columns) == 0 {
+		return true
+	}
+	return false
 }

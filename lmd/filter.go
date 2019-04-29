@@ -43,7 +43,7 @@ func (op *StatsType) String() string {
 type Filter struct {
 	noCopy noCopy
 	// filter can either be a single filter
-	Column     *ResultColumn
+	Column     *RequestColumn
 	Operator   Operator
 	StrValue   string
 	FloatValue float64
@@ -246,7 +246,7 @@ func ParseFilter(value string, line *string, table string, stack *[]*Filter) (er
 		i = Objects.Tables[table].ColumnsIndex[columnName]
 	}
 	col := Objects.Tables[table].Columns[i]
-	resCol := &ResultColumn{Name: columnName, Type: col.Type, Index: 0, Column: col}
+	resCol := &RequestColumn{Name: columnName, Type: col.Type, Index: 0, Column: col}
 	filter := Filter{Operator: op, Column: resCol}
 
 	err = filter.setFilterValue(col, tmp[2], line)
@@ -413,7 +413,7 @@ func ParseStats(value string, line *string, table string, stack *[]*Filter) (err
 		return
 	}
 	col := Objects.Tables[table].Columns[i]
-	resCol := &ResultColumn{Name: col.Name, Type: col.Type, Index: 0, Column: col}
+	resCol := &RequestColumn{Name: col.Name, Type: col.Type, Index: 0, Column: col}
 	stats := &Filter{Column: resCol, StatsType: op, Stats: startWith, StatsCount: 0}
 	*stack = append(*stack, stats)
 	return

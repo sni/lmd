@@ -9,23 +9,64 @@ type ObjectsType struct {
 // Objects contains the static definition of all available tables and columns
 var Objects *ObjectsType
 
+// VirtKeyMapEntry is used to define the virtual key mapping in the VirtKeyMap
+type VirtKeyMapEntry struct {
+	Index int
+	Key   string
+	Type  ColumnType
+}
+
+// VirtKeyMap maps the virtual columns with the peer status map entry.
+// If the entry is empty, then there must be a corresponding resolve function in the GetRowValue() function.
+var VirtKeyMap = map[string]VirtKeyMapEntry{
+	"key":                     {Index: -1, Key: "PeerKey", Type: StringCol},
+	"name":                    {Index: -2, Key: "PeerName", Type: StringCol},
+	"addr":                    {Index: -4, Key: "PeerAddr", Type: StringCol},
+	STATUS:                    {Index: -5, Key: "PeerStatus", Type: IntCol},
+	"bytes_send":              {Index: -6, Key: "BytesSend", Type: IntCol},
+	"bytes_received":          {Index: -7, Key: "BytesReceived", Type: IntCol},
+	"queries":                 {Index: -8, Key: "Querys", Type: IntCol},
+	"last_error":              {Index: -9, Key: "LastError", Type: StringCol},
+	"last_online":             {Index: -10, Key: "LastOnline", Type: TimeCol},
+	"last_update":             {Index: -11, Key: "LastUpdate", Type: TimeCol},
+	"response_time":           {Index: -12, Key: "ReponseTime", Type: FloatCol},
+	"state_order":             {Index: -13, Key: "", Type: IntCol},
+	"last_state_change_order": {Index: -14, Key: "", Type: IntCol},
+	"has_long_plugin_output":  {Index: -15, Key: "", Type: IntCol},
+	"idling":                  {Index: -16, Key: "Idling", Type: IntCol},
+	"last_query":              {Index: -17, Key: "LastQuery", Type: TimeCol},
+	"lmd_last_cache_update":   {Index: -18, Key: "", Type: IntCol},
+	"lmd_version":             {Index: -19, Key: "", Type: StringCol},
+	"section":                 {Index: -20, Key: "Section", Type: StringCol},
+	"parent":                  {Index: -21, Key: "PeerParent", Type: StringCol},
+	"configtool":              {Index: -22, Key: "", Type: HashMapCol},
+	"federation_key":          {Index: -23, Key: "", Type: StringListCol},
+	"federation_name":         {Index: -24, Key: "", Type: StringListCol},
+	"federation_addr":         {Index: -25, Key: "", Type: StringListCol},
+	"federation_type":         {Index: -26, Key: "", Type: StringListCol},
+	"services_with_state":     {Index: -27, Key: "", Type: StringListCol},
+	"services_with_info":      {Index: -28, Key: "", Type: StringListCol},
+	"host_comments_with_info": {Index: -29, Key: "", Type: StringListCol},
+	"comments_with_info":      {Index: -30, Key: "", Type: StringListCol},
+	EMPTY:                     {Index: -31, Key: "", Type: StringCol},
+}
+
 // Table defines the livestatus table object.
 type Table struct {
 	noCopy                 noCopy
 	Name                   string
-	MaxIndex               int
 	ColumnsIndex           map[string]int
 	Columns                []*Column
-	StaticColCacheNames    []string
+	StaticColCacheNames    []string // columns which do not change
 	StaticColCacheIndexes  []int
-	DynamicColCacheNames   []string
+	DynamicColCacheNames   []string // columns which are updated at a regular basis
 	DynamicColCacheIndexes []int
-	RefColCacheNames       []string
+	RefColCacheNames       []string // columns which contain refererences to other tables
 	RefColCacheIndexes     []int
-	PassthroughOnly        bool
-	Virtual                bool
+	PassthroughOnly        bool // flag wether table will be cached or simply passed through to remote sites
 	GroupBy                bool
-	WaitObject             []string
+	PrimaryKey             []string
+	Virtual                bool
 }
 
 // UpdateType defines if and how the column is updated.
@@ -79,7 +120,7 @@ type Column struct {
 	Name        string
 	Type        ColumnType
 	VirtType    ColumnType
-	VirtMap     *VirtKeyMapTupel
+	VirtMap     *VirtKeyMapEntry
 	Index       int
 	RefIndex    int
 	RefColIndex int
@@ -152,7 +193,9 @@ func (c *Column) GetEmptyValue() interface{} {
 }
 
 // GetTableColumnsData returns the virtual data used for the columns/table livestatus table.
-func (o *ObjectsType) GetTableColumnsData() (data [][]interface{}) {
+func (o *ObjectsType) GetTableColumnsData(table *Table) *DataStore {
+	store := DataStore{Table: table}
+	data := make([][]interface{}, 0)
 	for _, t := range o.Tables {
 		for _, c := range t.Columns {
 			colType := c.Type
@@ -193,7 +236,8 @@ func (o *ObjectsType) GetTableColumnsData() (data [][]interface{}) {
 			data = append(data, row)
 		}
 	}
-	return
+	store.InsertData(&data)
+	return &store
 }
 
 // IsDefaultSortOrder returns true if the sortfield is the default for the given table.
@@ -222,10 +266,10 @@ func (t *Table) GetColumn(name string) *Column {
 	return t.Columns[t.ColumnsIndex[name]]
 }
 
-// GetResultColumn returns a fake result column by name.
-func (t *Table) GetResultColumn(name string) *ResultColumn {
+// GetRequestColumn returns a fake result column by name.
+func (t *Table) GetRequestColumn(name string) *RequestColumn {
 	column := t.Columns[t.ColumnsIndex[name]]
-	return &ResultColumn{Name: name, Type: column.Type, Column: column}
+	return &RequestColumn{Name: name, Type: column.Type, Column: column}
 }
 
 // GetInitialKeys returns the list of strings of all static and dynamic columns.
@@ -258,8 +302,7 @@ func (t *Table) GetDynamicColumns(flags OptionalFlags) (keys []string, indexes [
 
 // AddColumnObject adds a column object.
 func (t *Table) AddColumnObject(col *Column) int {
-	Index := t.MaxIndex
-	t.MaxIndex++
+	Index := len(t.Columns)
 	if t.ColumnsIndex == nil {
 		t.ColumnsIndex = make(map[string]int)
 	}
@@ -417,13 +460,16 @@ func (o *ObjectsType) AddTable(name string, table *Table) {
 	if exists {
 		log.Panicf("table %s has been added twice", name)
 	}
+	if table.PrimaryKey == nil {
+		table.PrimaryKey = make([]string, 0)
+	}
 	o.Tables[name] = table
 	o.Order = append(o.Order, name)
 }
 
 // NewBackendsTable returns a new backends table
 func NewBackendsTable(name string) (t *Table) {
-	t = &Table{Name: name, Virtual: true, WaitObject: []string{"name"}}
+	t = &Table{Name: name, Virtual: true}
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
 	t.AddColumn("key", RefNoUpdate, VirtCol, "Id of this peer")
@@ -523,7 +569,7 @@ func NewStatusTable() (t *Table) {
 
 // NewTimeperiodsTable returns a new timeperiods table
 func NewTimeperiodsTable() (t *Table) {
-	t = &Table{Name: "timeperiods", WaitObject: []string{"name"}}
+	t = &Table{Name: "timeperiods", PrimaryKey: []string{"name"}}
 	t.AddColumn("alias", StaticUpdate, StringCol, "The alias of the timeperiod")
 	t.AddColumn("name", StaticUpdate, StringCol, "The name of the timeperiod")
 	t.AddColumn("in", DynamicUpdate, IntCol, "Wether we are currently in this period (0/1)")
@@ -548,7 +594,7 @@ func NewTimeperiodsTable() (t *Table) {
 
 // NewContactsTable returns a new contacts table
 func NewContactsTable() (t *Table) {
-	t = &Table{Name: "contacts", WaitObject: []string{"name"}}
+	t = &Table{Name: "contacts", PrimaryKey: []string{"name"}}
 	t.AddColumn("alias", StaticUpdate, StringCol, "The full name of the contact")
 	t.AddColumn("can_submit_commands", StaticUpdate, IntCol, "Wether the contact is allowed to submit commands (0/1)")
 	t.AddColumn("email", StaticUpdate, StringCol, "The email address of the contact")
@@ -569,7 +615,7 @@ func NewContactsTable() (t *Table) {
 
 // NewContactgroupsTable returns a new contactgroups table
 func NewContactgroupsTable() (t *Table) {
-	t = &Table{Name: "contactgroups", WaitObject: []string{"name"}}
+	t = &Table{Name: "contactgroups", PrimaryKey: []string{"name"}}
 	t.AddColumn("alias", StaticUpdate, StringCol, "The alias of the contactgroup")
 	t.AddColumn("members", StaticUpdate, StringListCol, "A list of all members of this contactgroup")
 	t.AddColumn("name", StaticUpdate, StringCol, "The name of the contactgroup")
@@ -583,7 +629,7 @@ func NewContactgroupsTable() (t *Table) {
 
 // NewCommandsTable returns a new commands table
 func NewCommandsTable() (t *Table) {
-	t = &Table{Name: "commands", WaitObject: []string{"name"}}
+	t = &Table{Name: "commands", PrimaryKey: []string{"name"}}
 	t.AddColumn("name", StaticUpdate, StringCol, "The name of the command")
 	t.AddColumn("line", StaticUpdate, StringCol, "The shell command line")
 
@@ -596,7 +642,7 @@ func NewCommandsTable() (t *Table) {
 
 // NewHostsTable returns a new hosts table
 func NewHostsTable() (t *Table) {
-	t = &Table{Name: HOSTS, WaitObject: []string{"name"}}
+	t = &Table{Name: HOSTS, PrimaryKey: []string{"name"}}
 	t.AddColumn("accept_passive_checks", DynamicUpdate, IntCol, "Whether passive host checks are accepted (0/1)")
 	t.AddColumn("acknowledged", DynamicUpdate, IntCol, "Whether the current host problem has been acknowledged (0/1)")
 	t.AddColumn("action_url", StaticUpdate, StringCol, "An optional URL to custom actions or information about this host")
@@ -715,7 +761,7 @@ func NewHostsTable() (t *Table) {
 
 // NewHostgroupsTable returns a new hostgroups table
 func NewHostgroupsTable() (t *Table) {
-	t = &Table{Name: "hostgroups", WaitObject: []string{"name"}}
+	t = &Table{Name: "hostgroups", PrimaryKey: []string{"name"}}
 	t.AddColumn("action_url", StaticUpdate, StringCol, "An optional URL to custom actions or information about the hostgroup")
 	t.AddColumn("alias", StaticUpdate, StringCol, "An alias of the hostgroup")
 	t.AddColumn("members", StaticUpdate, StringListCol, "A list of all host names that are members of the hostgroup")
@@ -746,7 +792,7 @@ func NewHostgroupsTable() (t *Table) {
 
 // NewServicesTable returns a new services table
 func NewServicesTable() (t *Table) {
-	t = &Table{Name: SERVICES, WaitObject: []string{"host_name", "description"}}
+	t = &Table{Name: SERVICES, PrimaryKey: []string{"host_name", "description"}}
 	t.AddColumn("accept_passive_checks", DynamicUpdate, IntCol, "Whether the service accepts passive checks (0/1)")
 	t.AddColumn("acknowledged", DynamicUpdate, IntCol, "Whether the current service problem has been acknowledged (0/1)")
 	t.AddColumn("acknowledgement_type", DynamicUpdate, IntCol, "The type of the acknownledgement (0: none, 1: normal, 2: sticky)")
@@ -859,7 +905,7 @@ func NewServicesTable() (t *Table) {
 
 // NewServicegroupsTable returns a new hostgroups table
 func NewServicegroupsTable() (t *Table) {
-	t = &Table{Name: "servicegroups", WaitObject: []string{"name"}}
+	t = &Table{Name: "servicegroups", PrimaryKey: []string{"name"}}
 	t.AddColumn("action_url", StaticUpdate, StringCol, "An optional URL to custom notes or actions on the service group")
 	t.AddColumn("alias", StaticUpdate, StringCol, "An alias of the service group")
 	t.AddColumn("members", StaticUpdate, StringListCol, "A list of all members of the service group as host/service pairs")
@@ -884,7 +930,7 @@ func NewServicegroupsTable() (t *Table) {
 
 // NewCommentsTable returns a new comments table
 func NewCommentsTable() (t *Table) {
-	t = &Table{Name: "comments", WaitObject: []string{"id"}}
+	t = &Table{Name: "comments", PrimaryKey: []string{"id"}}
 	t.AddColumn("author", StaticUpdate, StringCol, "The contact that entered the comment")
 	t.AddColumn("comment", StaticUpdate, StringCol, "A comment text")
 	t.AddColumn("entry_time", StaticUpdate, IntCol, "The time the entry was made as UNIX timestamp")
@@ -912,7 +958,7 @@ func NewCommentsTable() (t *Table) {
 
 // NewDowntimesTable returns a new downtimes table
 func NewDowntimesTable() (t *Table) {
-	t = &Table{Name: "downtimes", WaitObject: []string{"id"}}
+	t = &Table{Name: "downtimes", PrimaryKey: []string{"id"}}
 	t.AddColumn("author", StaticUpdate, StringCol, "The contact that scheduled the downtime")
 	t.AddColumn("comment", StaticUpdate, StringCol, "A comment text")
 	t.AddColumn("duration", StaticUpdate, IntCol, "The duration of the downtime in seconds")
