@@ -123,23 +123,36 @@ func (d *DataRow) indirectValueByRequestColumn(col *RequestColumn) interface{} {
 
 // getVirtRowValue returns the actual value for a virtual column.
 func (d *DataRow) getVirtRowValue(col *RequestColumn) interface{} {
-	ok := false
 	var value interface{}
-	if d.DataStore.Peer != nil {
-		p := d.DataStore.Peer
-		if p.Flags&LMDSub == LMDSub {
-			val, ok2 := d.getVirtSubLMDValue(col)
-			if ok2 {
-				value = val
-			}
-		} else {
-			p.PeerLock.RLock()
-			value, ok = p.Status[col.Column.VirtMap.Key]
-			p.PeerLock.RUnlock()
+	if col.Column.VirtMap.StatusKey != "" {
+		if d.DataStore.Peer == nil {
+			log.Panicf("requesting column %s with peer", col.Name)
 		}
-	}
-	if !ok {
-		value = d.getVirtRowComputedValue(col)
+		p := d.DataStore.Peer
+		ok := false
+		if p.Flags&LMDSub == LMDSub {
+			value, ok = d.getVirtSubLMDValue(col)
+		}
+		if !ok {
+			p.PeerLock.RLock()
+			value = p.Status[col.Column.VirtMap.StatusKey]
+			p.PeerLock.RUnlock()
+			if value == nil {
+				value = col.Column.GetEmptyValue()
+			}
+		}
+	} else {
+		// redirect host_ columns to the host table
+		if strings.HasPrefix(col.Name, "host_") {
+			hostName := d.GetValueByName("host_name").(string)
+			host := d.DataStore.Peer.Tables["hosts"].Index[hostName]
+			value = host.GetValueByName(strings.TrimPrefix(col.Name, "host_"))
+		} else {
+			value = col.Column.VirtMap.ResolvFunc(d, col)
+		}
+		if value == nil {
+			value = col.Column.GetEmptyValue()
+		}
 	}
 	colType := col.Column.VirtType
 	switch colType {
@@ -167,142 +180,87 @@ func (d *DataRow) getVirtRowValue(col *RequestColumn) interface{} {
 	return nil
 }
 
-// getVirtRowComputedValue returns a computed virtual value for the given column.
-func (d *DataRow) getVirtRowComputedValue(col *RequestColumn) (value interface{}) {
-	switch col.Name {
-	case EMPTY:
-		// return empty string as placeholder for nonexisting columns
-		value = ""
-	case "lmd_last_cache_update":
-		// return timestamp of last update for this data row
-		value = d.LastUpdate
-	case "lmd_version":
-		// return lmd version
-		value = fmt.Sprintf("%s-%s", NAME, Version())
-	case "last_state_change_order":
-		// return last_state_change or program_start
-		lastStateChange := numberToFloat(&(d.RawData[d.DataStore.Table.ColumnsIndex["last_state_change"]]))
-		if lastStateChange == 0 {
-			value = d.DataStore.Peer.Status["ProgramStart"]
-		} else {
-			value = lastStateChange
-		}
-	case "state_order":
-		// return 4 instead of 2, which makes critical come first
-		// this way we can use this column to sort by state
-		state := numberToFloat(&(d.RawData[d.DataStore.Table.ColumnsIndex["state"]]))
-		if state == 2 {
-			value = 4
-		} else {
-			value = state
-		}
-	case "has_long_plugin_output":
-		// return 1 if there is long_plugin_output
-		val := d.RawData[d.DataStore.Table.ColumnsIndex["long_plugin_output"]].(string)
-		if val != "" {
-			value = 1
-		} else {
-			value = 0
-		}
-	case "services_with_state":
-		fallthrough
-	case "services_with_info":
-		// test
-		servicesIndex := d.DataStore.Table.ColumnsIndex["services"]
-		services := d.RawData[servicesIndex]
-		hostnameIndex := d.DataStore.Table.ColumnsIndex["name"]
-		hostName := d.RawData[hostnameIndex].(string)
-		var res []interface{}
-		for _, v := range services.([]interface{}) {
-			var serviceValue []interface{}
-			var serviceID strings.Builder
-
-			serviceID.WriteString(hostName)
-			serviceID.WriteString(";")
-			serviceID.WriteString(v.(string))
-
-			serviceInfo := d.DataStore.Peer.Tables["services"].Index[serviceID.String()].RawData
-			stateIndex := d.DataStore.Peer.Tables["services"].Table.GetColumn("state").Index
-			checkedIndex := d.DataStore.Peer.Tables["services"].Table.GetColumn("has_been_checked").Index
-
-			serviceValue = append(serviceValue, v.(string), serviceInfo[stateIndex], serviceInfo[checkedIndex])
-			if col.Name == "services_with_info" {
-				outputIndex := d.DataStore.Peer.Tables["services"].Table.GetColumn("plugin_output").Index
-				serviceValue = append(serviceValue, serviceInfo[outputIndex])
-			}
-			res = append(res, serviceValue)
-		}
-		if len(res) > 0 {
-			value = res
-		} else {
-			value = []string{}
-		}
-	case "host_comments_with_info":
-		fallthrough
-	case "comments_with_info":
-		var comments interface{}
-		if col.Name == "host_comments_with_info" {
-			hostNameIndex := d.DataStore.Table.ColumnsIndex["host_name"]
-			hostName := d.RawData[hostNameIndex]
-			host := d.DataStore.Peer.Tables["hosts"].Index[hostName.(string)].RawData
-			commentsIndex := d.DataStore.Peer.Tables["hosts"].Table.GetColumn("comments").Index
-			comments = host[commentsIndex]
-		} else {
-			commentsIndex := d.DataStore.Table.ColumnsIndex["comments"]
-			comments = d.RawData[commentsIndex]
-		}
-		var res []interface{}
-		for _, commentID := range comments.([]interface{}) {
-			var commentWithInfo []interface{}
-
-			commentIDStr := strconv.FormatFloat(commentID.(float64), 'f', 0, 64)
-			comment := d.DataStore.Peer.Tables["comments"].Index[commentIDStr].RawData
-
-			authorIndex := d.DataStore.Peer.Tables["comments"].Table.GetColumn("author").Index
-			commentIndex := d.DataStore.Peer.Tables["comments"].Table.GetColumn("comment").Index
-
-			commentWithInfo = append(commentWithInfo, commentID, comment[authorIndex], comment[commentIndex])
-			res = append(res, commentWithInfo)
-		}
-		if len(res) > 0 {
-			value = res
-		} else {
-			value = []string{}
-		}
-	case "configtool":
-		if _, ok := d.DataStore.Peer.Status["ConfigTool"]; ok {
-			value = d.DataStore.Peer.Status["ConfigTool"]
-		} else {
-			value = ""
-		}
-	case "federation_addr":
-		if _, ok := d.DataStore.Peer.Status["SubAddr"]; ok {
-			value = d.DataStore.Peer.Status["SubAddr"]
-		} else {
-			value = []string{}
-		}
-	case "federation_type":
-		if _, ok := d.DataStore.Peer.Status["SubType"]; ok {
-			value = d.DataStore.Peer.Status["SubType"]
-		} else {
-			value = []string{}
-		}
-	case "federation_name":
-		if _, ok := d.DataStore.Peer.Status["SubName"]; ok {
-			value = d.DataStore.Peer.Status["SubName"]
-		} else {
-			value = []string{}
-		}
-	case "federation_key":
-		if _, ok := d.DataStore.Peer.Status["SubKey"]; ok {
-			value = d.DataStore.Peer.Status["SubKey"]
-		} else {
-			value = []string{}
-		}
-	default:
-		log.Panicf("cannot handle virtual column: %s", col.Name)
+// VirtColStateOrder returns sortable state
+func VirtColLastStateChangeOrder(d *DataRow, col *RequestColumn) interface{} {
+	// return last_state_change or program_start
+	lastStateChange := numberToFloat(&(d.RawData[d.DataStore.Table.ColumnsIndex["last_state_change"]]))
+	if lastStateChange == 0 {
+		return d.DataStore.Peer.Status["ProgramStart"]
 	}
-	return
+	return lastStateChange
+}
+
+// VirtColStateOrder returns sortable state
+func VirtColStateOrder(d *DataRow, col *RequestColumn) interface{} {
+	// return 4 instead of 2, which makes critical come first
+	// this way we can use this column to sort by state
+	state := numberToFloat(&(d.RawData[d.DataStore.Table.ColumnsIndex["state"]]))
+	if state == 2 {
+		return 4
+	}
+	return state
+}
+
+// VirtColHasLongPluginOutput returns 1 if there is long plugin output, 0 if not
+func VirtColHasLongPluginOutput(d *DataRow, col *RequestColumn) interface{} {
+	val := d.RawData[d.DataStore.Table.ColumnsIndex["long_plugin_output"]].(string)
+	if val != "" {
+		return 1
+	}
+	return 0
+}
+
+// VirtColServicesWithInfo returns list of services with additional information
+func VirtColServicesWithInfo(d *DataRow, col *RequestColumn) interface{} {
+	servicesIndex := d.DataStore.Table.ColumnsIndex["services"]
+	services := d.RawData[servicesIndex]
+	hostnameIndex := d.DataStore.Table.ColumnsIndex["name"]
+	hostName := d.RawData[hostnameIndex].(string)
+	stateIndex := d.DataStore.Peer.Tables["services"].Table.GetColumn("state").Index
+	checkedIndex := d.DataStore.Peer.Tables["services"].Table.GetColumn("has_been_checked").Index
+	outputIndex := d.DataStore.Peer.Tables["services"].Table.GetColumn("plugin_output").Index
+	res := make([]interface{}, 0)
+	for _, v := range services.([]interface{}) {
+		var serviceValue []interface{}
+		var serviceID strings.Builder
+
+		serviceID.WriteString(hostName)
+		serviceID.WriteString(";")
+		serviceID.WriteString(v.(string))
+
+		serviceInfo := d.DataStore.Peer.Tables["services"].Index[serviceID.String()].RawData
+		serviceValue = append(serviceValue, v.(string), serviceInfo[stateIndex], serviceInfo[checkedIndex])
+		if col.Name == "services_with_info" {
+			serviceValue = append(serviceValue, serviceInfo[outputIndex])
+		}
+		res = append(res, serviceValue)
+	}
+	if len(res) > 0 {
+		return res
+	}
+	return nil
+}
+
+// VirtColCommentsWithInfo returns list of comment IDs
+func VirtColCommentsWithInfo(d *DataRow, col *RequestColumn) interface{} {
+	commentsIndex := d.DataStore.Table.ColumnsIndex["comments"]
+	comments := d.RawData[commentsIndex]
+	res := make([]interface{}, 0)
+	authorIndex := d.DataStore.Peer.Tables["comments"].Table.GetColumn("author").Index
+	commentIndex := d.DataStore.Peer.Tables["comments"].Table.GetColumn("comment").Index
+	for _, commentID := range comments.([]interface{}) {
+		var commentWithInfo []interface{}
+
+		commentIDStr := strconv.FormatFloat(commentID.(float64), 'f', 0, 64)
+		comment := d.DataStore.Peer.Tables["comments"].Index[commentIDStr].RawData
+
+		commentWithInfo = append(commentWithInfo, commentID, comment[authorIndex], comment[commentIndex])
+		res = append(res, commentWithInfo)
+	}
+	if len(res) > 0 {
+		return res
+	}
+	return nil
 }
 
 // getVirtSubLMDValue returns status values for LMDSub backends

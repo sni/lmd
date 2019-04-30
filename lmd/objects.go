@@ -1,5 +1,7 @@
 package main
 
+import "fmt"
+
 // ObjectsType is a map of tables with a given order.
 type ObjectsType struct {
 	Tables map[string]*Table
@@ -9,47 +11,57 @@ type ObjectsType struct {
 // Objects contains the static definition of all available tables and columns
 var Objects *ObjectsType
 
-// VirtKeyMapEntry is used to define the virtual key mapping in the VirtKeyMap
-type VirtKeyMapEntry struct {
-	Index int
-	Key   string
-	Type  ColumnType
+// VirtColumnMapEntry is used to define the virtual key mapping in the VirtColumnMap
+type VirtColumnResolveFunc func(d *DataRow, col *RequestColumn) interface{}
+
+// VirtColumnMapEntry is used to define the virtual key mapping in the VirtColumnMap
+type VirtColumnMapEntry struct {
+	Name       string
+	Index      int
+	StatusKey  string
+	Type       ColumnType
+	ResolvFunc VirtColumnResolveFunc
 }
 
-// VirtKeyMap maps the virtual columns with the peer status map entry.
-// If the entry is empty, then there must be a corresponding resolve function in the GetRowValue() function.
-var VirtKeyMap = map[string]VirtKeyMapEntry{
-	"key":                     {Index: -1, Key: "PeerKey", Type: StringCol},
-	"name":                    {Index: -2, Key: "PeerName", Type: StringCol},
-	"addr":                    {Index: -4, Key: "PeerAddr", Type: StringCol},
-	STATUS:                    {Index: -5, Key: "PeerStatus", Type: IntCol},
-	"bytes_send":              {Index: -6, Key: "BytesSend", Type: IntCol},
-	"bytes_received":          {Index: -7, Key: "BytesReceived", Type: IntCol},
-	"queries":                 {Index: -8, Key: "Querys", Type: IntCol},
-	"last_error":              {Index: -9, Key: "LastError", Type: StringCol},
-	"last_online":             {Index: -10, Key: "LastOnline", Type: TimeCol},
-	"last_update":             {Index: -11, Key: "LastUpdate", Type: TimeCol},
-	"response_time":           {Index: -12, Key: "ReponseTime", Type: FloatCol},
-	"state_order":             {Index: -13, Key: "", Type: IntCol},
-	"last_state_change_order": {Index: -14, Key: "", Type: IntCol},
-	"has_long_plugin_output":  {Index: -15, Key: "", Type: IntCol},
-	"idling":                  {Index: -16, Key: "Idling", Type: IntCol},
-	"last_query":              {Index: -17, Key: "LastQuery", Type: TimeCol},
-	"lmd_last_cache_update":   {Index: -18, Key: "", Type: IntCol},
-	"lmd_version":             {Index: -19, Key: "", Type: StringCol},
-	"section":                 {Index: -20, Key: "Section", Type: StringCol},
-	"parent":                  {Index: -21, Key: "PeerParent", Type: StringCol},
-	"configtool":              {Index: -22, Key: "", Type: HashMapCol},
-	"federation_key":          {Index: -23, Key: "", Type: StringListCol},
-	"federation_name":         {Index: -24, Key: "", Type: StringListCol},
-	"federation_addr":         {Index: -25, Key: "", Type: StringListCol},
-	"federation_type":         {Index: -26, Key: "", Type: StringListCol},
-	"services_with_state":     {Index: -27, Key: "", Type: StringListCol},
-	"services_with_info":      {Index: -28, Key: "", Type: StringListCol},
-	"host_comments_with_info": {Index: -29, Key: "", Type: StringListCol},
-	"comments_with_info":      {Index: -30, Key: "", Type: StringListCol},
-	EMPTY:                     {Index: -31, Key: "", Type: StringCol},
+// VirtColumnList maps the virtual columns with the peer status map entry.
+// Must have either a StatusKey or a ResolvFunc set
+var VirtColumnList = []VirtColumnMapEntry{
+	// access things from the peer status by StatusKey
+	{Name: "key", StatusKey: "PeerKey", Type: StringCol},
+	{Name: "name", StatusKey: "PeerName", Type: StringCol},
+	{Name: "addr", StatusKey: "PeerAddr", Type: StringCol},
+	{Name: STATUS, StatusKey: "PeerStatus", Type: IntCol},
+	{Name: "bytes_send", StatusKey: "BytesSend", Type: IntCol},
+	{Name: "bytes_received", StatusKey: "BytesReceived", Type: IntCol},
+	{Name: "queries", StatusKey: "Querys", Type: IntCol},
+	{Name: "last_error", StatusKey: "LastError", Type: StringCol},
+	{Name: "last_online", StatusKey: "LastOnline", Type: TimeCol},
+	{Name: "last_update", StatusKey: "LastUpdate", Type: TimeCol},
+	{Name: "response_time", StatusKey: "ReponseTime", Type: FloatCol},
+	{Name: "idling", StatusKey: "Idling", Type: IntCol},
+	{Name: "last_query", StatusKey: "LastQuery", Type: TimeCol},
+	{Name: "section", StatusKey: "Section", Type: StringCol},
+	{Name: "parent", StatusKey: "PeerParent", Type: StringCol},
+	{Name: "configtool", StatusKey: "ConfigTool", Type: HashMapCol},
+	{Name: "federation_key", StatusKey: "SubKey", Type: StringListCol},
+	{Name: "federation_name", StatusKey: "SubName", Type: StringListCol},
+	{Name: "federation_addr", StatusKey: "SubAddr", Type: StringListCol},
+	{Name: "federation_type", StatusKey: "SubType", Type: StringListCol},
+
+	// calculated columns by ResolvFunc
+	{Name: "lmd_last_cache_update", Type: IntCol, ResolvFunc: func(d *DataRow, _ *RequestColumn) interface{} { return d.LastUpdate }},
+	{Name: "lmd_version", Type: StringCol, ResolvFunc: func(_ *DataRow, _ *RequestColumn) interface{} { return fmt.Sprintf("%s-%s", NAME, Version()) }},
+	{Name: "state_order", Type: IntCol, ResolvFunc: VirtColStateOrder},
+	{Name: "last_state_change_order", Type: IntCol, ResolvFunc: VirtColLastStateChangeOrder},
+	{Name: "has_long_plugin_output", Type: IntCol, ResolvFunc: VirtColHasLongPluginOutput},
+	{Name: "services_with_state", Type: StringListCol, ResolvFunc: VirtColServicesWithInfo},
+	{Name: "services_with_info", Type: StringListCol, ResolvFunc: VirtColServicesWithInfo},
+	{Name: "comments_with_info", Type: StringListCol, ResolvFunc: VirtColCommentsWithInfo},
+	{Name: EMPTY, Type: StringCol, ResolvFunc: func(_ *DataRow, _ *RequestColumn) interface{} { return "" }}, // return empty string as placeholder for nonexisting columns
 }
+
+// VirtColumnMap maps is the lookup map for the VirtColumnList
+var VirtColumnMap = map[string]VirtColumnMapEntry{}
 
 // Table defines the livestatus table object.
 type Table struct {
@@ -120,7 +132,7 @@ type Column struct {
 	Name        string
 	Type        ColumnType
 	VirtType    ColumnType
-	VirtMap     *VirtKeyMapEntry
+	VirtMap     *VirtColumnMapEntry
 	Index       int
 	RefIndex    int
 	RefColIndex int
@@ -179,7 +191,11 @@ const (
 
 // GetEmptyValue returns an empty placeholder representation for the given column type
 func (c *Column) GetEmptyValue() interface{} {
-	switch c.Type {
+	typ := c.Type
+	if c.Type == VirtCol {
+		typ = c.VirtType
+	}
+	switch typ {
 	case IntCol:
 		fallthrough
 	case FloatCol:
@@ -338,9 +354,9 @@ func (t *Table) AddColumn(name string, update UpdateType, coltype ColumnType, de
 		Description: description,
 	}
 	if column.Type == VirtCol {
-		virtMap, ok := VirtKeyMap[name]
+		virtMap, ok := VirtColumnMap[name]
 		if !ok {
-			panic("no VirtKeyMap entry for " + name)
+			panic("no VirtColumnMap entry for " + name)
 		}
 		column.VirtMap = &virtMap
 		column.VirtType = column.VirtMap.Type
@@ -420,13 +436,16 @@ func InitObjects() {
 	Objects = &ObjectsType{}
 
 	// generate virtual keys with peer and host_peer prefix
-	for name, dat := range VirtKeyMap {
-		if dat.Key != "" {
-			VirtKeyMap["peer_"+name] = dat
-			VirtKeyMap["host_peer_"+name] = dat
+	for i := range VirtColumnList {
+		dat := VirtColumnList[i]
+		dat.Index = -i - 1 // VirtColumns get negative index starting with -1
+		VirtColumnMap[dat.Name] = dat
+		if dat.StatusKey != "" {
+			VirtColumnMap["peer_"+dat.Name] = dat
+			VirtColumnMap["host_peer_"+dat.Name] = dat
 		}
-		if dat.Key == "" {
-			VirtKeyMap["host_"+name] = dat
+		if dat.StatusKey == "" {
+			VirtColumnMap["host_"+dat.Name] = dat
 		}
 	}
 
