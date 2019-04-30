@@ -19,8 +19,8 @@ type Request struct {
 	noCopy              noCopy
 	Table               string
 	Command             string
-	Columns             []string        // parsed columns field
-	RequestColumns      []RequestColumn // calculated/expanded columns list
+	Columns             []string         // parsed columns field
+	RequestColumns      []*RequestColumn // calculated/expanded columns list
 	ReqColIndex         []int
 	Filter              []*Filter
 	FilterStr           string
@@ -46,6 +46,7 @@ type Request struct {
 
 // RequestColumn is a column container for results
 type RequestColumn struct {
+	noCopy noCopy
 	Name   string
 	Type   ColumnType
 	Column *Column // reference to the real column
@@ -780,24 +781,29 @@ func (req *Request) SetColumnsIndex() (err error) {
 	if req.Command != "" {
 		return
 	}
-	indexes := make([]int, 0)
-	columns := make([]RequestColumn, 0)
 	requestColumnsMap := make(map[string]int)
 	table := Objects.Tables[req.Table]
+	numColumns := len(req.Columns) + len(req.Stats)
+	if numColumns == 0 {
+		numColumns = len(table.Columns)
+	}
+	numColumns += len(req.Sort)
+	indexes := make([]int, 0, numColumns)
+	columns := make([]*RequestColumn, 0, numColumns)
 
 	// if no column header was given, return all columns
 	// but only if this is no stats query
 	if len(req.Columns) == 0 && len(req.Stats) == 0 {
 		for j, col := range table.Columns {
 			if col.Update != RefUpdate && col.Name != EMPTY {
-				indexes, columns = addRequestColumn(table, col.Name, j, requestColumnsMap, indexes, columns, false)
+				addRequestColumn(table, col.Name, j, requestColumnsMap, &indexes, &columns, false)
 			}
 		}
 	}
 
 	// build array of requested columns as ResultColumn objects list
-	for j, colName := range req.Columns {
-		indexes, columns = addRequestColumn(table, colName, j, requestColumnsMap, indexes, columns, false)
+	for j := range req.Columns {
+		addRequestColumn(table, req.Columns[j], j, requestColumnsMap, &indexes, &columns, false)
 	}
 
 	// check wether our sort columns do exist in the output
@@ -810,7 +816,7 @@ func (req *Request) SetColumnsIndex() (err error) {
 		i, Ok := requestColumnsMap[s.Name]
 		if !Ok {
 			i = len(columns)
-			indexes, columns = addRequestColumn(table, s.Name, i, requestColumnsMap, indexes, columns, true)
+			addRequestColumn(table, s.Name, i, requestColumnsMap, &indexes, &columns, true)
 		}
 		s.Index = i
 	}
@@ -821,15 +827,15 @@ func (req *Request) SetColumnsIndex() (err error) {
 	return
 }
 
-func addRequestColumn(table *Table, colName string, requestIndex int, requestColumnsMap map[string]int, indexes []int, columns []RequestColumn, hidden bool) ([]int, []RequestColumn) {
+func addRequestColumn(table *Table, colName string, requestIndex int, requestColumnsMap map[string]int, indexes *[]int, columns *[]*RequestColumn, hidden bool) {
 	colName = strings.ToLower(colName)
 	i, ok := table.ColumnsIndex[colName]
 	if !ok {
 		if table.PassthroughOnly {
-			indexes = append(indexes, -1)
-			columns = append(columns, RequestColumn{Name: colName, Type: StringCol, Index: requestIndex, Hidden: hidden})
+			*indexes = append(*indexes, -1)
+			*columns = append(*columns, &RequestColumn{Name: colName, Type: StringCol, Index: requestIndex, Hidden: hidden})
 			requestColumnsMap[colName] = requestIndex
-			return indexes, columns
+			return
 		}
 		if !fixBrokenClientsRequestColumn(&colName, table.Name) {
 			colName = EMPTY
@@ -838,11 +844,10 @@ func addRequestColumn(table *Table, colName string, requestIndex int, requestCol
 	}
 	col := table.Columns[i]
 	if col.Type == VirtCol {
-		indexes = append(indexes, col.VirtMap.Index)
+		*indexes = append(*indexes, col.VirtMap.Index)
 	} else {
-		indexes = append(indexes, i)
+		*indexes = append(*indexes, i)
 	}
-	columns = append(columns, RequestColumn{Name: colName, Type: col.Type, Index: requestIndex, Column: col, Hidden: hidden})
+	*columns = append(*columns, &RequestColumn{Name: colName, Type: col.Type, Index: requestIndex, Column: col, Hidden: hidden})
 	requestColumnsMap[colName] = requestIndex
-	return indexes, columns
 }

@@ -331,7 +331,7 @@ func (d *DataRow) getStatsKey(res *Response) string {
 	keyValues := []string{}
 	for i := range res.Request.RequestColumns {
 		col := res.Request.RequestColumns[i]
-		value := d.GetValueByRequestColumn(&col)
+		value := d.GetValueByRequestColumn(col)
 		keyValues = append(keyValues, fmt.Sprintf("%v", value))
 	}
 	return strings.Join(keyValues, ";")

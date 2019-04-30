@@ -604,7 +604,7 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table) {
 	for i, col := range res.Request.RequestColumns {
 		if col.Type == VirtCol {
 			colref := res.Request.RequestColumns[i]
-			virtColumns = append(virtColumns, &colref)
+			virtColumns = append(virtColumns, colref)
 		} else {
 			backendColumns = append(backendColumns, col.Name)
 		}

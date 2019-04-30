@@ -150,6 +150,12 @@ var once sync.Once
 var mainSignalChannel chan os.Signal
 var lastMainRestart = time.Now().Unix()
 
+var reHTTPHostPort *regexp.Regexp
+var reAddrCompl1 *regexp.Regexp
+var reAddrCompl2 *regexp.Regexp
+var reAddrCompl3 *regexp.Regexp
+var reAddrCompl4 *regexp.Regexp
+
 // initialize objects structure
 func init() {
 	InitObjects()
@@ -159,6 +165,11 @@ func init() {
 	PeerMapOrder = make([]string, 0)
 	Listeners = make(map[string]*Listener)
 	ListenersLock = NewLoggingLock("ListenersLock")
+	reHTTPHostPort = regexp.MustCompile("^(https?)://(.*?):(.*)")
+	reAddrCompl1 = regexp.MustCompile(`/thruk/$`)
+	reAddrCompl2 = regexp.MustCompile(`/thruk$`)
+	reAddrCompl3 = regexp.MustCompile(`/remote\.cgi$`)
+	reAddrCompl4 = regexp.MustCompile(`/$`)
 }
 
 func setFlags() {
@@ -296,9 +307,8 @@ func initializeListeners(localConfig *Config, waitGroupListener *sync.WaitGroup,
 func initializePeers(localConfig *Config, waitGroupPeers *sync.WaitGroup, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) {
 	// This node's http address (http://*:1234), to be used as address pattern
 	var nodeListenAddress string
-	rx := regexp.MustCompile("^(https?)://(.*?):(.*)")
 	for _, listen := range localConfig.Listen {
-		parts := rx.FindStringSubmatch(listen)
+		parts := reHTTPHostPort.FindStringSubmatch(listen)
 		if len(parts) != 4 {
 			continue
 		}
@@ -602,6 +612,14 @@ func ReadConfig(files []string) *Config {
 	}
 	conf.Listen = allListeners
 
+	for i := range conf.Connections {
+		for j := range conf.Connections[i].Source {
+			if strings.HasPrefix(conf.Connections[i].Source[j], "http") {
+				conf.Connections[i].Source[j] = completePeerHTTPAddr(conf.Connections[i].Source[j])
+			}
+		}
+	}
+
 	promPeerUpdateInterval.Set(float64(conf.Updateinterval))
 
 	return conf
@@ -645,4 +663,22 @@ func VersionNumeric(input string) (numeric float64) {
 		pow -= 3
 	}
 	return numeric
+}
+
+// completePeerHTTPAddr returns autocompleted address for peer
+// it appends /thruk/cgi-bin/remote.cgi or parts of it
+func completePeerHTTPAddr(addr string) string {
+	// remove trailing slashes
+	addr = strings.TrimSuffix(addr, "/")
+	switch {
+	case reAddrCompl1.MatchString(addr):
+		return addr + "cgi-bin/remote.cgi"
+	case reAddrCompl2.MatchString(addr):
+		return addr + "/cgi-bin/remote.cgi"
+	case reAddrCompl3.MatchString(addr):
+		return addr
+	case reAddrCompl4.MatchString(addr):
+		return addr + "thruk/cgi-bin/remote.cgi"
+	}
+	return addr + "/thruk/cgi-bin/remote.cgi"
 }

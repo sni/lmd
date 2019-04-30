@@ -2110,7 +2110,7 @@ func (p *Peer) HTTPQuery(req *Request, peerAddr string, query string) (res []byt
 // HTTPPostQueryResult returns response array from thruk api
 func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url.Values, headers map[string]string) (result *HTTPResult, err error) {
 	p.HTTPClient.Timeout = time.Duration(p.LocalConfig.NetTimeout) * time.Second
-	req, err := http.NewRequest("POST", completePeerHTTPAddr(peerAddr), strings.NewReader(postData.Encode()))
+	req, err := http.NewRequest("POST", peerAddr, strings.NewReader(postData.Encode()))
 	if err != nil {
 		return nil, err
 	}
@@ -2374,7 +2374,7 @@ Rows:
 		resRow := make([]interface{}, numPerRow)
 		for k := 0; k < numPerRow; k++ {
 			col := res.Request.RequestColumns[k]
-			resRow[k] = row.GetValueByRequestColumn(&col)
+			resRow[k] = row.GetValueByRequestColumn(col)
 			// fill null values with something useful
 			if resRow[k] == nil {
 				resRow[k] = col.Column.GetEmptyValue()
@@ -2491,24 +2491,6 @@ func (p *Peer) checkIcinga2Reload() bool {
 		return (p.InitAllTables())
 	}
 	return (true)
-}
-
-// completePeerHTTPAddr returns autocompleted address for peer
-// it appends /thruk/cgi-bin/remote.cgi or parts of it
-func completePeerHTTPAddr(addr string) string {
-	// remove trailing slashes
-	addr = strings.TrimSuffix(addr, "/")
-	switch {
-	case regexp.MustCompile(`/thruk/$`).MatchString(addr):
-		return addr + "cgi-bin/remote.cgi"
-	case regexp.MustCompile(`/thruk$`).MatchString(addr):
-		return addr + "/cgi-bin/remote.cgi"
-	case regexp.MustCompile(`/remote\.cgi$`).MatchString(addr):
-		return addr
-	case regexp.MustCompile(`/$`).MatchString(addr):
-		return addr + "thruk/cgi-bin/remote.cgi"
-	}
-	return addr + "/thruk/cgi-bin/remote.cgi"
 }
 
 func (p *Peer) setBroken(details string) {
