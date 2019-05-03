@@ -2643,7 +2643,11 @@ func (p *Peer) setFederationInfo(data map[string]interface{}, statuskey, datakey
 		if v, ok := data["federation_"+datakey].([]interface{}); ok {
 			list := []string{}
 			for _, d := range v {
-				list = append(list, d.(string))
+				s := d.(string)
+				if statuskey == "SubAddr" {
+					s = strings.TrimSuffix(s, "/thruk/cgi-bin/remote.cgi")
+				}
+				list = append(list, s)
 			}
 			p.Status[statuskey] = list
 			return

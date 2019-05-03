@@ -151,10 +151,6 @@ var mainSignalChannel chan os.Signal
 var lastMainRestart = time.Now().Unix()
 
 var reHTTPHostPort *regexp.Regexp
-var reAddrCompl1 *regexp.Regexp
-var reAddrCompl2 *regexp.Regexp
-var reAddrCompl3 *regexp.Regexp
-var reAddrCompl4 *regexp.Regexp
 
 // initialize objects structure
 func init() {
@@ -166,10 +162,6 @@ func init() {
 	Listeners = make(map[string]*Listener)
 	ListenersLock = NewLoggingLock("ListenersLock")
 	reHTTPHostPort = regexp.MustCompile("^(https?)://(.*?):(.*)")
-	reAddrCompl1 = regexp.MustCompile(`/thruk/$`)
-	reAddrCompl2 = regexp.MustCompile(`/thruk$`)
-	reAddrCompl3 = regexp.MustCompile(`/remote\.cgi$`)
-	reAddrCompl4 = regexp.MustCompile(`/$`)
 }
 
 func setFlags() {
@@ -668,17 +660,9 @@ func VersionNumeric(input string) (numeric float64) {
 // completePeerHTTPAddr returns autocompleted address for peer
 // it appends /thruk/cgi-bin/remote.cgi or parts of it
 func completePeerHTTPAddr(addr string) string {
-	// remove trailing slashes
+	addr = strings.TrimSuffix(addr, "cgi-bin/remote.cgi")
 	addr = strings.TrimSuffix(addr, "/")
-	switch {
-	case reAddrCompl1.MatchString(addr):
-		return addr + "cgi-bin/remote.cgi"
-	case reAddrCompl2.MatchString(addr):
-		return addr + "/cgi-bin/remote.cgi"
-	case reAddrCompl3.MatchString(addr):
-		return addr
-	case reAddrCompl4.MatchString(addr):
-		return addr + "thruk/cgi-bin/remote.cgi"
-	}
+	addr = strings.TrimSuffix(addr, "thruk")
+	addr = strings.TrimSuffix(addr, "/")
 	return addr + "/thruk/cgi-bin/remote.cgi"
 }
