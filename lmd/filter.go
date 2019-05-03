@@ -238,15 +238,15 @@ func ParseFilter(value string, line *string, table string, stack *[]*Filter) (er
 	columnName := tmp[0]
 
 	// convert value to type of column
-	i, Ok := Objects.Tables[table].ColumnsIndex[columnName]
-	if !Ok {
+	i, ok := Objects.Tables[table].ColumnsIndex[columnName]
+	if !ok {
 		if !fixBrokenClientsRequestColumn(&columnName, table) {
 			columnName = EMPTY
 		}
 		i = Objects.Tables[table].ColumnsIndex[columnName]
 	}
 	col := Objects.Tables[table].Columns[i]
-	resCol := &RequestColumn{Name: columnName, Type: col.Type, Index: 0, Column: col}
+	resCol := &RequestColumn{Name: columnName, Type: col.Type, Column: col}
 	filter := Filter{Operator: op, Column: resCol}
 
 	err = filter.setFilterValue(col, tmp[2], line)
@@ -380,7 +380,7 @@ func parseFilterOp(opStr string, line *string) (op Operator, isRegex bool, err e
 // ParseStats parses a text line into a stats object.
 // It returns any error encountered.
 func ParseStats(value string, line *string, table string, stack *[]*Filter) (err error) {
-	tmp := strings.SplitN(value, " ", 3)
+	tmp := strings.SplitN(value, " ", 2)
 	if len(tmp) < 2 {
 		err = errors.New("bad request: stats header, must be Stats: <field> <operator> <value> OR Stats: <sum|avg|min|max> <field>")
 		return
@@ -407,8 +407,8 @@ func ParseStats(value string, line *string, table string, stack *[]*Filter) (err
 		return
 	}
 
-	i, Ok := Objects.Tables[table].ColumnsIndex[tmp[1]]
-	if !Ok {
+	i, ok := Objects.Tables[table].ColumnsIndex[tmp[1]]
+	if !ok {
 		err = errors.New("bad request: unrecognized column from stats: " + tmp[1] + " in " + *line)
 		return
 	}
@@ -744,7 +744,7 @@ func fixBrokenClientsRequestColumn(columnName *string, table string) bool {
 		fixedColumnName = strings.TrimPrefix(fixedColumnName, "host_")
 	}
 
-	if _, Ok := Objects.Tables[table].ColumnsIndex[fixedColumnName]; Ok {
+	if _, ok := Objects.Tables[table].ColumnsIndex[fixedColumnName]; ok {
 		*columnName = fixedColumnName
 		return true
 	}

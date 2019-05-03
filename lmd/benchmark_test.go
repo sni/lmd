@@ -328,6 +328,32 @@ func BenchmarkServicelistLimit_1k_svc_10Peer(b *testing.B) {
 	}
 }
 
+func BenchmarkRequestParser1(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		buf := bufio.NewReader(bytes.NewBufferString(servicesPageQuery))
+		_, size, err := NewRequest(buf)
+		if err != nil {
+			panic(err.Error())
+		}
+		if size != 1681 {
+			panic(fmt.Sprintf("got wrong size: %d", size))
+		}
+	}
+}
+
+func BenchmarkRequestParser2(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		buf := bufio.NewReader(bytes.NewBufferString(tacPageStatsQuery))
+		_, size, err := NewRequest(buf)
+		if err != nil {
+			panic(err.Error())
+		}
+		if size != 3651 {
+			panic(fmt.Sprintf("got wrong size: %d", size))
+		}
+	}
+}
+
 // Test queries
 var tacPageStatsQuery = `GET services
 Stats: description !=

@@ -781,7 +781,6 @@ func (req *Request) SetColumnsIndex() (err error) {
 	if req.Command != "" {
 		return
 	}
-	requestColumnsMap := make(map[string]int)
 	table := Objects.Tables[req.Table]
 	numColumns := len(req.Columns) + len(req.Stats)
 	if numColumns == 0 {
@@ -796,14 +795,14 @@ func (req *Request) SetColumnsIndex() (err error) {
 	if len(req.Columns) == 0 && len(req.Stats) == 0 {
 		for j, col := range table.Columns {
 			if col.Update != RefUpdate && col.Name != EMPTY {
-				addRequestColumn(table, col.Name, j, requestColumnsMap, &indexes, &columns, false)
+				addRequestColumn(table, col.Name, j, &indexes, &columns, false)
 			}
 		}
 	}
 
 	// build array of requested columns as ResultColumn objects list
 	for j := range req.Columns {
-		addRequestColumn(table, req.Columns[j], j, requestColumnsMap, &indexes, &columns, false)
+		addRequestColumn(table, req.Columns[j], j, &indexes, &columns, false)
 	}
 
 	// check wether our sort columns do exist in the output
@@ -813,10 +812,18 @@ func (req *Request) SetColumnsIndex() (err error) {
 			err = errors.New("bad request: table " + req.Table + " has no column " + s.Name + " to sort")
 			return
 		}
-		i, Ok := requestColumnsMap[s.Name]
-		if !Ok {
+		found := false
+		i := 0
+		for j := range columns {
+			if columns[j].Name == s.Name {
+				found = true
+				i = j
+				break
+			}
+		}
+		if !found {
 			i = len(columns)
-			addRequestColumn(table, s.Name, i, requestColumnsMap, &indexes, &columns, true)
+			addRequestColumn(table, s.Name, i, &indexes, &columns, true)
 		}
 		s.Index = i
 	}
@@ -827,14 +834,13 @@ func (req *Request) SetColumnsIndex() (err error) {
 	return
 }
 
-func addRequestColumn(table *Table, colName string, requestIndex int, requestColumnsMap map[string]int, indexes *[]int, columns *[]*RequestColumn, hidden bool) {
+func addRequestColumn(table *Table, colName string, requestIndex int, indexes *[]int, columns *[]*RequestColumn, hidden bool) {
 	colName = strings.ToLower(colName)
 	i, ok := table.ColumnsIndex[colName]
 	if !ok {
 		if table.PassthroughOnly {
 			*indexes = append(*indexes, -1)
 			*columns = append(*columns, &RequestColumn{Name: colName, Type: StringCol, Index: requestIndex, Hidden: hidden})
-			requestColumnsMap[colName] = requestIndex
 			return
 		}
 		if !fixBrokenClientsRequestColumn(&colName, table.Name) {
@@ -849,5 +855,4 @@ func addRequestColumn(table *Table, colName string, requestIndex int, requestCol
 		*indexes = append(*indexes, i)
 	}
 	*columns = append(*columns, &RequestColumn{Name: colName, Type: col.Type, Index: requestIndex, Column: col, Hidden: hidden})
-	requestColumnsMap[colName] = requestIndex
 }
