@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -241,19 +240,24 @@ func VirtColServicesWithInfo(d *DataRow, col *RequestColumn) interface{} {
 	return nil
 }
 
-// VirtColCommentsWithInfo returns list of comment IDs
-func VirtColCommentsWithInfo(d *DataRow, col *RequestColumn) interface{} {
-	commentsIndex := d.DataStore.Table.ColumnsIndex["comments"]
-	comments := d.RawData[commentsIndex]
+// VirtColComments returns list of comment IDs (with optional additional information)
+func VirtColComments(d *DataRow, col *RequestColumn) interface{} {
+	commentsTable := d.DataStore.Peer.Tables["comments"].Table
+	authorIndex := commentsTable.GetColumn("author").Index
+	commentIndex := commentsTable.GetColumn("comment").Index
+	key := d.ID
+	comments, ok := d.DataStore.Peer.CommentsCache[key]
+	if !ok {
+		return nil
+	}
+	if col.Name == "comments" {
+		return comments
+	}
 	res := make([]interface{}, 0)
-	authorIndex := d.DataStore.Peer.Tables["comments"].Table.GetColumn("author").Index
-	commentIndex := d.DataStore.Peer.Tables["comments"].Table.GetColumn("comment").Index
-	for _, commentID := range comments.([]interface{}) {
-		var commentWithInfo []interface{}
-
-		commentIDStr := strconv.FormatFloat(commentID.(float64), 'f', 0, 64)
+	for _, commentID := range comments {
+		commentIDStr := fmt.Sprintf("%v", commentID)
 		comment := d.DataStore.Peer.Tables["comments"].Index[commentIDStr].RawData
-
+		commentWithInfo := make([]interface{}, 0)
 		commentWithInfo = append(commentWithInfo, commentID, comment[authorIndex], comment[commentIndex])
 		res = append(res, commentWithInfo)
 	}
@@ -261,6 +265,16 @@ func VirtColCommentsWithInfo(d *DataRow, col *RequestColumn) interface{} {
 		return res
 	}
 	return nil
+}
+
+// VirtColDowntimes returns list of downtimes IDs
+func VirtColDowntimes(d *DataRow, col *RequestColumn) interface{} {
+	key := d.ID
+	downtimes, ok := d.DataStore.Peer.DowntimesCache[key]
+	if !ok {
+		return nil
+	}
+	return downtimes
 }
 
 // getVirtSubLMDValue returns status values for LMDSub backends

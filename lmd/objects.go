@@ -56,7 +56,9 @@ var VirtColumnList = []VirtColumnMapEntry{
 	{Name: "has_long_plugin_output", Type: IntCol, ResolvFunc: VirtColHasLongPluginOutput},
 	{Name: "services_with_state", Type: StringListCol, ResolvFunc: VirtColServicesWithInfo},
 	{Name: "services_with_info", Type: StringListCol, ResolvFunc: VirtColServicesWithInfo},
-	{Name: "comments_with_info", Type: StringListCol, ResolvFunc: VirtColCommentsWithInfo},
+	{Name: "comments", Type: StringListCol, ResolvFunc: VirtColComments},
+	{Name: "comments_with_info", Type: StringListCol, ResolvFunc: VirtColComments},
+	{Name: "downtimes", Type: StringListCol, ResolvFunc: VirtColDowntimes},
 	{Name: EMPTY, Type: StringCol, ResolvFunc: func(_ *DataRow, _ *RequestColumn) interface{} { return "" }}, // return empty string as placeholder for nonexisting columns
 }
 
@@ -679,14 +681,12 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("childs", StaticUpdate, StringListCol, "A list of all direct childs of the host")
 	t.AddColumn("contacts", StaticUpdate, StringListCol, "A list of all contacts of this host, either direct or via a contact group")
 	t.AddColumn("contact_groups", StaticUpdate, StringListCol, "A list of all contact groups this host is in")
-	t.AddColumn("comments", DynamicUpdate, IntListCol, "A list of the ids of all comments of this host")
 	t.AddColumn("current_attempt", DynamicUpdate, IntCol, "Number of the current check attempts")
 	t.AddColumn("current_notification_number", DynamicUpdate, IntCol, "Number of the current notification")
 	t.AddColumn("custom_variables", DynamicUpdate, CustomVarCol, "A dictionary of the custom variables")
 	t.AddColumn("custom_variable_names", DynamicUpdate, StringListCol, "A list of the names of all custom variables")
 	t.AddColumn("custom_variable_values", DynamicUpdate, StringListCol, "A list of the values of the custom variables")
 	t.AddColumn("display_name", StaticUpdate, StringCol, "Optional display name of the host - not used by Nagios' web interface")
-	t.AddColumn("downtimes", DynamicUpdate, IntListCol, "A list of the ids of all scheduled downtimes of this host")
 	t.AddColumn("event_handler", StaticUpdate, StringCol, "Nagios command used as event handler")
 	t.AddColumn("event_handler_enabled", DynamicUpdate, IntCol, "Nagios command used as event handler")
 	t.AddColumn("execution_time", DynamicUpdate, FloatCol, "Time the host check needed for execution")
@@ -767,7 +767,9 @@ func NewHostsTable() (t *Table) {
 
 	t.AddColumn("services_with_info", RefNoUpdate, VirtCol, "The services, including info, that is associated with the host")
 	t.AddColumn("services_with_state", RefNoUpdate, VirtCol, "The services, including state info, that is associated with the host")
+	t.AddColumn("comments", RefNoUpdate, VirtCol, "A list of the ids of all comments of this host")
 	t.AddColumn("comments_with_info", RefNoUpdate, VirtCol, "A list of all comments of the host with id, author and comment")
+	t.AddColumn("downtimes", RefNoUpdate, VirtCol, "A list of the ids of all scheduled downtimes of this host")
 	t.AddColumn("lmd_last_cache_update", RefNoUpdate, VirtCol, "Timestamp of the last LMD update of this object.")
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")
@@ -826,14 +828,12 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("checks_enabled", DynamicUpdate, IntCol, "Whether active checks are enabled for the service (0/1)")
 	t.AddColumn("contacts", StaticUpdate, StringListCol, "A list of all contacts of the service, either direct or via a contact group")
 	t.AddColumn("contact_groups", StaticUpdate, StringListCol, "A list of all contact groups this service is in")
-	t.AddColumn("comments", DynamicUpdate, IntListCol, "A list of all comment ids of the service")
 	t.AddColumn("current_attempt", DynamicUpdate, IntCol, "The number of the current check attempt")
 	t.AddColumn("current_notification_number", DynamicUpdate, IntCol, "The number of the current notification")
 	t.AddColumn("custom_variables", DynamicUpdate, CustomVarCol, "A dictionary of the custom variables")
 	t.AddColumn("custom_variable_names", DynamicUpdate, StringListCol, "A list of the names of all custom variables of the service")
 	t.AddColumn("custom_variable_values", DynamicUpdate, StringListCol, "A list of the values of all custom variable of the service")
 	t.AddColumn("description", StaticUpdate, StringCol, "Description of the service (also used as key)")
-	t.AddColumn("downtimes", DynamicUpdate, IntListCol, "A list of all downtime ids of the service")
 	t.AddColumn("display_name", StaticUpdate, StringCol, "An optional display name (not used by Nagios standard web pages)")
 	t.AddColumn("event_handler", StaticUpdate, StringCol, "Nagios command used as event handler")
 	t.AddColumn("event_handler_enabled", DynamicUpdate, IntCol, "Nagios command used as event handler")
@@ -910,7 +910,9 @@ func NewServicesTable() (t *Table) {
 	t.AddRefColumn(HOSTS, "host", "name", "host_name")
 	t.AddColumn("host_comments_with_info", RefNoUpdate, VirtCol, "A list of all comments of the host with id, author and comment")
 
+	t.AddColumn("comments", RefNoUpdate, VirtCol, "A list of all comment ids of the service")
 	t.AddColumn("comments_with_info", RefNoUpdate, VirtCol, "A list of all comments of the host with id, author and comment")
+	t.AddColumn("downtimes", RefNoUpdate, VirtCol, "A list of all downtime ids of the service")
 	t.AddColumn("lmd_last_cache_update", RefNoUpdate, VirtCol, "Timestamp of the last LMD update of this object.")
 	t.AddColumn("peer_key", RefNoUpdate, VirtCol, "Id of this peer")
 	t.AddColumn("peer_name", RefNoUpdate, VirtCol, "Name of this peer")

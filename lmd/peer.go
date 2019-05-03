@@ -63,6 +63,8 @@ type Peer struct {
 	lastResponse    *[]byte
 	HTTPClient      *http.Client
 	connectionCache chan net.Conn
+	CommentsCache   map[string][]float64
+	DowntimesCache  map[string][]float64
 }
 
 // PeerStatus contains the different states a peer can have
@@ -677,10 +679,7 @@ func (p *Peer) InitAllTables() bool {
 			}
 
 			// if its http and a status request, try a processinfo query to fetch all backends
-			if t.Name == STATUS {
-				p.fetchRemotePeers()
-			}
-
+			p.fetchRemotePeers()
 			p.checkStatusFlags(t)
 
 			if p.Flags&MultiBackend != MultiBackend {
@@ -698,6 +697,10 @@ func (p *Peer) InitAllTables() bool {
 			promHostCount.WithLabelValues(p.Name).Set(float64(len(p.Tables["hosts"].Data)))
 		case "services":
 			promServiceCount.WithLabelValues(p.Name).Set(float64(len(p.Tables["services"].Data)))
+		case "comments":
+			p.RebuildCommentsCache()
+		case "downtimes":
+			p.RebuildDowntimesCache()
 		}
 	}
 
@@ -1098,6 +1101,14 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	}
 	p.Tables[table.Name] = data
 	p.DataLock.Unlock()
+
+	// reset cache
+	switch table.Name {
+	case "comments":
+		p.RebuildCommentsCache()
+	case "downtimes":
+		p.RebuildCommentsCache()
+	}
 
 	if len(missingIds) > 0 {
 		keys := table.GetInitialKeys(p.Flags)
@@ -2658,4 +2669,44 @@ func (p *Peer) setFederationInfo(data map[string]interface{}, statuskey, datakey
 		return
 	}
 	p.Status[statuskey] = []string{}
+}
+
+// RebuildCommentsCache updates the comment cache
+func (p *Peer) RebuildCommentsCache() {
+	cache := p.buildDowntimeCommentsCache("comments")
+
+	p.PeerLock.Lock()
+	p.CommentsCache = cache
+	p.PeerLock.Unlock()
+}
+
+// RebuildDowntimesCache updates the comment cache
+func (p *Peer) RebuildDowntimesCache() {
+	cache := p.buildDowntimeCommentsCache("downtimes")
+	p.PeerLock.Lock()
+	p.CommentsCache = cache
+	p.PeerLock.Unlock()
+}
+
+// buildDowntimesCache returns the downtimes/comments cache
+func (p *Peer) buildDowntimeCommentsCache(name string) map[string][]float64 {
+	p.DataLock.RLock()
+	cache := make(map[string][]float64)
+	store := p.Tables[name]
+	idIndex := store.Table.GetColumn("id").Index
+	hostNameIndex := store.Table.GetColumn("host_name").Index
+	serviceDescIndex := store.Table.GetColumn("service_description").Index
+	for i := range store.Data {
+		row := store.Data[i]
+		key := row.RawData[hostNameIndex].(string)
+		serviceName := row.RawData[serviceDescIndex].(string)
+		if serviceName != "" {
+			key = key + ";" + serviceName
+		}
+		id := row.RawData[idIndex].(float64)
+		cache[key] = append(cache[key], id)
+	}
+	p.DataLock.RUnlock()
+
+	return cache
 }
