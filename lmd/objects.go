@@ -765,6 +765,10 @@ func NewHostsTable() (t *Table) {
 	t.AddOptColumn("got_business_rule", DynamicUpdate, IntCol, Shinken, "Whether the host state is an business rule based host or not (0/1)")
 	t.AddOptColumn("parent_dependencies", DynamicUpdate, StringCol, Shinken, "List of the dependencies (logical, network or business one) of this host.")
 
+	// icinga2 specific
+	t.AddOptColumn("address6", StaticUpdate, StringCol, Icinga2, "IPv6 address")
+	t.AddOptColumn("check_source", DynamicUpdate, StringCol, Icinga2, "Host check source address")
+
 	t.AddColumn("services_with_info", RefNoUpdate, VirtCol, "The services, including info, that is associated with the host")
 	t.AddColumn("services_with_state", RefNoUpdate, VirtCol, "The services, including state info, that is associated with the host")
 	t.AddColumn("comments", RefNoUpdate, VirtCol, "A list of the ids of all comments of this host")
@@ -906,6 +910,9 @@ func NewServicesTable() (t *Table) {
 	t.AddOptColumn("poller_tag", DynamicUpdate, StringCol, Shinken, "Poller Tag")
 	t.AddOptColumn("got_business_rule", DynamicUpdate, IntCol, Shinken, "Whether the service state is an business rule based host or not (0/1)")
 	t.AddOptColumn("parent_dependencies", DynamicUpdate, StringCol, Shinken, "List of the dependencies (logical, network or business one) of this service.")
+
+	// icinga2 specific
+	t.AddOptColumn("check_source", DynamicUpdate, StringCol, Icinga2, "Check source address")
 
 	t.AddRefColumn(HOSTS, "host", "name", "host_name")
 	t.AddColumn("host_comments_with_info", RefNoUpdate, VirtCol, "A list of all comments of the host with id, author and comment")
