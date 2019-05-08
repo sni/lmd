@@ -554,6 +554,32 @@ func TestRequestSortColumnNotRequested(t *testing.T) {
 	}
 }
 
+func TestRequestNoColumns(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	res, err := peer.QueryString("GET status\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(2, len(res)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(48, len(res[0])); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq("program_start", res[0][0]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq("mockid0", res[1][36]); err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
 func TestRequestUnknownOptionalColumns(t *testing.T) {
 	peer := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)

@@ -455,7 +455,7 @@ func (res *Response) WrappedJSON() ([]byte, error) {
 
 	buf.Write([]byte("["))
 	// add optional columns header as first row
-	cols := make([]interface{}, len(res.Request.Columns)+len(res.Request.Stats))
+	cols := make([]interface{}, len(res.Request.RequestColumns)+len(res.Request.Stats))
 	if sendColumnsHeader {
 		for k := 0; k < len(res.Request.RequestColumns); k++ {
 			if k < len(res.Request.Columns) {
