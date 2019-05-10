@@ -96,6 +96,25 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 	}
 }
 
+func BenchmarkPeerUpdate(b *testing.B) {
+	b.StopTimer()
+	peer := StartTestPeer(1, 1000, 10000)
+	PauseTestPeers(peer)
+
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		res := peer.UpdateAllTables()
+		if !res {
+			panic("Update failed")
+		}
+	}
+	b.StopTimer()
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
 func BenchmarkSingleFilter(b *testing.B) {
 	b.StopTimer()
 	peer := StartTestPeer(1, 0, 0)
