@@ -297,6 +297,10 @@ func (req *Request) ParseRequestAction(firstLine *string) (valid bool, err error
 	// or a command
 	if strings.HasPrefix(*firstLine, "COMMAND ") {
 		matched := reRequestCommand.FindStringSubmatch(*firstLine)
+		if len(matched) < 1 {
+			err = fmt.Errorf("bad request: %s", *firstLine)
+			return
+		}
 		req.Command = matched[0]
 		valid = true
 		return
