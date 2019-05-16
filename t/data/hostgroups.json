@@ -1,11 +1,2 @@
-200         508
-[["","test",["Test Business Process","gearman","influxdb","omd","oracle","pnp","test host 1","test host 2","test host 3","test host 4","test host 5","tomcat"],"test","",""],
-["","test10",["gearman"],"test10","",""],
-["","test2",["omd"],"test2","",""],
-["","test3",["omd"],"test3","",""],
-["","test4",["omd"],"test4","",""],
-["","test5",["gearman"],"test5","",""],
-["","test6",["omd"],"test6","",""],
-["","test7",["omd"],"test7","",""],
-["","test8",["omd"],"test8","",""],
-["","test9",["omd"],"test9","",""]]
+200          83
+[["","Just all hosts",["localhost"],"Everything","","",1,1,0,0,0,8,5,2,1,0,0,0,2]]

@@ -1,3 +1,2 @@
-200         515
-[["(Nagios Process)","This service has been scheduled for fixed downtime from 2017-03-17 21:10:00 to 2017-03-17 23:10:00.  Notifications for the service will not be sent out during that time period.",1489781428,2,0,0,49864,1,0,0,2,"testhost_1","testsvc_1",[],[]],
-["(Nagios Process)","This host has been scheduled for fixed downtime from 2017-03-17 21:10:00 to 2017-03-17 23:10:00.  Notifications for the service will not be sent out during that time period.",1489781428,2,0,0,49865,1,0,0,2,"testhost_1","",[],[]]]
+200         242
+[["thrukadmin","This service has been scheduled for fixed downtime from 2019-05-15 20:51:00 to 2019-05-15 22:51:00.  Notifications for the service will not be sent out during that time period.",1557953527,2,0,0,1,1,0,0,2,"localhost","Load"]]
