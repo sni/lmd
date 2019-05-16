@@ -709,6 +709,14 @@ func TestCommands(t *testing.T) {
 		t.Error(err2)
 	}
 
+	res, err = peer.QueryString("COMMAND [123.456] test_broken\n\n")
+	if err == nil {
+		t.Fatal("expected error for broken command")
+	}
+	if err2 := assertEq(err.Error(), "bad request: COMMAND [123.456] test_broken"); err2 != nil {
+		t.Error(err2)
+	}
+
 	if err := StopTestPeer(peer); err != nil {
 		panic(err.Error())
 	}
