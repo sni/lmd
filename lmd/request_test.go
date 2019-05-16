@@ -709,7 +709,7 @@ func TestCommands(t *testing.T) {
 		t.Error(err2)
 	}
 
-	res, err = peer.QueryString("COMMAND [123.456] test_broken\n\n")
+	_, err = peer.QueryString("COMMAND [123.456] test_broken\n\n")
 	if err == nil {
 		t.Fatal("expected error for broken command")
 	}
