@@ -8,7 +8,7 @@ func GetTableBackendsStore(table *Table, peer *Peer) *DataStore {
 	store := NewDataStore(table, peer)
 	rows := make([][]interface{}, 1)
 	_, columns := store.GetInitialColumns()
-	store.InsertData(&rows, &columns)
+	store.InsertData(&rows, columns)
 	return store
 }
 

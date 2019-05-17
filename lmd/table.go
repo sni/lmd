@@ -42,12 +42,12 @@ func (t *Table) GetColumnWithFallback(name string) *Column {
 }
 
 // GetColumns returns a column list for list of names
-func (t *Table) GetColumns(names []string) (columns ColumnList) {
-	columns = make(ColumnList, 0, len(names))
+func (t *Table) GetColumns(names []string) *ColumnList {
+	columns := make(ColumnList, 0, len(names))
 	for i := range names {
 		columns = append(columns, t.ColumnsIndex[names[i]])
 	}
-	return
+	return &columns
 }
 
 // GetEmptyColumn returns an empty column
@@ -88,7 +88,7 @@ func (t *Table) AddRefColumns(tableName string, prefix string, localName []strin
 		log.Panicf("no such reference %s from column %s", tableName, strings.Join(localName, ","))
 	}
 
-	t.RefTables = append(t.RefTables, &TableRef{Table: refTable, Columns: t.GetColumns(localName)})
+	t.RefTables = append(t.RefTables, &TableRef{Table: refTable, Columns: *(t.GetColumns(localName))})
 
 	// add fake columns for all columns from the referenced table
 	for i := range Objects.Tables[tableName].Columns {

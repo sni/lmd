@@ -49,10 +49,12 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 			if !ok {
 				log.Panicf("type not implemented: %s - %v", col.Name, col.DataType)
 			}
-			if col.Index > 0 && col.Index != indexes[col.DataType] {
-				log.Panicf("index overlap with flags: %v", d.Peer.Flags)
+			if col.Index != indexes[col.DataType] {
+				if col.Index > 0 {
+					log.Panicf("index overlap with flags: %v", d.Peer.Flags)
+				}
+				col.Index = indexes[col.DataType]
 			}
-			col.Index = indexes[col.DataType]
 			indexes[col.DataType]++
 			if col.UpdateType == Dynamic {
 				d.DynamicColumnNamesCache = append(d.DynamicColumnNamesCache, col.Name)
@@ -116,9 +118,9 @@ func (d *DataStore) GetColumn(name string) *Column {
 }
 
 // GetInitialColumns returns list of columns required to fill initial dataset
-func (d *DataStore) GetInitialColumns() (keys []string, columns ColumnList) {
-	columns = make(ColumnList, 0)
-	keys = make([]string, 0)
+func (d *DataStore) GetInitialColumns() ([]string, *ColumnList) {
+	columns := make(ColumnList, 0)
+	keys := make([]string, 0)
 	for i := range d.Table.Columns {
 		col := d.Table.Columns[i]
 		if d.Peer != nil && !d.Peer.Flags.HasFlag(col.Optional) {
@@ -130,5 +132,5 @@ func (d *DataStore) GetInitialColumns() (keys []string, columns ColumnList) {
 		columns = append(columns, col)
 		keys = append(keys, col.Name)
 	}
-	return
+	return keys, &columns
 }

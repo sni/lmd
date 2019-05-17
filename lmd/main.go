@@ -587,7 +587,7 @@ func PrintVersion() {
 // It returns a Config object.
 func ReadConfig(files []string) *Config {
 	// combine listeners from all files
-	var allListeners []string
+	allListeners := make([]string, 0)
 	conf := &Config{BackendKeepAlive: true}
 	for _, configFile := range files {
 		if _, err := os.Stat(configFile); err != nil {

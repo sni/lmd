@@ -526,32 +526,32 @@ func matchEmptyFilter(op Operator) bool {
 	return false
 }
 
-func (f *Filter) MatchString(value string) bool {
+func (f *Filter) MatchString(value *string) bool {
 	switch f.Operator {
 	case Equal:
-		return value == f.StrValue
+		return *value == f.StrValue
 	case Unequal:
-		return value != f.StrValue
+		return *value != f.StrValue
 	case EqualNocase:
-		return strings.EqualFold(value, f.StrValue)
+		return strings.EqualFold(*value, f.StrValue)
 	case UnequalNocase:
-		return !strings.EqualFold(value, f.StrValue)
+		return !strings.EqualFold(*value, f.StrValue)
 	case RegexMatch:
-		return f.Regexp.MatchString(value)
+		return f.Regexp.MatchString(*value)
 	case RegexMatchNot:
-		return !f.Regexp.MatchString(value)
+		return !f.Regexp.MatchString(*value)
 	case RegexNoCaseMatch:
-		return f.Regexp.MatchString(strings.ToLower(value))
+		return f.Regexp.MatchString(strings.ToLower(*value))
 	case RegexNoCaseMatchNot:
-		return !f.Regexp.MatchString(strings.ToLower(value))
+		return !f.Regexp.MatchString(strings.ToLower(*value))
 	case Less:
-		return value < f.StrValue
+		return *value < f.StrValue
 	case LessThan:
-		return value <= f.StrValue
+		return *value <= f.StrValue
 	case Greater:
-		return value > f.StrValue
+		return *value > f.StrValue
 	case GreaterThan:
-		return value >= f.StrValue
+		return *value >= f.StrValue
 	}
 	log.Warnf("not implemented op: %v", f.Operator)
 	return false
@@ -585,7 +585,7 @@ func (f *Filter) MatchStringList(list []string) bool {
 		fallthrough
 	case RegexNoCaseMatch:
 		for i := range list {
-			if f.MatchString(list[i]) {
+			if f.MatchString(&(list[i])) {
 				return true
 			}
 		}
@@ -594,7 +594,7 @@ func (f *Filter) MatchStringList(list []string) bool {
 		fallthrough
 	case RegexNoCaseMatchNot:
 		for i := range list {
-			if f.MatchString(list[i]) {
+			if f.MatchString(&(list[i])) {
 				return false
 			}
 		}
@@ -636,7 +636,7 @@ func (f *Filter) MatchCustomVar(value map[string]string) bool {
 	if !ok {
 		val = ""
 	}
-	return f.MatchString(val)
+	return f.MatchString(&val)
 }
 
 // some broken clients request service_description instead of just description from the services table

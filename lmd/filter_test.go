@@ -6,7 +6,8 @@ import (
 
 func TestStringFilter(t *testing.T) {
 	// compare empty strings
-	if err := assertEq(true, (&Filter{Operator: Equal, StrValue: ""}).MatchString("")); err != nil {
+	val := ""
+	if err := assertEq(true, (&Filter{Operator: Equal, StrValue: ""}).MatchString(&val)); err != nil {
 		t.Error(err)
 	}
 }

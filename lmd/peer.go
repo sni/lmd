@@ -863,7 +863,7 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	for i := range res {
 		resRow := &res[i]
 		hostName := interface2string((*resRow)[0])
-		dataRow := nameIndex[hostName]
+		dataRow := nameIndex[*hostName]
 		if dataRow == nil {
 			continue
 		}
@@ -909,7 +909,7 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	now := time.Now().Unix()
 	for i := range res {
 		resRow := &res[i]
-		lookUp := interface2string((*resRow)[0]) + ";" + interface2string((*resRow)[1])
+		lookUp := *(interface2string((*resRow)[0])) + ";" + *(interface2string((*resRow)[1]))
 		dataRow := nameindex[lookUp]
 		if dataRow == nil {
 			continue
@@ -1135,7 +1135,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 		}
 		for i := range res {
 			resRow := res[i]
-			row, nErr := NewDataRow(data, &resRow, &columns, 0)
+			row, nErr := NewDataRow(data, &resRow, columns, 0)
 			if nErr != nil {
 				return nErr
 			}
@@ -1584,7 +1584,7 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 	}
 
 	now := time.Now().Unix()
-	err = store.InsertData(&res, &columns)
+	err = store.InsertData(&res, columns)
 	if err != nil {
 		return
 	}
@@ -1611,9 +1611,9 @@ func (p *Peer) checkStatusFlags() {
 	p.PeerLock.Lock()
 	row := data[0]
 	livestatusVersion := row.GetStringByName("livestatus_version")
-	naemonVersions := reNaemonVersion.FindStringSubmatch(livestatusVersion)
+	naemonVersions := reNaemonVersion.FindStringSubmatch(*livestatusVersion)
 	switch {
-	case len(reShinkenVersion.FindStringSubmatch(livestatusVersion)) > 0:
+	case len(reShinkenVersion.FindStringSubmatch(*livestatusVersion)) > 0:
 		if !p.Flags.HasFlag(Shinken) {
 			log.Debugf("[%s] remote connection Shinken flag set", p.Name)
 			p.Flags.SetFlag(Shinken)
@@ -1639,7 +1639,7 @@ func (p *Peer) checkStatusFlags() {
 			}
 			return
 		}
-	case len(reIcinga2Version.FindStringSubmatch(livestatusVersion)) > 0:
+	case len(reIcinga2Version.FindStringSubmatch(*livestatusVersion)) > 0:
 		if !p.Flags.HasFlag(Icinga2) {
 			log.Debugf("[%s] remote connection Icinga2 flag set", p.Name)
 			p.Flags.SetFlag(Icinga2)
@@ -1776,7 +1776,7 @@ func (p *Peer) GetGroupByData(store *DataStore) (res [][]interface{}, err error)
 			name := row.GetString(nameCol)
 			groups := row.GetStringList(groupCol)
 			for i := range groups {
-				res = append(res, []interface{}{name, groups[i]})
+				res = append(res, []interface{}{*name, groups[i]})
 			}
 		}
 	case "servicesbygroup":
@@ -1788,7 +1788,7 @@ func (p *Peer) GetGroupByData(store *DataStore) (res [][]interface{}, err error)
 			description := row.GetString(descCol)
 			groups := row.GetStringList(groupCol)
 			for i := range groups {
-				res = append(res, []interface{}{hostName, description, groups[i]})
+				res = append(res, []interface{}{*hostName, *description, groups[i]})
 			}
 		}
 	case "servicesbyhostgroup":
@@ -1800,7 +1800,7 @@ func (p *Peer) GetGroupByData(store *DataStore) (res [][]interface{}, err error)
 			description := row.GetString(descCol)
 			groups := row.GetStringList(hostGroupsCol)
 			for i := range groups {
-				res = append(res, []interface{}{hostName, description, groups[i]})
+				res = append(res, []interface{}{*hostName, *description, groups[i]})
 			}
 		}
 	default:
@@ -1906,7 +1906,7 @@ func (p *Peer) updateTimeperiodsData(store *DataStore, res [][]interface{}, colu
 	for i := range res {
 		row := res[i]
 		if data[i].CheckChangedValues(&row, columns) {
-			changedTimeperiods[data[i].GetString(nameCol)] = true
+			changedTimeperiods[*(data[i].GetString(nameCol))] = true
 		}
 		// shift timeperiod name from result
 		row = row[1:]
@@ -2318,6 +2318,9 @@ func (p *Peer) gatherResultRows(res *Response, store *DataStore) (int, [][]inter
 		limit = len(store.Data) + 1
 	}
 
+	// no need to count all the way to the end unless the total number is required in wrapped_json output
+	breakOnLimit := res.Request.OutputFormat != OutputFormatWrappedJSON
+
 Rows:
 	for j := range store.Data {
 		row := store.Data[j]
@@ -2331,15 +2334,16 @@ Rows:
 		// check if we have enough result rows already
 		// we still need to count how many result we would have...
 		if found > limit {
-			// TODO: break unless wrapped_json mode
+			if breakOnLimit {
+				break Rows
+			}
 			continue Rows
 		}
 
 		// build result row (including columns we need for sorting)
-		// TODO: check if append is faster
-		resRow := make([]interface{}, numPerRow)
+		resRow := make([]interface{}, 0, numPerRow)
 		for k := 0; k < numPerRow; k++ {
-			resRow[k] = row.GetValueByColumn(reqcol[k].Column)
+			resRow = append(resRow, row.GetValueByColumn(reqcol[k].Column))
 		}
 		result = append(result, resRow)
 	}

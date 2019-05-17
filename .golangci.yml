@@ -23,7 +23,6 @@ linters:
   enable-all: true
   disable:
     - maligned
-    - prealloc
     - nakedret
     - gochecknoglobals
     - errcheck

@@ -519,13 +519,6 @@ func (res *Response) BuildLocalResponse(peers []string) {
 			continue
 		}
 
-		if store.Table.Name == "status" {
-			// append results serially for simple calculations
-			// no need to create goroutines for simple status queries
-			res.AppendPeerResult(p)
-			continue
-		}
-
 		waitgroup.Add(1)
 		go func(peer *Peer, wg *sync.WaitGroup) {
 			// make sure we log panics properly

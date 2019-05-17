@@ -114,11 +114,11 @@ func (d *DataRow) GetColumn(name string) *Column {
 }
 
 // GetString returns the string value for given column
-func (d *DataRow) GetString(col *Column) string {
+func (d *DataRow) GetString(col *Column) *string {
 	switch col.StorageType {
 	case LocalStore:
 		if col.DataType == StringCol {
-			return d.dataString[col.Index]
+			return &(d.dataString[col.Index])
 		}
 	case RefStore:
 		return d.Refs[col.RefCol.Table.Name].GetString(col.RefCol)
@@ -129,7 +129,7 @@ func (d *DataRow) GetString(col *Column) string {
 }
 
 // GetStringByName returns the string value for given column name
-func (d *DataRow) GetStringByName(name string) string {
+func (d *DataRow) GetStringByName(name string) *string {
 	return d.GetString(d.DataStore.Table.ColumnsIndex[name])
 }
 
@@ -319,7 +319,7 @@ func VirtColStateOrder(d *DataRow, col *Column) interface{} {
 // VirtColHasLongPluginOutput returns 1 if there is long plugin output, 0 if not
 func VirtColHasLongPluginOutput(d *DataRow, col *Column) interface{} {
 	val := d.GetStringByName("long_plugin_output")
-	if val != "" {
+	if *val != "" {
 		return 1
 	}
 	return 0
@@ -334,14 +334,14 @@ func VirtColServicesWithInfo(d *DataRow, col *Column) interface{} {
 	checkedCol := servicesStore.Table.GetColumn("has_been_checked")
 	outputCol := servicesStore.Table.GetColumn("plugin_output")
 	res := make([]interface{}, 0)
-	for _, description := range services {
-		serviceID := hostName + ";" + description
+	for i := range services {
+		serviceID := *hostName + ";" + services[i]
 		service, ok := servicesStore.Index[serviceID]
 		if !ok {
 			log.Errorf("Could not find service: %s\n", serviceID)
 			continue
 		}
-		serviceValue := []interface{}{description, service.GetValueByColumn(stateCol), service.GetValueByColumn(checkedCol)}
+		serviceValue := []interface{}{services[i], service.GetValueByColumn(stateCol), service.GetValueByColumn(checkedCol)}
 		if col.Name == "services_with_info" {
 			serviceValue = append(serviceValue, d.GetValueByColumn(outputCol))
 		}
@@ -445,7 +445,6 @@ func (d *DataRow) MatchFilter(filter *Filter) bool {
 	}
 
 	// if this is a optional column and we do not meet the requirements, match against an empty default column
-	// TODO: try to not have to do this for every row
 	if filter.Column.Optional != NoFlags && !d.DataStore.Peer.Flags.HasFlag(filter.Column.Optional) {
 		// duplicate filter, but use the empty column
 		f := &Filter{
@@ -481,7 +480,7 @@ func (d *DataRow) UpdateValues(data *[]interface{}, columns *ColumnList, timesta
 		col := (*columns)[i]
 		switch col.DataType {
 		case StringCol:
-			d.dataString[col.Index] = interface2string((*data)[i])
+			d.dataString[col.Index] = *(interface2string((*data)[i]))
 		case StringListCol:
 			d.dataStringList[col.Index] = interface2stringlist((*data)[i])
 		case IntCol:
@@ -555,15 +554,16 @@ func interface2int64(in interface{}) int64 {
 	return val
 }
 
-func interface2string(in interface{}) string {
+func interface2string(in interface{}) *string {
 	switch v := in.(type) {
 	case string:
-		return v
+		return &v
 	case nil:
-		return ""
+		val := ""
+		return &val
 	}
 	str := fmt.Sprintf("%v", in)
-	return str
+	return &str
 }
 
 func interface2stringlist(in interface{}) []string {
@@ -573,7 +573,7 @@ func interface2stringlist(in interface{}) []string {
 	if list, ok := in.([]interface{}); ok {
 		val := make([]string, 0, len(list))
 		for i := range list {
-			val = append(val, interface2string(list[i]))
+			val = append(val, *(interface2string(list[i])))
 		}
 		return val
 	}
