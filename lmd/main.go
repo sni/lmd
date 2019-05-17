@@ -12,6 +12,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math"
 	"net"
@@ -47,7 +48,7 @@ const (
 type noCopy struct{}
 
 func (*noCopy) Lock()   {}
-func (*noCopy) UnLock() {}
+func (*noCopy) Unlock() {}
 
 // Connection defines a single connection configuration.
 type Connection struct {
@@ -468,14 +469,14 @@ func NewLMDHTTPClient(tlsConfig *tls.Config, proxy string) *http.Client {
 	return netClient
 }
 
-func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers *sync.WaitGroup, waitGroupListener *sync.WaitGroup, prometheusListener *net.Listener) (exitCode int) {
+func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers *sync.WaitGroup, waitGroupListener *sync.WaitGroup, prometheusListener io.Closer) (exitCode int) {
 	switch sig {
 	case syscall.SIGTERM:
 		log.Infof("got sigterm, quiting gracefully")
 		shutdownChannel <- true
 		close(shutdownChannel)
 		if prometheusListener != nil {
-			(*prometheusListener).Close()
+			prometheusListener.Close()
 		}
 		waitGroupListener.Wait()
 		waitGroupPeers.Wait()
@@ -488,7 +489,7 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		shutdownChannel <- true
 		close(shutdownChannel)
 		if prometheusListener != nil {
-			(*prometheusListener).Close()
+			prometheusListener.Close()
 		}
 		// wait one second which should be enough for the listeners
 		waitTimeout(waitGroupListener, time.Second)
@@ -497,7 +498,7 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 	case syscall.SIGHUP:
 		log.Infof("got sighup, reloading configuration...")
 		if prometheusListener != nil {
-			(*prometheusListener).Close()
+			prometheusListener.Close()
 		}
 		return (-1)
 	case syscall.SIGUSR1:

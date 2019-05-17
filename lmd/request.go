@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +14,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/a8m/djson"
+	"github.com/buger/jsonparser"
 )
 
 // Request defines a livestatus request object.
@@ -19,18 +24,17 @@ type Request struct {
 	noCopy              noCopy
 	Table               string
 	Command             string
-	Columns             []string         // parsed columns field
-	RequestColumns      []*RequestColumn // calculated/expanded columns list
-	ReqColIndex         []int
+	Columns             []string        // parsed columns field
+	RequestColumns      []RequestColumn // calculated/expanded columns list
 	Filter              []*Filter
 	FilterStr           string
 	Stats               []*Filter
 	StatsResult         map[string][]*Filter
 	Limit               *int
 	Offset              int
-	Sort                []*SortField
+	Sort                []SortField
 	ResponseFixed16     bool
-	OutputFormat        string
+	OutputFormat        OutputFormat
 	Backends            []string
 	BackendsMap         map[string]string
 	BackendErrors       map[string]string
@@ -46,12 +50,12 @@ type Request struct {
 
 // RequestColumn is a column container for results
 type RequestColumn struct {
-	noCopy noCopy
-	Name   string
-	Type   ColumnType
-	Column *Column // reference to the real column
-	Index  int     // index in the request and the position in the result row
-	Hidden bool    // true if column is not used in the output and ex. just for sorting
+	noCopy     noCopy
+	Name       string
+	OutputType DataType // output column type
+	Index      int      // index in the request and the position in the result row
+	Hidden     bool     // true if column is not used in the output and ex. just for sorting
+	Column     *Column  // reference to the column definition
 }
 
 // SortDirection can be either Asc or Desc
@@ -65,19 +69,39 @@ const (
 	Desc
 )
 
-// outputformat types
-const (
-	// WRAPPEDJSON is json data along with meta data
-	WRAPPEDJSON = "wrapped_json"
-)
-
 // String converts a SortDirection back to the original string.
 func (s *SortDirection) String() string {
 	switch *s {
 	case Asc:
-		return ("asc")
+		return "asc"
 	case Desc:
-		return ("desc")
+		return "desc"
+	}
+	log.Panicf("not implemented")
+	return ""
+}
+
+// OutputFormat defines the format used to return the result
+type OutputFormat int
+
+const (
+	OutputFormatDefault = iota
+	OutputFormatJSON
+	OutputFormatWrappedJSON
+	OutputFormatPython
+)
+
+// String converts a SortDirection back to the original string.
+func (o *OutputFormat) String() string {
+	switch *o {
+	case OutputFormatDefault:
+		return "json"
+	case OutputFormatWrappedJSON:
+		return "wrapped_json"
+	case OutputFormatJSON:
+		return "json"
+	case OutputFormatPython:
+		return "python"
 	}
 	log.Panicf("not implemented")
 	return ""
@@ -85,9 +109,11 @@ func (s *SortDirection) String() string {
 
 // SortField defines a single sort entry
 type SortField struct {
+	noCopy    noCopy
 	Name      string
 	Direction SortDirection
 	Index     int
+	Group     bool
 	Args      string
 }
 
@@ -111,6 +137,12 @@ func (op *GroupOperator) String() string {
 	}
 	log.Panicf("not implemented")
 	return ""
+}
+
+// ResultMetaData contains meta from the response data
+type ResultMetaData struct {
+	Total   int64
+	Columns []string
 }
 
 var reRequestAction = regexp.MustCompile(`^GET +([a-z]+)$`)
@@ -164,8 +196,8 @@ func (req *Request) String() (str string) {
 	if req.ResponseFixed16 {
 		str += "ResponseHeader: fixed16\n"
 	}
-	if req.OutputFormat != "" {
-		str += "OutputFormat: " + req.OutputFormat + "\n"
+	if req.OutputFormat != OutputFormatDefault {
+		str += fmt.Sprintf("OutputFormat: %s\n", req.OutputFormat.String())
 	}
 	if len(req.Columns) > 0 {
 		str += "Columns: " + strings.Join(req.Columns, " ") + "\n"
@@ -185,14 +217,14 @@ func (req *Request) String() (str string) {
 	if req.KeepAlive {
 		str += fmt.Sprintf("KeepAlive: on\n")
 	}
-	for _, f := range req.Filter {
-		str += f.String("")
+	for i := range req.Filter {
+		str += req.Filter[i].String("")
 	}
 	if req.FilterStr != "" {
 		str += req.FilterStr
 	}
-	for _, s := range req.Stats {
-		str += s.String("Stats")
+	for i := range req.Stats {
+		str += req.Stats[i].String("Stats")
 	}
 	if req.WaitTrigger != "" {
 		str += fmt.Sprintf("WaitTrigger: %s\n", req.WaitTrigger)
@@ -206,11 +238,11 @@ func (req *Request) String() (str string) {
 	if req.WaitConditionNegate {
 		str += fmt.Sprintf("WaitConditionNegate\n")
 	}
-	for _, f := range req.WaitCondition {
-		str += f.String("WaitCondition")
+	for i := range req.WaitCondition {
+		str += req.WaitCondition[i].String("WaitCondition")
 	}
-	for _, s := range req.Sort {
-		str += fmt.Sprintf("Sort: %s %s\n", s.Name, s.Direction.String())
+	for i := range req.Sort {
+		str += fmt.Sprintf("Sort: %s %s\n", req.Sort[i].Name, req.Sort[i].Direction.String())
 	}
 	str += "\n"
 	return
@@ -240,23 +272,23 @@ func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
 	}
 
 	for {
-		line, berr := b.ReadString('\n')
+		line, berr := b.ReadBytes('\n')
 		if berr != nil && berr != io.EOF {
 			err = berr
 			return
 		}
 		size += len(line)
-		line = strings.TrimSpace(line)
-		if line == "" {
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
 			break
 		}
 
 		if log.IsV(2) {
 			log.Debugf("request: %s", line)
 		}
-		perr := req.ParseRequestHeaderLine(&line)
+		perr := req.ParseRequestHeaderLine(line)
 		if perr != nil {
-			err = perr
+			err = fmt.Errorf("bad request: %s in: %s", perr.Error(), line)
 			return
 		}
 		if berr == io.EOF {
@@ -264,7 +296,7 @@ func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
 		}
 	}
 
-	err = req.SetColumnsIndex()
+	err = req.SetRequestColumns()
 	if err != nil {
 		return
 	}
@@ -493,8 +525,8 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 	// Filter
 	if len(req.Filter) != 0 || req.FilterStr != "" {
 		var str string
-		for _, f := range req.Filter {
-			str += f.String("")
+		for i := range req.Filter {
+			str += req.Filter[i].String("")
 		}
 		if req.FilterStr != "" {
 			str += req.FilterStr
@@ -505,8 +537,8 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 	// Stats
 	if isStatsRequest {
 		var str string
-		for _, f := range req.Stats {
-			str += f.String("Stats")
+		for i := range req.Stats {
+			str += req.Stats[i].String("Stats")
 		}
 		requestData["stats"] = str
 	}
@@ -521,7 +553,8 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 	// Sort order
 	if len(req.Sort) != 0 {
 		var sort []string
-		for _, sortField := range req.Sort {
+		for i := range req.Sort {
+			sortField := &(req.Sort[i])
 			var line string
 			var direction string
 			switch sortField.Direction {
@@ -537,7 +570,7 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 	}
 
 	// Get hash with metadata in addition to table rows
-	requestData["outputformat"] = WRAPPEDJSON
+	requestData["outputformat"] = OutputFormatWrappedJSON
 
 	return
 }
@@ -579,7 +612,7 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan [][]interfac
 					data := reflect.ValueOf(row[i])
 					value := data.Index(0).Interface()
 					count := data.Index(1).Interface()
-					req.StatsResult[key][i].ApplyValue(numberToFloat(&value), int(numberToFloat(&count)))
+					req.StatsResult[key][i].ApplyValue(interface2float64(value), int(interface2float64(count)))
 				}
 			}
 		} else {
@@ -596,153 +629,150 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan [][]interfac
 
 // ParseRequestHeaderLine parses a single request line
 // It returns any error encountered.
-func (req *Request) ParseRequestHeaderLine(line *string) (err error) {
-	matched := strings.SplitN(*line, ":", 2)
+func (req *Request) ParseRequestHeaderLine(line []byte) (err error) {
+	matched := bytes.SplitN(line, []byte(":"), 2)
+
 	if len(matched) != 2 {
-		err = fmt.Errorf("bad request header: %s", *line)
+		err = fmt.Errorf("syntax error")
 		return
 	}
-	matched[0] = strings.ToLower(matched[0])
-	matched[1] = strings.TrimLeft(matched[1], " ")
+	args := bytes.TrimLeft(matched[1], " ")
 
-	switch matched[0] {
+	switch string(bytes.ToLower(matched[0])) {
 	case "filter":
-		err = ParseFilter(matched[1], line, req.Table, &req.Filter)
+		err = ParseFilter(args, req.Table, &req.Filter)
 		return
 	case "and":
-		fallthrough
+		err = ParseFilterOp(And, args, &req.Filter)
+		return
 	case "or":
-		err = ParseFilterOp(matched[0], matched[1], line, &req.Filter)
+		err = ParseFilterOp(Or, args, &req.Filter)
 		return
 	case "stats":
-		err = ParseStats(matched[1], line, req.Table, &req.Stats)
+		err = ParseStats(args, req.Table, &req.Stats)
 		return
 	case "statsand":
-		err = parseStatsOp("and", matched[1], line, req.Table, &req.Stats)
+		err = parseStatsOp(And, args, req.Table, &req.Stats)
 		return
 	case "statsor":
-		err = parseStatsOp("or", matched[1], line, req.Table, &req.Stats)
+		err = parseStatsOp(Or, args, req.Table, &req.Stats)
 		return
 	case "sort":
-		err = parseSortHeader(&req.Sort, matched[1])
+		err = parseSortHeader(&req.Sort, args)
 		return
 	case "limit":
 		req.Limit = new(int)
-		err = parseIntHeader(req.Limit, matched[0], matched[1], 0)
+		err = parseIntHeader(req.Limit, args, 0)
 		return
 	case "offset":
-		err = parseIntHeader(&req.Offset, matched[0], matched[1], 0)
+		err = parseIntHeader(&req.Offset, args, 0)
 		return
 	case "backends":
-		req.Backends = strings.Split(matched[1], " ")
+		req.Backends = strings.Fields(string(args))
 		return
 	case "columns":
-		req.Columns = strings.Split(matched[1], " ")
+		req.Columns = strings.Fields(string(args))
 		return
 	case "responseheader":
-		err = parseResponseHeader(&req.ResponseFixed16, matched[1])
+		err = parseResponseHeader(&req.ResponseFixed16, args)
 		return
 	case "outputformat":
-		err = parseOutputFormat(&req.OutputFormat, matched[1])
+		err = parseOutputFormat(&req.OutputFormat, args)
 		return
 	case "waittimeout":
-		err = parseIntHeader(&req.WaitTimeout, matched[0], matched[1], 1)
+		err = parseIntHeader(&req.WaitTimeout, args, 1)
 		return
 	case "waittrigger":
-		req.WaitTrigger = matched[1]
+		req.WaitTrigger = string(args)
 		return
 	case "waitobject":
-		req.WaitObject = matched[1]
+		req.WaitObject = string(args)
 		return
 	case "waitcondition":
-		err = ParseFilter(matched[1], line, req.Table, &req.WaitCondition)
+		err = ParseFilter(args, req.Table, &req.WaitCondition)
 		return
 	case "waitconditionand":
-		err = parseStatsOp("and", matched[1], line, req.Table, &req.WaitCondition)
+		err = parseStatsOp(And, args, req.Table, &req.WaitCondition)
 		return
 	case "waitconditionor":
-		err = parseStatsOp("or", matched[1], line, req.Table, &req.WaitCondition)
+		err = parseStatsOp(Or, args, req.Table, &req.WaitCondition)
 		return
 	case "waitconditionnegate":
 		req.WaitConditionNegate = true
 		return
 	case "keepalive":
-		err = parseOnOff(&req.KeepAlive, line, matched[1])
+		err = parseOnOff(&req.KeepAlive, args)
 		return
 	case "columnheaders":
-		err = parseOnOff(&req.ColumnsHeaders, line, matched[1])
+		err = parseOnOff(&req.ColumnsHeaders, args)
 		return
 	case "localtime":
 		if log.IsV(2) {
-			log.Debugf("Ignoring %s as LMD works on unix timestamps only.", *line)
+			log.Debugf("Ignoring %s as LMD works on unix timestamps only.", matched[0])
 		}
 		return
-	default:
-		err = fmt.Errorf("bad request: unrecognized header %s", *line)
-		return
 	}
+	err = fmt.Errorf("unrecognized header")
+	return
 }
 
-func parseResponseHeader(field *bool, value string) (err error) {
-	if value != "fixed16" {
-		err = errors.New("bad request: unrecognized responseformat, only fixed16 is supported")
+func parseResponseHeader(field *bool, value []byte) (err error) {
+	if !bytes.Equal(value, []byte("fixed16")) {
+		err = errors.New("unrecognized responseformat, only fixed16 is supported")
 		return
 	}
 	*field = true
 	return
 }
 
-func parseIntHeader(field *int, header string, value string, minValue int) (err error) {
-	intVal, err := strconv.Atoi(value)
+func parseIntHeader(field *int, value []byte, minValue int) (err error) {
+	intVal, err := strconv.Atoi(string(value))
 	if err != nil || intVal < minValue {
-		err = fmt.Errorf("bad request: %s must be a positive number", header)
+		err = fmt.Errorf("expecting a positive number")
 		return
 	}
 	*field = intVal
 	return
 }
 
-func parseSortHeader(field *[]*SortField, value string) (err error) {
-	args := ""
-	tmp := strings.SplitN(value, " ", 3)
-	if len(tmp) < 1 {
-		err = errors.New("bad request: invalid sort header, must be 'Sort: <field> <asc|desc>' or 'Sort: custom_variables <name> <asc|desc>'")
+func parseSortHeader(field *[]SortField, value []byte) (err error) {
+	if len(value) == 0 {
+		err = errors.New("invalid sort header, must be 'Sort: <field> <asc|desc>' or 'Sort: custom_variables <name> <asc|desc>'")
 		return
 	}
-	if len(tmp) == 1 {
-		// Add default sorting option
-		tmp = append(tmp, "asc")
-	}
+	tmp := bytes.SplitN(value, []byte(" "), 3)
+	args := ""
 	if len(tmp) == 3 {
-		if tmp[0] != "custom_variables" && tmp[0] != "host_custom_variables" {
-			err = errors.New("bad request: invalid sort header, must be 'Sort: <field> <asc|desc>' or 'Sort: custom_variables <name> <asc|desc>'")
+		if !bytes.Equal(tmp[0], []byte("custom_variables")) && !bytes.Equal(tmp[0], []byte("host_custom_variables")) {
+			err = errors.New("invalid sort header, must be 'Sort: <field> <asc|desc>' or 'Sort: custom_variables <name> <asc|desc>'")
 			return
 		}
-		args = strings.ToUpper(tmp[1])
+		args = string(bytes.ToUpper(tmp[1]))
 		tmp[1] = tmp[2]
 	}
 	var direction SortDirection
-	switch strings.ToLower(tmp[1]) {
-	case "asc":
+	switch {
+	case bytes.EqualFold(tmp[1], []byte("asc")):
 		direction = Asc
-	case "desc":
+	case bytes.EqualFold(tmp[1], []byte("desc")):
 		direction = Desc
+	case len(tmp[1]) == 0:
+		direction = Asc
 	default:
-		err = errors.New("bad request: unrecognized sort direction, must be asc or desc")
+		err = errors.New("unrecognized sort direction, must be asc or desc")
 		return
 	}
-	*field = append(*field, &SortField{Name: strings.ToLower(tmp[0]), Direction: direction, Args: args})
+	*field = append(*field, SortField{Name: string(bytes.ToLower(tmp[0])), Direction: direction, Args: args})
 	return
 }
 
-func parseStatsOp(op string, value string, line *string, table string, stats *[]*Filter) (err error) {
-	num, cerr := strconv.Atoi(value)
+func parseStatsOp(op GroupOperator, value []byte, table string, stats *[]*Filter) (err error) {
+	num, cerr := strconv.Atoi(string(value))
 	if cerr == nil && num == 0 {
-		newline := "Stats: state != 9999"
-		err = ParseStats("state != 9999", &newline, table, stats)
+		err = ParseStats([]byte("state != 9999"), table, stats)
 		return
 	}
-	err = ParseFilterOp(op, value, line, stats)
+	err = ParseFilterOp(op, value, stats)
 	if err != nil {
 		return
 	}
@@ -750,16 +780,16 @@ func parseStatsOp(op string, value string, line *string, table string, stats *[]
 	return
 }
 
-func parseOutputFormat(field *string, value string) (err error) {
-	switch value {
-	case WRAPPEDJSON:
-		*field = value
+func parseOutputFormat(field *OutputFormat, value []byte) (err error) {
+	switch string(value) {
+	case "wrapped_json":
+		*field = OutputFormatWrappedJSON
 	case "json":
-		*field = value
+		*field = OutputFormatJSON
 	case "python":
-		*field = value
+		*field = OutputFormatPython
 	default:
-		err = errors.New("bad request: unrecognized outputformat, only json and wrapped_json is supported")
+		err = errors.New("unrecognized outputformat, choose from json, wrapped_json and python")
 		return
 	}
 	return
@@ -767,20 +797,20 @@ func parseOutputFormat(field *string, value string) (err error) {
 
 // parseOnOff parses a on/off header
 // It returns any error encountered.
-func parseOnOff(field *bool, line *string, value string) (err error) {
-	switch value {
+func parseOnOff(field *bool, value []byte) (err error) {
+	switch string(value) {
 	case "on":
 		*field = true
 	case "off":
 		*field = false
 	default:
-		err = fmt.Errorf("bad request: must be 'on' or 'off' in %s", *line)
+		err = fmt.Errorf("must be 'on' or 'off'")
 	}
 	return
 }
 
-// SetColumnsIndex returns a list of used indexes and columns for this request.
-func (req *Request) SetColumnsIndex() (err error) {
+// SetRequestColumns returns a list of used indexes and columns for this request.
+func (req *Request) SetRequestColumns() (err error) {
 	log.Tracef("SetColumnsIndex")
 	if req.Command != "" {
 		return
@@ -791,29 +821,29 @@ func (req *Request) SetColumnsIndex() (err error) {
 		numColumns = len(table.Columns)
 	}
 	numColumns += len(req.Sort)
-	indexes := make([]int, 0, numColumns)
-	columns := make([]*RequestColumn, 0, numColumns)
+	columns := make([]RequestColumn, 0, numColumns)
 
 	// if no column header was given, return all columns
 	// but only if this is no stats query
 	if len(req.Columns) == 0 && len(req.Stats) == 0 {
-		for j, col := range table.Columns {
-			if col.Update != RefUpdate && col.Name != EMPTY {
-				addRequestColumn(table, col.Name, j, &indexes, &columns, false)
-			}
+		for j := range table.Columns {
+			col := table.Columns[j]
+			columns = append(columns, RequestColumn{Name: strings.ToLower(col.Name), Index: j, OutputType: col.DataType, Column: col, Hidden: false})
 		}
 	}
 
 	// build array of requested columns as ResultColumn objects list
 	for j := range req.Columns {
-		addRequestColumn(table, req.Columns[j], j, &indexes, &columns, false)
+		col := table.GetColumnWithFallback(req.Columns[j])
+		columns = append(columns, RequestColumn{Name: strings.ToLower(req.Columns[j]), Index: j, OutputType: col.DataType, Column: col, Hidden: false})
 	}
 
 	// check wether our sort columns do exist in the output
-	for _, s := range req.Sort {
+	for i := range req.Sort {
+		s := &(req.Sort[i])
 		_, Ok := table.ColumnsIndex[s.Name]
 		if !Ok {
-			err = errors.New("bad request: table " + req.Table + " has no column " + s.Name + " to sort")
+			err = errors.New("table " + req.Table + " has no column " + s.Name + " to sort")
 			return
 		}
 		found := false
@@ -827,36 +857,89 @@ func (req *Request) SetColumnsIndex() (err error) {
 		}
 		if !found {
 			i = len(columns)
-			addRequestColumn(table, s.Name, i, &indexes, &columns, true)
+			col := table.GetColumnWithFallback(s.Name)
+			columns = append(columns, RequestColumn{Name: strings.ToLower(s.Name), Index: i, OutputType: col.DataType, Column: col, Hidden: true})
 		}
 		s.Index = i
 	}
 
 	req.RequestColumns = columns
-	req.ReqColIndex = indexes
+	return
+}
+
+// parseResult parses the result bytes and returns the data table and optional meta data for wrapped_json requests
+func (req *Request) parseResult(resBytes *[]byte) (result [][]interface{}, meta *ResultMetaData, err error) {
+	if len(*resBytes) == 0 || (string((*resBytes)[0]) != "{" && string((*resBytes)[0]) != "[") {
+		err = errors.New(strings.TrimSpace(string(*resBytes)))
+		return nil, nil, &PeerError{msg: fmt.Sprintf("response does not look like a json result: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
+	}
+	if req.OutputFormat == OutputFormatWrappedJSON {
+		meta = &ResultMetaData{}
+		dataBytes, dataType, _, jErr := jsonparser.Get(*resBytes, "columns")
+		if jErr != nil {
+			log.Debugf("column header parse error: %s", jErr.Error())
+		} else if dataType == jsonparser.Array {
+			var columns []string
+			err = json.Unmarshal(dataBytes, &columns)
+			if err != nil {
+				return nil, nil, &PeerError{msg: fmt.Sprintf("column header parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
+			}
+			meta.Columns = columns
+		}
+		totalCount, jErr := jsonparser.GetInt(*resBytes, "total_count")
+		if jErr != nil {
+			return nil, nil, &PeerError{msg: fmt.Sprintf("total header parse error: %s", jErr.Error()), kind: ResponseError, req: req, resBytes: resBytes}
+		}
+		meta.Total = totalCount
+
+		dataBytes, _, _, jErr = jsonparser.Get(*resBytes, "data")
+		if jErr != nil {
+			return nil, nil, &PeerError{msg: fmt.Sprintf("data header parse error: %s", jErr.Error()), kind: ResponseError, req: req, resBytes: resBytes}
+		}
+		resBytes = &dataBytes
+	}
+	result = make([][]interface{}, 0)
+	offset, jErr := jsonparser.ArrayEach(*resBytes, func(rowBytes []byte, _ jsonparser.ValueType, _ int, aErr error) {
+		if aErr != nil {
+			err = aErr
+			return
+		}
+		row, dErr := djson.Decode(rowBytes)
+		if dErr != nil {
+			err = dErr
+			return
+		}
+		result = append(result, row.([]interface{}))
+	})
+	// trailing comma error will be ignored
+	if jErr != nil && offset < len(*resBytes)-3 {
+		return nil, nil, jErr
+	}
+
+	if err != nil {
+		return nil, nil, err
+	}
 
 	return
 }
 
-func addRequestColumn(table *Table, colName string, requestIndex int, indexes *[]int, columns *[]*RequestColumn, hidden bool) {
-	colName = strings.ToLower(colName)
-	i, ok := table.ColumnsIndex[colName]
-	if !ok {
-		if table.PassthroughOnly {
-			*indexes = append(*indexes, -1)
-			*columns = append(*columns, &RequestColumn{Name: colName, Type: StringCol, Index: requestIndex, Hidden: hidden})
-			return
-		}
-		if !fixBrokenClientsRequestColumn(&colName, table.Name) {
-			colName = EMPTY
-		}
-		i = table.ColumnsIndex[colName]
+// IsDefaultSortOrder returns true if the sortfield is the default for the given table.
+func (req *Request) IsDefaultSortOrder(sort *[]SortField) bool {
+	if len(*sort) == 0 {
+		return true
 	}
-	col := table.Columns[i]
-	if col.Type == VirtCol {
-		*indexes = append(*indexes, col.VirtMap.Index)
-	} else {
-		*indexes = append(*indexes, i)
+	if len(*sort) == 2 {
+		if req.Table == "services" {
+			if (*sort)[0].Name == "host_name" && (*sort)[0].Direction == Asc && (*sort)[1].Name == "description" && (*sort)[1].Direction == Asc {
+				return true
+			}
+		}
+	} else if len(*sort) == 1 {
+		if req.Table == "hosts" {
+			if (*sort)[0].Name == "name" && (*sort)[0].Direction == Asc {
+				return true
+			}
+		}
 	}
-	*columns = append(*columns, &RequestColumn{Name: colName, Type: col.Type, Index: requestIndex, Column: col, Hidden: hidden})
+	return false
 }

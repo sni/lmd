@@ -1,0 +1,134 @@
+package main
+
+import (
+	"time"
+)
+
+// DataStore contains the actual data rows with a reference to the table and peer.
+type DataStore struct {
+	noCopy                  noCopy
+	DynamicColumnCache      ColumnList          // contains list of columns used to run periodic update
+	DynamicColumnNamesCache []string            // contains list of keys used to run periodic update
+	DataSizes               map[DataType]int    // contains the sizes for each data type
+	Peer                    *Peer               // reference to our peer
+	Data                    []*DataRow          // the actual data rows
+	Index                   map[string]*DataRow // access data rows from primary key, ex.: hostname or comment id
+	Table                   *Table              // reference to table definition
+}
+
+// NewDataStore creates a new datastore with columns based on given flags
+func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
+	d = &DataStore{
+		Data:                    make([]*DataRow, 0),
+		Index:                   make(map[string]*DataRow),
+		DynamicColumnCache:      make(ColumnList, 0),
+		DynamicColumnNamesCache: make([]string, 0),
+		Table:                   table,
+	}
+
+	if peer != nil {
+		d.Peer = peer.(*Peer)
+	}
+
+	// create columns list
+	indexes := map[DataType]int{
+		StringCol:     0,
+		StringListCol: 0,
+		IntCol:        0,
+		IntListCol:    0,
+		FloatCol:      0,
+		CustomVarCol:  0,
+	}
+	for i := range table.Columns {
+		col := table.Columns[i]
+		if d.Peer != nil && !d.Peer.Flags.HasFlag(col.Optional) {
+			continue
+		}
+		if col.StorageType == LocalStore {
+			_, ok := indexes[col.DataType]
+			if !ok {
+				log.Panicf("type not implemented: %s - %v", col.Name, col.DataType)
+			}
+			if col.Index > 0 && col.Index != indexes[col.DataType] {
+				log.Panicf("index overlap with flags: %v", d.Peer.Flags)
+			}
+			col.Index = indexes[col.DataType]
+			indexes[col.DataType]++
+			if col.UpdateType == Dynamic {
+				d.DynamicColumnNamesCache = append(d.DynamicColumnNamesCache, col.Name)
+				d.DynamicColumnCache = append(d.DynamicColumnCache, col)
+			}
+		}
+	}
+	d.DataSizes = indexes
+	// prepend primary keys to dynamic keys, since they are required to map the results back to specific items
+	if len(d.DynamicColumnNamesCache) > 0 {
+		for i := range d.Table.PrimaryKey {
+			d.DynamicColumnNamesCache = append([]string{d.Table.PrimaryKey[i]}, d.DynamicColumnNamesCache...)
+		}
+	}
+	return
+}
+
+// InsertData adds a list of results and initializes the store table
+func (d *DataStore) InsertData(data *[][]interface{}, columns *ColumnList) error {
+	now := time.Now().Unix()
+	if len(d.Table.PrimaryKey) > 0 {
+		d.Index = make(map[string]*DataRow, len(*data))
+	}
+	for i := range *data {
+		row, err := NewDataRow(d, &(*data)[i], columns, now)
+		if err != nil {
+			log.Errorf("adding new %s failed: %s", d.Table.Name, err.Error())
+			return err
+		}
+		d.AddItem(row)
+	}
+	return nil
+}
+
+// AddItem adds an new DataRow to a DataStore.
+func (d *DataStore) AddItem(row *DataRow) {
+	d.Data = append(d.Data, row)
+	if row.ID != "" {
+		d.Index[row.ID] = row
+	}
+}
+
+// RemoveItem removes a DataRow from a DataStore.
+func (d *DataStore) RemoveItem(row *DataRow) {
+	if row.ID != "" {
+		delete(d.Index, row.ID)
+	}
+	for i := range d.Data {
+		r := d.Data[i]
+		if r.ID == row.ID {
+			d.Data = append(d.Data[:i], d.Data[i+1:]...)
+			return
+		}
+	}
+	log.Panicf("element not found")
+}
+
+// GetColumn returns column by name
+func (d *DataStore) GetColumn(name string) *Column {
+	return d.Table.ColumnsIndex[name]
+}
+
+// GetInitialColumns returns list of columns required to fill initial dataset
+func (d *DataStore) GetInitialColumns() (keys []string, columns ColumnList) {
+	columns = make(ColumnList, 0)
+	keys = make([]string, 0)
+	for i := range d.Table.Columns {
+		col := d.Table.Columns[i]
+		if d.Peer != nil && !d.Peer.Flags.HasFlag(col.Optional) {
+			continue
+		}
+		if col.StorageType != LocalStore {
+			continue
+		}
+		columns = append(columns, col)
+		keys = append(keys, col.Name)
+	}
+	return
+}

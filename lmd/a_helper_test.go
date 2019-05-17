@@ -124,7 +124,7 @@ func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (t
 	}
 	// read existing json files and extend hosts and services
 	for name, table := range Objects.Tables {
-		if table.Virtual || table.GroupBy || table.PassthroughOnly {
+		if table.Virtual != nil || table.GroupBy || table.PassthroughOnly {
 			continue
 		}
 		file, err := os.Create(fmt.Sprintf("%s/%s.json", tempFolder, name))
@@ -136,10 +136,10 @@ func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (t
 			panic("failed to open temp file: " + err.Error())
 		}
 		switch {
-		case numHosts == 0 && name != STATUS:
+		case numHosts == 0 && name != "status":
 			io.WriteString(file, "200           3\n[]\n")
 			err = file.Close()
-		case name == HOSTS || name == SERVICES:
+		case name == "hosts" || name == "services":
 			err = file.Close()
 			prepareTmpDataHostService(dataFolder, tempFolder, table, numHosts, numServices)
 		default:
@@ -166,8 +166,8 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 	num := len(raw)
 	last := raw[num-1]
 	newData := [][]interface{}{}
-	if name == HOSTS {
-		nameIndex := table.GetColumn("name").Index
+	if name == "hosts" {
+		nameIndex := GetTestColumnIndex(table, "name")
 		for x := 1; x <= numHosts; x++ {
 			var newObj []interface{}
 			if x >= num {
@@ -181,9 +181,9 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 			newData = append(newData, newObj)
 		}
 	}
-	if name == SERVICES {
-		nameIndex := table.GetColumn("host_name").Index
-		descIndex := table.GetColumn("description").Index
+	if name == "services" {
+		nameIndex := GetTestColumnIndex(table, "host_name")
+		descIndex := GetTestColumnIndex(table, "description")
 		count := 0
 		for x := 1; x <= numHosts; x++ {
 			for y := 1; y <= numServices/numHosts; y++ {
@@ -284,7 +284,7 @@ func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig
 	// wait till backend is available
 	retries := 0
 	for {
-		res, err := peer.QueryString("GET backends\nColumns: status last_error\nFilter: status = 0\nResponseHeader: fixed16\n\n")
+		res, _, err := peer.QueryString("GET backends\nColumns: status last_error\nFilter: status = 0\nResponseHeader: fixed16\n\n")
 		if err == nil && len(res) == len(sockets) && len(res[0]) > 0 && res[0][0].(float64) == 0 && res[0][1].(string) == "" {
 			break
 		}
@@ -403,4 +403,13 @@ func GetHTTPMockServerPeer(t *testing.T) (peer *Peer, cleanup func()) {
 	testPeerShutdownChannel := make(chan bool)
 	peer = NewPeer(&GlobalTestConfig, &Connection{Source: []string{ts.URL}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
 	return
+}
+
+func GetTestColumnIndex(table *Table, name string) int {
+	for i := range table.Columns {
+		if table.Columns[i].Name == name {
+			return i
+		}
+	}
+	panic(name + " not found")
 }

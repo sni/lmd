@@ -29,7 +29,7 @@ func TestNodeManager(t *testing.T) {
 	}
 
 	// test host request
-	res, err := peer.QueryString("GET hosts\nColumns: name peer_key state\n\n")
+	res, _, err := peer.QueryString("GET hosts\nColumns: name peer_key state\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestNodeManager(t *testing.T) {
 	}
 
 	// test host stats request
-	res, err = peer.QueryString("GET hosts\nStats: name !=\nStats: avg latency\nStats: sum latency\n\n")
+	res, _, err = peer.QueryString("GET hosts\nStats: name !=\nStats: avg latency\nStats: sum latency\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestNodeManager(t *testing.T) {
 	}
 
 	// test host grouped stats request
-	res, err = peer.QueryString("GET hosts\nColumns: name alias\nStats: name !=\nStats: avg latency\nStats: sum latency\n\n")
+	res, _, err = peer.QueryString("GET hosts\nColumns: name alias\nStats: name !=\nStats: avg latency\nStats: sum latency\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestNodeManager(t *testing.T) {
 	}
 
 	// test host empty stats request
-	res, err = peer.QueryString("GET hosts\nFilter: check_type = 15\nStats: sum percent_state_change\nStats: min percent_state_change\n\n")
+	res, _, err = peer.QueryString("GET hosts\nFilter: check_type = 15\nStats: sum percent_state_change\nStats: min percent_state_change\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}

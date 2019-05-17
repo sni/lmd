@@ -14,8 +14,9 @@ func BenchmarkParseResultJSON(b *testing.B) {
 	PauseTestPeers(peer)
 
 	columns := make([]string, 0)
-	for _, col := range peer.Tables[SERVICES].Table.Columns {
-		if col.Update != RefUpdate && col.Update != RefNoUpdate && col.Name != EMPTY && col.Optional == NoFlags {
+	for i := range peer.Tables["services"].Table.Columns {
+		col := peer.Tables["services"].Table.Columns[i]
+		if col.StorageType == LocalStore && col.Optional == NoFlags {
 			columns = append(columns, col.Name)
 		}
 	}
@@ -34,7 +35,7 @@ func BenchmarkParseResultJSON(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		res, err := peer.parseResult(req, resBytes)
+		res, _, err := req.parseResult(resBytes)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -58,8 +59,9 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 	PauseTestPeers(peer)
 
 	columns := make([]string, 0)
-	for _, col := range peer.Tables[SERVICES].Table.Columns {
-		if col.Update != RefUpdate && col.Update != RefNoUpdate && col.Name != EMPTY && col.Optional == NoFlags {
+	for i := range peer.Tables["services"].Table.Columns {
+		col := peer.Tables["services"].Table.Columns[i]
+		if col.StorageType == LocalStore && col.Optional == NoFlags {
 			columns = append(columns, col.Name)
 		}
 	}
@@ -78,7 +80,7 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		res, err := peer.parseResult(req, resBytes)
+		res, _, err := req.parseResult(resBytes)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -122,7 +124,7 @@ func BenchmarkSingleFilter(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		_, err := peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
+		_, _, err := peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
 		if err != nil {
 			panic(err.Error())
 		}
@@ -141,7 +143,7 @@ func BenchmarkSingleFilter_1k_svc__1Peer(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		_, err := peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
+		_, _, err := peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
 		if err != nil {
 			panic(err.Error())
 		}
@@ -160,7 +162,7 @@ func BenchmarkSingleFilter_1k_svc_10Peer(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		_, err := peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
+		_, _, err := peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
 		if err != nil {
 			panic(err.Error())
 		}
@@ -179,7 +181,7 @@ func BenchmarkMultiFilter(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		_, err := peer.QueryString("GET hosts\nColumns: name\nFilter: name != test\nFilter: state != 5\nFilter: latency != 2\nFilter: contact_groups !=\nFilter: custom_variables != TEST blah\n")
+		_, _, err := peer.QueryString("GET hosts\nColumns: name\nFilter: name != test\nFilter: state != 5\nFilter: latency != 2\nFilter: contact_groups !=\nFilter: custom_variables != TEST blah\n")
 		if err != nil {
 			panic(err.Error())
 		}
@@ -198,7 +200,7 @@ func BenchmarkSimpleStats(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		_, err := peer.QueryString("GET hosts\nStats: name != \nStats: avg latency\nStats: sum latency")
+		_, _, err := peer.QueryString("GET hosts\nStats: name != \nStats: avg latency\nStats: sum latency")
 		if err != nil {
 			panic(err.Error())
 		}
@@ -217,7 +219,7 @@ func BenchmarkTacStats(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		_, err := peer.QueryString(tacPageStatsQuery)
+		_, _, err := peer.QueryString(tacPageStatsQuery)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -236,7 +238,7 @@ func BenchmarkTacStats_1k_svc__1Peer(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		_, err := peer.QueryString(tacPageStatsQuery)
+		_, _, err := peer.QueryString(tacPageStatsQuery)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -255,7 +257,7 @@ func BenchmarkTacStats_1k_svc_10Peer(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		_, err := peer.QueryString(tacPageStatsQuery)
+		_, _, err := peer.QueryString(tacPageStatsQuery)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -276,7 +278,7 @@ func BenchmarkTacStats_1k_svc_100Peer(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		_, err := peer.QueryString(tacPageStatsQuery)
+		_, _, err := peer.QueryString(tacPageStatsQuery)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -297,7 +299,7 @@ func BenchmarkTacStats_5k_svc_500Peer(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		_, err := peer.QueryString(tacPageStatsQuery)
+		_, _, err := peer.QueryString(tacPageStatsQuery)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -316,7 +318,7 @@ func BenchmarkServicelistLimit_1k_svc__1Peer(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		_, err := peer.QueryString(servicesPageQuery)
+		_, _, err := peer.QueryString(servicesPageQuery)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -335,7 +337,7 @@ func BenchmarkServicelistLimit_1k_svc_10Peer(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		_, err := peer.QueryString(servicesPageQuery)
+		_, _, err := peer.QueryString(servicesPageQuery)
 		if err != nil {
 			panic(err.Error())
 		}

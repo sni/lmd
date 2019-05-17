@@ -111,7 +111,7 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string) (bool, error) {
 		} else {
 			// send all pending commands so far
 			if len(commandsByPeer) > 0 {
-				code, msg := SendCommands(&commandsByPeer)
+				code, msg := SendCommands(commandsByPeer)
 				commandsByPeer = make(map[string][]string)
 				if code != 200 {
 					c.Write([]byte(fmt.Sprintf("%d: %s\n", code, msg)))
@@ -154,7 +154,7 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string) (bool, error) {
 	// send all remaining commands
 	if len(commandsByPeer) > 0 {
 		t1 := time.Now()
-		code, msg := SendCommands(&commandsByPeer)
+		code, msg := SendCommands(commandsByPeer)
 		if code != 200 {
 			c.Write([]byte(fmt.Sprintf("%d: %s\n", code, msg)))
 			return false, nil
@@ -167,12 +167,12 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string) (bool, error) {
 
 // SendCommands sends commands for this request to all selected remote sites.
 // It returns any error encountered.
-func SendCommands(commandsByPeer *map[string][]string) (code int, msg string) {
+func SendCommands(commandsByPeer map[string][]string) (code int, msg string) {
 	code = 200
 	msg = "OK"
-	resultChan := make(chan error, len(*commandsByPeer))
+	resultChan := make(chan error, len(commandsByPeer))
 	wg := &sync.WaitGroup{}
-	for pID := range *commandsByPeer {
+	for pID := range commandsByPeer {
 		PeerMapLock.RLock()
 		p := PeerMap[pID]
 		PeerMapLock.RUnlock()
@@ -180,7 +180,7 @@ func SendCommands(commandsByPeer *map[string][]string) (code int, msg string) {
 		go func(peer *Peer) {
 			defer logPanicExitPeer(peer)
 			defer wg.Done()
-			resultChan <- peer.SendCommandsWithRetry((*commandsByPeer)[peer.ID])
+			resultChan <- peer.SendCommandsWithRetry(commandsByPeer[peer.ID])
 		}(p)
 	}
 

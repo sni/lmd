@@ -1,9 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -27,13 +27,13 @@ const (
 func (op *StatsType) String() string {
 	switch *op {
 	case Average:
-		return ("avg")
+		return "avg"
 	case Sum:
-		return ("sum")
+		return "sum"
 	case Min:
-		return ("min")
+		return "min"
 	case Max:
-		return ("Max")
+		return "Max"
 	}
 	log.Panicf("not implemented")
 	return ""
@@ -43,7 +43,7 @@ func (op *StatsType) String() string {
 type Filter struct {
 	noCopy noCopy
 	// filter can either be a single filter
-	Column     *RequestColumn
+	Column     *Column
 	Operator   Operator
 	StrValue   string
 	FloatValue float64
@@ -153,43 +153,34 @@ func (f *Filter) String(prefix string) (str string) {
 	return
 }
 
-func (f *Filter) strValue() (str string) {
-	colType := f.Column.Type
+func (f *Filter) strValue() string {
+	colType := f.Column.DataType
 	if f.IsEmpty {
-		str = ""
-		if colType == CustomVarCol {
-			str = f.CustomTag
-		}
-		return
+		return f.CustomTag
 	}
 	var value string
-	if colType == VirtCol {
-		colType = f.Column.Column.VirtType
-	}
 	switch colType {
+	case HashMapCol:
+		fallthrough
 	case CustomVarCol:
 		value = f.CustomTag + " " + f.StrValue
-	case TimeCol:
-		fallthrough
 	case IntListCol:
 		fallthrough
 	case IntCol:
 		value = fmt.Sprintf("%d", int(f.FloatValue))
 	case FloatCol:
 		value = fmt.Sprintf("%v", f.FloatValue)
-	case HashMapCol:
-		// not impemented right now
-		fallthrough
 	case StringListCol:
+		fallthrough
+	case InterfaceListCol:
 		fallthrough
 	case StringCol:
 		value = f.StrValue
 	default:
-		log.Panicf("not implemented column type: %v", f.Column.Type)
+		log.Panicf("not implemented column type: %v", f.Column.DataType)
 	}
 
-	str = fmt.Sprintf("%v", value)
-	return
+	return value
 }
 
 // ApplyValue add the given value to this stats filter
@@ -219,37 +210,38 @@ func (f *Filter) ApplyValue(val float64, count int) {
 
 // ParseFilter parses a single line into a filter object.
 // It returns any error encountered.
-func ParseFilter(value string, line *string, table string, stack *[]*Filter) (err error) {
-	tmp := strings.SplitN(value, " ", 3)
+func ParseFilter(value []byte, table string, stack *[]*Filter) (err error) {
+	tmp := bytes.SplitN(value, []byte(" "), 3)
 	if len(tmp) < 2 {
-		err = errors.New("bad request: filter header, must be Filter: <field> <operator> <value>")
+		err = errors.New("filter header must be Filter: <field> <operator> <value>")
 		return
 	}
 	// filter are allowed to be empty
 	if len(tmp) == 2 {
-		tmp = append(tmp, "")
+		tmp = append(tmp, []byte(""))
 	}
 
-	op, isRegex, err := parseFilterOp(tmp[1], line)
+	op, isRegex, err := parseFilterOp(tmp[1])
 	if err != nil {
 		return
 	}
 
-	columnName := tmp[0]
+	columnName := string(tmp[0])
 
 	// convert value to type of column
-	i, ok := Objects.Tables[table].ColumnsIndex[columnName]
-	if !ok {
+	col := Objects.Tables[table].ColumnsIndex[columnName]
+	if col == nil {
 		if !fixBrokenClientsRequestColumn(&columnName, table) {
-			columnName = EMPTY
+			columnName = "empty"
 		}
-		i = Objects.Tables[table].ColumnsIndex[columnName]
+		col = Objects.Tables[table].ColumnsIndex[columnName]
 	}
-	col := Objects.Tables[table].Columns[i]
-	resCol := &RequestColumn{Name: columnName, Type: col.Type, Column: col}
-	filter := Filter{Operator: op, Column: resCol}
+	filter := &Filter{
+		Operator: op,
+		Column:   col,
+	}
 
-	err = filter.setFilterValue(col, tmp[2], line)
+	err = filter.setFilterValue(col, string(tmp[2]))
 	if err != nil {
 		return
 	}
@@ -261,33 +253,28 @@ func ParseFilter(value string, line *string, table string, stack *[]*Filter) (er
 		}
 		regex, rerr := regexp.Compile(val)
 		if rerr != nil {
-			err = errors.New("bad request: invalid regular expression: " + rerr.Error() + " in filter " + *line)
+			err = errors.New("invalid regular expression: " + rerr.Error())
 			return
 		}
 		filter.Regexp = regex
 	}
-	*stack = append(*stack, &filter)
+	*stack = append(*stack, filter)
 	return
 }
 
 // setFilterValue converts the text value into the given filters type value
-func (f *Filter) setFilterValue(col *Column, strVal string, line *string) (err error) {
-	colType := col.Type
-	if colType == VirtCol {
-		colType = col.VirtType
-	}
+func (f *Filter) setFilterValue(col *Column, strVal string) (err error) {
+	colType := col.DataType
 	if strVal == "" {
 		f.IsEmpty = true
 	}
 	switch colType {
 	case IntListCol:
 		fallthrough
-	case TimeCol:
-		fallthrough
 	case IntCol:
 		filtervalue, cerr := strconv.Atoi(strVal)
 		if cerr != nil && !f.IsEmpty {
-			err = fmt.Errorf("bad request: could not convert %s to integer from filter: %s", strVal, *line)
+			err = fmt.Errorf("could not convert %s to integer from filter", strVal)
 			return
 		}
 		f.FloatValue = float64(filtervalue)
@@ -295,15 +282,17 @@ func (f *Filter) setFilterValue(col *Column, strVal string, line *string) (err e
 	case FloatCol:
 		filtervalue, cerr := strconv.ParseFloat(strVal, 64)
 		if cerr != nil && !f.IsEmpty {
-			err = fmt.Errorf("bad request: could not convert %s to float from filter: %s", strVal, *line)
+			err = fmt.Errorf("could not convert %s to float from filter", strVal)
 			return
 		}
 		f.FloatValue = filtervalue
 		return
+	case HashMapCol:
+		fallthrough
 	case CustomVarCol:
 		vars := strings.SplitN(strVal, " ", 2)
 		if vars[0] == "" {
-			err = errors.New("bad request: custom variable filter must have form \"Filter: custom_variables <op> <variable> [<value>]\" in " + *line)
+			err = errors.New("custom variable filter must have form \"Filter: custom_variables <op> <variable> [<value>]\"")
 			return
 		}
 		if len(vars) == 1 {
@@ -313,8 +302,7 @@ func (f *Filter) setFilterValue(col *Column, strVal string, line *string) (err e
 		}
 		f.CustomTag = vars[0]
 		return
-	case HashMapCol:
-		// not impemented right now
+	case InterfaceListCol:
 		fallthrough
 	case StringListCol:
 		fallthrough
@@ -326,9 +314,9 @@ func (f *Filter) setFilterValue(col *Column, strVal string, line *string) (err e
 	return
 }
 
-func parseFilterOp(opStr string, line *string) (op Operator, isRegex bool, err error) {
+func parseFilterOp(in []byte) (op Operator, isRegex bool, err error) {
 	isRegex = false
-	switch opStr {
+	switch string(in) {
 	case "=":
 		op = Equal
 		return
@@ -373,21 +361,21 @@ func parseFilterOp(opStr string, line *string) (op Operator, isRegex bool, err e
 		op = GroupContainsNot
 		return
 	}
-	err = errors.New("bad request: unrecognized filter operator: " + opStr + " in " + *line)
+	err = fmt.Errorf("unrecognized filter operator: %s", in)
 	return
 }
 
 // ParseStats parses a text line into a stats object.
 // It returns any error encountered.
-func ParseStats(value string, line *string, table string, stack *[]*Filter) (err error) {
-	tmp := strings.SplitN(value, " ", 2)
+func ParseStats(value []byte, table string, stack *[]*Filter) (err error) {
+	tmp := bytes.SplitN(value, []byte(" "), 2)
 	if len(tmp) < 2 {
-		err = errors.New("bad request: stats header, must be Stats: <field> <operator> <value> OR Stats: <sum|avg|min|max> <field>")
+		err = fmt.Errorf("stats header, must be Stats: <field> <operator> <value> OR Stats: <sum|avg|min|max> <field>")
 		return
 	}
 	startWith := float64(0)
 	var op StatsType
-	switch strings.ToLower(tmp[0]) {
+	switch string(bytes.ToLower(tmp[0])) {
 	case "avg":
 		op = Average
 	case "min":
@@ -398,7 +386,7 @@ func ParseStats(value string, line *string, table string, stack *[]*Filter) (err
 	case "sum":
 		op = Sum
 	default:
-		err = ParseFilter(value, line, table, stack)
+		err = ParseFilter(value, table, stack)
 		if err != nil {
 			return
 		}
@@ -407,115 +395,115 @@ func ParseStats(value string, line *string, table string, stack *[]*Filter) (err
 		return
 	}
 
-	i, ok := Objects.Tables[table].ColumnsIndex[tmp[1]]
-	if !ok {
-		err = errors.New("bad request: unrecognized column from stats: " + tmp[1] + " in " + *line)
+	columnName := string(tmp[1])
+	col := Objects.Tables[table].ColumnsIndex[columnName]
+	if col == nil {
+		err = fmt.Errorf("unrecognized column from stats: %s", columnName)
 		return
 	}
-	col := Objects.Tables[table].Columns[i]
-	resCol := &RequestColumn{Name: col.Name, Type: col.Type, Index: 0, Column: col}
-	stats := &Filter{Column: resCol, StatsType: op, Stats: startWith, StatsCount: 0}
+	stats := &Filter{
+		Column:     col,
+		StatsType:  op,
+		Stats:      startWith,
+		StatsCount: 0,
+	}
 	*stack = append(*stack, stats)
 	return
 }
 
 // ParseFilterOp parses a text line into a filter group operator like And: <nr>.
 // It returns any error encountered.
-func ParseFilterOp(header string, value string, line *string, stack *[]*Filter) (err error) {
-	num, cerr := strconv.Atoi(value)
+func ParseFilterOp(op GroupOperator, value []byte, stack *[]*Filter) (err error) {
+	num, cerr := strconv.Atoi(string(value))
 	if cerr != nil || num < 0 {
-		err = fmt.Errorf("bad request: %s must be a positive number in: %s", header, *line)
+		err = fmt.Errorf("%s must be a positive number", op.String())
 		return
 	}
 	if num == 0 {
 		if log.IsV(2) {
-			log.Debugf("Ignoring %s as value is not positive", *line)
+			log.Debugf("ignoring %s as value is not positive")
 		}
 		return
 	}
 	stackLen := len(*stack)
 	if stackLen < num {
-		err = errors.New("bad request: not enough filter on stack in " + *line)
+		err = errors.New("not enough filter on stack")
 		return
 	}
 	// remove x entrys from stack and combine them to a new group
 	groupedStack, remainingStack := (*stack)[stackLen-num:], (*stack)[:stackLen-num]
-	op := Or
-	if header == "and" {
-		op = And
-	}
 	stackedFilter := &Filter{Filter: groupedStack, GroupOperator: op}
-	*stack = []*Filter{}
+	*stack = make([]*Filter, 0, len(remainingStack)+1)
 	*stack = append(*stack, remainingStack...)
 	*stack = append(*stack, stackedFilter)
 	return
 }
 
-// MatchFilter returns true if the given filter matches the given value.
-func (f *Filter) MatchFilter(value *interface{}) bool {
-	colType := f.Column.Type
-	if colType == VirtCol {
-		colType = f.Column.Column.VirtType
-	}
+// Match returns true if the given filter matches the given value.
+func (f *Filter) Match(row *DataRow) bool {
+	colType := f.Column.DataType
 	switch colType {
 	case StringCol:
-		return matchStringFilter(f, value)
-	case CustomVarCol:
-		return matchCustomVarFilter(f, value)
-	case TimeCol:
-		fallthrough
+		return f.MatchString(row.GetString(f.Column))
+	case StringListCol:
+		return f.MatchStringList(row.GetStringList(f.Column))
 	case IntCol:
-		fallthrough
+		if f.IsEmpty {
+			return matchEmptyFilter(f.Operator)
+		}
+		return f.MatchInt(row.GetInt(f.Column))
 	case FloatCol:
 		if f.IsEmpty {
 			return matchEmptyFilter(f.Operator)
 		}
-		if v, ok := (*value).(float64); ok {
-			// inline matchNumberFilter
-			switch f.Operator {
-			case Equal:
-				return v == f.FloatValue
-			case Unequal:
-				return v != f.FloatValue
-			case Less:
-				return v < f.FloatValue
-			case LessThan:
-				return v <= f.FloatValue
-			case Greater:
-				return v > f.FloatValue
-			case GreaterThan:
-				return v >= f.FloatValue
-			}
-		}
-		return matchNumberFilter(f.Operator, numberToFloat(value), f.FloatValue)
-	case HashMapCol:
-		// not implemented
-		fallthrough
-	case StringListCol:
-		return matchStringListFilter(f, value)
+		return f.MatchFloat(row.GetFloat(f.Column))
 	case IntListCol:
-		return matchIntListFilter(f, value)
+		return f.MatchIntList(row.GetIntList(f.Column))
+	case HashMapCol:
+		fallthrough
+	case CustomVarCol:
+		return f.MatchCustomVar(row.GetHashMap(f.Column))
 	}
 	log.Panicf("not implemented filter type: %v", colType)
 	return false
 }
 
-func matchNumberFilter(op Operator, valueA float64, valueB float64) bool {
-	switch op {
+func (f *Filter) MatchInt(value int64) bool {
+	intVal := int64(f.FloatValue)
+	switch f.Operator {
 	case Equal:
-		return valueA == valueB
+		return value == intVal
 	case Unequal:
-		return valueA != valueB
+		return value != intVal
 	case Less:
-		return valueA < valueB
+		return value < intVal
 	case LessThan:
-		return valueA <= valueB
+		return value <= intVal
 	case Greater:
-		return valueA > valueB
+		return value > intVal
 	case GreaterThan:
-		return valueA >= valueB
+		return value >= intVal
 	}
-	log.Warnf("not implemented op: %v", op)
+	log.Warnf("not implemented op: %v", f.Operator)
+	return false
+}
+
+func (f *Filter) MatchFloat(value float64) bool {
+	switch f.Operator {
+	case Equal:
+		return value == f.FloatValue
+	case Unequal:
+		return value != f.FloatValue
+	case Less:
+		return value < f.FloatValue
+	case LessThan:
+		return value <= f.FloatValue
+	case Greater:
+		return value > f.FloatValue
+	case GreaterThan:
+		return value >= f.FloatValue
+	}
+	log.Warnf("not implemented op: %v", f.Operator)
 	return false
 }
 
@@ -538,90 +526,66 @@ func matchEmptyFilter(op Operator) bool {
 	return false
 }
 
-func matchStringFilter(filter *Filter, value *interface{}) bool {
-	return matchStringValueOperator(filter.Operator, value, &filter.StrValue, filter.Regexp)
-}
-
-func matchStringValueOperator(op Operator, valueA *interface{}, valueB *string, regex *regexp.Regexp) bool {
-	var strA string
-	switch s := (*valueA).(type) {
-	case string:
-		strA = s
-	case nil:
-		strA = ""
-	default:
-		strA = fmt.Sprintf("%v", *valueA)
-	}
-	strB := *valueB
-	switch op {
+func (f *Filter) MatchString(value string) bool {
+	switch f.Operator {
 	case Equal:
-		return strA == strB
+		return value == f.StrValue
 	case Unequal:
-		return strA != strB
+		return value != f.StrValue
 	case EqualNocase:
-		return strings.EqualFold(strA, strB)
+		return strings.EqualFold(value, f.StrValue)
 	case UnequalNocase:
-		return !strings.EqualFold(strA, strB)
+		return !strings.EqualFold(value, f.StrValue)
 	case RegexMatch:
-		return (*regex).MatchString(strA)
+		return f.Regexp.MatchString(value)
 	case RegexMatchNot:
-		return !(*regex).MatchString(strA)
+		return !f.Regexp.MatchString(value)
 	case RegexNoCaseMatch:
-		return (*regex).MatchString(strings.ToLower(strA))
+		return f.Regexp.MatchString(strings.ToLower(value))
 	case RegexNoCaseMatchNot:
-		return !(*regex).MatchString(strings.ToLower(strA))
+		return !f.Regexp.MatchString(strings.ToLower(value))
 	case Less:
-		return strA < strB
+		return value < f.StrValue
 	case LessThan:
-		return strA <= strB
+		return value <= f.StrValue
 	case Greater:
-		return strA > strB
+		return value > f.StrValue
 	case GreaterThan:
-		return strA >= strB
+		return value >= f.StrValue
 	}
-	log.Warnf("not implemented op: %v", op)
+	log.Warnf("not implemented op: %v", f.Operator)
 	return false
 }
 
-func matchStringListFilter(filter *Filter, value *interface{}) bool {
-	if *value == nil || reflect.TypeOf(*value).Kind() != reflect.Slice {
-		*value = make([]string, 0)
-	}
-	list := reflect.ValueOf(*value)
-	listLen := list.Len()
-	switch filter.Operator {
+func (f *Filter) MatchStringList(list []string) bool {
+	switch f.Operator {
 	case Equal:
 		// used to match for empty lists, like: contacts = ""
 		// return true if the list is empty
-		return filter.StrValue == "" && listLen == 0
+		return f.StrValue == "" && len(list) == 0
 	case Unequal:
 		// used to match for any entry in lists, like: contacts != ""
 		// return true if the list is not empty
-		return filter.StrValue == "" && listLen != 0
+		return f.StrValue == "" && len(list) != 0
 	case GreaterThan:
-		for i := 0; i < listLen; i++ {
-			if s, ok := list.Index(i).Interface().(string); ok {
-				if filter.StrValue == s {
-					return true
-				}
+		for i := range list {
+			if f.StrValue == list[i] {
+				return true
 			}
 		}
 		return false
 	case GroupContainsNot:
-		for i := 0; i < listLen; i++ {
-			if s, ok := list.Index(i).Interface().(string); ok {
-				if filter.StrValue == s {
-					return false
-				}
+		for i := range list {
+			if f.StrValue == list[i] {
+				return false
 			}
 		}
 		return true
 	case RegexMatch:
 		fallthrough
 	case RegexNoCaseMatch:
-		for i := 0; i < listLen; i++ {
-			listVal := list.Index(i).Interface()
-			if matchStringValueOperator(filter.Operator, &listVal, &filter.StrValue, filter.Regexp) {
+		for i := range list {
+			if f.MatchString(list[i]) {
 				return true
 			}
 		}
@@ -629,107 +593,50 @@ func matchStringListFilter(filter *Filter, value *interface{}) bool {
 	case RegexMatchNot:
 		fallthrough
 	case RegexNoCaseMatchNot:
-		for i := 0; i < listLen; i++ {
-			listVal := list.Index(i).Interface()
-			if matchStringValueOperator(filter.Operator, &listVal, &filter.StrValue, filter.Regexp) {
+		for i := range list {
+			if f.MatchString(list[i]) {
 				return false
 			}
 		}
 		return true
 	}
-	log.Warnf("not implemented op: %v", filter.Operator)
+	log.Warnf("not implemented op: %v", f.Operator)
 	return false
 }
 
-func matchIntListFilter(filter *Filter, value *interface{}) bool {
-	if *value == nil || reflect.TypeOf(*value).Kind() != reflect.Slice {
-		*value = make([]float64, 0)
-	}
-	list := reflect.ValueOf(*value)
-	listLen := list.Len()
-	switch filter.Operator {
+func (f *Filter) MatchIntList(list []int64) bool {
+	switch f.Operator {
 	case Equal:
-		return filter.IsEmpty && listLen == 0
+		return f.IsEmpty && len(list) == 0
 	case Unequal:
-		return filter.IsEmpty && listLen != 0
+		return f.IsEmpty && len(list) != 0
 	case GreaterThan:
-		for i := 0; i < listLen; i++ {
-			val := list.Index(i).Interface()
-			if filter.FloatValue == numberToFloat(&val) {
+		fVal := int64(f.FloatValue)
+		for i := range list {
+			if fVal == list[i] {
 				return true
 			}
 		}
 		return false
 	case GroupContainsNot:
-		for i := 0; i < listLen; i++ {
-			val := list.Index(i).Interface()
-			if filter.FloatValue == numberToFloat(&val) {
+		fVal := int64(f.FloatValue)
+		for i := range list {
+			if fVal == list[i] {
 				return false
 			}
 		}
 		return true
 	}
-	log.Warnf("not implemented op: %v", filter.Operator)
+	log.Warnf("not implemented op: %v", f.Operator)
 	return false
 }
 
-func matchCustomVarFilter(filter *Filter, value *interface{}) bool {
-	custommap := interfaceToCustomVarHash(value)
-	val, ok := (*custommap)[filter.CustomTag]
+func (f *Filter) MatchCustomVar(value map[string]string) bool {
+	val, ok := value[f.CustomTag]
 	if !ok {
 		val = ""
 	}
-	return matchStringValueOperator(filter.Operator, &val, &filter.StrValue, filter.Regexp)
-}
-
-// interfaceToCustomVarHash converts an interface to a hashmap
-//
-// usually custom variables come in the form of a simple hash:
-// {key: value}
-// however icinga2 sends a list which can be any of:
-// [], [null], [[key, value]]
-//
-func interfaceToCustomVarHash(in *interface{}) *map[string]interface{} {
-	if custommap, ok := (*in).(map[string]interface{}); ok {
-		return (&custommap)
-	}
-	if customlist, ok := (*in).([]interface{}); ok {
-		val := make(map[string]interface{})
-		for _, tupelInterface := range customlist {
-			if tupel, ok := tupelInterface.([]interface{}); ok {
-				if len(tupel) == 2 {
-					if s, ok := tupel[1].(string); ok {
-						val[strings.ToUpper(tupel[0].(string))] = s
-					} else {
-						val[strings.ToUpper(tupel[0].(string))] = fmt.Sprintf("%v", tupel[1])
-					}
-				}
-			}
-		}
-		return (&val)
-	}
-	val := make(map[string]interface{})
-	return &val
-}
-
-func numberToFloat(in *interface{}) float64 {
-	switch v := (*in).(type) {
-	case float64:
-		return v
-	case int:
-		return float64(v)
-	case bool:
-		if v {
-			return 1
-		}
-	case string:
-		val, _ := strconv.ParseFloat(v, 64)
-		return val
-	default:
-		val, _ := strconv.ParseFloat(fmt.Sprintf("%v", v), 64)
-		return val
-	}
-	return 0
+	return f.MatchString(val)
 }
 
 // some broken clients request service_description instead of just description from the services table
@@ -738,9 +645,9 @@ func fixBrokenClientsRequestColumn(columnName *string, table string) bool {
 	fixedColumnName := *columnName
 
 	switch table {
-	case SERVICES:
+	case "services":
 		fixedColumnName = strings.TrimPrefix(fixedColumnName, "service_")
-	case HOSTS:
+	case "hosts":
 		fixedColumnName = strings.TrimPrefix(fixedColumnName, "host_")
 	}
 
