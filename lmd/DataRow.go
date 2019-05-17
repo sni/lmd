@@ -228,6 +228,12 @@ func VirtColServicesWithInfo(d *DataRow, col *RequestColumn) interface{} {
 		serviceID.WriteString(v.(string))
 
 		serviceInfo := d.DataStore.Peer.Tables["services"].Index[serviceID.String()].RawData
+
+		if len(serviceInfo) < 1 {
+			log.Warnf("Could not find service: %v\n", serviceID)
+			continue
+		}
+
 		serviceValue = append(serviceValue, v.(string), serviceInfo[stateIndex], serviceInfo[checkedIndex])
 		if col.Name == "services_with_info" {
 			serviceValue = append(serviceValue, serviceInfo[outputIndex])
@@ -257,6 +263,12 @@ func VirtColComments(d *DataRow, col *RequestColumn) interface{} {
 	for _, commentID := range comments {
 		commentIDStr := fmt.Sprintf("%v", commentID)
 		comment := d.DataStore.Peer.Tables["comments"].Index[commentIDStr].RawData
+
+		if len(comment) < 1 {
+			log.Warnf("Could not find comment: %v\n", commentIDStr)
+			continue
+		}
+
 		commentWithInfo := make([]interface{}, 0)
 		commentWithInfo = append(commentWithInfo, commentID, comment[authorIndex], comment[commentIndex])
 		res = append(res, commentWithInfo)
