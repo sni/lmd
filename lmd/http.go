@@ -189,7 +189,7 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 		}
 	}
 	for _, line := range requestDataSort {
-		err := parseSortHeader(&req.Sort, line.(string)) // request.go
+		err := parseSortHeader(&req.Sort, []byte(line.(string))) // request.go
 		if err != nil {
 			return req, err
 		}
@@ -200,7 +200,7 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 	if val, ok := requestData["columns"]; ok {
 		for _, column := range val.([]interface{}) {
 			name := column.(string)
-			if name != EMPTY {
+			if name != "empty" {
 				columns = append(columns, name)
 			}
 		}
@@ -209,7 +209,7 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 
 	// Format
 	if val, ok := requestData["outputformat"]; ok {
-		err := parseOutputFormat(&req.OutputFormat, val.(string))
+		err := parseOutputFormat(&req.OutputFormat, []byte(val.(string)))
 		if err != nil {
 			return req, err
 		}
@@ -246,7 +246,7 @@ func parseHTTPFilterRequestData(req *Request, val interface{}, prefix string) (e
 		if filterLine == "" {
 			continue
 		}
-		if err := req.ParseRequestHeaderLine(&filterLine); err != nil {
+		if err := req.ParseRequestHeaderLine([]byte(filterLine)); err != nil {
 			return err
 		}
 	}

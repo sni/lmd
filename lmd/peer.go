@@ -20,9 +20,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/a8m/djson"
-	"github.com/buger/jsonparser"
 )
 
 var reResponseHeader = regexp.MustCompile(`^(\d+)\s+(\d+)$`)
@@ -49,7 +46,7 @@ type Peer struct {
 	Source          []string
 	PeerLock        *LoggingLock // must be used for Peer.Status access
 	DataLock        *LoggingLock // must be used for Peer.Table access
-	Tables          map[string]DataStore
+	Tables          map[string]*DataStore
 	Status          map[string]interface{}
 	ErrorCount      int
 	ErrorLogged     bool
@@ -63,8 +60,8 @@ type Peer struct {
 	lastResponse    *[]byte
 	HTTPClient      *http.Client
 	connectionCache chan net.Conn
-	CommentsCache   map[string][]float64
-	DowntimesCache  map[string][]float64
+	CommentsCache   map[string][]int64
+	DowntimesCache  map[string][]int64
 }
 
 // PeerStatus contains the different states a peer can have
@@ -160,7 +157,7 @@ func NewPeer(localConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 		Name:            config.Name,
 		ID:              config.ID,
 		Source:          config.Source,
-		Tables:          make(map[string]DataStore),
+		Tables:          make(map[string]*DataStore),
 		Status:          make(map[string]interface{}),
 		ErrorCount:      0,
 		waitGroup:       waitGroup,
@@ -249,25 +246,25 @@ func (p *Peer) Stop() {
 
 func (p *Peer) countFromServer(name string, queryCondition string) (count int) {
 	count = -1
-	res, err := p.QueryString("GET " + name + "\nOutputFormat: json\nStats: " + queryCondition + "\n\n")
-	if err == nil && len(res) > 0 && len(res[0]) > 0 {
-		count = int(res[0][0].(float64))
+	res, _, err := p.QueryString("GET " + name + "\nOutputFormat: json\nStats: " + queryCondition + "\n\n")
+	if err == nil && len(*res) > 0 && len((*res)[0]) > 0 {
+		count = int(interface2float64((*res)[0][0]))
 	}
 	return
 }
 
 func (p *Peer) hasChanged() (changed bool) {
 	changed = false
-	tablenames := []string{"commands", "contactgroups", "contacts", "hostgroups", HOSTS, "servicegroups", "timeperiods"}
+	tablenames := []string{"commands", "contactgroups", "contacts", "hostgroups", "hosts", "servicegroups", "timeperiods"}
 	for _, name := range tablenames {
 		counter := p.countFromServer(name, "name !=")
 		p.DataLock.RLock()
 		changed = changed || (counter != len(p.Tables[name].Data))
 		p.DataLock.RUnlock()
 	}
-	counter := p.countFromServer(SERVICES, "host_name !=")
+	counter := p.countFromServer("services", "host_name !=")
 	p.DataLock.RLock()
-	changed = changed || (counter != len(p.Tables[SERVICES].Data))
+	changed = changed || (counter != len(p.Tables["services"].Data))
 	p.DataLock.RUnlock()
 	p.clearLastRequest()
 
@@ -278,7 +275,7 @@ func (p *Peer) hasChanged() (changed bool) {
 func (p *Peer) Clear() {
 	p.DataLock.Lock()
 	for key := range p.Tables {
-		if !p.Tables[key].Table.Virtual {
+		if p.Tables[key].Table.Virtual == nil {
 			delete(p.Tables, key)
 		}
 	}
@@ -328,9 +325,9 @@ func (p *Peer) updateLoop() {
 			return
 		case <-ticker.C:
 			switch {
-			case p.Flags&LMD == LMD:
+			case p.Flags.HasFlag(LMD):
 				p.periodicUpdateLMD(&ok, false)
-			case p.Flags&MultiBackend == MultiBackend:
+			case p.Flags.HasFlag(MultiBackend):
 				p.periodicUpdateMultiBackends(&ok, false)
 			default:
 				p.periodicUpdate(&ok, &lastTimeperiodUpdateMinute)
@@ -359,9 +356,9 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 		// update timeperiods every full minute except when idling
 		if *ok && *lastTimeperiodUpdateMinute != currentMinute && lastStatus != PeerStatusBroken {
 			log.Debugf("[%s] updating timeperiods and host/servicegroup statistics", p.Name)
-			p.UpdateObjectByType(Objects.Tables["timeperiods"])
-			p.UpdateObjectByType(Objects.Tables["hostgroups"])
-			p.UpdateObjectByType(Objects.Tables["servicegroups"])
+			p.UpdateObjectByType("timeperiods")
+			p.UpdateObjectByType("hostgroups")
+			p.UpdateObjectByType("servicegroups")
 			*lastTimeperiodUpdateMinute = currentMinute
 
 			*ok = p.checkIcinga2Reload()
@@ -377,7 +374,7 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 	p.StatusSet("LastUpdate", time.Now().Unix())
 
 	if lastStatus == PeerStatusBroken {
-		restartRequired, _ := p.UpdateObjectByType(Objects.Tables[STATUS])
+		restartRequired, _ := p.UpdateObjectByType("status")
 		if restartRequired {
 			log.Debugf("[%s] broken peer has reloaded, trying again.", p.Name)
 			*ok = p.InitAllTables()
@@ -424,15 +421,15 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 	// of the update interval
 	p.StatusSet("LastUpdate", time.Now().Unix())
 
-	columns := []string{"key", "name", STATUS, "addr", "last_error", "last_update", "last_online", "last_query", "idling"}
+	columns := []string{"key", "name", "status", "addr", "last_error", "last_update", "last_online", "last_query", "idling"}
 	req := &Request{
 		Table:           "sites",
 		Columns:         columns,
 		ResponseFixed16: true,
-		OutputFormat:    "json",
+		OutputFormat:    OutputFormatJSON,
 		KeepAlive:       p.LocalConfig.BackendKeepAlive,
 	}
-	res, err := p.query(req)
+	res, _, err := p.query(req)
 	if err != nil {
 		log.Infof("[%s] failed to fetch sites information: %s", p.Name, err.Error())
 		*ok = false
@@ -456,7 +453,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 			c := Connection{ID: subID, Name: subName, Source: p.Source}
 			subPeer = NewPeer(p.LocalConfig, &c, p.waitGroup, p.shutdownChannel)
 			subPeer.ParentID = p.ID
-			subPeer.Flags |= LMDSub
+			subPeer.Flags.SetFlag(LMDSub)
 			subPeer.StatusSet("PeerParent", p.ID)
 			PeerMap[subID] = subPeer
 			PeerMapOrder = append(PeerMapOrder, c.ID)
@@ -467,12 +464,12 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 				Table:           "sites",
 				Columns:         []string{"section"},
 				ResponseFixed16: true,
-				OutputFormat:    "json",
+				OutputFormat:    OutputFormatJSON,
 				KeepAlive:       p.LocalConfig.BackendKeepAlive,
 			}
-			res, err := subPeer.query(req)
+			res, _, err := subPeer.query(req)
 			if err == nil {
-				section := res[0][0].(string)
+				section := *(interface2string((*res)[0][0]))
 				section = strings.TrimPrefix(section, "Default")
 				section = strings.TrimPrefix(section, "/")
 				subPeer.StatusSet("Section", section)
@@ -564,7 +561,7 @@ func (p *Peer) periodicUpdateMultiBackends(ok *bool, force bool) {
 			}
 			subPeer = NewPeer(p.LocalConfig, &c, p.waitGroup, p.shutdownChannel)
 			subPeer.ParentID = p.ID
-			subPeer.Flags |= HTTPSub
+			subPeer.Flags.SetFlag(HTTPSub)
 			subPeer.Status["PeerParent"] = p.ID
 			section := site["section"].(string)
 			section = strings.TrimPrefix(section, "Default")
@@ -653,7 +650,7 @@ func (p *Peer) InitAllTables() bool {
 	t1 := time.Now()
 	for _, n := range Objects.Order {
 		t := Objects.Tables[n]
-		if p.Flags&MultiBackend == MultiBackend && t.Name != STATUS {
+		if p.Flags.HasFlag(MultiBackend) && t.Name != "status" {
 			// just create empty data pools
 			// real data is handled by separate peers
 			continue
@@ -664,9 +661,9 @@ func (p *Peer) InitAllTables() bool {
 			return false
 		}
 		switch t.Name {
-		case STATUS:
+		case "status":
 			p.DataLock.RLock()
-			hasStatus := len(p.Tables[STATUS].Data) > 0
+			hasStatus := len(p.Tables["status"].Data) > 0
 			p.DataLock.RUnlock()
 			// this may happen if we query another lmd daemon which has no backends ready yet
 			if !hasStatus {
@@ -680,9 +677,9 @@ func (p *Peer) InitAllTables() bool {
 
 			// if its http and a status request, try a processinfo query to fetch all backends
 			p.fetchRemotePeers()
-			p.checkStatusFlags(t)
+			p.checkStatusFlags()
 
-			if p.Flags&MultiBackend != MultiBackend {
+			if p.Flags.HasFlag(MultiBackend) {
 				// check thruk config tool settings
 				configtool, _ := p.fetchConfigTool()
 				if configtool != nil {
@@ -705,12 +702,12 @@ func (p *Peer) InitAllTables() bool {
 	}
 
 	p.DataLock.RLock()
-	if len(p.Tables[STATUS].Data) == 0 {
+	if len(p.Tables["status"].Data) == 0 {
 		// not ready yet
 		p.DataLock.RUnlock()
 		return false
 	}
-	programStart := p.Tables[STATUS].Data[0].GetValueByName("program_start")
+	programStart := p.Tables["status"].Data[0].GetIntByName("program_start")
 	p.DataLock.RUnlock()
 
 	duration := time.Since(t1)
@@ -754,8 +751,9 @@ func (p *Peer) UpdateAllTables() bool {
 	restartRequired := false
 	for _, n := range Objects.Order {
 		t := Objects.Tables[n]
-		restartRequired, err = p.UpdateObjectByType(t)
+		restartRequired, err = p.UpdateObjectByType(t.Name)
 		if err != nil {
+			log.Debugf("[%s] update failed: %s", p.Name, err.Error())
 			return false
 		}
 		if restartRequired {
@@ -763,6 +761,7 @@ func (p *Peer) UpdateAllTables() bool {
 		}
 	}
 	if err != nil {
+		log.Debugf("[%s] update failed: %s", p.Name, err.Error())
 		return false
 	}
 	if restartRequired {
@@ -790,7 +789,7 @@ func (p *Peer) UpdateAllTables() bool {
 func (p *Peer) UpdateDeltaTables() bool {
 	t1 := time.Now()
 
-	restartRequired, err := p.UpdateObjectByType(Objects.Tables[STATUS])
+	restartRequired, err := p.UpdateObjectByType("status")
 	if restartRequired {
 		return p.InitAllTables()
 	}
@@ -837,9 +836,7 @@ func (p *Peer) UpdateDeltaTables() bool {
 // It returns any error encountered.
 func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	// update changed hosts
-	table := Objects.Tables[HOSTS]
-	keys, indexes := table.GetDynamicColumns(p.Flags)
-	keys = append(keys, "name")
+	table := p.Tables["hosts"]
 	if filterStr == "" {
 		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.StatusGet("LastUpdate").(int64) - UpdateAdditionalDelta))
 		// no filter means regular delta update, so lets check if all last_check dates match
@@ -849,32 +846,34 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 		}
 	}
 	req := &Request{
-		Table:           table.Name,
-		Columns:         keys,
+		Table:           table.Table.Name,
+		Columns:         table.DynamicColumnNamesCache,
 		ResponseFixed16: true,
-		OutputFormat:    "json",
+		OutputFormat:    OutputFormatJSON,
 		FilterStr:       filterStr,
 		KeepAlive:       p.LocalConfig.BackendKeepAlive,
 	}
-	res, err := p.Query(req)
+	res, _, err := p.Query(req)
 	if err != nil {
 		return
 	}
 	p.DataLock.Lock()
-	nameindex := p.Tables[table.Name].Index
-	fieldIndex := len(keys) - 1
 	now := time.Now().Unix()
-	for i := range res {
-		resRow := &res[i]
-		dataRow := nameindex[(*resRow)[fieldIndex].(string)]
+	nameIndex := table.Index
+	for i := range *res {
+		resRow := &(*res)[i]
+		hostName := interface2string((*resRow)[0])
+		dataRow := nameIndex[*hostName]
 		if dataRow == nil {
 			continue
 		}
-		dataRow.UpdateValues(resRow, &indexes, now)
+		// shift hostname from result
+		*resRow = (*resRow)[1:]
+		dataRow.UpdateValues(resRow, &table.DynamicColumnCache, now)
 	}
 	p.DataLock.Unlock()
-	promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(res)))
-	log.Debugf("[%s] updated %d hosts", p.Name, len(res))
+	promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(*res)))
+	log.Debugf("[%s] updated %d hosts", p.Name, len(*res))
 
 	return
 }
@@ -884,9 +883,7 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 // It returns any error encountered.
 func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	// update changed services
-	table := Objects.Tables[SERVICES]
-	keys, indexes := table.GetDynamicColumns(p.Flags)
-	keys = append(keys, []string{"host_name", "description"}...)
+	table := p.Tables["services"]
 	if filterStr == "" {
 		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.StatusGet("LastUpdate").(int64) - UpdateAdditionalDelta))
 		// no filter means regular delta update, so lets check if all last_check dates match
@@ -896,33 +893,34 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 		}
 	}
 	req := &Request{
-		Table:           table.Name,
-		Columns:         keys,
+		Table:           table.Table.Name,
+		Columns:         table.DynamicColumnNamesCache,
 		ResponseFixed16: true,
-		OutputFormat:    "json",
+		OutputFormat:    OutputFormatJSON,
 		FilterStr:       filterStr,
 		KeepAlive:       p.LocalConfig.BackendKeepAlive,
 	}
-	res, err := p.Query(req)
+	res, _, err := p.Query(req)
 	if err != nil {
 		return
 	}
 	p.DataLock.Lock()
-	nameindex := p.Tables[table.Name].Index
-	fieldIndex1 := len(keys) - 2
-	fieldIndex2 := len(keys) - 1
+	nameindex := table.Index
 	now := time.Now().Unix()
-	for i := range res {
-		resRow := &res[i]
-		dataRow := nameindex[(*resRow)[fieldIndex1].(string)+";"+(*resRow)[fieldIndex2].(string)]
+	for i := range *res {
+		resRow := &(*res)[i]
+		lookUp := *(interface2string((*resRow)[0])) + ";" + *(interface2string((*resRow)[1]))
+		dataRow := nameindex[lookUp]
 		if dataRow == nil {
 			continue
 		}
-		dataRow.UpdateValues(resRow, &indexes, now)
+		// shift hostname and description from result
+		*resRow = (*resRow)[2:]
+		dataRow.UpdateValues(resRow, &table.DynamicColumnCache, now)
 	}
 	p.DataLock.Unlock()
-	promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(res)))
-	log.Debugf("[%s] updated %d services", p.Name, len(res))
+	promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(*res)))
+	log.Debugf("[%s] updated %d services", p.Name, len(*res))
 
 	return
 }
@@ -933,17 +931,17 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 // The full scan just returns false without any update if the last update was less then MinFullScanInterval seconds
 // ago.
 // It returns true if an update was done and any error encountered.
-func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated bool, err error) {
+func (p *Peer) UpdateDeltaTableFullScan(store *DataStore, filterStr string) (updated bool, err error) {
 	updated = false
 	p.PeerLock.RLock()
 	var lastUpdate int64
-	switch table.Name {
-	case SERVICES:
+	switch store.Table.Name {
+	case "services":
 		lastUpdate = p.Status["LastFullServiceUpdate"].(int64)
-	case HOSTS:
+	case "hosts":
 		lastUpdate = p.Status["LastFullHostUpdate"].(int64)
 	default:
-		log.Panicf("not implemented for: " + table.Name)
+		log.Panicf("not implemented for: " + store.Table.Name)
 	}
 	p.PeerLock.RUnlock()
 
@@ -959,23 +957,23 @@ func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated
 		"notifications_enabled",
 	}
 	req := &Request{
-		Table:           table.Name,
+		Table:           store.Table.Name,
 		Columns:         scanColumns,
 		ResponseFixed16: true,
-		OutputFormat:    "json",
+		OutputFormat:    OutputFormatJSON,
 		KeepAlive:       p.LocalConfig.BackendKeepAlive,
 	}
-	res, err := p.Query(req)
+	res, _, err := p.Query(req)
 	if err != nil {
 		return
 	}
 
-	indexList := make([]int, len(scanColumns))
+	columns := make(ColumnList, len(scanColumns))
 	for i, name := range scanColumns {
-		indexList[i] = table.GetColumn(name).Index
+		columns[i] = store.Table.ColumnsIndex[name]
 	}
 
-	missing, err := p.getMissingTimestamps(table, &res, indexList)
+	missing, err := p.getMissingTimestamps(store, res, &columns)
 	if err != nil {
 		return
 	}
@@ -986,16 +984,16 @@ func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated
 			filter = append(filter, fmt.Sprintf("Filter: last_check = %d\n", int(lastCheck)))
 		}
 		filter = append(filter, fmt.Sprintf("Or: %d\n", len(filter)))
-		if table.Name == SERVICES {
+		if store.Table.Name == "services" {
 			err = p.UpdateDeltaTableServices(strings.Join(filter, ""))
-		} else if table.Name == HOSTS {
+		} else if store.Table.Name == "hosts" {
 			err = p.UpdateDeltaTableHosts(strings.Join(filter, ""))
 		}
 	}
 
-	if table.Name == SERVICES {
+	if store.Table.Name == "services" {
 		p.StatusSet("LastFullServiceUpdate", time.Now().Unix())
-	} else if table.Name == HOSTS {
+	} else if store.Table.Name == "hosts" {
 		p.StatusSet("LastFullHostUpdate", time.Now().Unix())
 	}
 	updated = true
@@ -1003,25 +1001,25 @@ func (p *Peer) UpdateDeltaTableFullScan(table *Table, filterStr string) (updated
 }
 
 // getMissingTimestamps returns list of last_check dates which can be used to delta update
-func (p *Peer) getMissingTimestamps(table *Table, res *[][]interface{}, indexList []int) (missing map[float64]bool, err error) {
+func (p *Peer) getMissingTimestamps(store *DataStore, res *ResultSet, columns *ColumnList) (missing map[float64]bool, err error) {
 	missing = make(map[float64]bool)
 	p.DataLock.RLock()
-	data := p.Tables[table.Name].Data
+	data := store.Data
 	if len(data) < len(*res) {
 		p.DataLock.RUnlock()
-		if p.Flags&Icinga2 == Icinga2 {
+		if p.Flags.HasFlag(Icinga2) {
 			p.checkIcinga2Reload()
 			return
 		}
-		err = &PeerError{msg: fmt.Sprintf("%s cache not ready, got %d entries but only have %d in cache", table.Name, len(*res), len(data)), kind: ResponseError}
+		err = &PeerError{msg: fmt.Sprintf("%s cache not ready, got %d entries but only have %d in cache", store.Table.Name, len(*res), len(data)), kind: ResponseError}
 		log.Warnf("[%s] %s", p.Name, err.Error())
-		p.setBroken(fmt.Sprintf("got more %s than expected. Hint: check clients 'max_response_size' setting.", table.Name))
+		p.setBroken(fmt.Sprintf("got more %s than expected. Hint: check clients 'max_response_size' setting.", store.Table.Name))
 		return
 	}
 	for i := range *res {
 		row := (*res)[i]
-		if data[i].CheckChangedValues(&row, &indexList) {
-			missing[row[0].(float64)] = true
+		if data[i].CheckChangedIntValues(&row, columns) {
+			missing[interface2float64(row[0])] = true
 		}
 	}
 	p.DataLock.RUnlock()
@@ -1034,51 +1032,51 @@ func (p *Peer) getMissingTimestamps(table *Table, res *[][]interface{}, indexLis
 // It returns any error encountered.
 func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	// add new comments / downtimes
-	table := Objects.Tables[name]
+	store := p.Tables[name]
 
 	// get number of entrys and max id
 	req := &Request{
-		Table:           table.Name,
+		Table:           store.Table.Name,
 		ResponseFixed16: true,
-		OutputFormat:    "json",
+		OutputFormat:    OutputFormatJSON,
 		FilterStr:       "Stats: id != -1\nStats: max id\n",
 		KeepAlive:       p.LocalConfig.BackendKeepAlive,
 	}
-	res, err := p.Query(req)
+	res, _, err := p.Query(req)
 	if err != nil {
 		return
 	}
-	var maxID float64
+	var maxID int64
 	p.DataLock.RLock()
-	entries := len(p.Tables[table.Name].Data)
+	entries := len(p.Tables[store.Table.Name].Data)
 	if entries > 0 {
-		maxID = p.Tables[table.Name].Data[entries-1].GetValueByName("id").(float64)
+		maxID = p.Tables[store.Table.Name].Data[entries-1].GetIntByName("id")
 	}
 	p.DataLock.RUnlock()
 
-	if len(res) == 0 || float64(entries) == res[0][0].(float64) && (entries == 0 || res[0][1].(float64) == maxID) {
+	if len(*res) == 0 || float64(entries) == interface2float64((*res)[0][0]) && (entries == 0 || interface2float64((*res)[0][1]) == float64(maxID)) {
 		log.Debugf("[%s] %s did not change", p.Name, name)
 		return
 	}
 
 	// fetch all ids to see which ones are missing or to be removed
 	req = &Request{
-		Table:           table.Name,
+		Table:           store.Table.Name,
 		Columns:         []string{"id"},
 		ResponseFixed16: true,
-		OutputFormat:    "json",
+		OutputFormat:    OutputFormatJSON,
 		KeepAlive:       p.LocalConfig.BackendKeepAlive,
 	}
-	res, err = p.Query(req)
+	res, _, err = p.Query(req)
 	if err != nil {
 		return
 	}
 	p.DataLock.Lock()
-	idIndex := p.Tables[table.Name].Index
+	idIndex := p.Tables[store.Table.Name].Index
 	missingIds := []int64{}
 	resIndex := make(map[string]bool)
-	for i := range res {
-		resRow := &res[i]
+	for i := range *res {
+		resRow := &(*res)[i]
 		id := fmt.Sprintf("%v", (*resRow)[0])
 		_, ok := idIndex[id]
 		if !ok {
@@ -1090,7 +1088,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	}
 
 	// remove old comments / downtimes
-	data := p.Tables[table.Name]
+	data := p.Tables[store.Table.Name]
 	for id := range idIndex {
 		_, ok := resIndex[id]
 		if !ok {
@@ -1099,11 +1097,11 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 			data.RemoveItem(tmp)
 		}
 	}
-	p.Tables[table.Name] = data
+	p.Tables[store.Table.Name] = data
 	p.DataLock.Unlock()
 
 	// reset cache
-	switch table.Name {
+	switch store.Table.Name {
 	case "comments":
 		p.RebuildCommentsCache()
 	case "downtimes":
@@ -1111,12 +1109,12 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	}
 
 	if len(missingIds) > 0 {
-		keys := table.GetInitialKeys(p.Flags)
+		keys, columns := store.GetInitialColumns()
 		req := &Request{
-			Table:           table.Name,
+			Table:           store.Table.Name,
 			Columns:         keys,
 			ResponseFixed16: true,
-			OutputFormat:    "json",
+			OutputFormat:    OutputFormatJSON,
 			FilterStr:       "",
 			KeepAlive:       p.LocalConfig.BackendKeepAlive,
 		}
@@ -1124,26 +1122,26 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 			req.FilterStr += fmt.Sprintf("Filter: id = %d\n", id)
 		}
 		req.FilterStr += fmt.Sprintf("Or: %d\n", len(missingIds))
-		res, err = p.Query(req)
+		res, _, err = p.Query(req)
 		if err != nil {
 			return
 		}
 		p.DataLock.Lock()
-		data := p.Tables[table.Name]
+		data := p.Tables[store.Table.Name]
 		if data.Index == nil {
 			// should not happen but might indicate a recent restart or backend issue
 			p.DataLock.Unlock()
 			return
 		}
-		for i := range res {
-			resRow := res[i]
-			row, nErr := NewDataRow(&data, &resRow, 0)
+		for i := range *res {
+			resRow := (*res)[i]
+			row, nErr := NewDataRow(data, &resRow, columns, 0)
 			if nErr != nil {
 				return nErr
 			}
 			data.AddItem(row)
 		}
-		p.Tables[table.Name] = data
+		p.Tables[store.Table.Name] = data
 		p.DataLock.Unlock()
 	}
 
@@ -1153,11 +1151,11 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 
 // query sends the request to a remote livestatus.
 // It returns the unmarshaled result and any error encountered.
-func (p *Peer) query(req *Request) ([][]interface{}, error) {
+func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 	conn, connType, err := p.GetConnection()
 	if err != nil {
 		log.Debugf("[%s] connection failed: %s", p.Name, err)
-		return nil, err
+		return nil, nil, err
 	}
 	if connType == ConnTypeHTTP {
 		req.KeepAlive = false
@@ -1172,7 +1170,7 @@ func (p *Peer) query(req *Request) ([][]interface{}, error) {
 		}
 	}()
 
-	if p.Flags&LMDSub == LMDSub {
+	if p.Flags.HasFlag(LMDSub) {
 		// add backends filter for lmd sub peers
 		req.Backends = []string{p.ID}
 	}
@@ -1196,7 +1194,7 @@ func (p *Peer) query(req *Request) ([][]interface{}, error) {
 	resBytes, err := p.getQueryResponse(req, query, peerAddr, conn, connType)
 	if err != nil {
 		log.Debugf("[%s] sending data/query failed: %s", p.Name, err)
-		return nil, err
+		return nil, nil, err
 	}
 	if req.Command != "" {
 		*resBytes = bytes.TrimSpace(*resBytes)
@@ -1204,11 +1202,11 @@ func (p *Peer) query(req *Request) ([][]interface{}, error) {
 			tmp := strings.SplitN(strings.TrimSpace(string(*resBytes)), ":", 2)
 			if len(tmp) == 2 {
 				code, _ := strconv.Atoi(tmp[0])
-				return nil, &PeerCommandError{err: fmt.Errorf(strings.TrimSpace(tmp[1])), code: code, peer: p}
+				return nil, nil, &PeerCommandError{err: fmt.Errorf(strings.TrimSpace(tmp[1])), code: code, peer: p}
 			}
-			return nil, fmt.Errorf(tmp[0])
+			return nil, nil, fmt.Errorf(tmp[0])
 		}
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	if log.IsV(3) {
@@ -1216,13 +1214,6 @@ func (p *Peer) query(req *Request) ([][]interface{}, error) {
 	}
 	p.PeerLock.Lock()
 	p.lastResponse = resBytes
-	p.PeerLock.Unlock()
-
-	return p.parseResult(req, resBytes)
-}
-
-func (p *Peer) parseResult(req *Request, resBytes *[]byte) (result [][]interface{}, err error) {
-	p.PeerLock.Lock()
 	totalBytesReceived := p.Status["BytesReceived"].(int) + len(*resBytes)
 	p.Status["BytesReceived"] = totalBytesReceived
 	p.Status["LastColumns"] = []string{}
@@ -1231,59 +1222,14 @@ func (p *Peer) parseResult(req *Request, resBytes *[]byte) (result [][]interface
 	log.Debugf("[%s] got %s answer: size: %d kB", p.Name, req.Table, len(*resBytes)/1024)
 	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(totalBytesReceived))
 
-	if len(*resBytes) == 0 || (string((*resBytes)[0]) != "{" && string((*resBytes)[0]) != "[") {
-		err = errors.New(strings.TrimSpace(string(*resBytes)))
-		return nil, &PeerError{msg: fmt.Sprintf("response does not look like a json result: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
-	}
-	if req.OutputFormat == WRAPPEDJSON {
-		dataBytes, dataType, _, jErr := jsonparser.Get(*resBytes, "columns")
-		if jErr != nil {
-			log.Debugf("[%s] column header parse error: %s", p.Name, jErr.Error())
-		} else if dataType == jsonparser.Array {
-			var columns []string
-			err = json.Unmarshal(dataBytes, &columns)
-			if err != nil {
-				log.Debugf("[%s] column header parse error: %s", p.Name, err.Error())
-			} else {
-				p.PeerLock.Lock()
-				p.Status["LastColumns"] = columns
-				p.PeerLock.Unlock()
-			}
-		}
-		totalCount, jErr := jsonparser.GetInt(*resBytes, "total_count")
-		if jErr == nil {
-			p.Status["LastTotalCount"] = totalCount
-		}
-		dataBytes, _, _, jErr = jsonparser.Get(*resBytes, "data")
-		if jErr != nil {
-			return nil, &PeerError{msg: jErr.Error(), kind: ResponseError, req: req, resBytes: resBytes}
-		}
-		resBytes = &dataBytes
-	}
-	result = make([][]interface{}, 0)
-	offset, jErr := jsonparser.ArrayEach(*resBytes, func(rowBytes []byte, _ jsonparser.ValueType, _ int, aErr error) {
-		row, dErr := djson.Decode(rowBytes)
-		switch {
-		case aErr != nil:
-			err = aErr
-		case dErr != nil:
-			err = dErr
-		default:
-			result = append(result, row.([]interface{}))
-		}
-	})
-	// trailing comma error will be ignored
-	if jErr != nil && offset < len(*resBytes)-3 {
-		err = jErr
-	}
+	data, meta, err := req.parseResult(resBytes)
 
 	if err != nil {
-		log.Errorf("[%s] json string: %s", p.Name, string(*resBytes))
-		log.Errorf("[%s] json error: %s", p.Name, err.Error())
-		return nil, &PeerError{msg: err.Error(), kind: ResponseError}
+		log.Errorf("[%s] result json string: %s", p.Name, string(*resBytes))
+		log.Errorf("[%s] result parse error: %s", p.Name, err.Error())
+		return nil, nil, &PeerError{msg: err.Error(), kind: ResponseError}
 	}
-
-	return
+	return data, meta, nil
 }
 
 func (p *Peer) getQueryResponse(req *Request, query string, peerAddr string, conn net.Conn, connType PeerConnType) (*[]byte, error) {
@@ -1385,8 +1331,8 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) (*[]byte
 // Query sends a livestatus request from a request object.
 // It calls query and logs all errors except connection errors which are logged in GetConnection.
 // It returns the livestatus result and any error encountered.
-func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
-	result, err = p.query(req)
+func (p *Peer) Query(req *Request) (result *ResultSet, meta *ResultMetaData, err error) {
+	result, meta, err = p.query(req)
 	if err != nil {
 		p.setNextAddrFromErr(err)
 	}
@@ -1395,14 +1341,14 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, err error) {
 
 // QueryString sends a livestatus request from a given string.
 // It returns the livestatus result and any error encountered.
-func (p *Peer) QueryString(str string) ([][]interface{}, error) {
+func (p *Peer) QueryString(str string) (*ResultSet, *ResultMetaData, error) {
 	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString(str)))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if req == nil {
 		err = errors.New("bad request: empty request")
-		return nil, err
+		return nil, nil, err
 	}
 	return p.Query(req)
 }
@@ -1496,7 +1442,7 @@ func (p *Peer) GetConnection() (conn net.Conn, connType PeerConnType, err error)
 			promPeerConnections.WithLabelValues(p.Name).Inc()
 			if x > 0 {
 				log.Infof("[%s] active source changed to %s", p.Name, peerAddr)
-				p.Flags = NoFlags
+				p.Flags.Clear()
 			}
 			return
 		}
@@ -1599,53 +1545,52 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 		return
 	}
 
-	keys := table.GetInitialKeys(p.Flags)
-
-	columnsMap := make(map[int]int)
-	for i, peerCol := range keys {
-		tableColIndex := table.ColumnsIndex[peerCol]
-		columnsMap[tableColIndex] = i
+	var store *DataStore
+	if table.Virtual != nil {
+		store = table.Virtual(table, p)
+	} else {
+		store = NewDataStore(table, p)
 	}
+	keys, columns := store.GetInitialColumns()
 
 	// complete virtual table ends here
-	if len(keys) == 0 || table.Virtual {
+	if len(keys) == 0 || table.Virtual != nil {
 		p.DataLock.Lock()
-		data := DataStore{Peer: p, Table: table, ColumnsMap: columnsMap}
-		rows := make([][]interface{}, 1)
-		data.InsertData(&rows)
-		p.Tables[table.Name] = data
+		p.Tables[table.Name] = store
 		p.DataLock.Unlock()
 		return
 	}
 
-	var res [][]interface{}
-	if table.GroupBy {
+	var res *ResultSet
+	if store.Table.GroupBy {
 		// calculate groupby data from local table
-		res, err = p.GetGroupByData(table)
+		res = p.GetGroupByData(store)
 	} else {
 		// fetch remote objects
 		req := &Request{
-			Table:           table.Name,
+			Table:           store.Table.Name,
 			Columns:         keys,
 			ResponseFixed16: true,
-			OutputFormat:    "json",
+			OutputFormat:    OutputFormatJSON,
 			KeepAlive:       p.LocalConfig.BackendKeepAlive,
 		}
-		res, err = p.Query(req)
+		res, _, err = p.Query(req)
 	}
 	if err != nil {
 		return
 	}
-	if !table.GroupBy {
-		log.Debugf("[%s] fetched %d initial %s objects", p.Name, len(res), table.Name)
+	if !store.Table.GroupBy {
+		log.Debugf("[%s] fetched %d initial %s objects", p.Name, len(*res), store.Table.Name)
 	}
 
 	now := time.Now().Unix()
-	data := DataStore{Peer: p, Table: table, ColumnsMap: columnsMap}
-	data.InsertData(&res)
+	err = store.InsertData(res, columns)
+	if err != nil {
+		return
+	}
 
 	p.DataLock.Lock()
-	p.Tables[table.Name] = data
+	p.Tables[store.Table.Name] = store
 	p.DataLock.Unlock()
 	p.PeerLock.Lock()
 	p.Status["LastUpdate"] = now
@@ -1655,59 +1600,59 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 	return
 }
 
-func (p *Peer) checkStatusFlags(table *Table) {
+func (p *Peer) checkStatusFlags() {
 	// set backend specific flags
 	p.DataLock.RLock()
-	data := p.Tables[table.Name].Data
+	data := p.Tables["status"].Data
 	if len(data) == 0 {
 		p.DataLock.RUnlock()
 		return
 	}
 	p.PeerLock.Lock()
 	row := data[0]
-	livestatusVersion := row.GetValueByName("livestatus_version").(string)
-	naemonVersions := reNaemonVersion.FindStringSubmatch(livestatusVersion)
+	livestatusVersion := row.GetStringByName("livestatus_version")
+	naemonVersions := reNaemonVersion.FindStringSubmatch(*livestatusVersion)
 	switch {
-	case len(reShinkenVersion.FindStringSubmatch(livestatusVersion)) > 0:
-		if p.Flags&Shinken != Shinken {
+	case len(reShinkenVersion.FindStringSubmatch(*livestatusVersion)) > 0:
+		if !p.Flags.HasFlag(Shinken) {
 			log.Debugf("[%s] remote connection Shinken flag set", p.Name)
-			p.Flags |= Shinken
+			p.Flags.SetFlag(Shinken)
 		}
 	case len(data) > 1:
 		// getting more than one status sets the multibackend flag
-		if p.Flags&MultiBackend != MultiBackend {
+		if !p.Flags.HasFlag(MultiBackend) {
 			log.Infof("[%s] remote connection MultiBackend flag set, got %d sites", p.Name, len(data))
-			p.Flags |= MultiBackend
+			p.Flags.SetFlag(MultiBackend)
 			// if its no http connection, then it must be LMD
 			if !strings.HasPrefix(p.Status["PeerAddr"].(string), "http") {
-				p.Flags |= LMD
+				p.Flags.SetFlag(LMD)
 			}
 			p.PeerLock.Unlock()
 			p.DataLock.RUnlock()
 			// force immediate update to fetch all sites
 			p.StatusSet("LastUpdate", time.Now().Unix()-p.LocalConfig.Updateinterval)
 			ok := true
-			if p.Flags&LMD != LMD {
+			if p.Flags.HasFlag(LMD) {
 				p.periodicUpdateLMD(&ok, true)
 			} else {
 				p.periodicUpdateMultiBackends(&ok, true)
 			}
 			return
 		}
-	case len(reIcinga2Version.FindStringSubmatch(livestatusVersion)) > 0:
-		if p.Flags&Icinga2 != Icinga2 {
+	case len(reIcinga2Version.FindStringSubmatch(*livestatusVersion)) > 0:
+		if !p.Flags.HasFlag(Icinga2) {
 			log.Debugf("[%s] remote connection Icinga2 flag set", p.Name)
-			p.Flags |= Icinga2
+			p.Flags.SetFlag(Icinga2)
 		}
 	case len(naemonVersions) > 0:
-		if p.Flags&Naemon != Naemon {
+		if !p.Flags.HasFlag(Naemon) {
 			log.Debugf("[%s] remote connection Naemon flag set", p.Name)
-			p.Flags |= Naemon
+			p.Flags.SetFlag(Naemon)
 		}
-		if p.Flags&Naemon1_0_10 != Naemon1_0_10 {
+		if !p.Flags.HasFlag(Naemon1_0_10) {
 			if VersionNumeric(naemonVersions[1]) >= VersionNumeric("1.0.10") {
 				log.Debugf("[%s] remote connection Naemon 1.0.10 flag set", p.Name)
-				p.Flags |= Naemon1_0_10
+				p.Flags.SetFlag(Naemon1_0_10)
 			}
 		}
 	}
@@ -1787,10 +1732,10 @@ func (p *Peer) fetchRemotePeers() (sites []interface{}, err error) {
 		if strings.HasPrefix(addr, "http") {
 			sites, err = p.fetchRemotePeersFromAddr(addr)
 			if err == nil && len(sites) > 1 {
-				if p.Flags&MultiBackend != MultiBackend {
+				if !p.Flags.HasFlag(MultiBackend) {
 					p.PeerLock.Lock()
 					log.Infof("[%s] remote connection MultiBackend flag set, got %d sites", p.Name, len(sites))
-					p.Flags |= MultiBackend
+					p.Flags.SetFlag(MultiBackend)
 					p.PeerLock.Unlock()
 					ok := true
 					p.periodicUpdateMultiBackends(&ok, true)
@@ -1819,104 +1764,112 @@ func (p *Peer) fetchRemotePeersFromAddr(peerAddr string) (sites []interface{}, e
 }
 
 // GetGroupByData returns fake query result for given groupby table
-func (p *Peer) GetGroupByData(table *Table) (res [][]interface{}, err error) {
-	res = make([][]interface{}, 0)
+func (p *Peer) GetGroupByData(store *DataStore) *ResultSet {
+	res := make(ResultSet, 0)
 	p.DataLock.RLock()
 	defer p.DataLock.RUnlock()
-	switch table.Name {
+	switch store.Table.Name {
 	case "hostsbygroup":
-		for _, row := range p.Tables[HOSTS].Data {
-			name := row.GetValueByName("name").(string)
-			if v, ok := (row.GetValueByName("groups")).([]interface{}); ok {
-				for _, group := range v {
-					res = append(res, []interface{}{name, group})
-				}
+		nameCol := p.Tables["hosts"].GetColumn("name")
+		groupCol := p.Tables["hosts"].GetColumn("groups")
+		for _, row := range p.Tables["hosts"].Data {
+			name := row.GetString(nameCol)
+			groups := row.GetStringList(groupCol)
+			for i := range *groups {
+				res = append(res, []interface{}{*name, (*groups)[i]})
 			}
 		}
 	case "servicesbygroup":
-		for _, row := range p.Tables[SERVICES].Data {
-			hostName := row.GetValueByName("host_name").(string)
-			description := row.GetValueByName("description").(string)
-			if v, ok := (row.GetValueByName("groups")).([]interface{}); ok {
-				for _, group := range v {
-					res = append(res, []interface{}{hostName, description, group})
-				}
+		hostNameCol := p.Tables["services"].GetColumn("host_name")
+		descCol := p.Tables["services"].GetColumn("description")
+		groupCol := p.Tables["hosts"].GetColumn("groups")
+		for _, row := range p.Tables["services"].Data {
+			hostName := row.GetString(hostNameCol)
+			description := row.GetString(descCol)
+			groups := row.GetStringList(groupCol)
+			for i := range *groups {
+				res = append(res, []interface{}{*hostName, *description, (*groups)[i]})
 			}
 		}
 	case "servicesbyhostgroup":
-		hostGroupsCol := p.Tables[SERVICES].Table.GetRequestColumn("host_groups")
-		for rowNum := range p.Tables[SERVICES].Data {
-			row := p.Tables[SERVICES].Data[rowNum]
-			hostName := row.GetValueByName("host_name").(string)
-			description := row.GetValueByName("description").(string)
-			if v, ok := (row.GetValueByRequestColumn(hostGroupsCol)).([]interface{}); ok {
-				for _, group := range v {
-					res = append(res, []interface{}{hostName, description, group})
-				}
+		hostNameCol := p.Tables["services"].GetColumn("host_name")
+		descCol := p.Tables["services"].GetColumn("description")
+		hostGroupsCol := p.Tables["services"].GetColumn("host_groups")
+		for _, row := range p.Tables["services"].Data {
+			hostName := row.GetString(hostNameCol)
+			description := row.GetString(descCol)
+			groups := row.GetStringList(hostGroupsCol)
+			for i := range *groups {
+				res = append(res, []interface{}{*hostName, *description, (*groups)[i]})
 			}
 		}
 	default:
-		log.Panicf("GetGroupByData not implemented for table: %s", table.Name)
+		log.Panicf("GetGroupByData not implemented for table: %s", store.Table.Name)
 	}
-	return
+	return &res
 }
 
 // UpdateObjectByType updates a given table by requesting all dynamic columns from the remote peer.
 // Assuming we get the objects always in the same order, we can just iterate over the index and update the fields.
 // It returns a boolean flag whether the remote site has been restarted and any error encountered.
-func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error) {
-	if p.skipTableUpdate(table) {
+func (p *Peer) UpdateObjectByType(tableName string) (restartRequired bool, err error) {
+	store := p.Tables[tableName]
+	if p.skipTableUpdate(store) {
 		return
 	}
 
-	keys, indexes := table.GetDynamicColumns(p.Flags)
+	columns := store.DynamicColumnNamesCache
+	// primary keys are not required, we fetch everything anyway
+	primaryKeysLen := len(store.Table.PrimaryKey)
+	if primaryKeysLen > 0 {
+		columns = columns[primaryKeysLen:]
+	}
+
 	req := &Request{
-		Table:           table.Name,
-		Columns:         keys,
+		Table:           store.Table.Name,
+		Columns:         columns,
 		ResponseFixed16: true,
-		OutputFormat:    "json",
+		OutputFormat:    OutputFormatJSON,
 		KeepAlive:       p.LocalConfig.BackendKeepAlive,
 	}
-	res, err := p.Query(req)
+	res, _, err := p.Query(req)
 	if err != nil {
 		return
 	}
 	p.DataLock.RLock()
-	data := p.Tables[table.Name].Data
+	data := p.Tables[store.Table.Name].Data
 	p.DataLock.RUnlock()
-	if len(res) != len(data) {
-		log.Debugf("[%s] site returned different number of objects, assuming backend has been restarted, table: %s, expected: %d, received: %d", p.Name, table.Name, len(data), len(res))
+	if len(*res) != len(data) {
+		log.Debugf("[%s] site returned different number of objects, assuming backend has been restarted, table: %s, expected: %d, received: %d", p.Name, store.Table.Name, len(data), len(*res))
 		restartRequired = true
 		return
 	}
 
-	if table.Name == "timeperiods" {
+	if store.Table.Name == "timeperiods" {
 		// check for changed timeperiods, because we have to update the linked hosts and services as well
-		p.updateTimeperiodsData(table, res, indexes)
+		p.updateTimeperiodsData(store, res, &store.DynamicColumnCache)
 	} else {
 		p.DataLock.Lock()
 		now := time.Now().Unix()
-		indexLength := len(indexes)
-		for i := range res {
-			row := res[i]
-			if len(row) < indexLength {
-				err = fmt.Errorf("response list has wrong size, got %d and expexted %d", len(row), indexLength)
+		for i := range *res {
+			row := (*res)[i]
+			err = data[i].UpdateValues(&row, &store.DynamicColumnCache, now)
+			if err != nil {
 				p.DataLock.Unlock()
 				return
 			}
-			data[i].UpdateValues(&row, &indexes, now)
 		}
 		p.DataLock.Unlock()
 	}
 
-	switch table.Name {
-	case HOSTS:
-		promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(res)))
-	case SERVICES:
-		promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(res)))
-	case STATUS:
-		p.checkStatusFlags(table)
-		if p.Flags&MultiBackend != MultiBackend && len(data) >= 1 && p.StatusGet("ProgramStart") != data[0].GetValueByName("program_start") {
+	switch store.Table.Name {
+	case "hosts":
+		promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(*res)))
+	case "services":
+		promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(*res)))
+	case "status":
+		p.checkStatusFlags()
+		if !p.Flags.HasFlag(MultiBackend) && len(data) >= 1 && p.StatusGet("ProgramStart") != data[0].GetIntByName("program_start") {
 			log.Infof("[%s] site has been restarted, recreating objects", p.Name)
 			restartRequired = true
 		}
@@ -1926,34 +1879,38 @@ func (p *Peer) UpdateObjectByType(table *Table) (restartRequired bool, err error
 	return
 }
 
-func (p *Peer) skipTableUpdate(table *Table) bool {
-	if len(table.DynamicColCacheNames) == 0 {
+func (p *Peer) skipTableUpdate(store *DataStore) bool {
+	if store == nil {
 		return true
 	}
-	if table.Virtual {
+	if store.Table.Virtual != nil {
 		return true
 	}
 	// no updates for passthrough tables, ex.: log
-	if table.PassthroughOnly {
+	if store.Table.PassthroughOnly {
 		return true
 	}
-	if p.Flags&MultiBackend == MultiBackend && table.Name != STATUS {
+	if p.Flags.HasFlag(MultiBackend) && store.Table.Name != "status" {
+		return true
+	}
+	if len(store.DynamicColumnNamesCache) == 0 {
 		return true
 	}
 	return false
 }
 
-func (p *Peer) updateTimeperiodsData(table *Table, res [][]interface{}, indexes []int) {
+func (p *Peer) updateTimeperiodsData(store *DataStore, res *ResultSet, columns *ColumnList) {
 	changedTimeperiods := make(map[string]bool)
 	p.DataLock.Lock()
-	data := p.Tables[table.Name].Data
+	data := store.Data
 	now := time.Now().Unix()
-	for i := range res {
-		row := res[i]
-		if data[i].CheckChangedValues(&row, &indexes) {
-			changedTimeperiods[data[i].GetValueByName("name").(string)] = true
+	nameCol := store.GetColumn("name")
+	for i := range *res {
+		row := (*res)[i]
+		if data[i].CheckChangedIntValues(&row, columns) {
+			changedTimeperiods[*(data[i].GetString(nameCol))] = true
 		}
-		data[i].UpdateValues(&row, &indexes, now)
+		data[i].UpdateValues(&row, columns, now)
 	}
 	p.DataLock.Unlock()
 	// Update hosts and services with those changed timeperiods
@@ -2013,12 +1970,12 @@ func (p *Peer) WaitCondition(req *Request) bool {
 				}
 
 				found = true
-				for _, f := range req.WaitCondition {
-					if !obj.MatchFilter(f) {
+				for i := range req.WaitCondition {
+					if !obj.MatchFilter(req.WaitCondition[i]) {
 						found = false
 					}
 				}
-			} else if p.waitConditionTableMatches(&store, &req.WaitCondition) {
+			} else if p.waitConditionTableMatches(store, &req.WaitCondition) {
 				found = true
 			}
 
@@ -2038,9 +1995,9 @@ func (p *Peer) WaitCondition(req *Request) bool {
 			// nothing matched, update tables
 			time.Sleep(time.Millisecond * 200)
 			switch req.Table {
-			case HOSTS:
+			case "hosts":
 				p.UpdateDeltaTableHosts("Filter: name = " + req.WaitObject + "\n")
-			case SERVICES:
+			case "services":
 				tmp := strings.SplitN(req.WaitObject, ";", 2)
 				if len(tmp) < 2 {
 					log.Errorf("unsupported service wait object: %s", req.WaitObject)
@@ -2049,7 +2006,7 @@ func (p *Peer) WaitCondition(req *Request) bool {
 				}
 				p.UpdateDeltaTableServices("Filter: host_name = " + tmp[0] + "\nFilter: description = " + tmp[1] + "\n")
 			default:
-				p.UpdateObjectByType(store.Table)
+				p.UpdateObjectByType(store.Table.Name)
 			}
 		}
 	}()
@@ -2273,7 +2230,7 @@ func SpinUpPeers(peers []string) {
 			log.Infof("[%s] switched back to normal update interval", peer.Name)
 			if peer.StatusGet("PeerStatus").(PeerStatus) == PeerStatusUp {
 				log.Debugf("[%s] spin up update", peer.Name)
-				peer.UpdateObjectByType(Objects.Tables["timeperiods"])
+				peer.UpdateObjectByType("timeperiods")
 				peer.UpdateDeltaTables()
 				log.Debugf("[%s] spin up update done", peer.Name)
 			} else {
@@ -2287,7 +2244,7 @@ func SpinUpPeers(peers []string) {
 }
 
 // BuildLocalResponseData returnss the result data for a given request
-func (p *Peer) BuildLocalResponseData(res *Response) (int, *[][]interface{}, *map[string][]*Filter) {
+func (p *Peer) BuildLocalResponseData(res *Response) (int, *ResultSet, map[string][]*Filter) {
 	req := res.Request
 	log.Tracef("BuildLocalResponseData: %s", p.Name)
 
@@ -2300,39 +2257,31 @@ func (p *Peer) BuildLocalResponseData(res *Response) (int, *[][]interface{}, *ma
 	defer p.DataLock.RUnlock()
 
 	// peer might have gone down meanwhile, ex. after waiting for a waittrigger, so check again
-	table := p.Tables[req.Table].Table
-	if table == nil || !p.isOnline() {
+	store := p.Tables[req.Table]
+	if store == nil || !p.isOnline() {
 		res.Lock.Lock()
 		res.Failed[p.ID] = p.getError()
 		res.Lock.Unlock()
 		return 0, nil, nil
 	}
 
-	// get data for special tables
-	var data DataStore
-	if table.Name == "tables" || table.Name == "columns" {
-		data = *(Objects.GetTableColumnsData(table))
-	} else {
-		data = p.Tables[req.Table]
-	}
-
-	if len(data.Data) == 0 {
+	if len(store.Data) == 0 {
 		return 0, nil, nil
 	}
 
 	if len(res.Request.Stats) > 0 {
-		return 0, nil, p.gatherStatsResult(res, &data)
+		return 0, nil, p.gatherStatsResult(res, store)
 	}
-	total, result := p.gatherResultRows(res, &data)
+	total, result := p.gatherResultRows(res, store)
 	return total, result, nil
 }
 
 // isOnline returns true if this peer is online and has data
 func (p *Peer) isOnline() bool {
 	status := p.StatusGet("PeerStatus").(PeerStatus)
-	if p.Flags&LMDSub == LMDSub {
+	if p.Flags.HasFlag(LMDSub) {
 		realStatus := p.StatusGet("SubPeerStatus").(map[string]interface{})
-		num, ok := realStatus[STATUS]
+		num, ok := realStatus["status"]
 		if !ok {
 			return false
 		}
@@ -2345,7 +2294,7 @@ func (p *Peer) isOnline() bool {
 }
 
 func (p *Peer) getError() string {
-	if p.Flags&LMDSub == LMDSub {
+	if p.Flags.HasFlag(LMDSub) {
 		realStatus := p.StatusGet("SubPeerStatus").(map[string]interface{})
 		errString, ok := realStatus["last_error"]
 		if ok && errString.(string) != "" {
@@ -2355,59 +2304,54 @@ func (p *Peer) getError() string {
 	return fmt.Sprintf("%v", p.StatusGet("LastError"))
 }
 
-func (p *Peer) gatherResultRows(res *Response, store *DataStore) (int, *[][]interface{}) {
+func (p *Peer) gatherResultRows(res *Response, store *DataStore) (int, *ResultSet) {
 	found := 0
-	result := make([][]interface{}, 0)
+	result := make(ResultSet, 0)
 	req := res.Request
-	numPerRow := len(res.Request.RequestColumns)
+	reqcol := req.RequestColumns
+	numPerRow := len(reqcol)
 
 	// if there is no sort header or sort by name only,
 	// we can drastically reduce the result set by applying the limit here already
-	limit := optimizeResultLimit(req, store.Table)
+	limit := optimizeResultLimit(req)
+	if limit <= 0 {
+		limit = len(store.Data) + 1
+	}
+
+	// no need to count all the way to the end unless the total number is required in wrapped_json output
+	breakOnLimit := res.Request.OutputFormat != OutputFormatWrappedJSON
 
 Rows:
 	for j := range store.Data {
 		row := store.Data[j]
 		// does our filter match?
-		for _, f := range req.Filter {
-			if !row.MatchFilter(f) {
+		for i := range req.Filter {
+			if !row.MatchFilter(req.Filter[i]) {
 				continue Rows
 			}
 		}
 		found++
 		// check if we have enough result rows already
 		// we still need to count how many result we would have...
-		if limit >= 0 && found > limit {
+		if found > limit {
+			if breakOnLimit {
+				break Rows
+			}
 			continue Rows
 		}
 
 		// build result row (including columns we need for sorting)
-		resRow := make([]interface{}, numPerRow)
+		resRow := make([]interface{}, 0, numPerRow)
 		for k := 0; k < numPerRow; k++ {
-			col := res.Request.RequestColumns[k]
-			resRow[k] = row.GetValueByRequestColumn(col)
-			// fill null values with something useful
-			if resRow[k] == nil {
-				resRow[k] = col.Column.GetEmptyValue()
-			}
+			resRow = append(resRow, row.GetValueByColumn(reqcol[k].Column))
 		}
 		result = append(result, resRow)
 	}
 
-	// sanitize broken custom var data from icinga2
-	for k := 0; k < numPerRow; k++ {
-		col := res.Request.RequestColumns[k]
-		if col.Column.Type == CustomVarCol {
-			for j := range result {
-				resRow := &(result[j])
-				(*resRow)[k] = interfaceToCustomVarHash(&(*resRow)[k])
-			}
-		}
-	}
 	return found, &result
 }
 
-func (p *Peer) gatherStatsResult(res *Response, store *DataStore) *map[string][]*Filter {
+func (p *Peer) gatherStatsResult(res *Response, store *DataStore) map[string][]*Filter {
 	localStats := make(map[string][]*Filter)
 	req := res.Request
 
@@ -2415,8 +2359,8 @@ Rows:
 	for j := range store.Data {
 		row := store.Data[j]
 		// does our filter match?
-		for _, f := range req.Filter {
-			if !row.MatchFilter(f) {
+		for i := range req.Filter {
+			if !row.MatchFilter(req.Filter[i]) {
 				continue Rows
 			}
 		}
@@ -2431,7 +2375,8 @@ Rows:
 		}
 
 		// count stats
-		for i, s := range req.Stats {
+		for i := range req.Stats {
+			s := req.Stats[i]
 			// avg/sum/min/max are passed through, they dont have filter
 			// counter must match their filter
 			if s.StatsType == Counter {
@@ -2440,13 +2385,12 @@ Rows:
 					localStats[key][i].StatsCount++
 				}
 			} else {
-				val := row.GetValueByRequestColumn(s.Column)
-				localStats[key][i].ApplyValue(numberToFloat(&val), 1)
+				localStats[key][i].ApplyValue(row.GetFloat(s.Column), 1)
 			}
 		}
 	}
 
-	return &localStats
+	return localStats
 }
 
 func (p *Peer) waitConditionTableMatches(store *DataStore, filter *[]*Filter) bool {
@@ -2457,8 +2401,8 @@ Rows:
 	for j := range store.Data {
 		row := store.Data[j]
 		// does our filter match?
-		for _, f := range *filter {
-			if !row.MatchFilter(f) {
+		for i := range *filter {
+			if !row.MatchFilter((*filter)[i]) {
 				continue Rows
 			}
 		}
@@ -2469,7 +2413,8 @@ Rows:
 
 func createLocalStatsCopy(stats *[]*Filter) []*Filter {
 	localStats := make([]*Filter, len(*stats))
-	for i, s := range *stats {
+	for i := range *stats {
+		s := (*stats)[i]
 		localStats[i] = &Filter{}
 		localStats[i].StatsType = s.StatsType
 		if s.StatsType == Min {
@@ -2478,8 +2423,8 @@ func createLocalStatsCopy(stats *[]*Filter) []*Filter {
 	}
 	return localStats
 }
-func optimizeResultLimit(req *Request, table *Table) (limit int) {
-	if req.Limit != nil && table.IsDefaultSortOrder(&req.Sort) {
+func optimizeResultLimit(req *Request) (limit int) {
+	if req.Limit != nil && req.IsDefaultSortOrder(&req.Sort) {
 		limit = *req.Limit
 		if req.Offset > 0 {
 			limit += req.Offset
@@ -2498,7 +2443,7 @@ func (p *Peer) clearLastRequest() {
 }
 
 func (p *Peer) checkIcinga2Reload() bool {
-	if p.Flags&Icinga2 == Icinga2 && p.hasChanged() {
+	if p.Flags.HasFlag(Icinga2) && p.hasChanged() {
 		return (p.InitAllTables())
 	}
 	return (true)
@@ -2531,9 +2476,9 @@ func logPanicExitPeer(p *Peer) {
 }
 
 // Result2Hash converts list result into hashes
-func Result2Hash(data [][]interface{}, columns []string) []map[string]interface{} {
+func Result2Hash(data *ResultSet, columns []string) []map[string]interface{} {
 	hash := make([]map[string]interface{}, 0)
-	for _, row := range data {
+	for _, row := range *data {
 		rowHash := make(map[string]interface{})
 		for x, key := range columns {
 			rowHash[key] = row[x]
@@ -2630,7 +2575,7 @@ func (p *Peer) SendCommands(commands []string) (err error) {
 	commandRequest := &Request{
 		Command: strings.Join(commands, "\n\n"),
 	}
-	_, err = p.Query(commandRequest)
+	_, _, err = p.Query(commandRequest)
 	if err != nil {
 		switch err := err.(type) {
 		case *PeerCommandError:
@@ -2689,21 +2634,21 @@ func (p *Peer) RebuildDowntimesCache() {
 }
 
 // buildDowntimesCache returns the downtimes/comments cache
-func (p *Peer) buildDowntimeCommentsCache(name string) map[string][]float64 {
+func (p *Peer) buildDowntimeCommentsCache(name string) map[string][]int64 {
 	p.DataLock.RLock()
-	cache := make(map[string][]float64)
+	cache := make(map[string][]int64)
 	store := p.Tables[name]
 	idIndex := store.Table.GetColumn("id").Index
 	hostNameIndex := store.Table.GetColumn("host_name").Index
 	serviceDescIndex := store.Table.GetColumn("service_description").Index
 	for i := range store.Data {
 		row := store.Data[i]
-		key := row.RawData[hostNameIndex].(string)
-		serviceName := row.RawData[serviceDescIndex].(string)
+		key := *(row.dataString[hostNameIndex])
+		serviceName := *(row.dataString[serviceDescIndex])
 		if serviceName != "" {
 			key = key + ";" + serviceName
 		}
-		id := row.RawData[idIndex].(float64)
+		id := row.dataInt[idIndex]
 		cache[key] = append(cache[key], id)
 	}
 	p.DataLock.RUnlock()

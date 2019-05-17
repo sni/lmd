@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"net"
 	"net/http"
 
@@ -155,10 +156,10 @@ var (
 	)
 )
 
-func initPrometheus(localConfig *Config) (prometheusListener *net.Listener) {
+func initPrometheus(localConfig *Config) (prometheusListener io.Closer) {
 	if localConfig.ListenPrometheus != "" {
 		l, err := net.Listen("tcp", localConfig.ListenPrometheus)
-		prometheusListener = &l
+		prometheusListener = l
 		go func() {
 			// make sure we log panics properly
 			defer logPanicExit()

@@ -2,8 +2,8 @@ linters-settings:
   gocyclo:
     min-complexity: 20
   goconst:
-    min-len: 3
-    min-occurrences: 5
+    min-len: 8
+    min-occurrences: 12
   lll:
     line-length: 120
   gocritic:
@@ -14,14 +14,15 @@ linters-settings:
     disabled-checks:
       - emptyFallthrough
       - paramTypeCombine
-      - ptrToRefParam
       - unnamedResult
       - exitAfterDefer
+    settings:
+      rangeValCopy:
+        sizeThreshold: 32
 linters:
   enable-all: true
   disable:
     - maligned
-    - prealloc
     - nakedret
     - gochecknoglobals
     - errcheck

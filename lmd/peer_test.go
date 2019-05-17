@@ -48,12 +48,6 @@ func TestPeerHTTPComplete(t *testing.T) {
 }
 
 func TestParseResultJSON(t *testing.T) {
-
-	waitGroup := &sync.WaitGroup{}
-	shutdownChannel := make(chan bool)
-	connection := Connection{Name: "Test", Source: []string{"http://localhost/test/", "http://clusternode/test"}}
-	peer := NewPeer(&Config{}, &connection, waitGroup, shutdownChannel)
-
 	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")))
 	if err != nil {
 		panic(err.Error())
@@ -63,32 +57,26 @@ func TestParseResultJSON(t *testing.T) {
 	 ["host2", "desc2", 1, [1,2], {"a": 1}],
 	]`)
 
-	res, err := peer.parseResult(req, &data)
+	res, _, err := req.parseResult(&data)
 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(2, len(res)); err != nil {
+	if err := assertEq(2, len(*res)); err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(5, len(res[0])); err != nil {
+	if err := assertEq(5, len((*res)[0])); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq("host2", res[1][0]); err != nil {
+	if err := assertEq("host2", (*res)[1][0]); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq(float64(1), res[1][2]); err != nil {
+	if err := assertEq(float64(1), (*res)[1][2]); err != nil {
 		t.Error(err)
 	}
 }
 
 func TestParseResultWrappedJSON(t *testing.T) {
-
-	waitGroup := &sync.WaitGroup{}
-	shutdownChannel := make(chan bool)
-	connection := Connection{Name: "Test", Source: []string{"http://localhost/test/", "http://clusternode/test"}}
-	peer := NewPeer(&Config{}, &connection, waitGroup, shutdownChannel)
-
 	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: wrapped_json\n")))
 	if err != nil {
 		panic(err.Error())
@@ -99,32 +87,29 @@ func TestParseResultWrappedJSON(t *testing.T) {
 	],
 	"total_count": 2}`)
 
-	res, err := peer.parseResult(req, &data)
+	res, meta, err := req.parseResult(&data)
 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(2, len(res)); err != nil {
+	if err := assertEq(2, len(*res)); err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(5, len(res[0])); err != nil {
+	if err := assertEq(5, len((*res)[0])); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq("host2", res[1][0]); err != nil {
+	if err := assertEq("host2", (*res)[1][0]); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq(float64(1), res[1][2]); err != nil {
+	if err := assertEq(float64(1), (*res)[1][2]); err != nil {
+		t.Error(err)
+	}
+	if err := assertEq(int64(2), meta.Total); err != nil {
 		t.Error(err)
 	}
 }
 
 func TestParseResultJSONBroken(t *testing.T) {
-
-	waitGroup := &sync.WaitGroup{}
-	shutdownChannel := make(chan bool)
-	connection := Connection{Name: "Test", Source: []string{"http://localhost/test/", "http://clusternode/test"}}
-	peer := NewPeer(&Config{}, &connection, waitGroup, shutdownChannel)
-
 	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")))
 	if err != nil {
 		panic(err.Error())
@@ -135,7 +120,7 @@ func TestParseResultJSONBroken(t *testing.T) {
 	]`)
 
 	InitLogging(&Config{LogLevel: "off", LogFile: "stderr"})
-	res, err := peer.parseResult(req, &data)
+	res, _, err := req.parseResult(&data)
 	InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
 
 	if err == nil {
@@ -148,12 +133,6 @@ func TestParseResultJSONBroken(t *testing.T) {
 }
 
 func TestParseResultJSONBroken2(t *testing.T) {
-
-	waitGroup := &sync.WaitGroup{}
-	shutdownChannel := make(chan bool)
-	connection := Connection{Name: "Test", Source: []string{"http://localhost/test/", "http://clusternode/test"}}
-	peer := NewPeer(&Config{}, &connection, waitGroup, shutdownChannel)
-
 	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")))
 	if err != nil {
 		panic(err.Error())
@@ -164,7 +143,7 @@ func TestParseResultJSONBroken2(t *testing.T) {
 	]`)
 
 	InitLogging(&Config{LogLevel: "off", LogFile: "stderr"})
-	res, err := peer.parseResult(req, &data)
+	res, _, err := req.parseResult(&data)
 	InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
 
 	if err == nil {
@@ -173,5 +152,33 @@ func TestParseResultJSONBroken2(t *testing.T) {
 
 	if res != nil {
 		t.Errorf("got result for broken json")
+	}
+}
+
+func TestPeerUpdate(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	res := peer.UpdateAllTables()
+	if err := assertEq(true, res); err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestPeerDeltaUpdate(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	res := peer.UpdateDeltaTables()
+	if err := assertEq(true, res); err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
 	}
 }

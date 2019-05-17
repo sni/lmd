@@ -22,6 +22,7 @@ EXTERNAL_DEPS = \
 	golang.org/x/tools/cmd/goimports \
 	github.com/jmhodges/copyfighter \
 	github.com/golangci/golangci-lint/cmd/golangci-lint \
+	golang.org/x/tools/cmd/stringer \
 
 
 all: deps fmt build
@@ -125,10 +126,13 @@ clean:
 	rm -f $(LAMPDDIR)/*.sock
 	rm -f lmd-*.html
 
-fmt:
+fmt: generate
 	cd $(LAMPDDIR) && goimports -w .
 	cd $(LAMPDDIR) && go vet -all -assign -atomic -bool -composites -copylocks -nilfunc -rangeloops -unsafeptr -unreachable .
 	cd $(LAMPDDIR) && gofmt -w -s .
+
+generate:
+	cd $(LAMPDDIR) && go generate
 
 versioncheck:
 	@[ $$( printf '%s\n' $(GOVERSION) $(MINGOVERSION) | sort | head -n 1 ) = $(MINGOVERSION) ] || { \

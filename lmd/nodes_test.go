@@ -29,57 +29,57 @@ func TestNodeManager(t *testing.T) {
 	}
 
 	// test host request
-	res, err := peer.QueryString("GET hosts\nColumns: name peer_key state\n\n")
+	res, _, err := peer.QueryString("GET hosts\nColumns: name peer_key state\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err = assertEq(40, len(res)); err != nil {
+	if err = assertEq(40, len(*res)); err != nil {
 		t.Error(err)
 	}
 
 	// test host stats request
-	res, err = peer.QueryString("GET hosts\nStats: name !=\nStats: avg latency\nStats: sum latency\n\n")
+	res, _, err = peer.QueryString("GET hosts\nStats: name !=\nStats: avg latency\nStats: sum latency\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq(40, int(res[0][0].(float64))); err != nil {
+	if err = assertEq(40, int((*res)[0][0].(float64))); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(0.08365800231700002, res[0][1]); err != nil {
+	if err = assertEq(0.08365800231700002, (*res)[0][1]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(3.346320092680001, res[0][2]); err != nil {
+	if err = assertEq(3.346320092680001, (*res)[0][2]); err != nil {
 		t.Error(err)
 	}
 
 	// test host grouped stats request
-	res, err = peer.QueryString("GET hosts\nColumns: name alias\nStats: name !=\nStats: avg latency\nStats: sum latency\n\n")
+	res, _, err = peer.QueryString("GET hosts\nColumns: name alias\nStats: name !=\nStats: avg latency\nStats: sum latency\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq("testhost_10", res[1][0]); err != nil {
+	if err = assertEq("testhost_10", (*res)[1][0]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq("localhost", res[1][1]); err != nil {
+	if err = assertEq("localhost", (*res)[1][1]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(4.0, res[1][2]); err != nil {
+	if err = assertEq(4.0, (*res)[1][2]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(0.083658002317, res[1][3]); err != nil {
+	if err = assertEq(0.083658002317, (*res)[1][3]); err != nil {
 		t.Error(err)
 	}
 
 	// test host empty stats request
-	res, err = peer.QueryString("GET hosts\nFilter: check_type = 15\nStats: sum percent_state_change\nStats: min percent_state_change\n\n")
+	res, _, err = peer.QueryString("GET hosts\nFilter: check_type = 15\nStats: sum percent_state_change\nStats: min percent_state_change\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq(1, len(res)); err != nil {
+	if err = assertEq(1, len(*res)); err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq(float64(0), res[0][0]); err != nil {
+	if err = assertEq(float64(0), (*res)[0][0]); err != nil {
 		t.Error(err)
 	}
 
