@@ -73,7 +73,7 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 }
 
 // InsertData adds a list of results and initializes the store table
-func (d *DataStore) InsertData(data *[][]interface{}, columns *ColumnList) error {
+func (d *DataStore) InsertData(data *ResultSet, columns *ColumnList) error {
 	now := time.Now().Unix()
 	if len(d.Table.PrimaryKey) > 0 {
 		d.Index = make(map[string]*DataRow, len(*data))

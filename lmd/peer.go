@@ -1001,7 +1001,7 @@ func (p *Peer) UpdateDeltaTableFullScan(store *DataStore, filterStr string) (upd
 }
 
 // getMissingTimestamps returns list of last_check dates which can be used to delta update
-func (p *Peer) getMissingTimestamps(store *DataStore, res *[][]interface{}, columns *ColumnList) (missing map[float64]bool, err error) {
+func (p *Peer) getMissingTimestamps(store *DataStore, res *ResultSet, columns *ColumnList) (missing map[float64]bool, err error) {
 	missing = make(map[float64]bool)
 	p.DataLock.RLock()
 	data := store.Data
@@ -1151,7 +1151,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 
 // query sends the request to a remote livestatus.
 // It returns the unmarshaled result and any error encountered.
-func (p *Peer) query(req *Request) ([][]interface{}, *ResultMetaData, error) {
+func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 	conn, connType, err := p.GetConnection()
 	if err != nil {
 		log.Debugf("[%s] connection failed: %s", p.Name, err)
@@ -1331,7 +1331,7 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) (*[]byte
 // Query sends a livestatus request from a request object.
 // It calls query and logs all errors except connection errors which are logged in GetConnection.
 // It returns the livestatus result and any error encountered.
-func (p *Peer) Query(req *Request) (result [][]interface{}, meta *ResultMetaData, err error) {
+func (p *Peer) Query(req *Request) (result ResultSet, meta *ResultMetaData, err error) {
 	result, meta, err = p.query(req)
 	if err != nil {
 		p.setNextAddrFromErr(err)
@@ -1341,7 +1341,7 @@ func (p *Peer) Query(req *Request) (result [][]interface{}, meta *ResultMetaData
 
 // QueryString sends a livestatus request from a given string.
 // It returns the livestatus result and any error encountered.
-func (p *Peer) QueryString(str string) ([][]interface{}, *ResultMetaData, error) {
+func (p *Peer) QueryString(str string) (ResultSet, *ResultMetaData, error) {
 	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString(str)))
 	if err != nil {
 		return nil, nil, err
@@ -1561,7 +1561,7 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 		return
 	}
 
-	var res [][]interface{}
+	var res ResultSet
 	if store.Table.GroupBy {
 		// calculate groupby data from local table
 		res, err = p.GetGroupByData(store)
@@ -1764,8 +1764,8 @@ func (p *Peer) fetchRemotePeersFromAddr(peerAddr string) (sites []interface{}, e
 }
 
 // GetGroupByData returns fake query result for given groupby table
-func (p *Peer) GetGroupByData(store *DataStore) (res [][]interface{}, err error) {
-	res = make([][]interface{}, 0)
+func (p *Peer) GetGroupByData(store *DataStore) (res ResultSet, err error) {
+	res = make(ResultSet, 0)
 	p.DataLock.RLock()
 	defer p.DataLock.RUnlock()
 	switch store.Table.Name {
@@ -1897,7 +1897,7 @@ func (p *Peer) skipTableUpdate(store *DataStore) bool {
 	return false
 }
 
-func (p *Peer) updateTimeperiodsData(store *DataStore, res [][]interface{}, columns *ColumnList) {
+func (p *Peer) updateTimeperiodsData(store *DataStore, res ResultSet, columns *ColumnList) {
 	changedTimeperiods := make(map[string]bool)
 	p.DataLock.Lock()
 	data := store.Data
@@ -2244,7 +2244,7 @@ func SpinUpPeers(peers []string) {
 }
 
 // BuildLocalResponseData returnss the result data for a given request
-func (p *Peer) BuildLocalResponseData(res *Response) (int, [][]interface{}, map[string][]*Filter) {
+func (p *Peer) BuildLocalResponseData(res *Response) (int, ResultSet, map[string][]*Filter) {
 	req := res.Request
 	log.Tracef("BuildLocalResponseData: %s", p.Name)
 
@@ -2304,9 +2304,9 @@ func (p *Peer) getError() string {
 	return fmt.Sprintf("%v", p.StatusGet("LastError"))
 }
 
-func (p *Peer) gatherResultRows(res *Response, store *DataStore) (int, [][]interface{}) {
+func (p *Peer) gatherResultRows(res *Response, store *DataStore) (int, ResultSet) {
 	found := 0
-	result := make([][]interface{}, 0)
+	result := make(ResultSet, 0)
 	req := res.Request
 	reqcol := req.RequestColumns
 	numPerRow := len(reqcol)
@@ -2476,7 +2476,7 @@ func logPanicExitPeer(p *Peer) {
 }
 
 // Result2Hash converts list result into hashes
-func Result2Hash(data [][]interface{}, columns []string) []map[string]interface{} {
+func Result2Hash(data ResultSet, columns []string) []map[string]interface{} {
 	hash := make([]map[string]interface{}, 0)
 	for _, row := range data {
 		rowHash := make(map[string]interface{})

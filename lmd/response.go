@@ -17,12 +17,15 @@ type Response struct {
 	noCopy      noCopy
 	Lock        *LoggingLock // must be used for Result and Failed access
 	Code        int
-	Result      [][]interface{}
+	Result      ResultSet
 	ResultTotal int
 	Request     *Request
 	Error       error
 	Failed      map[string]string
 }
+
+// ResultSet is a list of result rows
+type ResultSet [][]interface{}
 
 // NewResponse creates a new response object for a given request
 // It returns the Response object and any error encountered.
@@ -63,7 +66,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 	PeerMapLock.RUnlock()
 
 	if len(selectedPeers) == 0 {
-		res.Result = make([][]interface{}, 0)
+		res.Result = make(ResultSet, 0)
 		res.PostProcessing()
 		return
 	}
@@ -92,7 +95,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 	}
 
 	if res.Result == nil {
-		res.Result = make([][]interface{}, 0)
+		res.Result = make(ResultSet, 0)
 	}
 	res.PostProcessing()
 	return
@@ -229,7 +232,7 @@ func (res *Response) PostProcessing() {
 	// apply request offset
 	if res.Request.Offset > 0 {
 		if res.Request.Offset > res.ResultTotal {
-			res.Result = make([][]interface{}, 0)
+			res.Result = make(ResultSet, 0)
 		} else {
 			res.Result = res.Result[res.Request.Offset:]
 		}
@@ -256,7 +259,7 @@ func (res *Response) CalculateFinalStats() {
 		}
 		res.Request.StatsResult[""] = createLocalStatsCopy(&res.Request.Stats)
 	}
-	res.Result = make([][]interface{}, len(res.Request.StatsResult))
+	res.Result = make(ResultSet, len(res.Request.StatsResult))
 
 	j := 0
 	for key, stats := range res.Request.StatsResult {
@@ -484,7 +487,7 @@ func (res *Response) WrappedJSON() ([]byte, error) {
 
 // BuildLocalResponse builds local data table result for all selected peers
 func (res *Response) BuildLocalResponse(peers []string) {
-	res.Result = make([][]interface{}, 0)
+	res.Result = make(ResultSet, 0)
 
 	waitgroup := &sync.WaitGroup{}
 
@@ -574,7 +577,7 @@ func (res *Response) AppendPeerResult(peer *Peer) {
 // BuildPassThroughResult passes a query transparently to one or more remote sites and builds the response
 // from that.
 func (res *Response) BuildPassThroughResult(peers []string, table *Table) {
-	res.Result = make([][]interface{}, 0)
+	res.Result = make(ResultSet, 0)
 
 	// build columns list
 	backendColumns := []string{}
@@ -631,7 +634,6 @@ func (res *Response) PassThrougQuery(peer *Peer, table *Table, virtColumns []*Re
 		OutputFormat:    OutputFormatJSON,
 		ResponseFixed16: true,
 	}
-	var result [][]interface{}
 	result, _, queryErr := peer.Query(passthroughRequest)
 	log.Tracef("[%s] req done", peer.Name)
 	if queryErr != nil {

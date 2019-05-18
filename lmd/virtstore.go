@@ -6,7 +6,7 @@ type VirtStoreResolveFunc func(table *Table, peer *Peer) *DataStore
 func GetTableBackendsStore(table *Table, peer *Peer) *DataStore {
 	// simply return a new DataStore with a single row, since all columns are virtual anyway
 	store := NewDataStore(table, peer)
-	rows := make([][]interface{}, 1)
+	rows := make(ResultSet, 1)
 	_, columns := store.GetInitialColumns()
 	store.InsertData(&rows, columns)
 	return store
@@ -15,7 +15,7 @@ func GetTableBackendsStore(table *Table, peer *Peer) *DataStore {
 // GetTableColumnsStore returns the virtual data used for the columns/table livestatus table.
 func GetTableColumnsStore(table *Table, _ *Peer) *DataStore {
 	store := NewDataStore(table, nil)
-	data := make([][]interface{}, 0)
+	data := make(ResultSet, 0)
 	for _, t := range Objects.Tables {
 		for i := range t.Columns {
 			c := t.Columns[i]

@@ -383,7 +383,7 @@ func (req *Request) getDistributedResponse() (*Response, error) {
 
 	// Cluster mode (don't send this request; send sub-requests, build response)
 	var wg sync.WaitGroup
-	collectedDatasets := make(chan [][]interface{}, len(nodeAccessor.nodeBackends))
+	collectedDatasets := make(chan ResultSet, len(nodeAccessor.nodeBackends))
 	collectedFailedHashes := make(chan map[string]string, len(nodeAccessor.nodeBackends))
 	for nodeID, nodeBackends := range nodeAccessor.nodeBackends {
 		node := nodeAccessor.Node(nodeID)
@@ -393,7 +393,7 @@ func (req *Request) getDistributedResponse() (*Response, error) {
 
 		// skip node if it doesn't have relevant backends
 		if len(subBackends) == 0 {
-			collectedDatasets <- [][]interface{}{}
+			collectedDatasets <- ResultSet{}
 			collectedFailedHashes <- map[string]string{}
 			continue
 		}
@@ -438,7 +438,7 @@ func (req *Request) getDistributedResponse() (*Response, error) {
 			if !ok {
 				return
 			}
-			rows := make([][]interface{}, len(rowsVariants))
+			rows := make(ResultSet, len(rowsVariants))
 			for i, rowVariant := range rowsVariants {
 				rowVariants, ok := rowVariant.([]interface{})
 				if !ok {
@@ -576,7 +576,7 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 }
 
 // mergeDistributedResponse returns response object with merged result from distributed requests
-func (req *Request) mergeDistributedResponse(collectedDatasets chan [][]interface{}, collectedFailedHashes chan map[string]string) *Response {
+func (req *Request) mergeDistributedResponse(collectedDatasets chan ResultSet, collectedFailedHashes chan map[string]string) *Response {
 	// Build response object
 	res := &Response{
 		Code:    200,
@@ -868,7 +868,7 @@ func (req *Request) SetRequestColumns() (err error) {
 }
 
 // parseResult parses the result bytes and returns the data table and optional meta data for wrapped_json requests
-func (req *Request) parseResult(resBytes *[]byte) (result [][]interface{}, meta *ResultMetaData, err error) {
+func (req *Request) parseResult(resBytes *[]byte) (result ResultSet, meta *ResultMetaData, err error) {
 	if len(*resBytes) == 0 || (string((*resBytes)[0]) != "{" && string((*resBytes)[0]) != "[") {
 		err = errors.New(strings.TrimSpace(string(*resBytes)))
 		return nil, nil, &PeerError{msg: fmt.Sprintf("response does not look like a json result: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
@@ -898,7 +898,7 @@ func (req *Request) parseResult(resBytes *[]byte) (result [][]interface{}, meta 
 		}
 		resBytes = &dataBytes
 	}
-	result = make([][]interface{}, 0)
+	result = make(ResultSet, 0)
 	offset, jErr := jsonparser.ArrayEach(*resBytes, func(rowBytes []byte, _ jsonparser.ValueType, _ int, aErr error) {
 		if aErr != nil {
 			err = aErr
@@ -915,7 +915,6 @@ func (req *Request) parseResult(resBytes *[]byte) (result [][]interface{}, meta 
 	if jErr != nil && offset < len(*resBytes)-3 {
 		return nil, nil, jErr
 	}
-
 	if err != nil {
 		return nil, nil, err
 	}
