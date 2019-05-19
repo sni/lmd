@@ -557,26 +557,26 @@ func (f *Filter) MatchString(value *string) bool {
 	return false
 }
 
-func (f *Filter) MatchStringList(list []string) bool {
+func (f *Filter) MatchStringList(list *[]string) bool {
 	switch f.Operator {
 	case Equal:
 		// used to match for empty lists, like: contacts = ""
 		// return true if the list is empty
-		return f.StrValue == "" && len(list) == 0
+		return f.StrValue == "" && len(*list) == 0
 	case Unequal:
 		// used to match for any entry in lists, like: contacts != ""
 		// return true if the list is not empty
-		return f.StrValue == "" && len(list) != 0
+		return f.StrValue == "" && len(*list) != 0
 	case GreaterThan:
-		for i := range list {
-			if f.StrValue == list[i] {
+		for i := range *list {
+			if f.StrValue == (*list)[i] {
 				return true
 			}
 		}
 		return false
 	case GroupContainsNot:
-		for i := range list {
-			if f.StrValue == list[i] {
+		for i := range *list {
+			if f.StrValue == (*list)[i] {
 				return false
 			}
 		}
@@ -584,8 +584,8 @@ func (f *Filter) MatchStringList(list []string) bool {
 	case RegexMatch:
 		fallthrough
 	case RegexNoCaseMatch:
-		for i := range list {
-			if f.MatchString(&(list[i])) {
+		for i := range *list {
+			if f.MatchString(&((*list)[i])) {
 				return true
 			}
 		}
@@ -593,8 +593,8 @@ func (f *Filter) MatchStringList(list []string) bool {
 	case RegexMatchNot:
 		fallthrough
 	case RegexNoCaseMatchNot:
-		for i := range list {
-			if f.MatchString(&(list[i])) {
+		for i := range *list {
+			if f.MatchString(&((*list)[i])) {
 				return false
 			}
 		}

@@ -868,13 +868,14 @@ func (req *Request) SetRequestColumns() (err error) {
 }
 
 // parseResult parses the result bytes and returns the data table and optional meta data for wrapped_json requests
-func (req *Request) parseResult(resBytes *[]byte) (result ResultSet, meta *ResultMetaData, err error) {
+func (req *Request) parseResult(resBytes *[]byte) (*ResultSet, *ResultMetaData, error) {
+	var err error
+	meta := &ResultMetaData{}
 	if len(*resBytes) == 0 || (string((*resBytes)[0]) != "{" && string((*resBytes)[0]) != "[") {
 		err = errors.New(strings.TrimSpace(string(*resBytes)))
 		return nil, nil, &PeerError{msg: fmt.Sprintf("response does not look like a json result: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
 	}
 	if req.OutputFormat == OutputFormatWrappedJSON {
-		meta = &ResultMetaData{}
 		dataBytes, dataType, _, jErr := jsonparser.Get(*resBytes, "columns")
 		if jErr != nil {
 			log.Debugf("column header parse error: %s", jErr.Error())
@@ -898,7 +899,7 @@ func (req *Request) parseResult(resBytes *[]byte) (result ResultSet, meta *Resul
 		}
 		resBytes = &dataBytes
 	}
-	result = make(ResultSet, 0)
+	res := make(ResultSet, 0)
 	offset, jErr := jsonparser.ArrayEach(*resBytes, func(rowBytes []byte, _ jsonparser.ValueType, _ int, aErr error) {
 		if aErr != nil {
 			err = aErr
@@ -909,7 +910,7 @@ func (req *Request) parseResult(resBytes *[]byte) (result ResultSet, meta *Resul
 			err = dErr
 			return
 		}
-		result = append(result, row.([]interface{}))
+		res = append(res, row.([]interface{}))
 	})
 	// trailing comma error will be ignored
 	if jErr != nil && offset < len(*resBytes)-3 {
@@ -919,7 +920,7 @@ func (req *Request) parseResult(resBytes *[]byte) (result ResultSet, meta *Resul
 		return nil, nil, err
 	}
 
-	return
+	return &res, meta, err
 }
 
 // IsDefaultSortOrder returns true if the sortfield is the default for the given table.

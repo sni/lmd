@@ -190,7 +190,7 @@ type Column struct {
 	Name        string              // name and primary key
 	Description string              // human description
 	DataType    DataType            // Type of this column
-	UpdateType  FetchType           // flag wether this columns needs to be updated
+	FetchType   FetchType           // flag wether this columns needs to be updated
 	StorageType StorageType         // flag how this column is stored
 	Optional    OptionalFlags       // flags if this column is used for certain backends only
 	Index       int                 // position in the DataRow data* fields
@@ -206,7 +206,7 @@ func NewColumn(table *Table, name string, storage StorageType, update FetchType,
 		Name:        name,
 		Description: description,
 		StorageType: storage,
-		UpdateType:  update,
+		FetchType:   update,
 		DataType:    datatype,
 		RefCol:      refCol,
 		Optional:    restrict,

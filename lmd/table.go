@@ -58,7 +58,7 @@ func (t *Table) GetEmptyColumn() *Column {
 		Table:       t,
 		DataType:    StringCol,
 		StorageType: VirtStore,
-		UpdateType:  None,
+		FetchType:   None,
 		VirtMap:     VirtColumnMap["empty"],
 	}
 }

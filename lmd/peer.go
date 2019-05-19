@@ -247,8 +247,8 @@ func (p *Peer) Stop() {
 func (p *Peer) countFromServer(name string, queryCondition string) (count int) {
 	count = -1
 	res, _, err := p.QueryString("GET " + name + "\nOutputFormat: json\nStats: " + queryCondition + "\n\n")
-	if err == nil && len(res) > 0 && len(res[0]) > 0 {
-		count = int(res[0][0].(float64))
+	if err == nil && len(*res) > 0 && len((*res)[0]) > 0 {
+		count = int(interface2float64((*res)[0][0]))
 	}
 	return
 }
@@ -469,7 +469,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 			}
 			res, _, err := subPeer.query(req)
 			if err == nil {
-				section := res[0][0].(string)
+				section := *(interface2string((*res)[0][0]))
 				section = strings.TrimPrefix(section, "Default")
 				section = strings.TrimPrefix(section, "/")
 				subPeer.StatusSet("Section", section)
@@ -860,8 +860,8 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	p.DataLock.Lock()
 	now := time.Now().Unix()
 	nameIndex := table.Index
-	for i := range res {
-		resRow := &res[i]
+	for i := range *res {
+		resRow := &(*res)[i]
 		hostName := interface2string((*resRow)[0])
 		dataRow := nameIndex[*hostName]
 		if dataRow == nil {
@@ -872,8 +872,8 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 		dataRow.UpdateValues(resRow, &table.DynamicColumnCache, now)
 	}
 	p.DataLock.Unlock()
-	promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(res)))
-	log.Debugf("[%s] updated %d hosts", p.Name, len(res))
+	promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(*res)))
+	log.Debugf("[%s] updated %d hosts", p.Name, len(*res))
 
 	return
 }
@@ -907,8 +907,8 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	p.DataLock.Lock()
 	nameindex := table.Index
 	now := time.Now().Unix()
-	for i := range res {
-		resRow := &res[i]
+	for i := range *res {
+		resRow := &(*res)[i]
 		lookUp := *(interface2string((*resRow)[0])) + ";" + *(interface2string((*resRow)[1]))
 		dataRow := nameindex[lookUp]
 		if dataRow == nil {
@@ -919,8 +919,8 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 		dataRow.UpdateValues(resRow, &table.DynamicColumnCache, now)
 	}
 	p.DataLock.Unlock()
-	promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(res)))
-	log.Debugf("[%s] updated %d services", p.Name, len(res))
+	promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(*res)))
+	log.Debugf("[%s] updated %d services", p.Name, len(*res))
 
 	return
 }
@@ -973,7 +973,7 @@ func (p *Peer) UpdateDeltaTableFullScan(store *DataStore, filterStr string) (upd
 		columns[i] = store.Table.ColumnsIndex[name]
 	}
 
-	missing, err := p.getMissingTimestamps(store, &res, &columns)
+	missing, err := p.getMissingTimestamps(store, res, &columns)
 	if err != nil {
 		return
 	}
@@ -1054,7 +1054,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	}
 	p.DataLock.RUnlock()
 
-	if len(res) == 0 || float64(entries) == res[0][0].(float64) && (entries == 0 || res[0][1].(float64) == float64(maxID)) {
+	if len(*res) == 0 || float64(entries) == interface2float64((*res)[0][0]) && (entries == 0 || interface2float64((*res)[0][1]) == float64(maxID)) {
 		log.Debugf("[%s] %s did not change", p.Name, name)
 		return
 	}
@@ -1075,8 +1075,8 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	idIndex := p.Tables[store.Table.Name].Index
 	missingIds := []int64{}
 	resIndex := make(map[string]bool)
-	for i := range res {
-		resRow := &res[i]
+	for i := range *res {
+		resRow := &(*res)[i]
 		id := fmt.Sprintf("%v", (*resRow)[0])
 		_, ok := idIndex[id]
 		if !ok {
@@ -1133,8 +1133,8 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 			p.DataLock.Unlock()
 			return
 		}
-		for i := range res {
-			resRow := res[i]
+		for i := range *res {
+			resRow := (*res)[i]
 			row, nErr := NewDataRow(data, &resRow, columns, 0)
 			if nErr != nil {
 				return nErr
@@ -1151,7 +1151,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 
 // query sends the request to a remote livestatus.
 // It returns the unmarshaled result and any error encountered.
-func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
+func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 	conn, connType, err := p.GetConnection()
 	if err != nil {
 		log.Debugf("[%s] connection failed: %s", p.Name, err)
@@ -1331,7 +1331,7 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) (*[]byte
 // Query sends a livestatus request from a request object.
 // It calls query and logs all errors except connection errors which are logged in GetConnection.
 // It returns the livestatus result and any error encountered.
-func (p *Peer) Query(req *Request) (result ResultSet, meta *ResultMetaData, err error) {
+func (p *Peer) Query(req *Request) (result *ResultSet, meta *ResultMetaData, err error) {
 	result, meta, err = p.query(req)
 	if err != nil {
 		p.setNextAddrFromErr(err)
@@ -1341,7 +1341,7 @@ func (p *Peer) Query(req *Request) (result ResultSet, meta *ResultMetaData, err 
 
 // QueryString sends a livestatus request from a given string.
 // It returns the livestatus result and any error encountered.
-func (p *Peer) QueryString(str string) (ResultSet, *ResultMetaData, error) {
+func (p *Peer) QueryString(str string) (*ResultSet, *ResultMetaData, error) {
 	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString(str)))
 	if err != nil {
 		return nil, nil, err
@@ -1561,10 +1561,10 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 		return
 	}
 
-	var res ResultSet
+	var res *ResultSet
 	if store.Table.GroupBy {
 		// calculate groupby data from local table
-		res, err = p.GetGroupByData(store)
+		res = p.GetGroupByData(store)
 	} else {
 		// fetch remote objects
 		req := &Request{
@@ -1580,11 +1580,11 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 		return
 	}
 	if !store.Table.GroupBy {
-		log.Debugf("[%s] fetched %d initial %s objects", p.Name, len(res), store.Table.Name)
+		log.Debugf("[%s] fetched %d initial %s objects", p.Name, len(*res), store.Table.Name)
 	}
 
 	now := time.Now().Unix()
-	err = store.InsertData(&res, columns)
+	err = store.InsertData(res, columns)
 	if err != nil {
 		return
 	}
@@ -1764,8 +1764,8 @@ func (p *Peer) fetchRemotePeersFromAddr(peerAddr string) (sites []interface{}, e
 }
 
 // GetGroupByData returns fake query result for given groupby table
-func (p *Peer) GetGroupByData(store *DataStore) (res ResultSet, err error) {
-	res = make(ResultSet, 0)
+func (p *Peer) GetGroupByData(store *DataStore) *ResultSet {
+	res := make(ResultSet, 0)
 	p.DataLock.RLock()
 	defer p.DataLock.RUnlock()
 	switch store.Table.Name {
@@ -1775,8 +1775,8 @@ func (p *Peer) GetGroupByData(store *DataStore) (res ResultSet, err error) {
 		for _, row := range p.Tables["hosts"].Data {
 			name := row.GetString(nameCol)
 			groups := row.GetStringList(groupCol)
-			for i := range groups {
-				res = append(res, []interface{}{*name, groups[i]})
+			for i := range *groups {
+				res = append(res, []interface{}{*name, (*groups)[i]})
 			}
 		}
 	case "servicesbygroup":
@@ -1787,8 +1787,8 @@ func (p *Peer) GetGroupByData(store *DataStore) (res ResultSet, err error) {
 			hostName := row.GetString(hostNameCol)
 			description := row.GetString(descCol)
 			groups := row.GetStringList(groupCol)
-			for i := range groups {
-				res = append(res, []interface{}{*hostName, *description, groups[i]})
+			for i := range *groups {
+				res = append(res, []interface{}{*hostName, *description, (*groups)[i]})
 			}
 		}
 	case "servicesbyhostgroup":
@@ -1799,14 +1799,14 @@ func (p *Peer) GetGroupByData(store *DataStore) (res ResultSet, err error) {
 			hostName := row.GetString(hostNameCol)
 			description := row.GetString(descCol)
 			groups := row.GetStringList(hostGroupsCol)
-			for i := range groups {
-				res = append(res, []interface{}{*hostName, *description, groups[i]})
+			for i := range *groups {
+				res = append(res, []interface{}{*hostName, *description, (*groups)[i]})
 			}
 		}
 	default:
 		log.Panicf("GetGroupByData not implemented for table: %s", store.Table.Name)
 	}
-	return
+	return &res
 }
 
 // UpdateObjectByType updates a given table by requesting all dynamic columns from the remote peer.
@@ -1832,8 +1832,8 @@ func (p *Peer) UpdateObjectByType(tableName string) (restartRequired bool, err e
 	p.DataLock.RLock()
 	data := p.Tables[store.Table.Name].Data
 	p.DataLock.RUnlock()
-	if len(res) != len(data) {
-		log.Debugf("[%s] site returned different number of objects, assuming backend has been restarted, table: %s, expected: %d, received: %d", p.Name, store.Table.Name, len(data), len(res))
+	if len(*res) != len(data) {
+		log.Debugf("[%s] site returned different number of objects, assuming backend has been restarted, table: %s, expected: %d, received: %d", p.Name, store.Table.Name, len(data), len(*res))
 		restartRequired = true
 		return
 	}
@@ -1845,8 +1845,8 @@ func (p *Peer) UpdateObjectByType(tableName string) (restartRequired bool, err e
 		p.DataLock.Lock()
 		now := time.Now().Unix()
 		primaryKeysLen := len(store.Table.PrimaryKey)
-		for i := range res {
-			row := res[i]
+		for i := range *res {
+			row := (*res)[i]
 			// shift extra columns
 			if primaryKeysLen > 0 {
 				row = row[primaryKeysLen:]
@@ -1862,9 +1862,9 @@ func (p *Peer) UpdateObjectByType(tableName string) (restartRequired bool, err e
 
 	switch store.Table.Name {
 	case "hosts":
-		promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(res)))
+		promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(*res)))
 	case "services":
-		promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(res)))
+		promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(*res)))
 	case "status":
 		p.checkStatusFlags()
 		if !p.Flags.HasFlag(MultiBackend) && len(data) >= 1 && p.StatusGet("ProgramStart") != data[0].GetIntByName("program_start") {
@@ -1897,14 +1897,14 @@ func (p *Peer) skipTableUpdate(store *DataStore) bool {
 	return false
 }
 
-func (p *Peer) updateTimeperiodsData(store *DataStore, res ResultSet, columns *ColumnList) {
+func (p *Peer) updateTimeperiodsData(store *DataStore, res *ResultSet, columns *ColumnList) {
 	changedTimeperiods := make(map[string]bool)
 	p.DataLock.Lock()
 	data := store.Data
 	now := time.Now().Unix()
 	nameCol := store.GetColumn("name")
-	for i := range res {
-		row := res[i]
+	for i := range *res {
+		row := (*res)[i]
 		if data[i].CheckChangedValues(&row, columns) {
 			changedTimeperiods[*(data[i].GetString(nameCol))] = true
 		}
@@ -2244,7 +2244,7 @@ func SpinUpPeers(peers []string) {
 }
 
 // BuildLocalResponseData returnss the result data for a given request
-func (p *Peer) BuildLocalResponseData(res *Response) (int, ResultSet, map[string][]*Filter) {
+func (p *Peer) BuildLocalResponseData(res *Response) (int, *ResultSet, map[string][]*Filter) {
 	req := res.Request
 	log.Tracef("BuildLocalResponseData: %s", p.Name)
 
@@ -2304,7 +2304,7 @@ func (p *Peer) getError() string {
 	return fmt.Sprintf("%v", p.StatusGet("LastError"))
 }
 
-func (p *Peer) gatherResultRows(res *Response, store *DataStore) (int, ResultSet) {
+func (p *Peer) gatherResultRows(res *Response, store *DataStore) (int, *ResultSet) {
 	found := 0
 	result := make(ResultSet, 0)
 	req := res.Request
@@ -2348,7 +2348,7 @@ Rows:
 		result = append(result, resRow)
 	}
 
-	return found, result
+	return found, &result
 }
 
 func (p *Peer) gatherStatsResult(res *Response, store *DataStore) map[string][]*Filter {
@@ -2476,9 +2476,9 @@ func logPanicExitPeer(p *Peer) {
 }
 
 // Result2Hash converts list result into hashes
-func Result2Hash(data ResultSet, columns []string) []map[string]interface{} {
+func Result2Hash(data *ResultSet, columns []string) []map[string]interface{} {
 	hash := make([]map[string]interface{}, 0)
-	for _, row := range data {
+	for _, row := range *data {
 		rowHash := make(map[string]interface{})
 		for x, key := range columns {
 			rowHash[key] = row[x]

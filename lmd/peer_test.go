@@ -62,16 +62,16 @@ func TestParseResultJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(2, len(res)); err != nil {
+	if err := assertEq(2, len(*res)); err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(5, len(res[0])); err != nil {
+	if err := assertEq(5, len((*res)[0])); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq("host2", res[1][0]); err != nil {
+	if err := assertEq("host2", (*res)[1][0]); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq(float64(1), res[1][2]); err != nil {
+	if err := assertEq(float64(1), (*res)[1][2]); err != nil {
 		t.Error(err)
 	}
 }
@@ -92,16 +92,16 @@ func TestParseResultWrappedJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(2, len(res)); err != nil {
+	if err := assertEq(2, len(*res)); err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(5, len(res[0])); err != nil {
+	if err := assertEq(5, len((*res)[0])); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq("host2", res[1][0]); err != nil {
+	if err := assertEq("host2", (*res)[1][0]); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq(float64(1), res[1][2]); err != nil {
+	if err := assertEq(float64(1), (*res)[1][2]); err != nil {
 		t.Error(err)
 	}
 	if err := assertEq(int64(2), meta.Total); err != nil {

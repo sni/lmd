@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"strconv"
 	"strings"
@@ -17,7 +18,7 @@ type DataRow struct {
 	dataString     []string            // stores string data
 	dataInt        []int64             // stores integers
 	dataFloat      []float64           // stores floats
-	dataStringList [][]string          // stores stringlists
+	dataStringList []*[]string         // stores stringlists
 	dataIntList    [][]int64           // stores lists of integers
 	dataCustVar    []map[string]string // stores customn variables
 }
@@ -69,7 +70,7 @@ func (d *DataRow) setID() (err error) {
 // setData creates initial data
 func (d *DataRow) SetData(raw *[]interface{}, columns *ColumnList, timestamp int64) error {
 	d.dataString = make([]string, d.DataStore.DataSizes[StringCol])
-	d.dataStringList = make([][]string, d.DataStore.DataSizes[StringListCol])
+	d.dataStringList = make([]*[]string, d.DataStore.DataSizes[StringListCol])
 	d.dataInt = make([]int64, d.DataStore.DataSizes[IntCol])
 	d.dataIntList = make([][]int64, d.DataStore.DataSizes[IntListCol])
 	d.dataFloat = make([]float64, d.DataStore.DataSizes[FloatCol])
@@ -134,7 +135,7 @@ func (d *DataRow) GetStringByName(name string) *string {
 }
 
 // GetStringList returns the string list for given column
-func (d *DataRow) GetStringList(col *Column) []string {
+func (d *DataRow) GetStringList(col *Column) *[]string {
 	switch col.StorageType {
 	case LocalStore:
 		if col.DataType == StringListCol {
@@ -149,7 +150,7 @@ func (d *DataRow) GetStringList(col *Column) []string {
 }
 
 // GetStringListByName returns the string list for given column name
-func (d *DataRow) GetStringListByName(name string) []string {
+func (d *DataRow) GetStringListByName(name string) *[]string {
 	return d.GetStringList(d.DataStore.Table.ColumnsIndex[name])
 }
 
@@ -334,14 +335,14 @@ func VirtColServicesWithInfo(d *DataRow, col *Column) interface{} {
 	checkedCol := servicesStore.Table.GetColumn("has_been_checked")
 	outputCol := servicesStore.Table.GetColumn("plugin_output")
 	res := make([]interface{}, 0)
-	for i := range services {
-		serviceID := *hostName + ";" + services[i]
+	for i := range *services {
+		serviceID := *hostName + ";" + (*services)[i]
 		service, ok := servicesStore.Index[serviceID]
 		if !ok {
 			log.Errorf("Could not find service: %s\n", serviceID)
 			continue
 		}
-		serviceValue := []interface{}{services[i], service.GetValueByColumn(stateCol), service.GetValueByColumn(checkedCol)}
+		serviceValue := []interface{}{(*services)[i], service.GetInt(stateCol), service.GetInt(checkedCol)}
 		if col.Name == "services_with_info" {
 			serviceValue = append(serviceValue, d.GetValueByColumn(outputCol))
 		}
@@ -372,7 +373,7 @@ func VirtColComments(d *DataRow, col *Column) interface{} {
 			log.Errorf("Could not find comment: %s\n", commentID)
 			continue
 		}
-		commentWithInfo := []interface{}{comments[i], comment.GetValueByColumn(authorCol), comment.GetValueByColumn(commentCol)}
+		commentWithInfo := []interface{}{comments[i], comment.GetString(authorCol), comment.GetString(commentCol)}
 		res = append(res, commentWithInfo)
 	}
 	return res
@@ -482,7 +483,12 @@ func (d *DataRow) UpdateValues(data *[]interface{}, columns *ColumnList, timesta
 		case StringCol:
 			d.dataString[col.Index] = *(interface2string((*data)[i]))
 		case StringListCol:
-			d.dataStringList[col.Index] = interface2stringlist((*data)[i])
+			list := interface2stringlist((*data)[i])
+			if col.FetchType == Static {
+				// deduplicate string lists
+				list = d.deduplicateStringlist(list)
+			}
+			d.dataStringList[col.Index] = list
 		case IntCol:
 			d.dataInt[col.Index] = interface2int64((*data)[i])
 		case IntListCol:
@@ -566,19 +572,22 @@ func interface2string(in interface{}) *string {
 	return &str
 }
 
-func interface2stringlist(in interface{}) []string {
-	if list, ok := in.([]string); ok {
+func interface2stringlist(in interface{}) *[]string {
+	if list, ok := in.(*[]string); ok {
 		return (list)
+	}
+	if list, ok := in.([]string); ok {
+		return (&list)
 	}
 	if list, ok := in.([]interface{}); ok {
 		val := make([]string, 0, len(list))
 		for i := range list {
 			val = append(val, *(interface2string(list[i])))
 		}
-		return val
+		return &val
 	}
 	val := make([]string, 0)
-	return val
+	return &val
 }
 
 func interface2int64list(in interface{}) []int64 {
@@ -634,4 +643,13 @@ func interface2customvar(in interface{}) map[string]string {
 		}
 	}
 	return custommap
+}
+
+func (d *DataRow) deduplicateStringlist(list *[]string) *[]string {
+	sum := sha256.Sum256([]byte(strings.Join(*list, ";")))
+	if l, ok := d.DataStore.dupStringList[sum]; ok {
+		return l
+	}
+	d.DataStore.dupStringList[sum] = list
+	return list
 }

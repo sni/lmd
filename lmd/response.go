@@ -551,7 +551,7 @@ func (res *Response) AppendPeerResult(peer *Peer) {
 		// data results rows
 		res.Lock.Lock()
 		res.ResultTotal += total
-		res.Result = append(res.Result, result...)
+		res.Result = append(res.Result, *result...)
 		res.Lock.Unlock()
 	} else if statsResult != nil {
 		res.Lock.Lock()
@@ -649,8 +649,8 @@ func (res *Response) PassThrougQuery(peer *Peer, table *Table, virtColumns []*Re
 		data := make([]interface{}, 0)
 		columns := make(ColumnList, 0)
 		tmpRow, _ := NewDataRow(store, &data, &columns, 0)
-		for rowNum := range result {
-			row := &(result[rowNum])
+		for rowNum := range *result {
+			row := &((*result)[rowNum])
 			for j := range virtColumns {
 				col := virtColumns[j]
 				i := col.Index
@@ -658,22 +658,22 @@ func (res *Response) PassThrougQuery(peer *Peer, table *Table, virtColumns []*Re
 				copy((*row)[i+1:], (*row)[i:])
 				(*row)[i] = tmpRow.GetValueByColumn(col.Column)
 			}
-			result[rowNum] = *row
+			(*result)[rowNum] = *row
 		}
 	}
 	log.Tracef("[%s] result ready", peer.Name)
 	res.Lock.Lock()
 	if len(req.Stats) == 0 {
-		res.Result = append(res.Result, result...)
+		res.Result = append(res.Result, *result...)
 	} else {
 		if res.Request.StatsResult == nil {
 			res.Request.StatsResult = make(map[string][]*Filter)
 			res.Request.StatsResult[""] = createLocalStatsCopy(&res.Request.Stats)
 		}
 		// apply stats querys
-		if len(result) > 0 {
-			for i := range result[0] {
-				val := result[0][i].(float64)
+		if len(*result) > 0 {
+			for i := range (*result)[0] {
+				val := (*result)[0][i].(float64)
 				res.Request.StatsResult[""][i].ApplyValue(val, int(val))
 			}
 		}
