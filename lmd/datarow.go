@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 // DataRow represents a single entry in a DataTable
@@ -177,8 +179,11 @@ func (d *DataRow) GetFloat(col *Column) float64 {
 func (d *DataRow) GetInt(col *Column) int64 {
 	switch col.StorageType {
 	case LocalStore:
-		if col.DataType == IntCol {
+		switch col.DataType {
+		case IntCol:
 			return d.dataInt[col.Index]
+		case FloatCol:
+			return int64(d.dataFloat[col.Index])
 		}
 		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
@@ -210,7 +215,7 @@ func (d *DataRow) GetIntList(col *Column) []int64 {
 func (d *DataRow) GetHashMap(col *Column) map[string]string {
 	switch col.StorageType {
 	case LocalStore:
-		if col.DataType == HashMapCol {
+		if col.DataType == HashMapCol || col.DataType == CustomVarCol {
 			return d.dataCustVar[col.Index]
 		}
 		log.Panicf("unsupported type: %s", col.DataType)
@@ -443,6 +448,9 @@ func (d *DataRow) MatchFilter(filter *Filter) bool {
 }
 
 func (d *DataRow) getStatsKey(res *Response) string {
+	if len(res.Request.RequestColumns) == 0 {
+		return ""
+	}
 	keyValues := []string{}
 	for i := range res.Request.RequestColumns {
 		col := &(res.Request.RequestColumns[i])
@@ -667,7 +675,45 @@ func cast2Type(val interface{}, col *Column) interface{} {
 		return (interface2float64(val))
 	case HashMapCol:
 		return (interface2hashmap(val))
+	case InterfaceListCol:
+		return val
 	}
 	log.Panicf("unsupported type: %s", col.DataType)
 	return nil
+}
+
+// WriteJSON store duplicate string lists only once
+func (d *DataRow) WriteJSON(json *jsoniter.Stream, columns *[]RequestColumn) {
+	json.WriteRaw("[")
+	for i := range *columns {
+		col := &((*columns)[i])
+		if i > 0 {
+			json.WriteRaw(",")
+		}
+		if col.Column.Optional != NoFlags && !d.DataStore.Peer.Flags.HasFlag(col.Column.Optional) {
+			json.WriteVal(col.Column.GetEmptyValue())
+			continue
+		}
+		switch col.Column.DataType {
+		case StringCol:
+			json.WriteString(*(d.GetString(col.Column)))
+		case StringListCol:
+			json.WriteVal(d.GetStringList(col.Column))
+		case IntCol:
+			json.WriteInt64(d.GetInt(col.Column))
+		case FloatCol:
+			json.WriteFloat64(d.GetFloat(col.Column))
+		case IntListCol:
+			json.WriteVal(d.GetIntList(col.Column))
+		case InterfaceListCol:
+			fallthrough
+		case CustomVarCol:
+			fallthrough
+		case HashMapCol:
+			json.WriteVal(d.GetHashMap(col.Column))
+		default:
+			log.Panicf("unsupported type: %s", col.Column.DataType)
+		}
+	}
+	json.WriteRaw("]\n")
 }

@@ -60,12 +60,12 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 	}
 
 	// Send JSON
-	j, err := res.Bytes()
+	buf, err := res.Buffer()
 	if err != nil {
 		c.errorOutput(err, w)
 		return
 	}
-	fmt.Fprintf(w, "%s", j)
+	buf.WriteTo(w)
 }
 
 func (c *HTTPServerController) table(w http.ResponseWriter, request *http.Request, ps httprouter.Params) {

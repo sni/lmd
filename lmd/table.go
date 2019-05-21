@@ -22,6 +22,7 @@ type Table struct {
 	PrimaryKey      []string
 	RefTables       []*TableRef // referenced tables
 	Virtual         VirtStoreResolveFunc
+	DefaultSort     []string // columns used to sort if nothing is specified
 }
 
 // GetColumn returns a column for given name or nil if not found

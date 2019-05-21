@@ -29,10 +29,10 @@ type Request struct {
 	Filter              []*Filter
 	FilterStr           string
 	Stats               []*Filter
-	StatsResult         map[string][]*Filter
+	StatsResult         ResultSetStats
 	Limit               *int
 	Offset              int
-	Sort                []SortField
+	Sort                []*SortField
 	ResponseFixed16     bool
 	OutputFormat        OutputFormat
 	Backends            []string
@@ -50,16 +50,14 @@ type Request struct {
 
 // RequestColumn is a column container for results
 type RequestColumn struct {
-	noCopy     noCopy
-	Name       string
-	OutputType DataType // output column type
-	Index      int      // index in the request and the position in the result row
-	Hidden     bool     // true if column is not used in the output and ex. just for sorting
-	Column     *Column  // reference to the column definition
+	noCopy noCopy
+	Name   string
+	Index  int     // required for virtual column in passthrough results
+	Column *Column // reference to the column definition
 }
 
 // SortDirection can be either Asc or Desc
-type SortDirection int
+type SortDirection uint8
 
 // The only possible SortDirection are "Asc" and "Desc" for
 // sorting ascending or descending.
@@ -82,10 +80,10 @@ func (s *SortDirection) String() string {
 }
 
 // OutputFormat defines the format used to return the result
-type OutputFormat int
+type OutputFormat uint8
 
 const (
-	OutputFormatDefault = iota
+	OutputFormatDefault OutputFormat = iota
 	OutputFormatJSON
 	OutputFormatWrappedJSON
 	OutputFormatPython
@@ -115,10 +113,11 @@ type SortField struct {
 	Index     int
 	Group     bool
 	Args      string
+	Column    *Column
 }
 
 // GroupOperator is the operator used to combine multiple filter or stats header.
-type GroupOperator int
+type GroupOperator uint8
 
 // The only possible GroupOperator are "And" and "Or"
 const (
@@ -296,11 +295,7 @@ func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
 		}
 	}
 
-	err = req.SetRequestColumns()
-	if err != nil {
-		return
-	}
-
+	req.SetRequestColumns()
 	return
 }
 
@@ -406,6 +401,9 @@ func (req *Request) getDistributedResponse() (*Response, error) {
 				return nil, err
 			}
 			req.SendStatsData = false
+			if res.Result == nil {
+				res.SetResultData()
+			}
 			collectedDatasets <- res.Result
 			collectedFailedHashes <- res.Failed
 			continue
@@ -474,7 +472,11 @@ func (req *Request) getDistributedResponse() (*Response, error) {
 
 	// Process results
 	// This also applies sort/offset/limit settings
-	res.PostProcessing()
+	if len(res.Request.Stats) > 0 {
+		res.CalculateFinalStats()
+	} else {
+		res.PostProcessing()
+	}
 
 	return res, nil
 }
@@ -554,7 +556,7 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 	if len(req.Sort) != 0 {
 		var sort []string
 		for i := range req.Sort {
-			sortField := &(req.Sort[i])
+			sortField := req.Sort[i]
 			var line string
 			var direction string
 			switch sortField.Direction {
@@ -586,7 +588,7 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan ResultSet, c
 
 	// Merge data
 	isStatsRequest := len(req.Stats) != 0
-	req.StatsResult = make(map[string][]*Filter)
+	req.StatsResult = make(ResultSetStats)
 	for currentRows := range collectedDatasets {
 		if isStatsRequest {
 			// Stats request
@@ -735,7 +737,7 @@ func parseIntHeader(field *int, value []byte, minValue int) (err error) {
 	return
 }
 
-func parseSortHeader(field *[]SortField, value []byte) (err error) {
+func parseSortHeader(field *[]*SortField, value []byte) (err error) {
 	if len(value) == 0 {
 		err = errors.New("invalid sort header, must be 'Sort: <field> <asc|desc>' or 'Sort: custom_variables <name> <asc|desc>'")
 		return
@@ -762,7 +764,12 @@ func parseSortHeader(field *[]SortField, value []byte) (err error) {
 		err = errors.New("unrecognized sort direction, must be asc or desc")
 		return
 	}
-	*field = append(*field, SortField{Name: string(bytes.ToLower(tmp[0])), Direction: direction, Args: args})
+	sortfield := &SortField{
+		Name:      string(bytes.ToLower(tmp[0])),
+		Direction: direction,
+		Args:      args,
+	}
+	*field = append(*field, sortfield)
 	return
 }
 
@@ -809,9 +816,9 @@ func parseOnOff(field *bool, value []byte) (err error) {
 	return
 }
 
-// SetRequestColumns returns a list of used indexes and columns for this request.
-func (req *Request) SetRequestColumns() (err error) {
-	log.Tracef("SetColumnsIndex")
+// SetRequestColumns sets  list of used indexes and columns for this request.
+func (req *Request) SetRequestColumns() {
+	log.Tracef("SetRequestColumns")
 	if req.Command != "" {
 		return
 	}
@@ -820,7 +827,6 @@ func (req *Request) SetRequestColumns() (err error) {
 	if numColumns == 0 {
 		numColumns = len(table.Columns)
 	}
-	numColumns += len(req.Sort)
 	columns := make([]RequestColumn, 0, numColumns)
 
 	// if no column header was given, return all columns
@@ -828,42 +834,35 @@ func (req *Request) SetRequestColumns() (err error) {
 	if len(req.Columns) == 0 && len(req.Stats) == 0 {
 		for j := range table.Columns {
 			col := table.Columns[j]
-			columns = append(columns, RequestColumn{Name: strings.ToLower(col.Name), Index: j, OutputType: col.DataType, Column: col, Hidden: false})
+			columns = append(columns, RequestColumn{Name: strings.ToLower(col.Name), Column: col})
 		}
 	}
 
 	// build array of requested columns as ResultColumn objects list
 	for j := range req.Columns {
 		col := table.GetColumnWithFallback(req.Columns[j])
-		columns = append(columns, RequestColumn{Name: strings.ToLower(req.Columns[j]), Index: j, OutputType: col.DataType, Column: col, Hidden: false})
+		columns = append(columns, RequestColumn{Name: strings.ToLower(req.Columns[j]), Column: col})
 	}
-
-	// check wether our sort columns do exist in the output
-	for i := range req.Sort {
-		s := &(req.Sort[i])
-		_, Ok := table.ColumnsIndex[s.Name]
-		if !Ok {
-			err = errors.New("table " + req.Table + " has no column " + s.Name + " to sort")
-			return
-		}
-		found := false
-		i := 0
-		for j := range columns {
-			if columns[j].Name == s.Name {
-				found = true
-				i = j
-				break
-			}
-		}
-		if !found {
-			i = len(columns)
-			col := table.GetColumnWithFallback(s.Name)
-			columns = append(columns, RequestColumn{Name: strings.ToLower(s.Name), Index: i, OutputType: col.DataType, Column: col, Hidden: true})
-		}
-		s.Index = i
-	}
-
 	req.RequestColumns = columns
+}
+
+// SetSortColumns set the requestcolumn for the sortfields
+func (req *Request) SetSortColumns() (err error) {
+	log.Tracef("SetSortColumns")
+	if req.Command != "" {
+		return
+	}
+	table := Objects.Tables[req.Table]
+
+	// build array of requested columns as ResultColumn objects list
+	for j := range req.Sort {
+		col := table.GetColumn(req.Sort[j].Name)
+		if col == nil {
+			err = fmt.Errorf("unknown sort column %s", req.Sort[j].Name)
+		}
+		req.Sort[j].Column = col
+	}
+
 	return
 }
 
@@ -923,22 +922,19 @@ func (req *Request) parseResult(resBytes *[]byte) (*ResultSet, *ResultMetaData, 
 	return &res, meta, err
 }
 
-// IsDefaultSortOrder returns true if the sortfield is the default for the given table.
-func (req *Request) IsDefaultSortOrder(sort *[]SortField) bool {
-	if len(*sort) == 0 {
+// IsDefaultSortOrder returns true if the sortfields are the default for the given table.
+func (req *Request) IsDefaultSortOrder() bool {
+	if len(req.Sort) == 0 {
 		return true
 	}
-	if len(*sort) == 2 {
-		if req.Table == "services" {
-			if (*sort)[0].Name == "host_name" && (*sort)[0].Direction == Asc && (*sort)[1].Name == "description" && (*sort)[1].Direction == Asc {
-				return true
-			}
+	switch req.Table {
+	case "services":
+		if len(req.Sort) == 2 && req.Sort[0].Name == "host_name" && req.Sort[0].Direction == Asc && req.Sort[1].Name == "description" && req.Sort[1].Direction == Asc {
+			return true
 		}
-	} else if len(*sort) == 1 {
-		if req.Table == "hosts" {
-			if (*sort)[0].Name == "name" && (*sort)[0].Direction == Asc {
-				return true
-			}
+	case "hosts":
+		if len(req.Sort) == 1 && req.Sort[0].Name == "name" && req.Sort[0].Direction == Asc {
+			return true
 		}
 	}
 	return false

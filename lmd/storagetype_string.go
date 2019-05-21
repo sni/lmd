@@ -19,7 +19,7 @@ var _StorageType_index = [...]uint8{0, 10, 18, 27}
 
 func (i StorageType) String() string {
 	i -= 1
-	if i < 0 || i >= StorageType(len(_StorageType_index)-1) {
+	if i >= StorageType(len(_StorageType_index)-1) {
 		return "StorageType(" + strconv.FormatInt(int64(i+1), 10) + ")"
 	}
 	return _StorageType_name[_StorageType_index[i]:_StorageType_index[i+1]]

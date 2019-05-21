@@ -24,7 +24,7 @@ var _DataType_index = [...]uint8{0, 9, 22, 28, 38, 46, 56, 68, 84}
 
 func (i DataType) String() string {
 	i -= 1
-	if i < 0 || i >= DataType(len(_DataType_index)-1) {
+	if i >= DataType(len(_DataType_index)-1) {
 		return "DataType(" + strconv.FormatInt(int64(i+1), 10) + ")"
 	}
 	return _DataType_name[_DataType_index[i]:_DataType_index[i+1]]

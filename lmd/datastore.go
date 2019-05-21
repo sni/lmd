@@ -45,7 +45,7 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 	}
 	for i := range table.Columns {
 		col := table.Columns[i]
-		if d.Peer != nil && !d.Peer.Flags.HasFlag(col.Optional) {
+		if col.Optional != NoFlags && !d.Peer.Flags.HasFlag(col.Optional) {
 			continue
 		}
 		if col.StorageType == LocalStore {

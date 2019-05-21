@@ -81,17 +81,17 @@ func TestRequestHeaderColumns(t *testing.T) {
 
 func TestRequestHeaderSort(t *testing.T) {
 	req, _, _ := NewRequest(bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: latency state name\nSort: name desc\nSort: state asc\n")))
-	if err := assertEq(&SortField{Name: "name", Direction: Desc, Index: 2}, &req.Sort[0]); err != nil {
+	if err := assertEq(&SortField{Name: "name", Direction: Desc, Index: 0}, req.Sort[0]); err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(&SortField{Name: "state", Direction: Asc, Index: 1}, &req.Sort[1]); err != nil {
+	if err := assertEq(&SortField{Name: "state", Direction: Asc, Index: 0}, req.Sort[1]); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestRequestHeaderSortCust(t *testing.T) {
 	req, _, _ := NewRequest(bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name custom_variables\nSort: custom_variables TEST asc\n")))
-	if err := assertEq(&SortField{Name: "custom_variables", Direction: Asc, Index: 1, Args: "TEST"}, &req.Sort[0]); err != nil {
+	if err := assertEq(&SortField{Name: "custom_variables", Direction: Asc, Index: 0, Args: "TEST"}, req.Sort[0]); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -565,7 +565,7 @@ func TestRequestNoColumns(t *testing.T) {
 	if err = assertEq(2, len(*res)); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(48, len((*res)[0])); err != nil {
+	if err = assertEq(49, len((*res)[0])); err != nil {
 		t.Error(err)
 	}
 	if err = assertEq("program_start", (*res)[0][0]); err != nil {

@@ -2,30 +2,30 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 // Response contains the livestatus response data as long with some meta data
 type Response struct {
 	noCopy      noCopy
-	Lock        *LoggingLock // must be used for Result and Failed access
-	Code        int
-	Result      ResultSet
+	Lock        *LoggingLock  // must be used for Result and Failed access
+	Request     *Request      // the initial request
+	Result      ResultSet     // final processed result table
+	Code        int           // 200 if the query was successful
+	Error       error         // error object if the query was not successful
+	RawResults  *RawResultSet // collected results from peers
 	ResultTotal int
-	Request     *Request
-	Error       error
 	Failed      map[string]string
 }
-
-// ResultSet is a list of result rows
-type ResultSet [][]interface{}
 
 // NewResponse creates a new response object for a given request
 // It returns the Response object and any error encountered.
@@ -43,8 +43,8 @@ func NewResponse(req *Request) (res *Response, err error) {
 	table := Objects.Tables[req.Table]
 
 	// check if we have to spin up updates, if so, do it parallel
-	selectedPeers := []string{}
-	spinUpPeers := []string{}
+	selectedPeers := make([]*Peer, 0)
+	spinUpPeers := make([]*Peer, 0)
 	// iterate over PeerMap instead of BackendsMap to retain backend order
 	PeerMapLock.RLock()
 	for _, id := range PeerMapOrder {
@@ -55,36 +55,26 @@ func NewResponse(req *Request) (res *Response, err error) {
 		if !nodeAccessor.IsOurBackend(p.ID) {
 			continue
 		}
-		selectedPeers = append(selectedPeers, p.ID)
+		if p.Flags.HasFlag(MultiBackend) {
+			continue
+		}
+		selectedPeers = append(selectedPeers, p)
 
 		// spin up required?
 		if p.StatusGet("Idling").(bool) && table.Virtual == nil {
 			p.StatusSet("LastQuery", time.Now().Unix())
-			spinUpPeers = append(spinUpPeers, id)
+			spinUpPeers = append(spinUpPeers, p)
 		}
 	}
 	PeerMapLock.RUnlock()
 
-	if len(selectedPeers) == 0 {
-		res.Result = make(ResultSet, 0)
-		res.PostProcessing()
-		return
-	}
-
 	// only use the first backend when requesting table or columns table
 	if table.Name == "tables" || table.Name == "columns" {
-		res.AppendPeerResult(PeerMap[PeerMapOrder[0]])
-	} else {
-		if !table.PassthroughOnly && len(spinUpPeers) > 0 {
-			SpinUpPeers(spinUpPeers)
-		}
+		selectedPeers = []*Peer{PeerMap[PeerMapOrder[0]]}
+	}
 
-		if table.PassthroughOnly {
-			// passthrough requests, ex.: log table
-			res.BuildPassThroughResult(selectedPeers, table)
-		} else {
-			res.BuildLocalResponse(selectedPeers)
-		}
+	if !table.PassthroughOnly && len(spinUpPeers) > 0 {
+		SpinUpPeers(spinUpPeers)
 	}
 
 	// if all backends are down, send an error instead of an empty result
@@ -94,10 +84,29 @@ func NewResponse(req *Request) (res *Response, err error) {
 		return
 	}
 
-	if res.Result == nil {
+	switch {
+	case len(selectedPeers) == 0:
+		// no backends selected, return empty result
 		res.Result = make(ResultSet, 0)
+	case table.PassthroughOnly:
+		// passthrough requests, ex.: log table
+		res.BuildPassThroughResult(selectedPeers, table)
+		res.PostProcessing()
+	default:
+		// normal requests
+		res.RawResults = &RawResultSet{}
+		err = req.SetSortColumns()
+		if err != nil {
+			return
+		}
+		res.RawResults.Sort = &req.Sort
+		res.BuildLocalResponse(selectedPeers)
+		if len(res.Request.Stats) > 0 {
+			res.CalculateFinalStats()
+		} else {
+			res.RawResults.PostProcessing(res)
+		}
 	}
-	res.PostProcessing()
 	return
 }
 
@@ -109,12 +118,12 @@ func (res *Response) Len() int {
 // Less returns the sort result of two data rows
 func (res *Response) Less(i, j int) bool {
 	for k := range res.Request.Sort {
-		s := &(res.Request.Sort[k])
+		s := res.Request.Sort[k]
 		var sortType DataType
 		if s.Group {
 			sortType = StringCol
 		} else {
-			sortType = res.Request.RequestColumns[s.Index].OutputType
+			sortType = res.Request.RequestColumns[s.Index].Column.DataType
 		}
 		switch sortType {
 		case IntCol:
@@ -200,28 +209,17 @@ func (req *Request) ExpandRequestedBackends() (err error) {
 // and cutting of limits, applying offsets and calculating final stats.
 func (res *Response) PostProcessing() {
 	log.Tracef("PostProcessing")
+	if res.Result == nil {
+		res.Result = make(ResultSet, 0)
+	}
 	// sort our result
 	if len(res.Request.Sort) > 0 {
 		// skip sorting if there is only one backend requested and we want the default sort order
-		if len(res.Request.BackendsMap) >= 1 || !res.Request.IsDefaultSortOrder(&res.Request.Sort) {
+		if len(res.Request.BackendsMap) >= 1 || !res.Request.IsDefaultSortOrder() {
 			t1 := time.Now()
 			sort.Sort(res)
 			duration := time.Since(t1)
 			log.Debugf("sorting result took %s", duration.String())
-		}
-
-		// remove hidden columns from result, for ex. columns used for sorting only
-		firstHiddenColumnIndex := -1
-		for i := range res.Request.RequestColumns {
-			// first hidden column breaks the loop, because hidden columns are appended at the end of all columns
-			if res.Request.RequestColumns[i].Hidden {
-				firstHiddenColumnIndex = i
-			}
-		}
-		if firstHiddenColumnIndex != -1 {
-			for i := range res.Result {
-				res.Result[i] = (res.Result[i])[:firstHiddenColumnIndex]
-			}
 		}
 	}
 
@@ -242,20 +240,14 @@ func (res *Response) PostProcessing() {
 	if res.Request.Limit != nil && *res.Request.Limit >= 0 && *res.Request.Limit < len(res.Result) {
 		res.Result = res.Result[0:*res.Request.Limit]
 	}
-
-	// final calculation of stats querys
-	res.CalculateFinalStats()
 }
 
 // CalculateFinalStats calculates final averages and sums from stats queries
 func (res *Response) CalculateFinalStats() {
-	if len(res.Request.Stats) == 0 {
-		return
-	}
 	hasColumns := len(res.Request.Columns)
 	if hasColumns == 0 && len(res.Request.StatsResult) == 0 {
 		if res.Request.StatsResult == nil {
-			res.Request.StatsResult = make(map[string][]*Filter)
+			res.Request.StatsResult = make(ResultSetStats)
 		}
 		res.Request.StatsResult[""] = createLocalStatsCopy(&res.Request.Stats)
 	}
@@ -282,26 +274,19 @@ func (res *Response) CalculateFinalStats() {
 				res.Result[j][i] = []interface{}{s.Stats, s.StatsCount}
 				continue
 			}
-
 		}
 		j++
 	}
 
-	/* sort by columns for grouped stats */
 	if hasColumns > 0 {
-		t1 := time.Now()
-		// fake sort column
-		if hasColumns > 0 {
-			res.Request.Sort = []SortField{}
-			for x := 0; x < hasColumns; x++ {
-				res.Request.Sort = append(res.Request.Sort, SortField{Name: "name", Group: true, Direction: Asc})
-			}
+		// Sort by stats key
+		res.Request.Sort = make([]*SortField, 0, hasColumns)
+		for i := range res.Request.Columns {
+			res.Request.Sort = append(res.Request.Sort, &SortField{Index: i, Group: true, Direction: Asc})
 		}
 		sort.Sort(res)
-		duration := time.Since(t1)
-		log.Debugf("sorting result took %s", duration.String())
-		res.Request.Sort = []SortField{}
 	}
+
 }
 
 func finalStatsApply(s *Filter) (res float64) {
@@ -330,12 +315,12 @@ func finalStatsApply(s *Filter) (res float64) {
 }
 
 // Send writes converts the result object to a livestatus answer and writes the resulting bytes back to the client.
-func (res *Response) Send(c net.Conn) (size int, err error) {
-	resBytes, err := res.Bytes()
+func (res *Response) Send(c net.Conn) (size int64, err error) {
+	resBuffer, err := res.Buffer()
 	if err != nil {
 		return
 	}
-	size = len(resBytes) + 1
+	size = int64(resBuffer.Len()) + 1
 	if res.Request.ResponseFixed16 {
 		if log.IsV(3) {
 			log.Tracef("write: %s", fmt.Sprintf("%d %11d", res.Code, size))
@@ -347,9 +332,9 @@ func (res *Response) Send(c net.Conn) (size int, err error) {
 		}
 	}
 	if log.IsV(3) {
-		log.Tracef("write: %s", resBytes)
+		log.Tracef("write: %s", resBuffer.Bytes())
 	}
-	written, err := c.Write(resBytes)
+	written, err := resBuffer.WriteTo(c)
 	if err != nil {
 		log.Warnf("write error: %s", err.Error())
 		return
@@ -359,34 +344,36 @@ func (res *Response) Send(c net.Conn) (size int, err error) {
 		return
 	}
 	localAddr := c.LocalAddr().String()
-	promFrontendBytesSend.WithLabelValues(localAddr).Add(float64(len(resBytes)))
+	promFrontendBytesSend.WithLabelValues(localAddr).Add(float64(size))
 	_, err = c.Write([]byte("\n"))
 	return
 }
 
-// Bytes converts the response into a bytes array
-func (res *Response) Bytes() ([]byte, error) {
+// Buffer fills buffer with the response as bytes array
+func (res *Response) Buffer() (*bytes.Buffer, error) {
+	buf := new(bytes.Buffer)
 	if res.Error != nil {
 		log.Warnf("sending error response: %d - %s", res.Code, res.Error.Error())
-		return []byte(res.Error.Error()), nil
+		buf.WriteString(res.Error.Error())
+		return buf, nil
 	}
 
 	if res.Request.OutputFormat == OutputFormatWrappedJSON {
-		return res.WrappedJSON()
+		return buf, res.WrappedJSON(buf)
 	}
-	return res.JSON()
+	return buf, res.JSON(buf)
 }
 
 // JSON converts the response into a json structure
-func (res *Response) JSON() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	enc := json.NewEncoder(buf)
+func (res *Response) JSON(buf io.Writer) error {
+	json := jsoniter.ConfigCompatibleWithStandardLibrary.BorrowStream(buf)
+	defer jsoniter.ConfigCompatibleWithStandardLibrary.ReturnStream(json)
 
 	// enable header row for regular requests, not for stats requests
 	isStatsRequest := len(res.Request.Stats) != 0
 	sendColumnsHeader := res.SendColumnsHeader()
 
-	buf.Write([]byte("["))
+	json.WriteRaw("[")
 	// add optional columns header as first row
 	cols := make([]interface{}, len(res.Request.RequestColumns)+len(res.Request.Stats))
 	if sendColumnsHeader {
@@ -406,43 +393,50 @@ func (res *Response) JSON() ([]byte, error) {
 				cols[index] = buffer.String()
 			}
 		}
-		err := enc.Encode(cols)
-		if err != nil {
-			log.Errorf("json error: %s in column header: %v", err.Error(), cols)
-			return nil, err
-		}
+		json.WriteVal(cols)
 	}
-	// append result row by row
-	for i := range res.Result {
-		if i == 0 {
-			if sendColumnsHeader {
-				buf.Write([]byte(",\n"))
+
+	// unprocessed result?
+	if res.Result != nil {
+		// append result row by row
+		if len(res.Result) > 0 && sendColumnsHeader {
+			json.WriteRaw(",")
+		}
+		for i := range res.Result {
+			if i > 0 {
+				json.WriteRaw(",")
 			}
-		} else {
-			buf.Write([]byte(","))
+			json.WriteVal(res.Result[i])
 		}
-		err := enc.Encode(res.Result[i])
-		if err != nil {
-			log.Errorf("json error: %s in row: %v", err.Error(), res.Result[i])
-			return nil, err
+	} else {
+		res.ResultTotal = res.RawResults.Total
+		if res.ResultTotal > 0 && sendColumnsHeader {
+			json.WriteRaw(",")
+		}
+		for i := range res.RawResults.DataResult {
+			if i > 0 {
+				json.WriteRaw(",")
+			}
+			res.RawResults.DataResult[i].WriteJSON(json, &res.Request.RequestColumns)
 		}
 	}
-	buf.Write([]byte("]"))
-	return buf.Bytes(), nil
+	json.WriteRaw("]")
+	err := json.Flush()
+	return err
 }
 
 // WrappedJSON converts the response into a wrapped json structure
-func (res *Response) WrappedJSON() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	enc := json.NewEncoder(buf)
+func (res *Response) WrappedJSON(buf io.Writer) error {
+	json := jsoniter.ConfigCompatibleWithStandardLibrary.BorrowStream(buf)
+	defer jsoniter.ConfigCompatibleWithStandardLibrary.ReturnStream(json)
 
-	buf.Write([]byte("{\"data\":"))
+	json.WriteRaw("{\"data\":")
 
 	// enable header row for regular requests, not for stats requests
 	isStatsRequest := len(res.Request.Stats) != 0
 	sendColumnsHeader := res.SendColumnsHeader()
 
-	buf.Write([]byte("["))
+	json.WriteRaw("[")
 	// add optional columns header as first row
 	cols := make([]interface{}, len(res.Request.RequestColumns)+len(res.Request.Stats))
 	if sendColumnsHeader {
@@ -464,62 +458,74 @@ func (res *Response) WrappedJSON() ([]byte, error) {
 			}
 		}
 	}
-	// append result row by row
-	for i := range res.Result {
-		if i > 0 {
-			buf.Write([]byte(","))
+
+	// unprocessed result?
+	if res.Result != nil {
+		// append result row by row
+		for i := range res.Result {
+			if i > 0 {
+				json.WriteRaw(",")
+			}
+			json.WriteVal(res.Result[i])
 		}
-		err := enc.Encode(res.Result[i])
-		if err != nil {
-			log.Errorf("json error: %s in row: %v", err.Error(), res.Result[i])
-			return nil, err
+	} else {
+		res.ResultTotal = res.RawResults.Total
+		for i := range res.RawResults.DataResult {
+			if i > 0 {
+				json.WriteRaw(",")
+			}
+			res.RawResults.DataResult[i].WriteJSON(json, &res.Request.RequestColumns)
 		}
 	}
-	buf.Write([]byte("]"))
-	buf.Write([]byte("\n,\"failed\":"))
-	enc.Encode(res.Failed)
+	json.WriteRaw("]\n,\"failed\":")
+	json.WriteVal(res.Failed)
 	if sendColumnsHeader {
-		buf.Write([]byte("\n,\"columns\":"))
-		enc.Encode(cols)
+		json.WriteRaw("\n,\"columns\":")
+		json.WriteVal(cols)
 	}
-	buf.Write([]byte(fmt.Sprintf("\n,\"total_count\":%d}", res.ResultTotal)))
-	return buf.Bytes(), nil
+	json.WriteRaw(fmt.Sprintf("\n,\"total_count\":%d}", res.ResultTotal))
+	err := json.Flush()
+	return err
 }
 
 // BuildLocalResponse builds local data table result for all selected peers
-func (res *Response) BuildLocalResponse(peers []string) {
-	res.Result = make(ResultSet, 0)
+func (res *Response) BuildLocalResponse(peers []*Peer) {
+	var resultcollector chan *DataRow
+	var waitChan chan bool
+	if len(res.Request.Stats) == 0 {
+		waitChan = make(chan bool)
+		resultcollector = make(chan *DataRow, 100)
+		go func() {
+			result := res.RawResults
+			for row := range resultcollector {
+				result.Total++
+				if row != nil {
+					result.DataResult = append(result.DataResult, row)
+				}
+			}
+			waitChan <- true
+		}()
+	}
 
 	waitgroup := &sync.WaitGroup{}
-
-	for _, id := range peers {
-		PeerMapLock.RLock()
-		p := PeerMap[id]
-		PeerMapLock.RUnlock()
-		if p == nil {
-			log.Errorf("got no backend for id: %s", id)
-			continue
-		}
-		if p.Flags&MultiBackend == MultiBackend {
-			continue
-		}
+	for i := range peers {
+		p := peers[i]
 		p.DataLock.RLock()
 		store := p.Tables[res.Request.Table]
 		p.DataLock.RUnlock()
 
 		p.StatusSet("LastQuery", time.Now().Unix())
 
-		if store != nil && store.Table.Virtual != nil {
-			// append results serially for local calculations
-			// no need to create goroutines for simple sites queries
-			res.AppendPeerResult(p)
-			continue
-		}
-
 		if store == nil || !p.isOnline() {
 			res.Lock.Lock()
 			res.Failed[p.ID] = p.getError()
 			res.Lock.Unlock()
+			continue
+		}
+
+		// process virtual tables serially without go routines to maintain the correct order, ex.: from the sites table
+		if store.Table.Virtual != nil {
+			p.BuildLocalResponseData(res, resultcollector)
 			continue
 		}
 
@@ -531,53 +537,43 @@ func (res *Response) BuildLocalResponse(peers []string) {
 			log.Tracef("[%s] starting local data computation", peer.Name)
 			defer wg.Done()
 
-			res.AppendPeerResult(peer)
+			peer.BuildLocalResponseData(res, resultcollector)
 		}(p, waitgroup)
 	}
 	log.Tracef("waiting...")
+
 	waitgroup.Wait()
+	if resultcollector != nil {
+		close(resultcollector)
+		<-waitChan
+	}
+
 	log.Tracef("waiting for all local data computations done")
 }
 
-// AppendPeerResult appends result for given peer
-func (res *Response) AppendPeerResult(peer *Peer) {
-	total, result, statsResult := peer.BuildLocalResponseData(res)
-	log.Tracef("[%s] result ready", peer.Name)
-
-	if result != nil {
-		if total == 0 {
-			return
-		}
-
-		// data results rows
-		res.Lock.Lock()
-		res.ResultTotal += total
-		res.Result = append(res.Result, *result...)
-		res.Lock.Unlock()
-	} else if statsResult != nil {
-		res.Lock.Lock()
-		res.ResultTotal += total
-		if res.Request.StatsResult == nil {
-			res.Request.StatsResult = make(map[string][]*Filter)
-		}
-		// apply stats querys
-		for key, stats := range statsResult {
-			if _, ok := res.Request.StatsResult[key]; !ok {
-				res.Request.StatsResult[key] = stats
-			} else {
-				for i := range stats {
-					s := stats[i]
-					res.Request.StatsResult[key][i].ApplyValue(s.Stats, s.StatsCount)
-				}
+// MergeStats merges stats result into final result set
+func (res *Response) MergeStats(stats *ResultSetStats) {
+	res.Lock.Lock()
+	defer res.Lock.Unlock()
+	if res.Request.StatsResult == nil {
+		res.Request.StatsResult = make(ResultSetStats)
+	}
+	// apply stats querys
+	for key, stats := range *stats {
+		if _, ok := res.Request.StatsResult[key]; !ok {
+			res.Request.StatsResult[key] = stats
+		} else {
+			for i := range stats {
+				s := stats[i]
+				res.Request.StatsResult[key][i].ApplyValue(s.Stats, s.StatsCount)
 			}
 		}
-		res.Lock.Unlock()
 	}
 }
 
 // BuildPassThroughResult passes a query transparently to one or more remote sites and builds the response
 // from that.
-func (res *Response) BuildPassThroughResult(peers []string, table *Table) {
+func (res *Response) BuildPassThroughResult(peers []*Peer, table *Table) {
 	res.Result = make(ResultSet, 0)
 
 	// build columns list
@@ -594,10 +590,8 @@ func (res *Response) BuildPassThroughResult(peers []string, table *Table) {
 
 	waitgroup := &sync.WaitGroup{}
 
-	for _, id := range peers {
-		PeerMapLock.RLock()
-		p := PeerMap[id]
-		PeerMapLock.RUnlock()
+	for i := range peers {
+		p := peers[i]
 
 		peerStatus := p.StatusGet("PeerStatus").(PeerStatus)
 		if peerStatus == PeerStatusDown || peerStatus == PeerStatusBroken {
@@ -668,7 +662,7 @@ func (res *Response) PassThrougQuery(peer *Peer, table *Table, virtColumns []*Re
 		res.Result = append(res.Result, *result...)
 	} else {
 		if res.Request.StatsResult == nil {
-			res.Request.StatsResult = make(map[string][]*Filter)
+			res.Request.StatsResult = make(ResultSetStats)
 			res.Request.StatsResult[""] = createLocalStatsCopy(&res.Request.Stats)
 		}
 		// apply stats querys
@@ -682,7 +676,7 @@ func (res *Response) PassThrougQuery(peer *Peer, table *Table, virtColumns []*Re
 	res.Lock.Unlock()
 }
 
-// determines if the response should contain the columns header
+// SendColumnsHeader determines if the response should contain the columns header
 func (res *Response) SendColumnsHeader() bool {
 	if len(res.Request.Stats) > 0 {
 		return false
@@ -691,4 +685,18 @@ func (res *Response) SendColumnsHeader() bool {
 		return true
 	}
 	return false
+}
+
+// SetResultData populates Result table with data from the RawResultSet
+func (res *Response) SetResultData() {
+	res.Result = make(ResultSet, 0, len(res.RawResults.DataResult))
+	rowSize := len(res.Request.RequestColumns)
+	for i := range res.RawResults.DataResult {
+		datarow := res.RawResults.DataResult[i]
+		row := make([]interface{}, rowSize)
+		for j := range res.Request.RequestColumns {
+			row[j] = datarow.GetValueByColumn(res.Request.RequestColumns[j].Column)
+		}
+		res.Result = append(res.Result, row)
+	}
 }

@@ -23,6 +23,7 @@ EXTERNAL_DEPS = \
 	github.com/jmhodges/copyfighter \
 	github.com/golangci/golangci-lint/cmd/golangci-lint \
 	golang.org/x/tools/cmd/stringer \
+	github.com/json-iterator/go \
 
 
 all: deps fmt build

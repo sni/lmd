@@ -65,7 +65,7 @@ type Peer struct {
 }
 
 // PeerStatus contains the different states a peer can have
-type PeerStatus int
+type PeerStatus uint8
 
 // A peer can be up, warning, down and pending.
 // It is pending right after start and warning when the connection fails
@@ -79,7 +79,7 @@ const (
 )
 
 // PeerErrorType is used to distinguish between connection and response errors.
-type PeerErrorType int
+type PeerErrorType uint8
 
 const (
 	// ConnectionError is used when the connection to a remote site failed
@@ -90,7 +90,7 @@ const (
 )
 
 // PeerConnType contains the different connection types
-type PeerConnType int
+type PeerConnType uint8
 
 // A peer can be up, warning, down and pending.
 // It is pending right after start and warning when the connection fails
@@ -168,6 +168,7 @@ func NewPeer(localConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 		Config:          config,
 		LocalConfig:     localConfig,
 		connectionCache: make(chan net.Conn, 10),
+		Flags:           NoFlags,
 	}
 	p.Status["PeerKey"] = p.ID
 	p.Status["PeerName"] = p.Name
@@ -2214,12 +2215,10 @@ func ExtractHTTPResponse(response *http.Response) (contents []byte, err error) {
 }
 
 // SpinUpPeers starts an immediate parallel delta update for all supplied peer ids.
-func SpinUpPeers(peers []string) {
+func SpinUpPeers(peers []*Peer) {
 	waitgroup := &sync.WaitGroup{}
-	for _, id := range peers {
-		PeerMapLock.RLock()
-		p := PeerMap[id]
-		PeerMapLock.RUnlock()
+	for i := range peers {
+		p := peers[i]
 		waitgroup.Add(1)
 		go func(peer *Peer, wg *sync.WaitGroup) {
 			// make sure we log panics properly
@@ -2243,8 +2242,8 @@ func SpinUpPeers(peers []string) {
 	log.Debugf("spin up completed")
 }
 
-// BuildLocalResponseData returnss the result data for a given request
-func (p *Peer) BuildLocalResponseData(res *Response) (int, *ResultSet, map[string][]*Filter) {
+// BuildLocalResponseData returns the result data for a given request
+func (p *Peer) BuildLocalResponseData(res *Response, resultcollector chan *DataRow) {
 	req := res.Request
 	log.Tracef("BuildLocalResponseData: %s", p.Name)
 
@@ -2262,18 +2261,20 @@ func (p *Peer) BuildLocalResponseData(res *Response) (int, *ResultSet, map[strin
 		res.Lock.Lock()
 		res.Failed[p.ID] = p.getError()
 		res.Lock.Unlock()
-		return 0, nil, nil
+		return
 	}
 
 	if len(store.Data) == 0 {
-		return 0, nil, nil
+		return
 	}
 
 	if len(res.Request.Stats) > 0 {
-		return 0, nil, p.gatherStatsResult(res, store)
+		// stats queries
+		res.MergeStats(p.gatherStatsResult(res, store))
+	} else {
+		// data queries
+		p.gatherResultRows(res, store, resultcollector)
 	}
-	total, result := p.gatherResultRows(res, store)
-	return total, result, nil
 }
 
 // isOnline returns true if this peer is online and has data
@@ -2304,12 +2305,9 @@ func (p *Peer) getError() string {
 	return fmt.Sprintf("%v", p.StatusGet("LastError"))
 }
 
-func (p *Peer) gatherResultRows(res *Response, store *DataStore) (int, *ResultSet) {
+func (p *Peer) gatherResultRows(res *Response, store *DataStore, resultcollector chan *DataRow) {
 	found := 0
-	result := make(ResultSet, 0)
 	req := res.Request
-	reqcol := req.RequestColumns
-	numPerRow := len(reqcol)
 
 	// if there is no sort header or sort by name only,
 	// we can drastically reduce the result set by applying the limit here already
@@ -2331,28 +2329,23 @@ Rows:
 			}
 		}
 		found++
+
 		// check if we have enough result rows already
 		// we still need to count how many result we would have...
 		if found > limit {
 			if breakOnLimit {
-				break Rows
+				return
 			}
+			resultcollector <- nil
 			continue Rows
 		}
 
-		// build result row (including columns we need for sorting)
-		resRow := make([]interface{}, 0, numPerRow)
-		for k := 0; k < numPerRow; k++ {
-			resRow = append(resRow, row.GetValueByColumn(reqcol[k].Column))
-		}
-		result = append(result, resRow)
+		resultcollector <- row
 	}
-
-	return found, &result
 }
 
-func (p *Peer) gatherStatsResult(res *Response, store *DataStore) map[string][]*Filter {
-	localStats := make(map[string][]*Filter)
+func (p *Peer) gatherStatsResult(res *Response, store *DataStore) *ResultSetStats {
+	localStats := make(ResultSetStats)
 	req := res.Request
 
 Rows:
@@ -2365,13 +2358,11 @@ Rows:
 			}
 		}
 
-		key := ""
-		if len(req.Columns) > 0 {
-			key = row.getStatsKey(res)
-		}
-
-		if _, ok := localStats[key]; !ok {
-			localStats[key] = createLocalStatsCopy(&req.Stats)
+		key := row.getStatsKey(res)
+		stat := localStats[key]
+		if stat == nil {
+			stat = createLocalStatsCopy(&req.Stats)
+			localStats[key] = stat
 		}
 
 		// count stats
@@ -2381,16 +2372,16 @@ Rows:
 			// counter must match their filter
 			if s.StatsType == Counter {
 				if row.MatchFilter(s) {
-					localStats[key][i].Stats++
-					localStats[key][i].StatsCount++
+					stat[i].Stats++
+					stat[i].StatsCount++
 				}
 			} else {
-				localStats[key][i].ApplyValue(row.GetFloat(s.Column), 1)
+				stat[i].ApplyValue(row.GetFloat(s.Column), 1)
 			}
 		}
 	}
 
-	return localStats
+	return &localStats
 }
 
 func (p *Peer) waitConditionTableMatches(store *DataStore, filter *[]*Filter) bool {
@@ -2424,7 +2415,7 @@ func createLocalStatsCopy(stats *[]*Filter) []*Filter {
 	return localStats
 }
 func optimizeResultLimit(req *Request) (limit int) {
-	if req.Limit != nil && req.IsDefaultSortOrder(&req.Sort) {
+	if req.Limit != nil && req.IsDefaultSortOrder() {
 		limit = *req.Limit
 		if req.Offset > 0 {
 			limit += req.Offset

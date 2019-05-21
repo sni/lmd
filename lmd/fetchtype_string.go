@@ -19,7 +19,7 @@ var _FetchType_index = [...]uint8{0, 6, 13, 17}
 
 func (i FetchType) String() string {
 	i -= 1
-	if i < 0 || i >= FetchType(len(_FetchType_index)-1) {
+	if i >= FetchType(len(_FetchType_index)-1) {
 		return "FetchType(" + strconv.FormatInt(int64(i+1), 10) + ")"
 	}
 	return _FetchType_name[_FetchType_index[i]:_FetchType_index[i+1]]

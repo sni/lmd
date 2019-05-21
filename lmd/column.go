@@ -60,7 +60,7 @@ var VirtColumnMap = map[string]*VirtColumnMapEntry{}
 
 // FetchType defines if and how the column is updated.
 //go:generate stringer -type=FetchType
-type FetchType int
+type FetchType uint8
 
 const (
 	// Static is used for all columns which are updated once at start.
@@ -73,7 +73,7 @@ const (
 
 // DataType defines the data type of a column.
 //go:generate stringer -type=DataType
-type DataType int
+type DataType uint8
 
 const (
 	// StringCol is used for string columns.
@@ -96,7 +96,7 @@ const (
 
 // StorageType defines how this column is stored
 //go:generate stringer -type=StorageType
-type StorageType int
+type StorageType uint8
 
 const (
 	// LocalStore columns are store in the DataRow.data* fields
@@ -115,7 +115,7 @@ const (
 	NoFlags OptionalFlags = 0
 
 	// LMD flag is set if the remote site is a LMD backend.
-	LMD = 1 << iota
+	LMD OptionalFlags = 1 << iota
 
 	// MultiBackend flag is set if the remote connection returns more than one site
 	MultiBackend
@@ -155,8 +155,8 @@ func (f *OptionalFlags) String() string {
 		Naemon1_0_10: "Naemon1_0_10",
 	}
 	str := []string{}
-	for f, name := range flags {
-		if f.HasFlag(f) {
+	for fl, name := range flags {
+		if f.HasFlag(fl) {
 			str = append(str, name)
 		}
 	}

@@ -10,7 +10,7 @@ import (
 )
 
 // StatsType is the stats operator.
-type StatsType int
+type StatsType uint8
 
 // Besides the Counter, which counts the data rows by using a filter, there are 4 aggregations
 // operators: Sum, Average, Min and Max.
@@ -62,7 +62,7 @@ type Filter struct {
 }
 
 // Operator defines a filter operator.
-type Operator int
+type Operator uint8
 
 // Operator defines the kind of operator used to compare values with
 // data columns.
