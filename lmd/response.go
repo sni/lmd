@@ -369,57 +369,19 @@ func (res *Response) JSON(buf io.Writer) error {
 	json := jsoniter.ConfigCompatibleWithStandardLibrary.BorrowStream(buf)
 	defer jsoniter.ConfigCompatibleWithStandardLibrary.ReturnStream(json)
 
-	// enable header row for regular requests, not for stats requests
-	isStatsRequest := len(res.Request.Stats) != 0
-	sendColumnsHeader := res.SendColumnsHeader()
-
 	json.WriteRaw("[")
+
 	// add optional columns header as first row
-	cols := make([]interface{}, len(res.Request.RequestColumns)+len(res.Request.Stats))
+	sendColumnsHeader := res.SendColumnsHeader()
 	if sendColumnsHeader {
-		for k := 0; k < len(res.Request.RequestColumns); k++ {
-			if k < len(res.Request.Columns) {
-				cols[k] = res.Request.Columns[k]
-			} else {
-				cols[k] = res.Request.RequestColumns[k].Name
-			}
+		res.WriteColumnsResponse(json)
+		if (res.Result != nil && len(res.Result) > 0) || len(res.RawResults.DataResult) > 0 {
+			json.WriteRaw(",")
 		}
-		if isStatsRequest {
-			for i := range res.Request.Stats {
-				index := i + len(res.Request.RequestColumns)
-				var buffer bytes.Buffer
-				buffer.WriteString("stats_")
-				buffer.WriteString(strconv.Itoa(i + 1))
-				cols[index] = buffer.String()
-			}
-		}
-		json.WriteVal(cols)
 	}
 
-	// unprocessed result?
-	if res.Result != nil {
-		// append result row by row
-		if len(res.Result) > 0 && sendColumnsHeader {
-			json.WriteRaw(",")
-		}
-		for i := range res.Result {
-			if i > 0 {
-				json.WriteRaw(",")
-			}
-			json.WriteVal(res.Result[i])
-		}
-	} else {
-		res.ResultTotal = res.RawResults.Total
-		if res.ResultTotal > 0 && sendColumnsHeader {
-			json.WriteRaw(",")
-		}
-		for i := range res.RawResults.DataResult {
-			if i > 0 {
-				json.WriteRaw(",")
-			}
-			res.RawResults.DataResult[i].WriteJSON(json, &res.Request.RequestColumns)
-		}
-	}
+	res.WriteDataResponse(json)
+
 	json.WriteRaw("]")
 	err := json.Flush()
 	return err
@@ -430,36 +392,24 @@ func (res *Response) WrappedJSON(buf io.Writer) error {
 	json := jsoniter.ConfigCompatibleWithStandardLibrary.BorrowStream(buf)
 	defer jsoniter.ConfigCompatibleWithStandardLibrary.ReturnStream(json)
 
-	json.WriteRaw("{\"data\":")
+	json.WriteRaw("{\"data\":[")
+	res.WriteDataResponse(json)
+	json.WriteRaw("]\n,\"failed\":")
+	json.WriteVal(res.Failed)
 
-	// enable header row for regular requests, not for stats requests
-	isStatsRequest := len(res.Request.Stats) != 0
-	sendColumnsHeader := res.SendColumnsHeader()
-
-	json.WriteRaw("[")
 	// add optional columns header as first row
-	cols := make([]interface{}, len(res.Request.RequestColumns)+len(res.Request.Stats))
-	if sendColumnsHeader {
-		for k := 0; k < len(res.Request.RequestColumns); k++ {
-			if k < len(res.Request.Columns) {
-				cols[k] = res.Request.Columns[k]
-			} else {
-				cols[k] = res.Request.RequestColumns[k].Name
-			}
-		}
-
-		if isStatsRequest {
-			for i := range res.Request.Stats {
-				index := i + len(res.Request.Columns)
-				var buffer bytes.Buffer
-				buffer.WriteString("stats_")
-				buffer.WriteString(strconv.Itoa(i + 1))
-				cols[index] = buffer.String()
-			}
-		}
+	if res.SendColumnsHeader() {
+		json.WriteRaw("\n,\"columns\":")
+		res.WriteColumnsResponse(json)
 	}
 
-	// unprocessed result?
+	json.WriteRaw(fmt.Sprintf("\n,\"total_count\":%d}", res.ResultTotal))
+	err := json.Flush()
+	return err
+}
+
+// WriteDataResponse writes the data part of the result
+func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 	if res.Result != nil {
 		// append result row by row
 		for i := range res.Result {
@@ -469,6 +419,7 @@ func (res *Response) WrappedJSON(buf io.Writer) error {
 			json.WriteVal(res.Result[i])
 		}
 	} else {
+		// unprocessed result?
 		res.ResultTotal = res.RawResults.Total
 		for i := range res.RawResults.DataResult {
 			if i > 0 {
@@ -477,15 +428,26 @@ func (res *Response) WrappedJSON(buf io.Writer) error {
 			res.RawResults.DataResult[i].WriteJSON(json, &res.Request.RequestColumns)
 		}
 	}
-	json.WriteRaw("]\n,\"failed\":")
-	json.WriteVal(res.Failed)
-	if sendColumnsHeader {
-		json.WriteRaw("\n,\"columns\":")
-		json.WriteVal(cols)
+}
+
+// WriteColumnsResponse writes the columns header
+func (res *Response) WriteColumnsResponse(json *jsoniter.Stream) {
+	cols := make([]interface{}, len(res.Request.RequestColumns)+len(res.Request.Stats))
+	for k := 0; k < len(res.Request.RequestColumns); k++ {
+		if k < len(res.Request.Columns) {
+			cols[k] = res.Request.Columns[k]
+		} else {
+			cols[k] = res.Request.RequestColumns[k].Name
+		}
 	}
-	json.WriteRaw(fmt.Sprintf("\n,\"total_count\":%d}", res.ResultTotal))
-	err := json.Flush()
-	return err
+	for i := range res.Request.Stats {
+		index := i + len(res.Request.RequestColumns)
+		var buffer bytes.Buffer
+		buffer.WriteString("stats_")
+		buffer.WriteString(strconv.Itoa(i + 1))
+		cols[index] = buffer.String()
+	}
+	json.WriteVal(cols)
 }
 
 // BuildLocalResponse builds local data table result for all selected peers
