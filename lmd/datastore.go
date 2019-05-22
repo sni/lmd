@@ -35,7 +35,7 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 	}
 
 	// create columns list
-	indexes := map[DataType]int{
+	dataSizes := map[DataType]int{
 		StringCol:     0,
 		StringListCol: 0,
 		IntCol:        0,
@@ -49,24 +49,14 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 			continue
 		}
 		if col.StorageType == LocalStore {
-			_, ok := indexes[col.DataType]
-			if !ok {
-				log.Panicf("type not implemented: %s - %v", col.Name, col.DataType)
-			}
-			if col.Index != indexes[col.DataType] {
-				if col.Index > 0 {
-					log.Panicf("index overlap with flags in column %s of table %s: %v - %d != %d", col.Name, table.Name, d.Peer.Flags.String(), col.Index, indexes[col.DataType])
-				}
-				col.Index = indexes[col.DataType]
-			}
-			indexes[col.DataType]++
+			dataSizes[col.DataType]++
 			if col.FetchType == Dynamic {
 				d.DynamicColumnNamesCache = append(d.DynamicColumnNamesCache, col.Name)
 				d.DynamicColumnCache = append(d.DynamicColumnCache, col)
 			}
 		}
 	}
-	d.DataSizes = indexes
+	d.DataSizes = dataSizes
 	// prepend primary keys to dynamic keys, since they are required to map the results back to specific items
 	if len(d.DynamicColumnNamesCache) > 0 {
 		for i := range d.Table.PrimaryKey {

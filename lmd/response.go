@@ -88,25 +88,20 @@ func NewResponse(req *Request) (res *Response, err error) {
 	case len(selectedPeers) == 0:
 		// no backends selected, return empty result
 		res.Result = make(ResultSet, 0)
+		return
 	case table.PassthroughOnly:
 		// passthrough requests, ex.: log table
-		res.BuildPassThroughResult(selectedPeers, table)
+		res.BuildPassThroughResult(selectedPeers)
 		res.PostProcessing()
 	default:
 		// normal requests
 		res.RawResults = &RawResultSet{}
-		err = req.SetSortColumns()
-		if err != nil {
-			return
-		}
 		res.RawResults.Sort = &req.Sort
 		res.BuildLocalResponse(selectedPeers)
-		if len(res.Request.Stats) > 0 {
-			res.CalculateFinalStats()
-		} else {
-			res.RawResults.PostProcessing(res)
-		}
+		res.RawResults.PostProcessing(res)
 	}
+
+	res.CalculateFinalStats()
 	return
 }
 
@@ -208,6 +203,9 @@ func (req *Request) ExpandRequestedBackends() (err error) {
 // PostProcessing does all the post processing required for a request like sorting
 // and cutting of limits, applying offsets and calculating final stats.
 func (res *Response) PostProcessing() {
+	if len(res.Request.Stats) > 0 {
+		return
+	}
 	log.Tracef("PostProcessing")
 	if res.Result == nil {
 		res.Result = make(ResultSet, 0)
@@ -244,6 +242,9 @@ func (res *Response) PostProcessing() {
 
 // CalculateFinalStats calculates final averages and sums from stats queries
 func (res *Response) CalculateFinalStats() {
+	if len(res.Request.Stats) == 0 {
+		return
+	}
 	hasColumns := len(res.Request.Columns)
 	if hasColumns == 0 && len(res.Request.StatsResult) == 0 {
 		if res.Request.StatsResult == nil {
@@ -535,19 +536,45 @@ func (res *Response) MergeStats(stats *ResultSetStats) {
 
 // BuildPassThroughResult passes a query transparently to one or more remote sites and builds the response
 // from that.
-func (res *Response) BuildPassThroughResult(peers []*Peer, table *Table) {
+func (res *Response) BuildPassThroughResult(peers []*Peer) {
 	res.Result = make(ResultSet, 0)
 
 	// build columns list
 	backendColumns := []string{}
-	virtColumns := []*RequestColumn{}
+	virtColumns := []*Column{}
+	columnsIndex := make(map[*Column]int)
 	for i := range res.Request.RequestColumns {
 		col := &(res.Request.RequestColumns[i])
 		if col.Column.StorageType == VirtStore {
-			virtColumns = append(virtColumns, col)
+			virtColumns = append(virtColumns, col.Column)
 		} else {
 			backendColumns = append(backendColumns, col.Name)
 		}
+		columnsIndex[col.Column] = i
+	}
+	for i := range res.Request.Sort {
+		s := res.Request.Sort[i]
+		if j, ok := columnsIndex[s.Column]; ok {
+			// sort column does exist in the request columns
+			s.Index = j
+		} else {
+			s.Index = len(backendColumns) + len(virtColumns)
+			if s.Column.StorageType == VirtStore {
+				virtColumns = append(virtColumns, s.Column)
+			} else {
+				backendColumns = append(backendColumns, s.Column.Name)
+			}
+		}
+	}
+	req := res.Request
+	passthroughRequest := &Request{
+		Table:           req.Table,
+		Filter:          req.Filter,
+		Stats:           req.Stats,
+		Columns:         backendColumns,
+		Limit:           req.Limit,
+		OutputFormat:    OutputFormatJSON,
+		ResponseFixed16: true,
 	}
 
 	waitgroup := &sync.WaitGroup{}
@@ -555,8 +582,7 @@ func (res *Response) BuildPassThroughResult(peers []*Peer, table *Table) {
 	for i := range peers {
 		p := peers[i]
 
-		peerStatus := p.StatusGet("PeerStatus").(PeerStatus)
-		if peerStatus == PeerStatusDown || peerStatus == PeerStatusBroken {
+		if !p.isOnline() {
 			res.Lock.Lock()
 			res.Failed[p.ID] = fmt.Sprintf("%v", p.StatusGet("LastError"))
 			res.Lock.Unlock()
@@ -571,71 +597,12 @@ func (res *Response) BuildPassThroughResult(peers []*Peer, table *Table) {
 			log.Debugf("[%s] starting passthrough request", peer.Name)
 			defer wg.Done()
 
-			res.PassThrougQuery(peer, table, virtColumns, backendColumns)
+			peer.PassThrougQuery(res, passthroughRequest, virtColumns, columnsIndex)
 		}(p, waitgroup)
 	}
 	log.Tracef("waiting...")
 	waitgroup.Wait()
 	log.Debugf("waiting for passed through requests done")
-}
-
-// PassThrougQuery runs a passthrough query on a single peer and appends the result
-func (res *Response) PassThrougQuery(peer *Peer, table *Table, virtColumns []*RequestColumn, backendColumns []string) {
-	req := res.Request
-	passthroughRequest := &Request{
-		Table:           req.Table,
-		Filter:          req.Filter,
-		Stats:           req.Stats,
-		Columns:         backendColumns,
-		Limit:           req.Limit,
-		OutputFormat:    OutputFormatJSON,
-		ResponseFixed16: true,
-	}
-	result, _, queryErr := peer.Query(passthroughRequest)
-	log.Tracef("[%s] req done", peer.Name)
-	if queryErr != nil {
-		log.Tracef("[%s] req errored", queryErr.Error())
-		res.Lock.Lock()
-		res.Failed[peer.ID] = queryErr.Error()
-		res.Lock.Unlock()
-		return
-	}
-	// insert virtual values, like peer_addr or name
-	if len(virtColumns) > 0 {
-		store := NewDataStore(table, peer)
-		data := make([]interface{}, 0)
-		columns := make(ColumnList, 0)
-		tmpRow, _ := NewDataRow(store, &data, &columns, 0)
-		for rowNum := range *result {
-			row := &((*result)[rowNum])
-			for j := range virtColumns {
-				col := virtColumns[j]
-				i := col.Index
-				*row = append(*row, 0)
-				copy((*row)[i+1:], (*row)[i:])
-				(*row)[i] = tmpRow.GetValueByColumn(col.Column)
-			}
-			(*result)[rowNum] = *row
-		}
-	}
-	log.Tracef("[%s] result ready", peer.Name)
-	res.Lock.Lock()
-	if len(req.Stats) == 0 {
-		res.Result = append(res.Result, *result...)
-	} else {
-		if res.Request.StatsResult == nil {
-			res.Request.StatsResult = make(ResultSetStats)
-			res.Request.StatsResult[""] = createLocalStatsCopy(&res.Request.Stats)
-		}
-		// apply stats querys
-		if len(*result) > 0 {
-			for i := range (*result)[0] {
-				val := (*result)[0][i].(float64)
-				res.Request.StatsResult[""][i].ApplyValue(val, int(val))
-			}
-		}
-	}
-	res.Lock.Unlock()
 }
 
 // SendColumnsHeader determines if the response should contain the columns header

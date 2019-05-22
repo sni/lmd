@@ -31,6 +31,11 @@ func NewDataRow(store *DataStore, raw *[]interface{}, columns *ColumnList, times
 		LastUpdate: timestamp,
 		DataStore:  store,
 	}
+	if raw == nil {
+		// virtual tables without data have no references or ids
+		return
+	}
+
 	if !store.Table.PassthroughOnly {
 		d.Refs = make(map[string]*DataRow, len(store.Table.RefTables))
 	}

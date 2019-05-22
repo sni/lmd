@@ -2285,6 +2285,55 @@ func (p *Peer) BuildLocalResponseData(res *Response, resultcollector chan *DataR
 	}
 }
 
+// PassThrougQuery runs a passthrough query on a single peer and appends the result
+func (p *Peer) PassThrougQuery(res *Response, passthroughRequest *Request, virtColumns []*Column, columnsIndex map[*Column]int) {
+	req := res.Request
+	result, _, queryErr := p.Query(passthroughRequest)
+	log.Tracef("[%s] req done", p.Name)
+	if queryErr != nil {
+		log.Tracef("[%s] req errored", queryErr.Error())
+		res.Lock.Lock()
+		res.Failed[p.ID] = queryErr.Error()
+		res.Lock.Unlock()
+		return
+	}
+	// insert virtual values, like peer_addr or name
+	if len(virtColumns) > 0 {
+		table := Objects.Tables[res.Request.Table]
+		store := NewDataStore(table, p)
+		tmpRow, _ := NewDataRow(store, nil, nil, 0)
+		for rowNum := range *result {
+			row := &((*result)[rowNum])
+			for j := range virtColumns {
+				col := virtColumns[j]
+				i := columnsIndex[col]
+				*row = append(*row, 0)
+				copy((*row)[i+1:], (*row)[i:])
+				(*row)[i] = tmpRow.GetValueByColumn(col)
+			}
+			(*result)[rowNum] = *row
+		}
+	}
+	log.Tracef("[%s] result ready", p.Name)
+	res.Lock.Lock()
+	if len(req.Stats) == 0 {
+		res.Result = append(res.Result, *result...)
+	} else {
+		if res.Request.StatsResult == nil {
+			res.Request.StatsResult = make(ResultSetStats)
+			res.Request.StatsResult[""] = createLocalStatsCopy(&res.Request.Stats)
+		}
+		// apply stats querys
+		if len(*result) > 0 {
+			for i := range (*result)[0] {
+				val := (*result)[0][i].(float64)
+				res.Request.StatsResult[""][i].ApplyValue(val, int(val))
+			}
+		}
+	}
+	res.Lock.Unlock()
+}
+
 // isOnline returns true if this peer is online and has data
 func (p *Peer) isOnline() bool {
 	status := p.StatusGet("PeerStatus").(PeerStatus)

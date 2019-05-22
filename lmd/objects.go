@@ -64,6 +64,7 @@ func (o *ObjectsType) AddTable(name string, table *Table) {
 	if table.PrimaryKey == nil {
 		table.PrimaryKey = make([]string, 0)
 	}
+	table.SetColumnIndex()
 	o.Tables[name] = table
 	o.Order = append(o.Order, name)
 }

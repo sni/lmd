@@ -19,6 +19,9 @@ type RawResultSet struct {
 // PostProcessing does all the post processing required for a request like sorting
 // and cutting of limits, applying offsets
 func (raw *RawResultSet) PostProcessing(res *Response) {
+	if len(res.Request.Stats) > 0 {
+		return
+	}
 	log.Tracef("PostProcessing")
 
 	// offset outside

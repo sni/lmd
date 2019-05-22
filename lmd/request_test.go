@@ -81,17 +81,17 @@ func TestRequestHeaderColumns(t *testing.T) {
 
 func TestRequestHeaderSort(t *testing.T) {
 	req, _, _ := NewRequest(bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: latency state name\nSort: name desc\nSort: state asc\n")))
-	if err := assertEq(&SortField{Name: "name", Direction: Desc, Index: 0}, req.Sort[0]); err != nil {
+	if err := assertEq(&SortField{Name: "name", Direction: Desc, Index: 0, Column: Objects.Tables["hosts"].GetColumn("name")}, req.Sort[0]); err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(&SortField{Name: "state", Direction: Asc, Index: 0}, req.Sort[1]); err != nil {
+	if err := assertEq(&SortField{Name: "state", Direction: Asc, Index: 0, Column: Objects.Tables["hosts"].GetColumn("state")}, req.Sort[1]); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestRequestHeaderSortCust(t *testing.T) {
 	req, _, _ := NewRequest(bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name custom_variables\nSort: custom_variables TEST asc\n")))
-	if err := assertEq(&SortField{Name: "custom_variables", Direction: Asc, Index: 0, Args: "TEST"}, req.Sort[0]); err != nil {
+	if err := assertEq(&SortField{Name: "custom_variables", Direction: Asc, Index: 0, Args: "TEST", Column: Objects.Tables["hosts"].GetColumn("custom_variables")}, req.Sort[0]); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -796,5 +796,47 @@ func TestHTTPPeer(t *testing.T) {
 	ok := peer.InitAllTables()
 	if err := assertEq(ok, true); err != nil {
 		t.Error(err)
+	}
+}
+
+func TestRequestPassthrough(t *testing.T) {
+	peer := StartTestPeer(5, 10, 10)
+	PauseTestPeers(peer)
+
+	// query without virtual columns
+	res, _, err := peer.QueryString("GET log\nColumns: time type message\nLimit: 3\nSort: time asc\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(3, len(*res)); err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(float64(1558468664), (*res)[0][0]); err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("HOST ALERT", (*res)[0][1]); err != nil {
+		t.Fatal(err)
+	}
+
+	// query with extra virtual columns
+	res, _, err = peer.QueryString("GET log\nColumns: time peer_key type message\nLimit: 3\nSort: peer_key asc\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(3, len(*res)); err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(float64(1558468664), (*res)[0][0]); err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("mockid0", (*res)[0][1]); err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("HOST ALERT", (*res)[0][2]); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
 	}
 }

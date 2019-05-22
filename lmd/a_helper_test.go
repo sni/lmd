@@ -124,7 +124,7 @@ func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (t
 	}
 	// read existing json files and extend hosts and services
 	for name, table := range Objects.Tables {
-		if table.Virtual != nil || table.GroupBy || table.PassthroughOnly {
+		if table.Virtual != nil || table.GroupBy {
 			continue
 		}
 		file, err := os.Create(fmt.Sprintf("%s/%s.json", tempFolder, name))

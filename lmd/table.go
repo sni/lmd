@@ -108,3 +108,35 @@ func (t *Table) AddRefColumns(tableName string, prefix string, localName []strin
 		NewColumn(t, refColName, RefStore, None, col.DataType, col.Optional, col, col.Description)
 	}
 }
+
+// SetColumnIndex sets index for all columns
+func (t *Table) SetColumnIndex() {
+	flagCombos := []OptionalFlags{
+		NoFlags,
+		Shinken,
+		Icinga2,
+		Naemon | Naemon1_0_10,
+	}
+	for _, flags := range flagCombos {
+		indexes := make(map[DataType]int)
+		for i := range t.Columns {
+			col := t.Columns[i]
+			if col.Optional != NoFlags && !flags.HasFlag(col.Optional) {
+				continue
+			}
+			if col.StorageType == LocalStore {
+				_, ok := indexes[col.DataType]
+				if !ok {
+					indexes[col.DataType] = 0
+				}
+				if col.Index != indexes[col.DataType] && col.Index > 0 {
+					// overlapping indexes would break data storage, make sure that columns for flags that include
+					// other flags come last, ex.: first set columns for flag Naemon, then add colums for Naemon1_10
+					log.Panicf("index overlap with flags in column %s of table %s: %v / %d != %d", col.Name, t.Name, flags.String(), col.Index, indexes[col.DataType])
+				}
+				col.Index = indexes[col.DataType]
+				indexes[col.DataType]++
+			}
+		}
+	}
+}

@@ -296,6 +296,7 @@ func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
 	}
 
 	req.SetRequestColumns()
+	err = req.SetSortColumns()
 	return
 }
 
