@@ -456,7 +456,7 @@ func (d *DataRow) getStatsKey(res *Response) string {
 	}
 	keyValues := []string{}
 	for i := range res.Request.RequestColumns {
-		keyValues = append(keyValues, *(d.GetString(res.Request.RequestColumns[i].Column)))
+		keyValues = append(keyValues, *(d.GetString(res.Request.RequestColumns[i])))
 	}
 	return strings.Join(keyValues, ";")
 }
@@ -685,36 +685,36 @@ func cast2Type(val interface{}, col *Column) interface{} {
 }
 
 // WriteJSON store duplicate string lists only once
-func (d *DataRow) WriteJSON(json *jsoniter.Stream, columns *[]RequestColumn) {
+func (d *DataRow) WriteJSON(json *jsoniter.Stream, columns *[]*Column) {
 	json.WriteRaw("[")
 	for i := range *columns {
-		col := &((*columns)[i])
+		col := (*columns)[i]
 		if i > 0 {
 			json.WriteRaw(",")
 		}
-		if col.Column.Optional != NoFlags && !d.DataStore.Peer.Flags.HasFlag(col.Column.Optional) {
-			json.WriteVal(col.Column.GetEmptyValue())
+		if col.Optional != NoFlags && !d.DataStore.Peer.Flags.HasFlag(col.Optional) {
+			json.WriteVal(col.GetEmptyValue())
 			continue
 		}
-		switch col.Column.DataType {
+		switch col.DataType {
 		case StringCol:
-			json.WriteString(*(d.GetString(col.Column)))
+			json.WriteString(*(d.GetString(col)))
 		case StringListCol:
-			json.WriteVal(d.GetStringList(col.Column))
+			json.WriteVal(d.GetStringList(col))
 		case IntCol:
-			json.WriteInt64(d.GetInt(col.Column))
+			json.WriteInt64(d.GetInt(col))
 		case FloatCol:
-			json.WriteFloat64(d.GetFloat(col.Column))
+			json.WriteFloat64(d.GetFloat(col))
 		case IntListCol:
-			json.WriteVal(d.GetIntList(col.Column))
+			json.WriteVal(d.GetIntList(col))
 		case InterfaceListCol:
 			fallthrough
 		case CustomVarCol:
 			fallthrough
 		case HashMapCol:
-			json.WriteVal(d.GetHashMap(col.Column))
+			json.WriteVal(d.GetHashMap(col))
 		default:
-			log.Panicf("unsupported type: %s", col.Column.DataType)
+			log.Panicf("unsupported type: %s", col.DataType)
 		}
 	}
 	json.WriteRaw("]\n")

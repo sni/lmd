@@ -118,7 +118,7 @@ func (res *Response) Less(i, j int) bool {
 		if s.Group {
 			sortType = StringCol
 		} else {
-			sortType = res.Request.RequestColumns[s.Index].Column.DataType
+			sortType = res.Request.RequestColumns[s.Index].DataType
 		}
 		switch sortType {
 		case IntCol:
@@ -544,13 +544,13 @@ func (res *Response) BuildPassThroughResult(peers []*Peer) {
 	virtColumns := []*Column{}
 	columnsIndex := make(map[*Column]int)
 	for i := range res.Request.RequestColumns {
-		col := &(res.Request.RequestColumns[i])
-		if col.Column.StorageType == VirtStore {
-			virtColumns = append(virtColumns, col.Column)
+		col := res.Request.RequestColumns[i]
+		if col.StorageType == VirtStore {
+			virtColumns = append(virtColumns, col)
 		} else {
 			backendColumns = append(backendColumns, col.Name)
 		}
-		columnsIndex[col.Column] = i
+		columnsIndex[col] = i
 	}
 	for i := range res.Request.Sort {
 		s := res.Request.Sort[i]
@@ -624,7 +624,7 @@ func (res *Response) SetResultData() {
 		datarow := res.RawResults.DataResult[i]
 		row := make([]interface{}, rowSize)
 		for j := range res.Request.RequestColumns {
-			row[j] = datarow.GetValueByColumn(res.Request.RequestColumns[j].Column)
+			row[j] = datarow.GetValueByColumn(res.Request.RequestColumns[j])
 		}
 		res.Result = append(res.Result, row)
 	}

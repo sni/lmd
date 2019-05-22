@@ -24,8 +24,8 @@ type Request struct {
 	noCopy              noCopy
 	Table               string
 	Command             string
-	Columns             []string        // parsed columns field
-	RequestColumns      []RequestColumn // calculated/expanded columns list
+	Columns             []string  // parsed columns field
+	RequestColumns      []*Column // calculated/expanded columns list
 	Filter              []*Filter
 	FilterStr           string
 	Stats               []*Filter
@@ -46,14 +46,6 @@ type Request struct {
 	WaitObject          string
 	WaitConditionNegate bool
 	KeepAlive           bool
-}
-
-// RequestColumn is a column container for results
-type RequestColumn struct {
-	noCopy noCopy
-	Name   string
-	Index  int     // required for virtual column in passthrough results
-	Column *Column // reference to the column definition
 }
 
 // SortDirection can be either Asc or Desc
@@ -828,21 +820,21 @@ func (req *Request) SetRequestColumns() {
 	if numColumns == 0 {
 		numColumns = len(table.Columns)
 	}
-	columns := make([]RequestColumn, 0, numColumns)
+	columns := make([]*Column, 0, numColumns)
 
 	// if no column header was given, return all columns
 	// but only if this is no stats query
 	if len(req.Columns) == 0 && len(req.Stats) == 0 {
 		for j := range table.Columns {
 			col := table.Columns[j]
-			columns = append(columns, RequestColumn{Name: strings.ToLower(col.Name), Column: col})
+			columns = append(columns, col)
 		}
 	}
 
 	// build array of requested columns as ResultColumn objects list
 	for j := range req.Columns {
 		col := table.GetColumnWithFallback(req.Columns[j])
-		columns = append(columns, RequestColumn{Name: strings.ToLower(req.Columns[j]), Column: col})
+		columns = append(columns, col)
 	}
 	req.RequestColumns = columns
 }
