@@ -109,6 +109,8 @@ type HTTPResult struct {
 	Branch  string
 	Output  json.RawMessage
 	Raw     []byte
+	Code    int
+	Message string
 }
 
 // PeerError is a custom error to distinguish between connection and response errors.
@@ -1726,6 +1728,7 @@ func (p *Peer) fetchRemotePeers() (sites []interface{}, err error) {
 		return
 	}
 	if p.StatusGet("ThrukVersion").(float64) < 2.23 {
+		log.Warnf("[%s] remote thruk version too old (%f < 2.23) cannot fetch all sites.", p.Name, p.StatusGet("ThrukVersion").(float64))
 		return
 	}
 	// try all http connections and use first working connection
@@ -1754,6 +1757,7 @@ func (p *Peer) fetchRemotePeersFromAddr(peerAddr string) (sites []interface{}, e
 	}
 	data, res, err := p.HTTPRestQuery(peerAddr, "/thruk/r/v1/sites")
 	if err != nil {
+		log.Warnf("[%s] rest query failed, cannot fetch all sites: %s", p.Name, err.Error())
 		return
 	}
 	if s, ok := data.([]interface{}); ok {
@@ -2176,6 +2180,10 @@ func (p *Peer) HTTPRestQuery(peerAddr string, uri string) (output interface{}, r
 		"data": {fmt.Sprintf("{\"credential\": \"%s\", \"options\": %s}", p.Config.Auth, optionStr)},
 	}, map[string]string{"Accept": "application/json"})
 	if err != nil {
+		return
+	}
+	if result.Code >= 400 {
+		err = fmt.Errorf("%d: %s", result.Code, result.Message)
 		return
 	}
 	var str string
