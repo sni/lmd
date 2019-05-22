@@ -55,7 +55,7 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 			}
 			if col.Index != indexes[col.DataType] {
 				if col.Index > 0 {
-					log.Panicf("index overlap with flags: %v", d.Peer.Flags.String())
+					log.Panicf("index overlap with flags in column %s of table %s: %v - %d != %d", col.Name, table.Name, d.Peer.Flags.String(), col.Index, indexes[col.DataType])
 				}
 				col.Index = indexes[col.DataType]
 			}

@@ -267,13 +267,11 @@ func (d *DataRow) getVirtRowValue(col *Column) interface{} {
 		}
 		p := d.DataStore.Peer
 		ok := false
-		if p.Flags&LMDSub == LMDSub {
+		if p.Flags.HasFlag(LMDSub) {
 			value, ok = d.getVirtSubLMDValue(col)
 		}
 		if !ok {
-			p.PeerLock.RLock()
-			value = p.Status[col.VirtMap.StatusKey]
-			p.PeerLock.RUnlock()
+			value = p.StatusGet(col.VirtMap.StatusKey)
 		}
 	} else {
 		value = col.VirtMap.ResolvFunc(d, col)
