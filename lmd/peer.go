@@ -621,14 +621,14 @@ func (p *Peer) updateIdleStatus() bool {
 
 // StatusSet updates a status map and takes care about the logging.
 func (p *Peer) StatusSet(key string, value interface{}) {
-	p.PeerLock.LockN(2)
+	p.PeerLock.Lock()
 	p.Status[key] = value
 	p.PeerLock.Unlock()
 }
 
 // StatusGet returns a status map entry and takes care about the logging.
 func (p *Peer) StatusGet(key string) interface{} {
-	p.PeerLock.RLockN(2)
+	p.PeerLock.RLock()
 	value := p.Status[key]
 	p.PeerLock.RUnlock()
 	return value

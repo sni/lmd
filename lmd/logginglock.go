@@ -1,9 +1,7 @@
 package main
 
 import (
-	"fmt"
 	"runtime"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -11,23 +9,20 @@ import (
 
 // LoggingLock is a lock wrapper which traces the current holding caller
 type LoggingLock struct {
-	lock             *sync.RWMutex
-	currentWriteLock atomic.Value
-	name             string
+	lock               *sync.RWMutex
+	currentlyLocked    int32 // 0 not locked, 1 locked
+	currentLockpointer atomic.Value
+	name               string
 }
 
-// Lock just calls sync.RWMutex.Lock
+// Lock just calls sync.RWMutex.Lock and stores the current caller
 func (l *LoggingLock) Lock() {
-	l.LockN(2)
-}
-
-// LockN just calls sync.RWMutex.Lock and skips N caller functions to store current caller
-func (l *LoggingLock) LockN(skip int) {
-	_, file, line, _ := runtime.Caller(skip)
-	file = strings.TrimPrefix(file[strings.LastIndex(file, "/"):], "/")
+	caller := make([]uintptr, 20)
+	runtime.Callers(0, caller)
 	waited := false
-	currentWriteLock := l.currentWriteLock.Load().(string)
-	if currentWriteLock != "" {
+	if atomic.LoadInt32(&l.currentlyLocked) == 0 {
+		l.lock.Lock()
+	} else {
 		timeout := time.Second * 2
 		c := make(chan struct{})
 		go func() {
@@ -40,30 +35,31 @@ func (l *LoggingLock) LockN(skip int) {
 			break
 		case <-time.After(timeout):
 			// still waiting...
-			log.Warnf("[%s][%s:%d] waiting for write lock from %s", l.name, file, line, currentWriteLock)
+			log.Warnf("[%s] waiting for write lock in:", l.name)
+			LogCaller(log.Warnf, &caller)
+			log.Warnf("[%s] current lock held by:", l.name)
+			LogCaller(log.Warnf, l.currentLockpointer.Load().(*[]uintptr))
 			waited = true
 		}
-	} else {
-		l.lock.Lock()
 	}
-	l.currentWriteLock.Store(fmt.Sprintf("%s:%d", file, line))
+
+	l.currentLockpointer.Store(&caller)
+	atomic.StoreInt32(&l.currentlyLocked, 1)
 	if waited {
-		log.Infof("[%s][%s:%d] got write lock", l.name, file, line)
+		log.Infof("[%s] got write lock in:", l.name)
+		LogCaller(log.Infof, &caller)
 	}
 }
 
 // RLock just calls sync.RWMutex.RLock
 func (l *LoggingLock) RLock() {
-	l.RLockN(2)
-}
-
-// RLockN just calls sync.RWMutex.RLock and skips N caller functions to store current caller
-func (l *LoggingLock) RLockN(skip int) {
-	_, file, line, _ := runtime.Caller(skip)
-	file = strings.TrimPrefix(file[strings.LastIndex(file, "/"):], "/")
+	caller := make([]uintptr, 20)
+	runtime.Callers(0, caller)
 	waited := false
-	currentWriteLock := l.currentWriteLock.Load().(string)
-	if currentWriteLock != "" {
+
+	if atomic.LoadInt32(&l.currentlyLocked) == 0 {
+		l.lock.RLock()
+	} else {
 		timeout := time.Second * 2
 		c := make(chan struct{})
 		go func() {
@@ -76,20 +72,22 @@ func (l *LoggingLock) RLockN(skip int) {
 			break
 		case <-time.After(timeout):
 			// still waiting...
-			log.Warnf("[%s][%s:%d] waiting for read lock from %s", l.name, file, line, currentWriteLock)
+			log.Warnf("[%s] waiting for read lock in:", l.name)
+			LogCaller(log.Warnf, &caller)
+			log.Warnf("[%s] current lock held by:", l.name)
+			LogCaller(log.Warnf, l.currentLockpointer.Load().(*[]uintptr))
 			waited = true
 		}
-	} else {
-		l.lock.RLock()
 	}
 	if waited {
-		log.Infof("[%s][%s:%d] got read lock", l.name, file, line)
+		log.Infof("[%s] got read lock in:", l.name)
+		LogCaller(log.Infof, &caller)
 	}
 }
 
 // Unlock just calls sync.RWMutex.Unlock
 func (l *LoggingLock) Unlock() {
-	l.currentWriteLock.Store("")
+	atomic.StoreInt32(&l.currentlyLocked, 0)
 	l.lock.Unlock()
 }
 
@@ -103,6 +101,19 @@ func NewLoggingLock(name string) *LoggingLock {
 	l := new(LoggingLock)
 	l.lock = new(sync.RWMutex)
 	l.name = name
-	l.currentWriteLock.Store("")
 	return l
+}
+
+func LogCaller(logger func(format string, v ...interface{}), caller *[]uintptr) {
+	frames := runtime.CallersFrames(*caller)
+	for {
+		frame, more := frames.Next()
+		if frame.Function == "" {
+			break
+		}
+		logger("- %s:%d %s()", frame.File, frame.Line, frame.Function)
+		if !more {
+			break
+		}
+	}
 }

@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -515,13 +516,13 @@ func logThreaddump() {
 	PeerMapLock.RLock()
 	for id := range PeerMap {
 		p := PeerMap[id]
-		currentWriteLock := p.PeerLock.currentWriteLock.Load().(string)
-		if currentWriteLock != "" {
-			log.Errorf("[%s] peer holding peer lock: %s", p.Name, currentWriteLock)
+		if atomic.LoadInt32(&p.PeerLock.currentlyLocked) == 0 {
+			log.Errorf("[%s] peer holding peer lock:", p.Name)
+			LogCaller(log.Errorf, p.PeerLock.currentLockpointer.Load().(*[]uintptr))
 		}
-		currentWriteLock = p.DataLock.currentWriteLock.Load().(string)
-		if currentWriteLock != "" {
-			log.Errorf("[%s] peer holding data lock: %s", p.Name, currentWriteLock)
+		if atomic.LoadInt32(&p.DataLock.currentlyLocked) == 0 {
+			log.Errorf("[%s] peer holding data lock:", p.Name)
+			LogCaller(log.Errorf, p.DataLock.currentLockpointer.Load().(*[]uintptr))
 		}
 	}
 	PeerMapLock.RUnlock()
