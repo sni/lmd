@@ -235,7 +235,7 @@ func ParseFilter(value []byte, table string, stack *[]*Filter) (err error) {
 		Column:   col,
 	}
 
-	err = filter.setFilterValue(col, string(tmp[2]))
+	err = filter.setFilterValue(string(tmp[2]))
 	if err != nil {
 		return
 	}
@@ -257,8 +257,8 @@ func ParseFilter(value []byte, table string, stack *[]*Filter) (err error) {
 }
 
 // setFilterValue converts the text value into the given filters type value
-func (f *Filter) setFilterValue(col *Column, strVal string) (err error) {
-	colType := col.DataType
+func (f *Filter) setFilterValue(strVal string) (err error) {
+	colType := f.Column.DataType
 	if strVal == "" {
 		f.IsEmpty = true
 	}
