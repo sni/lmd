@@ -55,7 +55,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 		if !nodeAccessor.IsOurBackend(p.ID) {
 			continue
 		}
-		if p.Flags.HasFlag(MultiBackend) {
+		if p.HasFlag(MultiBackend) {
 			continue
 		}
 		selectedPeers = append(selectedPeers, p)

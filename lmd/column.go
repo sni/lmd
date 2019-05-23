@@ -108,7 +108,7 @@ const (
 )
 
 // OptionalFlags is used to set flags for optionial columns.
-type OptionalFlags uint16
+type OptionalFlags uint32
 
 const (
 	// NoFlags is set if there are no flags at all.

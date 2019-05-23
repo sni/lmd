@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -54,7 +55,7 @@ type Peer struct {
 	shutdownChannel chan bool
 	stopChannel     chan bool
 	Config          *Connection
-	Flags           OptionalFlags
+	Flags           uint32
 	LocalConfig     *Config
 	lastRequest     *Request
 	lastResponse    *[]byte
@@ -170,7 +171,7 @@ func NewPeer(localConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 		Config:          config,
 		LocalConfig:     localConfig,
 		connectionCache: make(chan net.Conn, 10),
-		Flags:           NoFlags,
+		Flags:           uint32(NoFlags),
 	}
 	p.Status["PeerKey"] = p.ID
 	p.Status["PeerName"] = p.Name
@@ -328,9 +329,9 @@ func (p *Peer) updateLoop() {
 			return
 		case <-ticker.C:
 			switch {
-			case p.Flags.HasFlag(LMD):
+			case p.HasFlag(LMD):
 				p.periodicUpdateLMD(&ok, false)
-			case p.Flags.HasFlag(MultiBackend):
+			case p.HasFlag(MultiBackend):
 				p.periodicUpdateMultiBackends(&ok, false)
 			default:
 				p.periodicUpdate(&ok, &lastTimeperiodUpdateMinute)
@@ -456,7 +457,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 			c := Connection{ID: subID, Name: subName, Source: p.Source}
 			subPeer = NewPeer(p.LocalConfig, &c, p.waitGroup, p.shutdownChannel)
 			subPeer.ParentID = p.ID
-			subPeer.Flags.SetFlag(LMDSub)
+			subPeer.SetFlag(LMDSub)
 			subPeer.StatusSet("PeerParent", p.ID)
 			PeerMap[subID] = subPeer
 			PeerMapOrder = append(PeerMapOrder, c.ID)
@@ -564,7 +565,7 @@ func (p *Peer) periodicUpdateMultiBackends(ok *bool, force bool) {
 			}
 			subPeer = NewPeer(p.LocalConfig, &c, p.waitGroup, p.shutdownChannel)
 			subPeer.ParentID = p.ID
-			subPeer.Flags.SetFlag(HTTPSub)
+			subPeer.SetFlag(HTTPSub)
 			subPeer.Status["PeerParent"] = p.ID
 			section := site["section"].(string)
 			section = strings.TrimPrefix(section, "Default")
@@ -653,7 +654,7 @@ func (p *Peer) InitAllTables() bool {
 	t1 := time.Now()
 	for _, n := range Objects.Order {
 		t := Objects.Tables[n]
-		if p.Flags.HasFlag(MultiBackend) && t.Name != "status" {
+		if p.HasFlag(MultiBackend) && t.Name != "status" {
 			// just create empty data pools
 			// real data is handled by separate peers
 			continue
@@ -682,7 +683,7 @@ func (p *Peer) InitAllTables() bool {
 			p.fetchRemotePeers()
 			p.checkStatusFlags()
 
-			if p.Flags.HasFlag(MultiBackend) {
+			if p.HasFlag(MultiBackend) {
 				// check thruk config tool settings
 				configtool, _ := p.fetchConfigTool()
 				if configtool != nil {
@@ -1010,7 +1011,7 @@ func (p *Peer) getMissingTimestamps(store *DataStore, res *ResultSet, columns *C
 	data := store.Data
 	if len(data) < len(*res) {
 		p.DataLock.RUnlock()
-		if p.Flags.HasFlag(Icinga2) {
+		if p.HasFlag(Icinga2) {
 			p.checkIcinga2Reload()
 			return
 		}
@@ -1173,7 +1174,7 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 		}
 	}()
 
-	if p.Flags.HasFlag(LMDSub) {
+	if p.HasFlag(LMDSub) {
 		// add backends filter for lmd sub peers
 		req.Backends = []string{p.ID}
 	}
@@ -1445,7 +1446,7 @@ func (p *Peer) GetConnection() (conn net.Conn, connType PeerConnType, err error)
 			promPeerConnections.WithLabelValues(p.Name).Inc()
 			if x > 0 {
 				log.Infof("[%s] active source changed to %s", p.Name, peerAddr)
-				p.Flags.Clear()
+				p.ClearFlags()
 			}
 			return
 		}
@@ -1617,25 +1618,25 @@ func (p *Peer) checkStatusFlags() {
 	naemonVersions := reNaemonVersion.FindStringSubmatch(*livestatusVersion)
 	switch {
 	case len(reShinkenVersion.FindStringSubmatch(*livestatusVersion)) > 0:
-		if !p.Flags.HasFlag(Shinken) {
+		if !p.HasFlag(Shinken) {
 			log.Debugf("[%s] remote connection Shinken flag set", p.Name)
-			p.Flags.SetFlag(Shinken)
+			p.SetFlag(Shinken)
 		}
 	case len(data) > 1:
 		// getting more than one status sets the multibackend flag
-		if !p.Flags.HasFlag(MultiBackend) {
+		if !p.HasFlag(MultiBackend) {
 			log.Infof("[%s] remote connection MultiBackend flag set, got %d sites", p.Name, len(data))
-			p.Flags.SetFlag(MultiBackend)
+			p.SetFlag(MultiBackend)
 			// if its no http connection, then it must be LMD
 			if !strings.HasPrefix(p.Status["PeerAddr"].(string), "http") {
-				p.Flags.SetFlag(LMD)
+				p.SetFlag(LMD)
 			}
 			p.PeerLock.Unlock()
 			p.DataLock.RUnlock()
 			// force immediate update to fetch all sites
 			p.StatusSet("LastUpdate", time.Now().Unix()-p.LocalConfig.Updateinterval)
 			ok := true
-			if p.Flags.HasFlag(LMD) {
+			if p.HasFlag(LMD) {
 				p.periodicUpdateLMD(&ok, true)
 			} else {
 				p.periodicUpdateMultiBackends(&ok, true)
@@ -1643,19 +1644,19 @@ func (p *Peer) checkStatusFlags() {
 			return
 		}
 	case len(reIcinga2Version.FindStringSubmatch(*livestatusVersion)) > 0:
-		if !p.Flags.HasFlag(Icinga2) {
+		if !p.HasFlag(Icinga2) {
 			log.Debugf("[%s] remote connection Icinga2 flag set", p.Name)
-			p.Flags.SetFlag(Icinga2)
+			p.SetFlag(Icinga2)
 		}
 	case len(naemonVersions) > 0:
-		if !p.Flags.HasFlag(Naemon) {
+		if !p.HasFlag(Naemon) {
 			log.Debugf("[%s] remote connection Naemon flag set", p.Name)
-			p.Flags.SetFlag(Naemon)
+			p.SetFlag(Naemon)
 		}
-		if !p.Flags.HasFlag(Naemon1_0_10) {
+		if !p.HasFlag(Naemon1_0_10) {
 			if VersionNumeric(naemonVersions[1]) >= VersionNumeric("1.0.10") {
 				log.Debugf("[%s] remote connection Naemon 1.0.10 flag set", p.Name)
-				p.Flags.SetFlag(Naemon1_0_10)
+				p.SetFlag(Naemon1_0_10)
 			}
 		}
 	}
@@ -1736,10 +1737,10 @@ func (p *Peer) fetchRemotePeers() (sites []interface{}, err error) {
 		if strings.HasPrefix(addr, "http") {
 			sites, err = p.fetchRemotePeersFromAddr(addr)
 			if err == nil && len(sites) > 1 {
-				if !p.Flags.HasFlag(MultiBackend) {
+				if !p.HasFlag(MultiBackend) {
 					p.PeerLock.Lock()
 					log.Infof("[%s] remote connection MultiBackend flag set, got %d sites", p.Name, len(sites))
-					p.Flags.SetFlag(MultiBackend)
+					p.SetFlag(MultiBackend)
 					p.PeerLock.Unlock()
 					ok := true
 					p.periodicUpdateMultiBackends(&ok, true)
@@ -1874,7 +1875,7 @@ func (p *Peer) UpdateObjectByType(tableName string) (restartRequired bool, err e
 		promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(*res)))
 	case "status":
 		p.checkStatusFlags()
-		if !p.Flags.HasFlag(MultiBackend) && len(data) >= 1 && p.StatusGet("ProgramStart") != data[0].GetIntByName("program_start") {
+		if !p.HasFlag(MultiBackend) && len(data) >= 1 && p.StatusGet("ProgramStart") != data[0].GetIntByName("program_start") {
 			log.Infof("[%s] site has been restarted, recreating objects", p.Name)
 			restartRequired = true
 		}
@@ -1895,7 +1896,7 @@ func (p *Peer) skipTableUpdate(store *DataStore) bool {
 	if store.Table.PassthroughOnly {
 		return true
 	}
-	if p.Flags.HasFlag(MultiBackend) && store.Table.Name != "status" {
+	if p.HasFlag(MultiBackend) && store.Table.Name != "status" {
 		return true
 	}
 	if len(store.DynamicColumnNamesCache) == 0 {
@@ -2337,7 +2338,7 @@ func (p *Peer) PassThrougQuery(res *Response, passthroughRequest *Request, virtC
 // isOnline returns true if this peer is online and has data
 func (p *Peer) isOnline() bool {
 	status := p.StatusGet("PeerStatus").(PeerStatus)
-	if p.Flags.HasFlag(LMDSub) {
+	if p.HasFlag(LMDSub) {
 		realStatus := p.StatusGet("SubPeerStatus").(map[string]interface{})
 		num, ok := realStatus["status"]
 		if !ok {
@@ -2352,7 +2353,7 @@ func (p *Peer) isOnline() bool {
 }
 
 func (p *Peer) getError() string {
-	if p.Flags.HasFlag(LMDSub) {
+	if p.HasFlag(LMDSub) {
 		realStatus := p.StatusGet("SubPeerStatus").(map[string]interface{})
 		errString, ok := realStatus["last_error"]
 		if ok && errString.(string) != "" {
@@ -2491,7 +2492,7 @@ func (p *Peer) clearLastRequest() {
 }
 
 func (p *Peer) checkIcinga2Reload() bool {
-	if p.Flags.HasFlag(Icinga2) && p.hasChanged() {
+	if p.HasFlag(Icinga2) && p.hasChanged() {
 		return (p.InitAllTables())
 	}
 	return (true)
@@ -2702,4 +2703,25 @@ func (p *Peer) buildDowntimeCommentsCache(name string) map[string][]int64 {
 	p.DataLock.RUnlock()
 
 	return cache
+}
+
+// HasFlag returns true if flags are present
+func (p *Peer) HasFlag(flag OptionalFlags) bool {
+	if flag == 0 {
+		return true
+	}
+	f := OptionalFlags(atomic.LoadUint32(&p.Flags))
+	return f&flag != 0
+}
+
+// SetFlag set a flag
+func (p *Peer) SetFlag(flag OptionalFlags) {
+	f := OptionalFlags(atomic.LoadUint32(&p.Flags))
+	f |= flag
+	atomic.StoreUint32(&p.Flags, uint32(f))
+}
+
+// ClearFlags removes all flags
+func (p *Peer) ClearFlags() {
+	atomic.StoreUint32(&p.Flags, uint32(NoFlags))
 }

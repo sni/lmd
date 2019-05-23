@@ -45,7 +45,7 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 	}
 	for i := range table.Columns {
 		col := table.Columns[i]
-		if col.Optional != NoFlags && !d.Peer.Flags.HasFlag(col.Optional) {
+		if col.Optional != NoFlags && !d.Peer.HasFlag(col.Optional) {
 			continue
 		}
 		if col.StorageType == LocalStore {
@@ -120,7 +120,7 @@ func (d *DataStore) GetInitialColumns() ([]string, *ColumnList) {
 	keys := make([]string, 0)
 	for i := range d.Table.Columns {
 		col := d.Table.Columns[i]
-		if d.Peer != nil && !d.Peer.Flags.HasFlag(col.Optional) {
+		if d.Peer != nil && !d.Peer.HasFlag(col.Optional) {
 			continue
 		}
 		if col.StorageType != LocalStore {

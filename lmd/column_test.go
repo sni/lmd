@@ -11,34 +11,34 @@ func TestColumnFlag(t *testing.T) {
 	connection := Connection{Name: "Test", Source: []string{"http://localhost/test/"}}
 	peer := NewPeer(&Config{}, &connection, waitGroup, shutdownChannel)
 
-	if err := assertEq(NoFlags, peer.Flags); err != nil {
+	if err := assertEq(uint32(NoFlags), peer.Flags); err != nil {
 		t.Error(err)
 	}
 
-	peer.Flags.SetFlag(Naemon)
+	peer.SetFlag(Naemon)
 
-	if err := assertEq(Naemon, peer.Flags); err != nil {
+	if err := assertEq(uint32(Naemon), peer.Flags); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq(true, peer.Flags.HasFlag(Naemon)); err != nil {
+	if err := assertEq(true, peer.HasFlag(Naemon)); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq(false, peer.Flags.HasFlag(Naemon1_0_10)); err != nil {
+	if err := assertEq(false, peer.HasFlag(Naemon1_0_10)); err != nil {
 		t.Error(err)
 	}
-	peer.Flags.SetFlag(Naemon1_0_10)
-	if err := assertEq(true, peer.Flags.HasFlag(Naemon1_0_10)); err != nil {
+	peer.SetFlag(Naemon1_0_10)
+	if err := assertEq(true, peer.HasFlag(Naemon1_0_10)); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq(false, peer.Flags.HasFlag(MultiBackend)); err != nil {
+	if err := assertEq(false, peer.HasFlag(MultiBackend)); err != nil {
 		t.Error(err)
 	}
 
-	peer.Flags.Clear()
-	if err := assertEq(false, peer.Flags.HasFlag(Naemon)); err != nil {
+	peer.ClearFlags()
+	if err := assertEq(false, peer.HasFlag(Naemon)); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq(NoFlags, peer.Flags); err != nil {
+	if err := assertEq(uint32(NoFlags), peer.Flags); err != nil {
 		t.Error(err)
 	}
 }

@@ -232,7 +232,7 @@ func (d *DataRow) GetHashMap(col *Column) map[string]string {
 
 // GetValueByColumn returns the raw value for given column
 func (d *DataRow) GetValueByColumn(col *Column) interface{} {
-	if col.Optional != NoFlags && !d.DataStore.Peer.Flags.HasFlag(col.Optional) {
+	if col.Optional != NoFlags && !d.DataStore.Peer.HasFlag(col.Optional) {
 		return col.GetEmptyValue()
 	}
 	switch col.StorageType {
@@ -272,7 +272,7 @@ func (d *DataRow) getVirtRowValue(col *Column) interface{} {
 		}
 		p := d.DataStore.Peer
 		ok := false
-		if p.Flags.HasFlag(LMDSub) {
+		if p.HasFlag(LMDSub) {
 			value, ok = d.getVirtSubLMDValue(col)
 		}
 		if !ok {
@@ -434,7 +434,7 @@ func (d *DataRow) MatchFilter(filter *Filter) bool {
 	}
 
 	// if this is a optional column and we do not meet the requirements, match against an empty default column
-	if filter.Column.Optional != NoFlags && !d.DataStore.Peer.Flags.HasFlag(filter.Column.Optional) {
+	if filter.Column.Optional != NoFlags && !d.DataStore.Peer.HasFlag(filter.Column.Optional) {
 		// duplicate filter, but use the empty column
 		f := &Filter{
 			Column:    d.DataStore.Table.GetEmptyColumn(),
@@ -692,7 +692,7 @@ func (d *DataRow) WriteJSON(json *jsoniter.Stream, columns *[]*Column) {
 		if i > 0 {
 			json.WriteRaw(",")
 		}
-		if col.Optional != NoFlags && !d.DataStore.Peer.Flags.HasFlag(col.Optional) {
+		if col.Optional != NoFlags && !d.DataStore.Peer.HasFlag(col.Optional) {
 			json.WriteVal(col.GetEmptyValue())
 			continue
 		}
