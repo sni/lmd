@@ -30,7 +30,7 @@ func (t *Table) GetColumn(name string) *Column {
 	return t.ColumnsIndex[name]
 }
 
-// GetColumnWithFallback returns a column for list of names
+// GetColumnWithFallback returns a column for list of names, returns empty column as fallback
 func (t *Table) GetColumnWithFallback(name string) *Column {
 	col, ok := t.ColumnsIndex[name]
 	if ok {

@@ -229,13 +229,7 @@ func ParseFilter(value []byte, table string, stack *[]*Filter) (err error) {
 	columnName := string(tmp[0])
 
 	// convert value to type of column
-	col := Objects.Tables[table].ColumnsIndex[columnName]
-	if col == nil {
-		if !fixBrokenClientsRequestColumn(&columnName, table) {
-			columnName = "empty"
-		}
-		col = Objects.Tables[table].ColumnsIndex[columnName]
-	}
+	col := Objects.Tables[table].GetColumnWithFallback(columnName)
 	filter := &Filter{
 		Operator: op,
 		Column:   col,
