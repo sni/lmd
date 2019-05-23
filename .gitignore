@@ -7,3 +7,6 @@ lmd/coverage.html
 .idea/
 .vscode/
 lmd.iml
+.benchmarks/
+lmd/*.out
+lmd/*.test
