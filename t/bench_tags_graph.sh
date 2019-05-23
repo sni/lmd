@@ -1,11 +1,13 @@
 #!/bin/bash
 #
+# bench_tags_graph.sh: shows a gnuplot graph for given number of benchmarks
+#
 # Usage: ./t/bench_tags_graph.sh <limit number of tags to print> <limit number of commits>
 #
 
 TAGLIMIT=${1:-3}
 COMMITLIMIT=${2:-5}
-./t/bench_tags.sh $TAGLIMIT $COMMITLIMIT
+./t/create_benchmarks.sh $TAGLIMIT $COMMITLIMIT
 
 CURFOLDER=$(pwd)
 BENCHMARKS=$(pwd)/.benchmarks
