@@ -97,9 +97,9 @@ func QueryServer(c net.Conn) error {
 }
 
 // ProcessRequests creates response for all given requests
-func ProcessRequests(reqs []*Request, c net.Conn, remote string) (bool, error) {
+func ProcessRequests(reqs []*Request, c net.Conn, remote string) (keepalive bool, err error) {
 	if len(reqs) == 0 {
-		return false, nil
+		return
 	}
 	commandsByPeer := make(map[string][]string)
 	for _, req := range reqs {
@@ -114,8 +114,8 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string) (bool, error) {
 				code, msg := SendCommands(commandsByPeer)
 				commandsByPeer = make(map[string][]string)
 				if code != 200 {
-					c.Write([]byte(fmt.Sprintf("%d: %s\n", code, msg)))
-					return false, nil
+					_, err = c.Write([]byte(fmt.Sprintf("%d: %s\n", code, msg)))
+					return
 				}
 				log.Infof("incoming command request from %s to %s finished in %s", remote, c.LocalAddr().String(), time.Since(t1))
 			}
@@ -125,28 +125,27 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string) (bool, error) {
 			if req.Table == "log" {
 				c.SetDeadline(time.Now().Add(time.Duration(60) * time.Second))
 			}
-			response, rErr := req.GetResponse()
-			if rErr != nil {
-				if netErr, ok := rErr.(net.Error); ok {
+			var response *Response
+			response, err = req.GetResponse()
+			if err != nil {
+				if netErr, ok := err.(net.Error); ok {
 					(&Response{Code: 502, Request: req, Error: netErr}).Send(c)
-					return false, netErr
+					return
 				}
-				if peerErr, ok := rErr.(*PeerError); ok && peerErr.kind == ConnectionError {
+				if peerErr, ok := err.(*PeerError); ok && peerErr.kind == ConnectionError {
 					(&Response{Code: 502, Request: req, Error: peerErr}).Send(c)
-					return false, peerErr
+					return
 				}
-				(&Response{Code: 400, Request: req, Error: rErr}).Send(c)
-				return false, rErr
+				(&Response{Code: 400, Request: req, Error: err}).Send(c)
+				return
 			}
 
-			size, sErr := response.Send(c)
+			var size int64
+			size, err = response.Send(c)
 			duration := time.Since(t1)
-			log.Infof("incoming %s request from %s to %s finished in %s, size: %.3f kB", req.Table, remote, c.LocalAddr().String(), duration.String(), float64(size)/1024)
-			if sErr != nil {
-				return false, sErr
-			}
-			if !req.KeepAlive {
-				return false, nil
+			log.Infof("incoming %s request from %s to %s finished in %s, response size: %s", req.Table, remote, c.LocalAddr().String(), duration.String(), ByteCountBinary(size))
+			if err != nil || !req.KeepAlive {
+				return
 			}
 		}
 	}
@@ -157,7 +156,7 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string) (bool, error) {
 		code, msg := SendCommands(commandsByPeer)
 		if code != 200 {
 			c.Write([]byte(fmt.Sprintf("%d: %s\n", code, msg)))
-			return false, nil
+			return
 		}
 		log.Infof("incoming command request from %s to %s finished in %s", remote, c.LocalAddr().String(), time.Since(t1))
 	}

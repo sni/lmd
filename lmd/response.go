@@ -449,6 +449,7 @@ func (res *Response) WriteColumnsResponse(json *jsoniter.Stream) {
 		cols[index] = buffer.String()
 	}
 	json.WriteVal(cols)
+	json.WriteRaw("\n")
 }
 
 // BuildLocalResponse builds local data table result for all selected peers
