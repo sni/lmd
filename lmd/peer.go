@@ -1104,14 +1104,6 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	p.Tables[store.Table.Name] = data
 	p.DataLock.Unlock()
 
-	// reset cache
-	switch store.Table.Name {
-	case "comments":
-		p.RebuildCommentsCache()
-	case "downtimes":
-		p.RebuildCommentsCache()
-	}
-
 	if len(missingIds) > 0 {
 		keys, columns := store.GetInitialColumns()
 		req := &Request{
@@ -1147,6 +1139,14 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 		}
 		p.Tables[store.Table.Name] = data
 		p.DataLock.Unlock()
+	}
+
+	// reset cache
+	switch store.Table.Name {
+	case "comments":
+		p.RebuildCommentsCache()
+	case "downtimes":
+		p.RebuildDowntimesCache()
 	}
 
 	log.Debugf("[%s] updated %s", p.Name, name)
@@ -2668,18 +2668,19 @@ func (p *Peer) setFederationInfo(data map[string]interface{}, statuskey, datakey
 // RebuildCommentsCache updates the comment cache
 func (p *Peer) RebuildCommentsCache() {
 	cache := p.buildDowntimeCommentsCache("comments")
-
 	p.PeerLock.Lock()
 	p.CommentsCache = cache
 	p.PeerLock.Unlock()
+	log.Debugf("comments cache rebuild")
 }
 
 // RebuildDowntimesCache updates the comment cache
 func (p *Peer) RebuildDowntimesCache() {
 	cache := p.buildDowntimeCommentsCache("downtimes")
 	p.PeerLock.Lock()
-	p.CommentsCache = cache
+	p.DowntimesCache = cache
 	p.PeerLock.Unlock()
+	log.Debugf("downtimes cache rebuild")
 }
 
 // buildDowntimesCache returns the downtimes/comments cache
