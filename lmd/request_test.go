@@ -840,3 +840,42 @@ func TestRequestPassthrough(t *testing.T) {
 		panic(err.Error())
 	}
 }
+
+func TestRequestSites(t *testing.T) {
+	extraConfig := `
+	Listen = ["test.sock"]
+
+	[[Connections]]
+	name   = 'offline1'
+	id     = 'offline1'
+	source = ['/does/not/exist.sock']
+
+	[[Connections]]
+	name   = 'offline2'
+	id     = 'offline2'
+	source = ['/does/not/exist.sock']
+	`
+	peer := StartTestPeerExtra(4, 10, 10, extraConfig)
+	PauseTestPeers(peer)
+
+	res, _, err := peer.QueryString("GET sites\nColumns: name status last_error\nSort: name")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(6, len(*res)); err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("offline2", (*res)[5][0]); err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(float64(2), (*res)[5][1]); err != nil {
+		t.Fatal(err)
+	}
+	if err = assertLike("connect: no such file or directory", (*res)[5][2].(string)); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}

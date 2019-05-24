@@ -393,7 +393,7 @@ func (res *Response) WrappedJSON(buf io.Writer) error {
 	json := jsoniter.ConfigCompatibleWithStandardLibrary.BorrowStream(buf)
 	defer jsoniter.ConfigCompatibleWithStandardLibrary.ReturnStream(json)
 
-	json.WriteRaw("{\"data\":[")
+	json.WriteRaw("{\"data\":\n[")
 	res.WriteDataResponse(json)
 	json.WriteRaw("]\n,\"failed\":")
 	json.WriteVal(res.Failed)
@@ -480,7 +480,7 @@ func (res *Response) BuildLocalResponse(peers []*Peer) {
 
 		p.StatusSet("LastQuery", time.Now().Unix())
 
-		if store == nil || !p.isOnline() {
+		if store == nil || (!p.isOnline() && store.Table.Virtual == nil) {
 			res.Lock.Lock()
 			res.Failed[p.ID] = p.getError()
 			res.Lock.Unlock()

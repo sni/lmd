@@ -747,12 +747,12 @@ func parseSortHeader(field *[]*SortField, value []byte) (err error) {
 	}
 	var direction SortDirection
 	switch {
+	case len(tmp) <= 1 || len(tmp[1]) == 0:
+		direction = Asc
 	case bytes.EqualFold(tmp[1], []byte("asc")):
 		direction = Asc
 	case bytes.EqualFold(tmp[1], []byte("desc")):
 		direction = Desc
-	case len(tmp[1]) == 0:
-		direction = Asc
 	default:
 		err = errors.New("unrecognized sort direction, must be asc or desc")
 		return

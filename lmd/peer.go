@@ -2266,7 +2266,7 @@ func (p *Peer) BuildLocalResponseData(res *Response, resultcollector chan *DataR
 
 	// peer might have gone down meanwhile, ex. after waiting for a waittrigger, so check again
 	store := p.Tables[req.Table]
-	if store == nil || !p.isOnline() {
+	if store == nil || (!p.isOnline() && store.Table.Virtual == nil) {
 		res.Lock.Lock()
 		res.Failed[p.ID] = p.getError()
 		res.Lock.Unlock()
