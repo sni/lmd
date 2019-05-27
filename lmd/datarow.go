@@ -12,17 +12,18 @@ import (
 
 // DataRow represents a single entry in a DataTable
 type DataRow struct {
-	noCopy         noCopy              // we don't want to make copies, use references
-	DataStore      *DataStore          // reference to the datastore itself
-	ID             string              // uniq id
-	Refs           map[string]*DataRow // contains references to other objects, ex.: hosts from the services table
-	LastUpdate     int64               // timestamp when this row has been updated
-	dataString     []*string           // stores string data
-	dataInt        []int64             // stores integers
-	dataFloat      []float64           // stores floats
-	dataStringList []*[]string         // stores stringlists
-	dataIntList    [][]int64           // stores lists of integers
-	dataCustVar    []map[string]string // stores customn variables
+	noCopy            noCopy              // we don't want to make copies, use references
+	DataStore         *DataStore          // reference to the datastore itself
+	ID                string              // uniq id
+	Refs              map[string]*DataRow // contains references to other objects, ex.: hosts from the services table
+	LastUpdate        int64               // timestamp when this row has been updated
+	dataString        []*string           // stores string data
+	dataInt           []int64             // stores integers
+	dataFloat         []float64           // stores floats
+	dataStringList    []*[]string         // stores stringlists
+	dataIntList       [][]int64           // stores lists of integers
+	dataCustVar       []map[string]string // stores customn variables
+	dataInterfaceList [][]interface{}     // stores list of interfaces
 }
 
 // NewDataRow creates a new DataRow
@@ -82,6 +83,7 @@ func (d *DataRow) SetData(raw *[]interface{}, columns *ColumnList, timestamp int
 	d.dataIntList = make([][]int64, d.DataStore.DataSizes[IntListCol])
 	d.dataFloat = make([]float64, d.DataStore.DataSizes[FloatCol])
 	d.dataCustVar = make([]map[string]string, d.DataStore.DataSizes[CustomVarCol])
+	d.dataInterfaceList = make([][]interface{}, d.DataStore.DataSizes[InterfaceListCol])
 	return d.UpdateValues(raw, columns, timestamp)
 }
 
@@ -228,6 +230,20 @@ func (d *DataRow) GetHashMap(col *Column) map[string]string {
 		return d.Refs[col.RefCol.Table.Name].GetHashMap(col.RefCol)
 	}
 	return interface2hashmap(d.getVirtRowValue(col))
+}
+
+// GetInterfaceList returns the a list of interfaces
+func (d *DataRow) GetInterfaceList(col *Column) []interface{} {
+	switch col.StorageType {
+	case LocalStore:
+		if col.DataType == InterfaceListCol {
+			return d.dataInterfaceList[col.Index]
+		}
+		log.Panicf("unsupported type: %s", col.DataType)
+	case RefStore:
+		return d.Refs[col.RefCol.Table.Name].GetInterfaceList(col.RefCol)
+	}
+	return interface2interfacelist(d.getVirtRowValue(col))
 }
 
 // GetValueByColumn returns the raw value for given column
@@ -491,6 +507,8 @@ func (d *DataRow) UpdateValues(data *[]interface{}, columns *ColumnList, timesta
 			d.dataFloat[col.Index] = interface2float64((*data)[i])
 		case CustomVarCol:
 			d.dataCustVar[col.Index] = interface2customvar((*data)[i])
+		case InterfaceListCol:
+			d.dataInterfaceList[col.Index] = interface2interfacelist((*data)[i])
 		default:
 			log.Panicf("unsupported column %s (type %d) in table %s", col.Name, col.DataType, d.DataStore.Table.Name)
 		}
@@ -641,6 +659,15 @@ func interface2customvar(in interface{}) map[string]string {
 	return custommap
 }
 
+// interface2interfacelist converts anything to a list of interfaces
+func interface2interfacelist(in interface{}) []interface{} {
+	if list, ok := in.([]interface{}); ok {
+		return (list)
+	}
+	val := make([]interface{}, 0)
+	return val
+}
+
 // deduplicateString store duplicate strings only once
 func (d *DataRow) deduplicateString(str *string) *string {
 	if d.DataStore.dupString == nil {
@@ -708,7 +735,7 @@ func (d *DataRow) WriteJSON(json *jsoniter.Stream, columns *[]*Column) {
 		case IntListCol:
 			json.WriteVal(d.GetIntList(col))
 		case InterfaceListCol:
-			fallthrough
+			json.WriteVal(d.GetInterfaceList(col))
 		case CustomVarCol:
 			fallthrough
 		case HashMapCol:

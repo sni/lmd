@@ -459,8 +459,8 @@ func NewServicesTable() (t *Table) {
 
 	// naemon specific
 	t.AddExtraColumn("obsess", LocalStore, Dynamic, IntCol, Naemon, "The obsessing over service")
-	t.AddExtraColumn("depends_exec", LocalStore, Static, StringListCol, Naemon1_0_10, "List of services this services depends on for execution")
-	t.AddExtraColumn("depends_notify", LocalStore, Static, StringListCol, Naemon1_0_10, "List of services this services depends on for notification")
+	t.AddExtraColumn("depends_exec", LocalStore, Static, InterfaceListCol, Naemon1_0_10, "List of services this services depends on for execution")
+	t.AddExtraColumn("depends_notify", LocalStore, Static, InterfaceListCol, Naemon1_0_10, "List of services this services depends on for notification")
 	t.AddExtraColumn("parents", LocalStore, Static, StringListCol, Naemon1_0_10, "List of services descriptions this services depends on")
 
 	// shinken specific
