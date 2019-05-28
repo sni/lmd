@@ -59,9 +59,7 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 	d.DataSizes = dataSizes
 	// prepend primary keys to dynamic keys, since they are required to map the results back to specific items
 	if len(d.DynamicColumnNamesCache) > 0 {
-		for i := range d.Table.PrimaryKey {
-			d.DynamicColumnNamesCache = append([]string{d.Table.PrimaryKey[i]}, d.DynamicColumnNamesCache...)
-		}
+		d.DynamicColumnNamesCache = append(d.Table.PrimaryKey, d.DynamicColumnNamesCache...)
 	}
 	return
 }

@@ -869,11 +869,14 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 		hostName := interface2string((*resRow)[0])
 		dataRow := nameIndex[*hostName]
 		if dataRow == nil {
-			continue
+			return fmt.Errorf("cannot update host, no host named '%s' found", *hostName)
 		}
 		// shift hostname from result
 		*resRow = (*resRow)[1:]
-		dataRow.UpdateValues(resRow, &table.DynamicColumnCache, now)
+		err = dataRow.UpdateValues(resRow, &table.DynamicColumnCache, now)
+		if err != nil {
+			return
+		}
 	}
 	p.DataLock.Unlock()
 	promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(*res)))
@@ -916,11 +919,14 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 		lookUp := *(interface2string((*resRow)[0])) + ";" + *(interface2string((*resRow)[1]))
 		dataRow := nameindex[lookUp]
 		if dataRow == nil {
-			continue
+			return fmt.Errorf("cannot update service, no service named '%s' found", lookUp)
 		}
 		// shift hostname and description from result
 		*resRow = (*resRow)[2:]
-		dataRow.UpdateValues(resRow, &table.DynamicColumnCache, now)
+		err = dataRow.UpdateValues(resRow, &table.DynamicColumnCache, now)
+		if err != nil {
+			return
+		}
 	}
 	p.DataLock.Unlock()
 	promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(*res)))
@@ -985,7 +991,7 @@ func (p *Peer) UpdateDeltaTableFullScan(store *DataStore, filterStr string) (upd
 	if len(missing) > 0 {
 		filter := []string{filterStr}
 		for lastCheck := range missing {
-			filter = append(filter, fmt.Sprintf("Filter: last_check = %d\n", int(lastCheck)))
+			filter = append(filter, fmt.Sprintf("Filter: last_check = %d\n", lastCheck))
 		}
 		filter = append(filter, fmt.Sprintf("Or: %d\n", len(filter)))
 		if store.Table.Name == "services" {
@@ -1005,8 +1011,8 @@ func (p *Peer) UpdateDeltaTableFullScan(store *DataStore, filterStr string) (upd
 }
 
 // getMissingTimestamps returns list of last_check dates which can be used to delta update
-func (p *Peer) getMissingTimestamps(store *DataStore, res *ResultSet, columns *ColumnList) (missing map[float64]bool, err error) {
-	missing = make(map[float64]bool)
+func (p *Peer) getMissingTimestamps(store *DataStore, res *ResultSet, columns *ColumnList) (missing map[int64]bool, err error) {
+	missing = make(map[int64]bool)
 	p.DataLock.RLock()
 	data := store.Data
 	if len(data) < len(*res) {
@@ -1023,7 +1029,7 @@ func (p *Peer) getMissingTimestamps(store *DataStore, res *ResultSet, columns *C
 	for i := range *res {
 		row := (*res)[i]
 		if data[i].CheckChangedIntValues(&row, columns) {
-			missing[interface2float64(row[0])] = true
+			missing[interface2int64(row[0])] = true
 		}
 	}
 	p.DataLock.RUnlock()
