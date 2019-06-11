@@ -45,6 +45,9 @@ const (
 	NAME = "lmd"
 )
 
+const loose = "loose"
+const strict = "strict"
+
 // https://github.com/golang/go/issues/8005#issuecomment-190753527
 type noCopy struct{}
 
@@ -83,25 +86,27 @@ func (c *Connection) Equals(other *Connection) bool {
 
 // Config defines the available configuration options from supplied config files.
 type Config struct {
-	Listen              []string
-	Nodes               []string
-	TLSCertificate      string
-	TLSKey              string
-	TLSClientPems       []string
-	Updateinterval      int64
-	FullUpdateInterval  int64
-	Connections         []Connection
-	LogFile             string
-	LogLevel            string
-	ConnectTimeout      int
-	NetTimeout          int
-	ListenTimeout       int
-	ListenPrometheus    string
-	SkipSSLCheck        int
-	IdleTimeout         int64
-	IdleInterval        int64
-	StaleBackendTimeout int
-	BackendKeepAlive    bool
+	Listen               []string
+	Nodes                []string
+	TLSCertificate       string
+	TLSKey               string
+	TLSClientPems        []string
+	Updateinterval       int64
+	FullUpdateInterval   int64
+	Connections          []Connection
+	LogFile              string
+	LogLevel             string
+	ConnectTimeout       int
+	NetTimeout           int
+	ListenTimeout        int
+	ListenPrometheus     string
+	SkipSSLCheck         int
+	IdleTimeout          int64
+	IdleInterval         int64
+	StaleBackendTimeout  int
+	BackendKeepAlive     bool
+	ServiceAuthorization string
+	GroupAuthorization   string
 }
 
 // PeerMap contains a map of available remote peers.
@@ -205,6 +210,8 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	setDefaults(&localConfig)
 	setVerboseFlags(&localConfig)
 	InitLogging(&localConfig)
+	setServiceAuthorization(&localConfig)
+	setGroupAuthorization(&localConfig)
 
 	osSignalChannel := make(chan os.Signal, 1)
 	signal.Notify(osSignalChannel, syscall.SIGHUP)
@@ -576,6 +583,32 @@ func setDefaults(conf *Config) {
 	}
 	if conf.StaleBackendTimeout <= 0 {
 		conf.StaleBackendTimeout = 30
+	}
+}
+
+func setServiceAuthorization(conf *Config) {
+	ServiceAuth := strings.ToLower(conf.ServiceAuthorization)
+	switch {
+	case ServiceAuth == loose, ServiceAuth == strict:
+		conf.ServiceAuthorization = ServiceAuth
+	case ServiceAuth != "":
+		log.Warnf("Invalid ServiceAuthorization: %s, using loose", conf.ServiceAuthorization)
+		conf.ServiceAuthorization = loose
+	default:
+		conf.ServiceAuthorization = loose
+	}
+}
+
+func setGroupAuthorization(conf *Config) {
+	GroupAuth := strings.ToLower(conf.GroupAuthorization)
+	switch {
+	case GroupAuth == loose, GroupAuth == strict:
+		conf.GroupAuthorization = GroupAuth
+	case GroupAuth != "":
+		log.Warnf("Invalid GroupAuthorization: %s, using strict", conf.GroupAuthorization)
+		conf.GroupAuthorization = strict
+	default:
+		conf.GroupAuthorization = strict
 	}
 }
 

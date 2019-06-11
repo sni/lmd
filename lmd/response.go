@@ -576,6 +576,7 @@ func (res *Response) BuildPassThroughResult(peers []*Peer) {
 		Limit:           req.Limit,
 		OutputFormat:    OutputFormatJSON,
 		ResponseFixed16: true,
+		AuthUser:        req.AuthUser,
 	}
 
 	waitgroup := &sync.WaitGroup{}

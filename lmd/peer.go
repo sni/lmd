@@ -2392,6 +2392,11 @@ Rows:
 				continue Rows
 			}
 		}
+
+		if !row.checkAuth(req.AuthUser) {
+			continue Rows
+		}
+
 		found++
 
 		// check if we have enough result rows already
@@ -2420,6 +2425,10 @@ Rows:
 			if !row.MatchFilter(req.Filter[i]) {
 				continue Rows
 			}
+		}
+
+		if !row.checkAuth(req.AuthUser) {
+			continue Rows
 		}
 
 		key := row.getStatsKey(res)

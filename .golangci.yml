@@ -29,6 +29,7 @@ linters:
     - lll
     - gochecknoinits
     - dupl
+    - goconst
   fast: false
 
 issues:
