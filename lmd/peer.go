@@ -1794,7 +1794,7 @@ func (p *Peer) GetGroupByData(store *DataStore) *ResultSet {
 	case "servicesbygroup":
 		hostNameCol := p.Tables["services"].GetColumn("host_name")
 		descCol := p.Tables["services"].GetColumn("description")
-		groupCol := p.Tables["hosts"].GetColumn("groups")
+		groupCol := p.Tables["services"].GetColumn("groups")
 		for _, row := range p.Tables["services"].Data {
 			hostName := row.GetString(hostNameCol)
 			description := row.GetString(descCol)
