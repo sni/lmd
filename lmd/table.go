@@ -18,7 +18,6 @@ type Table struct {
 	Columns         ColumnList
 	ColumnsIndex    map[string]*Column // access columns by name
 	PassthroughOnly bool               // flag wether table will be cached or simply passed through to remote sites
-	GroupBy         bool
 	PrimaryKey      []string
 	RefTables       []*TableRef // referenced tables
 	Virtual         VirtStoreResolveFunc

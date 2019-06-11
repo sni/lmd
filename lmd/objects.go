@@ -595,7 +595,7 @@ func NewLogTable() (t *Table) {
 
 // NewHostsByGroupTable returns a new hostsbygroup table
 func NewHostsByGroupTable() (t *Table) {
-	t = &Table{Name: "hostsbygroup", GroupBy: true, DefaultSort: []string{"name"}}
+	t = &Table{Name: "hostsbygroup", Virtual: GetGroupByData}
 	t.AddColumn("name", Static, StringCol, "Host name")
 	t.AddColumn("hostgroup_name", Static, StringCol, "Host group name")
 
@@ -609,7 +609,7 @@ func NewHostsByGroupTable() (t *Table) {
 
 // NewServicesByGroupTable returns a new servicesbygroup table
 func NewServicesByGroupTable() (t *Table) {
-	t = &Table{Name: "servicesbygroup", GroupBy: true, DefaultSort: []string{"host_name", "description"}}
+	t = &Table{Name: "servicesbygroup", Virtual: GetGroupByData}
 	t.AddColumn("host_name", Static, StringCol, "Host name")
 	t.AddColumn("description", Static, StringCol, "Service description")
 	t.AddColumn("servicegroup_name", Static, StringCol, "Service group name")
@@ -625,7 +625,7 @@ func NewServicesByGroupTable() (t *Table) {
 
 // NewServicesByHostgroupTable returns a new servicesbyhostgroup table
 func NewServicesByHostgroupTable() (t *Table) {
-	t = &Table{Name: "servicesbyhostgroup", GroupBy: true, DefaultSort: []string{"host_name", "description"}}
+	t = &Table{Name: "servicesbyhostgroup", Virtual: GetGroupByData}
 	t.AddColumn("host_name", Static, StringCol, "Host name")
 	t.AddColumn("description", Static, StringCol, "Service description")
 	t.AddColumn("hostgroup_name", Static, StringCol, "Host group name")

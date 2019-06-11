@@ -1571,26 +1571,18 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 		return
 	}
 
-	var res *ResultSet
-	if store.Table.GroupBy {
-		// calculate groupby data from local table
-		res = p.GetGroupByData(store)
-	} else {
-		// fetch remote objects
-		req := &Request{
-			Table:           store.Table.Name,
-			Columns:         keys,
-			ResponseFixed16: true,
-			OutputFormat:    OutputFormatJSON,
-			KeepAlive:       p.LocalConfig.BackendKeepAlive,
-		}
-		res, _, err = p.Query(req)
+	// fetch remote objects
+	req := &Request{
+		Table:           store.Table.Name,
+		Columns:         keys,
+		ResponseFixed16: true,
+		OutputFormat:    OutputFormatJSON,
+		KeepAlive:       p.LocalConfig.BackendKeepAlive,
 	}
+	res, _, err := p.Query(req)
+
 	if err != nil {
 		return
-	}
-	if !store.Table.GroupBy {
-		log.Debugf("[%s] fetched %d initial %s objects", p.Name, len(*res), store.Table.Name)
 	}
 
 	now := time.Now().Unix()
@@ -1773,52 +1765,6 @@ func (p *Peer) fetchRemotePeersFromAddr(peerAddr string) (sites []interface{}, e
 		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %v", res), kind: ResponseError}
 	}
 	return
-}
-
-// GetGroupByData returns fake query result for given groupby table
-func (p *Peer) GetGroupByData(store *DataStore) *ResultSet {
-	res := make(ResultSet, 0)
-	p.DataLock.RLock()
-	defer p.DataLock.RUnlock()
-	switch store.Table.Name {
-	case "hostsbygroup":
-		nameCol := p.Tables["hosts"].GetColumn("name")
-		groupCol := p.Tables["hosts"].GetColumn("groups")
-		for _, row := range p.Tables["hosts"].Data {
-			name := row.GetString(nameCol)
-			groups := row.GetStringList(groupCol)
-			for i := range *groups {
-				res = append(res, []interface{}{*name, (*groups)[i]})
-			}
-		}
-	case "servicesbygroup":
-		hostNameCol := p.Tables["services"].GetColumn("host_name")
-		descCol := p.Tables["services"].GetColumn("description")
-		groupCol := p.Tables["services"].GetColumn("groups")
-		for _, row := range p.Tables["services"].Data {
-			hostName := row.GetString(hostNameCol)
-			description := row.GetString(descCol)
-			groups := row.GetStringList(groupCol)
-			for i := range *groups {
-				res = append(res, []interface{}{*hostName, *description, (*groups)[i]})
-			}
-		}
-	case "servicesbyhostgroup":
-		hostNameCol := p.Tables["services"].GetColumn("host_name")
-		descCol := p.Tables["services"].GetColumn("description")
-		hostGroupsCol := p.Tables["services"].GetColumn("host_groups")
-		for _, row := range p.Tables["services"].Data {
-			hostName := row.GetString(hostNameCol)
-			description := row.GetString(descCol)
-			groups := row.GetStringList(hostGroupsCol)
-			for i := range *groups {
-				res = append(res, []interface{}{*hostName, *description, (*groups)[i]})
-			}
-		}
-	default:
-		log.Panicf("GetGroupByData not implemented for table: %s", store.Table.Name)
-	}
-	return &res
 }
 
 // UpdateObjectByType updates a given table by requesting all dynamic columns from the remote peer.
