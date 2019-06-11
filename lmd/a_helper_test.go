@@ -168,7 +168,7 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 	newData := [][]interface{}{}
 	if name == "hosts" {
 		nameIndex := GetTestColumnIndex(table, "name")
-		for x := 1; x <= numHosts; x++ {
+		for x := 0; x < numHosts; x++ {
 			var newObj []interface{}
 			if x >= num {
 				newObj = make([]interface{}, len(last))
@@ -177,7 +177,7 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 				newObj = make([]interface{}, len(raw[x]))
 				copy(newObj, raw[x])
 			}
-			newObj[nameIndex] = fmt.Sprintf("%s_%d", "testhost", x)
+			newObj[nameIndex] = fmt.Sprintf("%s_%d", "testhost", x+1)
 			newData = append(newData, newObj)
 		}
 	}
