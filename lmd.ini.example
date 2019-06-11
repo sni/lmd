@@ -60,6 +60,20 @@ BackendKeepAlive = true
 # Uncomment to export runtime statistics in prometheus format
 #ListenPrometheus = "127.0.0.1:8080"
 
+# Naemon automatically regards a contact for a host also as a contact for all
+# services of that host. We call this method loose. By setting it to strict, one
+# must be an explicity contact of a service in order to see it when using the
+# AuthUser setting. Please note that Naemon makes all services that do not have
+# any contact at all inherit all contacts of the host - regardless whether this
+# option is set to strict or loose. The default option is loose.
+ServiceAuthorization = "loose"
+
+# If GroupAuthorization is strict (default), a user must be a contact on all
+# hosts in the hostgroup in able to see the hostgroup. If GroupAuthorization is
+# loose it is sufficient for the user to be a contact on one of the hosts in the
+# hostgroup.
+GroupAuthorization = "strict"
+
 # use tcp connections
 [[Connections]]
 name   = "Monitoring Site A"

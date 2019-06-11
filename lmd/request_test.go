@@ -34,6 +34,7 @@ func TestRequestHeader(t *testing.T) {
 		"GET hosts\nColumns: name contact_groups\nFilter: contact_groups >= test\n\n",
 		"GET hosts\nColumns: name\nFilter: last_check >= 123456789\n\n",
 		"GET hosts\nColumns: name\nFilter: last_check =\n\n",
+		"GET hosts\nAuthUser: testUser\n\n",
 	}
 	for _, str := range testRequestStrings {
 		buf := bufio.NewReader(bytes.NewBufferString(str))
@@ -352,7 +353,7 @@ func TestRequestStatsGroupBy(t *testing.T) {
 	if err = assertEq("testhost_1", (*res)[0][0]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq("localhost", (*res)[1][1]); err != nil {
+	if err = assertEq("authhost", (*res)[1][1]); err != nil {
 		t.Error(err)
 	}
 	if err = assertEq(0.083658002317, (*res)[1][2]); err != nil {

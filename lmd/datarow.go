@@ -746,3 +746,172 @@ func (d *DataRow) WriteJSON(json *jsoniter.Stream, columns *[]*Column) {
 	}
 	json.WriteRaw("]\n")
 }
+
+func (d *DataRow) isAuthorizedFor(authUser string, host string, service string) (canView bool) {
+	canView = false
+
+	p := d.DataStore.Peer
+
+	// get contacts for host, if we are checking a host or
+	// if this is a service and ServiceAuthorization is loose
+	if (service != "" && p.LocalConfig.ServiceAuthorization == loose) || service == "" {
+		hostObj, ok := p.Tables["hosts"].Index[host]
+		contactsColumn := p.Tables["hosts"].GetColumn("contacts")
+		// Make sure the host we found is actually valid
+		if !ok {
+			return
+		}
+		for _, contact := range *hostObj.GetStringList(contactsColumn) {
+			if contact == authUser {
+				canView = true
+				return
+			}
+		}
+	}
+
+	// get contacts on services
+	if service != "" {
+		var serviceID strings.Builder
+		serviceID.WriteString(host)
+		serviceID.WriteString(";")
+		serviceID.WriteString(service)
+		serviceObj, ok := p.Tables["services"].Index[serviceID.String()]
+		contactsColumn := p.Tables["services"].GetColumn("contacts")
+		if !ok {
+			return
+		}
+		for _, contact := range *serviceObj.GetStringList(contactsColumn) {
+			if contact == authUser {
+				canView = true
+				return
+			}
+		}
+	}
+
+	return
+}
+
+func (d *DataRow) isAuthorizedForGroup(authUser string, hostgroup string, servicegroup string) (canView bool) {
+	var members []interface{}
+	p := d.DataStore.Peer
+	canView = false
+
+	if hostgroup != "" {
+		hostgroupObj, ok := p.Tables["hostgroups"].Index[hostgroup]
+		membersColumn := p.Tables["hostgroups"].GetColumn("members")
+		if ok {
+			// As the format for members on hostgroups differs from
+			// that of servicegroups, we manually add the items here.
+			stringMembers := *(*hostgroupObj).GetStringList(membersColumn)
+			for _, member := range stringMembers {
+				members = append(members, member)
+			}
+		}
+	} else if servicegroup != "" {
+		servicegroupObj, ok := p.Tables["servicegroups"].Index[servicegroup]
+		membersColumn := p.Tables["servicegroups"].GetColumn("members")
+		if ok {
+			members = (*servicegroupObj).GetInterfaceList(membersColumn)
+		}
+	}
+
+	for i := 0; i < len(members); i++ {
+		var hostName string
+		var serviceDescription string
+		if hostgroup != "" {
+			hostName = members[i].(string)
+		} else {
+			member := members[i].([]interface{})
+			hostName = member[0].(string)
+			serviceDescription = member[1].(string)
+		}
+		/* If GroupAuthorization is loose, we just need to find the contact
+		 * in any hosts in the group, then we can return.
+		 * If it is strict, the user must be a contact on every single host.
+		 * Therefore we return false if a contact doesn't exists on a host
+		 * and then on the last iteration return true if the contact is a contact
+		 * on the final host
+		 */
+		switch p.LocalConfig.GroupAuthorization {
+		case loose:
+			if d.isAuthorizedFor(authUser, hostName, serviceDescription) {
+				canView = true
+				return
+			}
+		case strict:
+			if !d.isAuthorizedFor(authUser, hostName, serviceDescription) {
+				canView = false
+				return
+			} else if i == len(members)-1 {
+				canView = true
+				return
+			}
+		}
+	}
+
+	return
+}
+
+func (d *DataRow) checkAuth(authUser string) (canView bool) {
+	// Return if no AuthUser is set, or the table does not support AuthUser
+	if authUser == "" {
+		canView = true
+		return
+	}
+
+	table := d.DataStore.Table
+
+	switch table.Name {
+	case "hosts":
+		hostNameIndex := table.GetColumn("name").Index
+		hostName := *d.dataString[hostNameIndex]
+		canView = d.isAuthorizedFor(authUser, hostName, "")
+	case "services":
+		hostNameIndex := table.GetColumn("host_name").Index
+		hostName := *d.dataString[hostNameIndex]
+		serviceIndex := table.GetColumn("description").Index
+		serviceDescription := *d.dataString[serviceIndex]
+		canView = d.isAuthorizedFor(authUser, hostName, serviceDescription)
+	case "hostgroups":
+		nameIndex := table.GetColumn("name").Index
+		hostgroupName := *d.dataString[nameIndex]
+		canView = d.isAuthorizedForGroup(authUser, hostgroupName, "")
+	case "servicegroups":
+		nameIndex := table.GetColumn("name").Index
+		servicegroupName := *d.dataString[nameIndex]
+		canView = d.isAuthorizedForGroup(authUser, "", servicegroupName)
+	case "hostsbygroup":
+		hostNameIndex := table.GetColumn("name").Index
+		hostName := *d.dataString[hostNameIndex]
+		hostGroupIndex := table.GetColumn("hostgroup_name").Index
+		hostGroupName := *d.dataString[hostGroupIndex]
+		canView = d.isAuthorizedFor(authUser, hostName, "") &&
+			d.isAuthorizedForGroup(authUser, hostGroupName, "")
+	case "servicesbygroup", "servicesbyhostgroup":
+		hostNameIndex := table.GetColumn("host_name").Index
+		hostName := *d.dataString[hostNameIndex]
+		serviceIndex := table.GetColumn("description").Index
+		serviceDescription := *d.dataString[serviceIndex]
+
+		var hostgroupName string
+		var servicegroupName string
+		if table.Name == "servicesbygroup" {
+			servicegroupIndex := table.GetColumn("servicegrroup_name").Index
+			servicegroupName = *d.dataString[servicegroupIndex]
+		} else {
+			hostgroupIndex := table.GetColumn("hostgroup_name").Index
+			hostgroupName = *d.dataString[hostgroupIndex]
+		}
+		canView = d.isAuthorizedFor(authUser, hostName, serviceDescription) &&
+			d.isAuthorizedForGroup(authUser, hostgroupName, servicegroupName)
+	case "downtimes", "comments":
+		hostIndex := table.GetColumn("host_name").Index
+		serviceIndex := table.GetColumn("service_description").Index
+		hostName := *d.dataString[hostIndex]
+		serviceDescription := *d.dataString[serviceIndex]
+		canView = d.isAuthorizedFor(authUser, hostName, serviceDescription)
+	default:
+		canView = true
+	}
+	return
+}

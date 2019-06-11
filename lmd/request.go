@@ -46,6 +46,7 @@ type Request struct {
 	WaitObject          string
 	WaitConditionNegate bool
 	KeepAlive           bool
+	AuthUser            string
 }
 
 // SortDirection can be either Asc or Desc
@@ -228,6 +229,9 @@ func (req *Request) String() (str string) {
 	}
 	if req.WaitConditionNegate {
 		str += fmt.Sprintf("WaitConditionNegate\n")
+	}
+	if req.AuthUser != "" {
+		str += fmt.Sprintf("AuthUser: %s\n", req.AuthUser)
 	}
 	for i := range req.WaitCondition {
 		str += req.WaitCondition[i].String("WaitCondition")
@@ -706,6 +710,9 @@ func (req *Request) ParseRequestHeaderLine(line []byte) (err error) {
 			log.Debugf("Ignoring %s as LMD works on unix timestamps only.", matched[0])
 		}
 		return
+	case "authuser":
+		err = parseAuthUser(&req.AuthUser, args)
+		return
 	}
 	err = fmt.Errorf("unrecognized header")
 	return
@@ -805,6 +812,15 @@ func parseOnOff(field *bool, value []byte) (err error) {
 		*field = false
 	default:
 		err = fmt.Errorf("must be 'on' or 'off'")
+	}
+	return
+}
+
+func parseAuthUser(field *string, value []byte) (err error) {
+	if string(value) != "" {
+		*field = string(value)
+	} else {
+		err = fmt.Errorf("bad request: AuthUser should not be empty")
 	}
 	return
 }

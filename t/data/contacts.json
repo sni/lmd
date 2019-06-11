@@ -1,2 +1,3 @@
-200          66
-[["example",1,"nobody@localhost","24x7",0,"example","","24x7",0]]
+200         133
+[["example",1,"nobody@localhost","24x7",0,"example","","24x7",0],
+["authuser",1,"nobody@localhost","24x7",0,"authuser","","24x7",0]]
