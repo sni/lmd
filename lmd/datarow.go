@@ -815,7 +815,7 @@ func (d *DataRow) isAuthorizedForGroup(authUser string, hostgroup string, servic
 		}
 	}
 
-	for i := 0; i < len(members); i++ {
+	for i := range members {
 		var hostName string
 		var serviceDescription string
 		if hostgroup != "" {
