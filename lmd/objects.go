@@ -316,6 +316,9 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("staleness", Dynamic, FloatCol, "Staleness indicator for this host")
 	t.AddColumn("pnpgraph_present", Dynamic, IntCol, "The pnp graph presence (0/1)")
 
+	// backend specific
+	t.AddExtraColumn("check_source", LocalStore, Dynamic, StringCol, Naemon|Icinga2, "Host check source address")
+
 	// naemon specific
 	t.AddExtraColumn("obsess", LocalStore, Dynamic, IntCol, Naemon, "The obsessing over host")
 	t.AddExtraColumn("depends_exec", LocalStore, Static, StringListCol, Naemon1_0_10, "List of hosts this hosts depends on for execution")
@@ -335,7 +338,6 @@ func NewHostsTable() (t *Table) {
 
 	// icinga2 specific
 	t.AddExtraColumn("address6", LocalStore, Static, StringCol, Icinga2, "IPv6 address")
-	t.AddExtraColumn("check_source", LocalStore, Dynamic, StringCol, Icinga2, "Host check source address")
 
 	t.AddExtraColumn("services_with_info", VirtStore, None, InterfaceListCol, NoFlags, "The services, including info, that is associated with the host")
 	t.AddExtraColumn("services_with_state", VirtStore, None, InterfaceListCol, NoFlags, "The services, including state info, that is associated with the host")
@@ -457,6 +459,9 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("staleness", Dynamic, FloatCol, "Staleness indicator for this host")
 	t.AddColumn("pnpgraph_present", Dynamic, IntCol, "The pnp graph presence (0/1)")
 
+	// backend specific
+	t.AddExtraColumn("check_source", LocalStore, Dynamic, StringCol, Naemon|Icinga2, "Check source address")
+
 	// naemon specific
 	t.AddExtraColumn("obsess", LocalStore, Dynamic, IntCol, Naemon, "The obsessing over service")
 	t.AddExtraColumn("depends_exec", LocalStore, Static, InterfaceListCol, Naemon1_0_10, "List of services this services depends on for execution")
@@ -474,9 +479,6 @@ func NewServicesTable() (t *Table) {
 	t.AddExtraColumn("poller_tag", LocalStore, Dynamic, StringCol, Shinken, "Poller Tag")
 	t.AddExtraColumn("got_business_rule", LocalStore, Dynamic, IntCol, Shinken, "Whether the service state is an business rule based host or not (0/1)")
 	t.AddExtraColumn("parent_dependencies", LocalStore, Dynamic, StringCol, Shinken, "List of the dependencies (logical, network or business one) of this service")
-
-	// icinga2 specific
-	t.AddExtraColumn("check_source", LocalStore, Dynamic, StringCol, Icinga2, "Check source address")
 
 	t.AddRefColumns("hosts", "host", []string{"host_name"})
 
