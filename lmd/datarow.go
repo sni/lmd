@@ -896,7 +896,7 @@ func (d *DataRow) checkAuth(authUser string) (canView bool) {
 		var hostgroupName string
 		var servicegroupName string
 		if table.Name == "servicesbygroup" {
-			servicegroupIndex := table.GetColumn("servicegrroup_name").Index
+			servicegroupIndex := table.GetColumn("servicegroup_name").Index
 			servicegroupName = *d.dataString[servicegroupIndex]
 		} else {
 			hostgroupIndex := table.GetColumn("hostgroup_name").Index
