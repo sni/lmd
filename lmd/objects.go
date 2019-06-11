@@ -497,7 +497,7 @@ func NewServicegroupsTable() (t *Table) {
 	t = &Table{Name: "servicegroups", PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
 	t.AddColumn("action_url", Static, StringCol, "An optional URL to custom notes or actions on the service group")
 	t.AddColumn("alias", Static, StringCol, "An alias of the service group")
-	t.AddColumn("members", Static, StringListCol, "A list of all members of the service group as host/service pairs")
+	t.AddColumn("members", Static, InterfaceListCol, "A list of all members of the service group as host/service pairs")
 	t.AddColumn("name", Static, StringCol, "The name of the service group")
 	t.AddColumn("notes", Static, StringCol, "Optional additional notes about the service group")
 	t.AddColumn("notes_url", Static, StringCol, "An optional URL to further notes on the service group")
