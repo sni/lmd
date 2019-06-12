@@ -169,11 +169,11 @@ func TestAuthuserServicegroups(t *testing.T) {
 		t.Error(err)
 	}
 
-	res, _, err := peer.QueryString("GET servicegroups\nColumns: name\nAuthUser: authuser\n\n")
+	res, _, err := peer.QueryString("GET servicegroups\nColumns: name members\nAuthUser: authuser\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(0, len(*res)); err != nil {
+	if err := assertEq(1, len(*res)); err != nil {
 		t.Error(err)
 	}
 
@@ -263,7 +263,7 @@ func TestAuthuserHostsbygroup(t *testing.T) {
  * test that when setting the AuthUser header, no servicegroups are returned.
  */
 func TestAuthuserServicesbygroup(t *testing.T) {
-	peer := StartTestPeer(1, 2, 2)
+	peer := StartTestPeer(1, 2, 9)
 	PauseTestPeers(peer)
 
 	if err := assertEq(1, len(PeerMap)); err != nil {
@@ -271,12 +271,11 @@ func TestAuthuserServicesbygroup(t *testing.T) {
 	}
 
 	// Authuser should only see it's own services
-	res, _, err := peer.QueryString("GET servicesbygroup\nColumns: host_name description state\nAuthUser: authuser\n\n")
+	res, _, err := peer.QueryString("GET servicesbygroup\nColumns: host_name description servicegroup_name\nAuthuser: authuser\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	if err := assertEq(0, len(*res)); err != nil {
+	if err := assertEq(1, len(*res)); err != nil {
 		t.Error(err)
 	}
 
