@@ -378,6 +378,8 @@ func NewHostgroupsTable() (t *Table) {
 	t.AddPeerInfoColumn("lmd_last_cache_update", IntCol, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
+
+	t.AddExtraColumn("members_with_state", VirtStore, None, InterfaceListCol, NoFlags, "A list of all host names that are members of the hostgroup together with state and has_been_checked")
 	return
 }
 
@@ -514,6 +516,8 @@ func NewServicegroupsTable() (t *Table) {
 	t.AddPeerInfoColumn("lmd_last_cache_update", IntCol, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
+
+	t.AddExtraColumn("members_with_state", VirtStore, None, InterfaceListCol, NoFlags, "A list of all members of the service group with state and has_been_checked")
 	return
 }
 
