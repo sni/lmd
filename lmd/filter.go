@@ -633,16 +633,23 @@ func (f *Filter) MatchCustomVar(value map[string]string) bool {
 	return f.MatchString(&val)
 }
 
-// some broken clients request service_description instead of just description from the services table
+// some broken clients request <table>_column instead of just column
 // be nice to them as well...
 func fixBrokenClientsRequestColumn(columnName *string, table string) bool {
 	fixedColumnName := *columnName
 
 	switch table {
-	case "services":
-		fixedColumnName = strings.TrimPrefix(fixedColumnName, "service_")
-	case "hosts":
+	case "hostsbygroup":
 		fixedColumnName = strings.TrimPrefix(fixedColumnName, "host_")
+	case "servicesbygroup", "servicesbyhostgroup":
+		fixedColumnName = strings.TrimPrefix(fixedColumnName, "service_")
+	case "status":
+		fixedColumnName = strings.TrimPrefix(fixedColumnName, "status_")
+	default:
+		var tablePrefix strings.Builder
+		tablePrefix.WriteString(strings.TrimSuffix(table, "s"))
+		tablePrefix.WriteString("_")
+		fixedColumnName = strings.TrimPrefix(fixedColumnName, tablePrefix.String())
 	}
 
 	if _, ok := Objects.Tables[table].ColumnsIndex[fixedColumnName]; ok {

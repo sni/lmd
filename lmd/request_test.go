@@ -880,3 +880,57 @@ func TestRequestSites(t *testing.T) {
 		panic(err.Error())
 	}
 }
+
+/* Tests that getting columns based on <table>_<colum-name> works */
+func TestTableNameColName(t *testing.T) {
+	peer := StartTestPeer(1, 2, 2)
+	PauseTestPeers(peer)
+
+	if err := assertEq(1, len(PeerMap)); err != nil {
+		t.Error(err)
+	}
+
+	res, _, err := peer.QueryString("GET hosts\nColumns: host_name\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("testhost_1", (*res)[0][0]); err != nil {
+		t.Error(err)
+	}
+
+	res, _, err = peer.QueryString("GET hostgroups\nColumns: hostgroup_name\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("Everything", (*res)[0][0]); err != nil {
+		t.Error(err)
+	}
+
+	res, _, err = peer.QueryString("GET hostgroups\nColumns: hostgroup_name\nFilter: hostgroup_name = host_1\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("host_1", (*res)[0][0]); err != nil {
+		t.Error(err)
+	}
+
+	res, _, err = peer.QueryString("GET hostsbygroup\nColumns: host_name\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("testhost_1", (*res)[0][0]); err != nil {
+		t.Error(err)
+	}
+
+	res, _, err = peer.QueryString("GET servicesbygroup\nColumns: service_description\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("testsvc_1", (*res)[0][0]); err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
