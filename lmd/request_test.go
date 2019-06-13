@@ -934,3 +934,49 @@ func TestTableNameColName(t *testing.T) {
 		panic(err.Error())
 	}
 }
+
+func TestMembersWithState(t *testing.T) {
+	peer := StartTestPeer(1, 2, 9)
+	PauseTestPeers(peer)
+
+	if err := assertEq(1, len(PeerMap)); err != nil {
+		t.Error(err)
+	}
+
+	res, _, err := peer.QueryString("GET hostgroups\nColumns: members_with_state\nFilter: name = host_1\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	value := (*res)[0][0].([]interface{})[0].([]interface{})
+	if err := assertEq("testhost_1", value[0]); err != nil {
+		t.Error(err)
+	}
+	if err := assertEq(0., value[1]); err != nil {
+		t.Error(err)
+	}
+	if err := assertEq(1., value[2]); err != nil {
+		t.Error(err)
+	}
+
+	res, _, err = peer.QueryString("GET servicegroups\nColumns: members_with_state\nFilter: name = svc4\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	value = (*res)[0][0].([]interface{})[0].([]interface{})
+	if err := assertEq("testhost_2", value[0]); err != nil {
+		t.Error(err)
+	}
+	if err := assertEq("testsvc_4", value[1]); err != nil {
+		t.Error(err)
+	}
+	if err := assertEq(0., value[2]); err != nil {
+		t.Error(err)
+	}
+	if err := assertEq(1., value[3]); err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}

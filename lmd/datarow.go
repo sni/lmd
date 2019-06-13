@@ -355,6 +355,50 @@ func VirtColServicesWithInfo(d *DataRow, col *Column) interface{} {
 	return res
 }
 
+// VirtColMembersWithState returns a list of hostgroup/servicegroup members with their states
+func VirtColMembersWithState(d *DataRow, col *Column) interface{} {
+	res := make([]interface{}, 0)
+	switch d.DataStore.Table.Name {
+	case "hostgroups":
+		members := d.GetStringListByName("members")
+		hostsStore := d.DataStore.Peer.Tables["hosts"]
+		stateCol := hostsStore.Table.GetColumn("state")
+		checkedCol := hostsStore.Table.GetColumn("has_been_checked")
+
+		for _, hostName := range *members {
+			host, ok := hostsStore.Index[hostName]
+			if !ok {
+				log.Errorf("Could not find host: %s\n", hostName)
+				continue
+			}
+			hostValue := []interface{}{hostName, host.GetInt(stateCol), host.GetInt(checkedCol)}
+			res = append(res, hostValue)
+		}
+	case "servicegroups":
+		membersCol := d.DataStore.GetColumn("members")
+		members := d.GetInterfaceList(membersCol)
+		servicesStore := d.DataStore.Peer.Tables["services"]
+		stateCol := servicesStore.Table.GetColumn("state")
+		checkedCol := servicesStore.Table.GetColumn("has_been_checked")
+
+		for i := range members {
+			member := members[i].([]interface{})
+			hostName := member[0].(string)
+			serviceDescription := member[1].(string)
+
+			serviceID := hostName + ";" + serviceDescription
+			service, ok := servicesStore.Index[serviceID]
+			if !ok {
+				log.Errorf("Could not find service: %s\n", serviceID)
+				continue
+			}
+			serviceValue := []interface{}{hostName, serviceDescription, service.GetInt(stateCol), service.GetInt(checkedCol)}
+			res = append(res, serviceValue)
+		}
+	}
+	return res
+}
+
 // VirtColComments returns list of comment IDs (with optional additional information)
 func VirtColComments(d *DataRow, col *Column) interface{} {
 	commentsStore := d.DataStore.Peer.Tables["comments"]
