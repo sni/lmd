@@ -173,6 +173,9 @@ func NewPeer(localConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 		connectionCache: make(chan net.Conn, 10),
 		Flags:           uint32(NoFlags),
 	}
+	if len(p.Source) == 0 {
+		log.Fatalf("[%s] peer requires at least one source", p.Name)
+	}
 	p.Status["PeerKey"] = p.ID
 	p.Status["PeerName"] = p.Name
 	p.Status["CurPeerAddrNum"] = 0
@@ -680,18 +683,17 @@ func (p *Peer) InitAllTables() bool {
 			}
 
 			// if its http and a status request, try a processinfo query to fetch all backends
+			configtool, _ := p.fetchConfigTool() // this also sets the thruk version so it should be called first
 			p.fetchRemotePeers()
 			p.checkStatusFlags()
 
-			if p.HasFlag(MultiBackend) {
-				// check thruk config tool settings
-				configtool, _ := p.fetchConfigTool()
+			// check thruk config tool settings
+			p.PeerLock.Lock()
+			delete(p.Status, "ConfigTool")
+			p.PeerLock.Unlock()
+			if !p.HasFlag(MultiBackend) {
 				if configtool != nil {
 					p.StatusSet("ConfigTool", configtool)
-				} else {
-					p.PeerLock.Lock()
-					delete(p.Status, "ConfigTool")
-					p.PeerLock.Unlock()
 				}
 			}
 		case "hosts":
@@ -1272,8 +1274,14 @@ func (p *Peer) getHTTPQueryResponse(req *Request, query string, peerAddr string)
 func (p *Peer) getSocketQueryResponse(req *Request, query string, conn net.Conn) (*[]byte, error) {
 	// tcp/unix connections
 	// set read timeout
-	conn.SetDeadline(time.Now().Add(time.Duration(p.LocalConfig.NetTimeout) * time.Second))
-	fmt.Fprintf(conn, "%s", query)
+	err := conn.SetDeadline(time.Now().Add(time.Duration(p.LocalConfig.NetTimeout) * time.Second))
+	if err != nil {
+		return nil, err
+	}
+	_, err = fmt.Fprintf(conn, "%s", query)
+	if err != nil {
+		return nil, err
+	}
 
 	// close write part of connection
 	// but only on commands, it'll breaks larger responses with stunnel / xinetd constructs
@@ -1378,7 +1386,7 @@ func (p *Peer) parseResponseHeader(resBytes *[]byte) (expSize int64, err error) 
 	header := string((*resBytes)[0:15])
 	matched := reResponseHeader.FindStringSubmatch(header)
 	if len(matched) != 3 {
-		err = fmt.Errorf("[%s] incorrect response header: '%s'", p.Name, header)
+		err = fmt.Errorf("[%s] incorrect response header: '%s'", p.Name, string((*resBytes)[0:50]))
 		return
 	}
 	resCode, _ := strconv.Atoi(matched[1])
@@ -1514,6 +1522,7 @@ func (p *Peer) setNextAddrFromErr(err error) {
 	}
 	p.Status["CurPeerAddrNum"] = nextNum
 	p.Status["PeerAddr"] = p.Source[nextNum]
+	peerAddr = p.Source[nextNum]
 
 	// invalidate connection cache
 cache:
@@ -2091,8 +2100,10 @@ func (p *Peer) HTTPPostQuery(req *Request, peerAddr string, postData url.Values,
 		return
 	}
 	if result.Version != "" {
+		currentVersion := p.StatusGet("ThrukVersion").(float64)
 		thrukVersion, e := strconv.ParseFloat(result.Version, 64)
-		if e == nil {
+		if e == nil && currentVersion != thrukVersion {
+			log.Debugf("[%s] remote site uses thruk version: %s", p.Name, result.Version)
 			p.StatusSet("ThrukVersion", thrukVersion)
 		}
 	}
