@@ -696,10 +696,6 @@ func (p *Peer) InitAllTables() bool {
 					p.StatusSet("ConfigTool", configtool)
 				}
 			}
-		case "hosts":
-			promHostCount.WithLabelValues(p.Name).Set(float64(len(p.Tables["hosts"].Data)))
-		case "services":
-			promServiceCount.WithLabelValues(p.Name).Set(float64(len(p.Tables["services"].Data)))
 		case "comments":
 			p.RebuildCommentsCache()
 		case "downtimes":
@@ -1607,6 +1603,7 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 	p.Status["LastUpdate"] = now
 	p.Status["LastFullUpdate"] = now
 	p.PeerLock.Unlock()
+	promObjectCount.WithLabelValues(p.Name, table.Name).Set(float64(len((*res))))
 
 	return
 }
@@ -2674,6 +2671,7 @@ func (p *Peer) buildDowntimeCommentsCache(name string) map[string][]int64 {
 		cache[key] = append(cache[key], id)
 	}
 	p.DataLock.RUnlock()
+	promObjectCount.WithLabelValues(p.Name, name).Set(float64(len(store.Data)))
 
 	return cache
 }

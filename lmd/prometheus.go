@@ -136,23 +136,14 @@ var (
 		[]string{"peer"},
 	)
 
-	promHostCount = prometheus.NewGaugeVec(
+	promObjectCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: NAME,
 			Subsystem: "peer",
-			Name:      "host_num",
-			Help:      "Number of hosts",
+			Name:      "object_count",
+			Help:      "Number of objects",
 		},
-		[]string{"peer"},
-	)
-	promServiceCount = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: NAME,
-			Subsystem: "peer",
-			Name:      "service_num",
-			Help:      "Number of services",
-		},
-		[]string{"peer"},
+		[]string{"peer", "type"},
 	)
 )
 
@@ -187,8 +178,7 @@ func initPrometheus(localConfig *Config) (prometheusListener io.Closer) {
 	prometheus.Register(promPeerUpdateDuration)
 	prometheus.Register(promPeerUpdatedHosts)
 	prometheus.Register(promPeerUpdatedServices)
-	prometheus.Register(promHostCount)
-	prometheus.Register(promServiceCount)
+	prometheus.Register(promObjectCount)
 
 	promInfoCount.WithLabelValues(VERSION).Set(1)
 
