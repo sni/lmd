@@ -84,15 +84,15 @@ func (raw *RawResultSet) Less(i, j int) bool {
 			}
 			return *s1 > *s2
 		case StringListCol:
-			s1 := strings.Join(*raw.DataResult[i].GetStringList(s.Column), ";")
-			s2 := strings.Join(*raw.DataResult[j].GetStringList(s.Column), ";")
-			if s1 == s2 {
+			s1 := joinStringlist(raw.DataResult[i].GetStringList(s.Column), ";")
+			s2 := joinStringlist(raw.DataResult[j].GetStringList(s.Column), ";")
+			if *s1 == *s2 {
 				continue
 			}
 			if s.Direction == Asc {
-				return s1 < s2
+				return *s1 < *s2
 			}
-			return s1 > s2
+			return *s1 > *s2
 		case IntListCol:
 			// join numbers to string
 			s1 := strings.Join(strings.Fields(fmt.Sprint(raw.DataResult[i].GetIntList(s.Column))), ";")

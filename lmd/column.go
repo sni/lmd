@@ -53,11 +53,15 @@ var VirtColumnList = []VirtColumnMapEntry{
 	{Name: "comments_with_info", ResolvFunc: VirtColComments},
 	{Name: "downtimes", ResolvFunc: VirtColDowntimes},
 	{Name: "members_with_state", ResolvFunc: VirtColMembersWithState},
+	{Name: "custom_variables", ResolvFunc: VirtColCustomVariables},
 	{Name: "empty", ResolvFunc: func(_ *DataRow, _ *Column) interface{} { return "" }}, // return empty string as placeholder for nonexisting columns
 }
 
 // VirtColumnMap maps is the lookup map for the VirtColumnList
 var VirtColumnMap = map[string]*VirtColumnMapEntry{}
+
+// ServiceMember is a host_name / description pair
+type ServiceMember [2]*string
 
 // FetchType defines if and how the column is updated.
 //go:generate stringer -type=FetchType
@@ -74,7 +78,7 @@ const (
 
 // DataType defines the data type of a column.
 //go:generate stringer -type=DataType
-type DataType uint8
+type DataType uint16
 
 const (
 	// StringCol is used for string columns.
@@ -91,6 +95,8 @@ const (
 	HashMapCol
 	// CustomVarCol is a list of custom variables
 	CustomVarCol
+	// ServiceMemberListCol is a list of host_name/servicename pairs
+	ServiceMemberListCol
 	// InterfaceListCol is a list of arbitrary data
 	InterfaceListCol
 )
@@ -252,6 +258,8 @@ func (c *Column) GetEmptyValue() interface{} {
 		return (make([]interface{}, 0))
 	case HashMapCol:
 		return (make(map[string]string))
+	case ServiceMemberListCol:
+		fallthrough
 	case InterfaceListCol:
 		return (make([]interface{}, 0))
 	default:

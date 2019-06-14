@@ -172,6 +172,8 @@ func (f *Filter) strValue() string {
 		value = fmt.Sprintf("%v", f.FloatValue)
 	case StringListCol:
 		fallthrough
+	case ServiceMemberListCol:
+		fallthrough
 	case InterfaceListCol:
 		fallthrough
 	case StringCol:
@@ -299,6 +301,8 @@ func (f *Filter) setFilterValue(strVal string) (err error) {
 	case InterfaceListCol:
 		fallthrough
 	case StringListCol:
+		fallthrough
+	case ServiceMemberListCol:
 		fallthrough
 	case StringCol:
 		f.StrValue = strVal
@@ -551,7 +555,7 @@ func (f *Filter) MatchString(value *string) bool {
 	return false
 }
 
-func (f *Filter) MatchStringList(list *[]string) bool {
+func (f *Filter) MatchStringList(list *[]*string) bool {
 	switch f.Operator {
 	case Equal:
 		// used to match for empty lists, like: contacts = ""
@@ -563,14 +567,14 @@ func (f *Filter) MatchStringList(list *[]string) bool {
 		return f.StrValue == "" && len(*list) != 0
 	case GreaterThan:
 		for i := range *list {
-			if f.StrValue == (*list)[i] {
+			if f.StrValue == *((*list)[i]) {
 				return true
 			}
 		}
 		return false
 	case GroupContainsNot:
 		for i := range *list {
-			if f.StrValue == (*list)[i] {
+			if f.StrValue == *((*list)[i]) {
 				return false
 			}
 		}
@@ -579,7 +583,7 @@ func (f *Filter) MatchStringList(list *[]string) bool {
 		fallthrough
 	case RegexNoCaseMatch:
 		for i := range *list {
-			if f.MatchString(&((*list)[i])) {
+			if f.MatchString((*list)[i]) {
 				return true
 			}
 		}
@@ -588,7 +592,7 @@ func (f *Filter) MatchStringList(list *[]string) bool {
 		fallthrough
 	case RegexNoCaseMatchNot:
 		for i := range *list {
-			if f.MatchString(&((*list)[i])) {
+			if f.MatchString((*list)[i]) {
 				return false
 			}
 		}

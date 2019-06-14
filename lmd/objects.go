@@ -251,7 +251,6 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("contact_groups", Static, StringListCol, "A list of all contact groups this host is in")
 	t.AddColumn("current_attempt", Dynamic, IntCol, "Number of the current check attempts")
 	t.AddColumn("current_notification_number", Dynamic, IntCol, "Number of the current notification")
-	t.AddColumn("custom_variables", Dynamic, CustomVarCol, "A dictionary of the custom variables")
 	t.AddColumn("custom_variable_names", Static, StringListCol, "A list of the names of all custom variables")
 	t.AddColumn("custom_variable_values", Dynamic, StringListCol, "A list of the values of the custom variables")
 	t.AddColumn("display_name", Static, StringCol, "Optional display name of the host")
@@ -339,6 +338,7 @@ func NewHostsTable() (t *Table) {
 	// icinga2 specific
 	t.AddExtraColumn("address6", LocalStore, Static, StringCol, Icinga2, "IPv6 address")
 
+	t.AddExtraColumn("custom_variables", VirtStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
 	t.AddExtraColumn("services_with_info", VirtStore, None, InterfaceListCol, NoFlags, "The services, including info, that is associated with the host")
 	t.AddExtraColumn("services_with_state", VirtStore, None, InterfaceListCol, NoFlags, "The services, including state info, that is associated with the host")
 	t.AddExtraColumn("comments", VirtStore, None, IntListCol, NoFlags, "A list of the ids of all comments of this host")
@@ -402,7 +402,6 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("contact_groups", Static, StringListCol, "A list of all contact groups this service is in")
 	t.AddColumn("current_attempt", Dynamic, IntCol, "The number of the current check attempt")
 	t.AddColumn("current_notification_number", Dynamic, IntCol, "The number of the current notification")
-	t.AddColumn("custom_variables", Dynamic, CustomVarCol, "A dictionary of the custom variables")
 	t.AddColumn("custom_variable_names", Static, StringListCol, "A list of the names of all custom variables of the service")
 	t.AddColumn("custom_variable_values", Dynamic, StringListCol, "A list of the values of all custom variable of the service")
 	t.AddColumn("description", Static, StringCol, "Description of the service (also used as key)")
@@ -466,8 +465,8 @@ func NewServicesTable() (t *Table) {
 
 	// naemon specific
 	t.AddExtraColumn("obsess", LocalStore, Dynamic, IntCol, Naemon, "The obsessing over service")
-	t.AddExtraColumn("depends_exec", LocalStore, Static, InterfaceListCol, Naemon1_0_10, "List of services this services depends on for execution")
-	t.AddExtraColumn("depends_notify", LocalStore, Static, InterfaceListCol, Naemon1_0_10, "List of services this services depends on for notification")
+	t.AddExtraColumn("depends_exec", LocalStore, Static, ServiceMemberListCol, Naemon1_0_10, "List of services this services depends on for execution")
+	t.AddExtraColumn("depends_notify", LocalStore, Static, ServiceMemberListCol, Naemon1_0_10, "List of services this services depends on for notification")
 	t.AddExtraColumn("parents", LocalStore, Static, StringListCol, Naemon1_0_10, "List of services descriptions this services depends on")
 
 	// shinken specific
@@ -484,6 +483,7 @@ func NewServicesTable() (t *Table) {
 
 	t.AddRefColumns("hosts", "host", []string{"host_name"})
 
+	t.AddExtraColumn("custom_variables", VirtStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
 	t.AddExtraColumn("comments", VirtStore, None, IntListCol, NoFlags, "A list of all comment ids of the service")
 	t.AddExtraColumn("comments_with_info", VirtStore, None, InterfaceListCol, NoFlags, "A list of all comments of the host with id, author and comment")
 	t.AddExtraColumn("downtimes", VirtStore, None, IntListCol, NoFlags, "A list of all downtime ids of the service")
@@ -501,7 +501,7 @@ func NewServicegroupsTable() (t *Table) {
 	t = &Table{Name: "servicegroups", PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
 	t.AddColumn("action_url", Static, StringCol, "An optional URL to custom notes or actions on the service group")
 	t.AddColumn("alias", Static, StringCol, "An alias of the service group")
-	t.AddColumn("members", Static, InterfaceListCol, "A list of all members of the service group as host/service pairs")
+	t.AddColumn("members", Static, ServiceMemberListCol, "A list of all members of the service group as host/service pairs")
 	t.AddColumn("name", Static, StringCol, "The name of the service group")
 	t.AddColumn("notes", Static, StringCol, "Optional additional notes about the service group")
 	t.AddColumn("notes_url", Static, StringCol, "An optional URL to further notes on the service group")
