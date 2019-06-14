@@ -8,6 +8,7 @@ import (
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
+	"github.com/lkarlslund/stringdedup"
 )
 
 // DataRow represents a single entry in a DataTable
@@ -530,12 +531,7 @@ func (d *DataRow) UpdateValues(data *[]interface{}, columns *ColumnList, timesta
 		col := (*columns)[i]
 		switch col.DataType {
 		case StringCol:
-			if col.FetchType == Static {
-				// deduplicate strings
-				d.dataString[col.Index] = d.deduplicateString(interface2string((*data)[i]))
-			} else {
-				d.dataString[col.Index] = interface2string((*data)[i])
-			}
+			d.dataString[col.Index] = interface2string((*data)[i])
 		case StringListCol:
 			if col.FetchType == Static {
 				// deduplicate string lists
@@ -619,7 +615,8 @@ func interface2int64(in interface{}) int64 {
 func interface2string(in interface{}) *string {
 	switch v := in.(type) {
 	case string:
-		return &v
+		dedupedstring := stringdedup.S(v)
+		return &dedupedstring
 	case *string:
 		return v
 	case nil:
@@ -710,18 +707,6 @@ func interface2interfacelist(in interface{}) []interface{} {
 	}
 	val := make([]interface{}, 0)
 	return val
-}
-
-// deduplicateString store duplicate strings only once
-func (d *DataRow) deduplicateString(str *string) *string {
-	if d.DataStore.dupString == nil {
-		return str
-	}
-	if l, ok := d.DataStore.dupString[*str]; ok {
-		return l
-	}
-	d.DataStore.dupString[*str] = str
-	return str
 }
 
 // deduplicateStringlist store duplicate string lists only once

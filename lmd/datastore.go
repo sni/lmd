@@ -14,7 +14,6 @@ type DataStore struct {
 	Data                    []*DataRow             // the actual data rows
 	Index                   map[string]*DataRow    // access data rows from primary key, ex.: hostname or comment id
 	Table                   *Table                 // reference to table definition
-	dupString               map[string]*string     // lookup pointer to other strings durint initialize
 	dupStringList           map[[32]byte]*[]string // lookup pointer to other stringlists durint initialize
 }
 
@@ -25,7 +24,6 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 		Index:                   make(map[string]*DataRow),
 		DynamicColumnCache:      make(ColumnList, 0),
 		DynamicColumnNamesCache: make([]string, 0),
-		dupString:               make(map[string]*string),
 		dupStringList:           make(map[[32]byte]*[]string),
 		Table:                   table,
 	}
@@ -79,7 +77,6 @@ func (d *DataStore) InsertData(data *ResultSet, columns *ColumnList) error {
 		d.AddItem(row)
 	}
 	// only required during initial setup
-	d.dupString = nil
 	d.dupStringList = nil
 	return nil
 }
