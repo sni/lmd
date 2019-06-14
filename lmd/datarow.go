@@ -628,13 +628,12 @@ func interface2string(in interface{}) *string {
 }
 
 func interface2stringlist(in interface{}) *[]string {
-	if list, ok := in.(*[]string); ok {
-		return (list)
-	}
-	if list, ok := in.([]string); ok {
-		return (&list)
-	}
-	if list, ok := in.([]interface{}); ok {
+	switch list := in.(type) {
+	case *[]string:
+		return list
+	case []string:
+		return &list
+	case []interface{}:
 		val := make([]string, 0, len(list))
 		for i := range list {
 			val = append(val, *(interface2string(list[i])))
