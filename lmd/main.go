@@ -213,6 +213,8 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	setServiceAuthorization(&localConfig)
 	setGroupAuthorization(&localConfig)
 
+	promPeerUpdateInterval.Set(float64(localConfig.Updateinterval))
+
 	osSignalChannel := make(chan os.Signal, 1)
 	signal.Notify(osSignalChannel, syscall.SIGHUP)
 	signal.Notify(osSignalChannel, syscall.SIGTERM)
@@ -646,8 +648,6 @@ func ReadConfig(files []string) *Config {
 			}
 		}
 	}
-
-	promPeerUpdateInterval.Set(float64(conf.Updateinterval))
 
 	return conf
 }
