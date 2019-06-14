@@ -27,6 +27,15 @@ var (
 		},
 		[]string{"listen"},
 	)
+	promFrontendQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: NAME,
+			Subsystem: "frontend",
+			Name:      "queries",
+			Help:      "Listener Query Counter",
+		},
+		[]string{"peer"},
+	)
 	promFrontendBytesSend = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: NAME,
@@ -166,6 +175,7 @@ func initPrometheus(localConfig *Config) (prometheusListener io.Closer) {
 	}
 	prometheus.Register(promInfoCount)
 	prometheus.Register(promFrontendConnections)
+	prometheus.Register(promFrontendQueries)
 	prometheus.Register(promFrontendBytesSend)
 	prometheus.Register(promFrontendBytesReceived)
 	prometheus.Register(promPeerUpdateInterval)

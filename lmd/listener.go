@@ -74,6 +74,7 @@ func QueryServer(c net.Conn) error {
 		}
 		switch {
 		case len(reqs) > 0:
+			promFrontendQueries.WithLabelValues(localAddr).Add(float64(len(reqs)))
 			keepAlive, err = ProcessRequests(reqs, c, remote)
 
 			// keep open keepalive request until either the client closes the connection or the deadline timeout is hit
