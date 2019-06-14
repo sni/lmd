@@ -34,7 +34,7 @@ var (
 			Name:      "queries",
 			Help:      "Listener Query Counter",
 		},
-		[]string{"peer"},
+		[]string{"listen"},
 	)
 	promFrontendBytesSend = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
