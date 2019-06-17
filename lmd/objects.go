@@ -172,7 +172,7 @@ func NewTimeperiodsTable() (t *Table) {
 	t.AddColumn("in", Dynamic, IntCol, "Wether we are currently in this period (0/1)")
 
 	// naemon specific
-	t.AddExtraColumn("days", LocalStore, Static, StringListCol, Naemon, "days")
+	t.AddExtraColumn("days", LocalStore, Static, InterfaceListCol, Naemon, "days")
 	t.AddExtraColumn("exceptions_calendar_dates", LocalStore, Static, StringListCol, Naemon, "exceptions_calendar_dates")
 	t.AddExtraColumn("exceptions_month_date", LocalStore, Static, StringListCol, Naemon, "exceptions_month_date")
 	t.AddExtraColumn("exceptions_month_day", LocalStore, Static, StringListCol, Naemon, "exceptions_month_day")
