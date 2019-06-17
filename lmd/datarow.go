@@ -24,6 +24,7 @@ type DataRow struct {
 	dataStringList        []*[]*string        // stores stringlists
 	dataIntList           [][]int64           // stores lists of integers
 	dataServiceMemberList []*[]ServiceMember  // stores list of servicemembers
+	dataInterfaceList     [][]interface{}
 }
 
 // NewDataRow creates a new DataRow
@@ -83,6 +84,7 @@ func (d *DataRow) SetData(raw *[]interface{}, columns *ColumnList, timestamp int
 	d.dataIntList = make([][]int64, d.DataStore.DataSizes[IntListCol])
 	d.dataFloat = make([]float64, d.DataStore.DataSizes[FloatCol])
 	d.dataServiceMemberList = make([]*[]ServiceMember, d.DataStore.DataSizes[ServiceMemberListCol])
+	d.dataInterfaceList = make([][]interface{}, d.DataStore.DataSizes[InterfaceListCol])
 	return d.UpdateValues(raw, columns, timestamp)
 }
 
@@ -246,6 +248,9 @@ func (d *DataRow) GetServiceMemberList(col *Column) *[]ServiceMember {
 func (d *DataRow) GetInterfaceList(col *Column) []interface{} {
 	switch col.StorageType {
 	case LocalStore:
+		if col.DataType == InterfaceListCol {
+			return d.dataInterfaceList[col.Index]
+		}
 		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
 		return d.Refs[col.RefCol.Table.Name].GetInterfaceList(col.RefCol)
@@ -563,6 +568,8 @@ func (d *DataRow) UpdateValues(data *[]interface{}, columns *ColumnList, timesta
 			d.dataFloat[col.Index] = interface2float64((*data)[i])
 		case ServiceMemberListCol:
 			d.dataServiceMemberList[col.Index] = interface2servicememberlist((*data)[i])
+		case InterfaceListCol:
+			d.dataInterfaceList[col.Index] = interface2interfacelist((*data)[i])
 		default:
 			log.Panicf("unsupported column %s (type %d) in table %s", col.Name, col.DataType, d.DataStore.Table.Name)
 		}
