@@ -173,11 +173,11 @@ func NewTimeperiodsTable() (t *Table) {
 
 	// naemon specific
 	t.AddExtraColumn("days", LocalStore, Static, InterfaceListCol, Naemon, "days")
-	t.AddExtraColumn("exceptions_calendar_dates", LocalStore, Static, StringListCol, Naemon, "exceptions_calendar_dates")
-	t.AddExtraColumn("exceptions_month_date", LocalStore, Static, StringListCol, Naemon, "exceptions_month_date")
-	t.AddExtraColumn("exceptions_month_day", LocalStore, Static, StringListCol, Naemon, "exceptions_month_day")
-	t.AddExtraColumn("exceptions_month_week_day", LocalStore, Static, StringListCol, Naemon, "exceptions_month_week_day")
-	t.AddExtraColumn("exceptions_week_day", LocalStore, Static, StringListCol, Naemon, "exceptions_week_day")
+	t.AddExtraColumn("exceptions_calendar_dates", LocalStore, Static, InterfaceListCol, Naemon, "exceptions_calendar_dates")
+	t.AddExtraColumn("exceptions_month_date", LocalStore, Static, InterfaceListCol, Naemon, "exceptions_month_date")
+	t.AddExtraColumn("exceptions_month_day", LocalStore, Static, InterfaceListCol, Naemon, "exceptions_month_day")
+	t.AddExtraColumn("exceptions_month_week_day", LocalStore, Static, InterfaceListCol, Naemon, "exceptions_month_week_day")
+	t.AddExtraColumn("exceptions_week_day", LocalStore, Static, InterfaceListCol, Naemon, "exceptions_week_day")
 	t.AddExtraColumn("exclusions", LocalStore, Static, StringListCol, Naemon, "exclusions")
 	t.AddExtraColumn("id", LocalStore, Static, IntCol, Naemon, "The id of the timeperiods")
 
