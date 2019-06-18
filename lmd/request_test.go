@@ -948,13 +948,13 @@ func TestMembersWithState(t *testing.T) {
 		t.Fatal(err)
 	}
 	value := (*res)[0][0].([]interface{})[0].([]interface{})
-	if err := assertEq("testhost_1", value[0]); err != nil {
+	if err = assertEq("testhost_1", value[0]); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq(0., value[1]); err != nil {
+	if err = assertEq(0., value[1]); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq(1., value[2]); err != nil {
+	if err = assertEq(1., value[2]); err != nil {
 		t.Error(err)
 	}
 
