@@ -474,22 +474,18 @@ func (res *Response) BuildLocalResponse(peers []*Peer) {
 	waitgroup := &sync.WaitGroup{}
 	for i := range peers {
 		p := peers[i]
-		p.DataLock.RLock()
-		store := p.Tables[res.Request.Table]
-		p.DataLock.RUnlock()
-
 		p.StatusSet("LastQuery", time.Now().Unix())
-
-		if store == nil || (!p.isOnline() && store.Table.Virtual == nil) {
+		store, err := p.GetDataStore(res.Request.Table)
+		if err != nil {
 			res.Lock.Lock()
-			res.Failed[p.ID] = p.getError()
+			res.Failed[p.ID] = err.Error()
 			res.Lock.Unlock()
 			continue
 		}
 
 		// process virtual tables serially without go routines to maintain the correct order, ex.: from the sites table
 		if store.Table.Virtual != nil {
-			p.BuildLocalResponseData(res, resultcollector)
+			p.BuildLocalResponseData(res, store, resultcollector)
 			continue
 		}
 
@@ -501,7 +497,7 @@ func (res *Response) BuildLocalResponse(peers []*Peer) {
 			log.Tracef("[%s] starting local data computation", peer.Name)
 			defer wg.Done()
 
-			peer.BuildLocalResponseData(res, resultcollector)
+			peer.BuildLocalResponseData(res, store, resultcollector)
 		}(p, waitgroup)
 	}
 	log.Tracef("waiting...")

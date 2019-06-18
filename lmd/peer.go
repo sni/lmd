@@ -281,11 +281,7 @@ func (p *Peer) hasChanged() (changed bool) {
 // Clear resets the data table.
 func (p *Peer) Clear() {
 	p.DataLock.Lock()
-	for key := range p.Tables {
-		if p.Tables[key].Table.Virtual == nil {
-			delete(p.Tables, key)
-		}
-	}
+	p.Tables = make(map[string]*DataStore)
 	p.DataLock.Unlock()
 }
 
@@ -1056,9 +1052,9 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	}
 	var maxID int64
 	p.DataLock.RLock()
-	entries := len(p.Tables[store.Table.Name].Data)
+	entries := len(store.Data)
 	if entries > 0 {
-		maxID = p.Tables[store.Table.Name].Data[entries-1].GetIntByName("id")
+		maxID = store.Data[entries-1].GetIntByName("id")
 	}
 	p.DataLock.RUnlock()
 
@@ -1080,7 +1076,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 		return
 	}
 	p.DataLock.Lock()
-	idIndex := p.Tables[store.Table.Name].Index
+	idIndex := store.Index
 	missingIds := []int64{}
 	resIndex := make(map[string]bool)
 	for i := range *res {
@@ -1096,16 +1092,14 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	}
 
 	// remove old comments / downtimes
-	data := p.Tables[store.Table.Name]
 	for id := range idIndex {
 		_, ok := resIndex[id]
 		if !ok {
 			log.Debugf("removing %s with id %s", name, id)
 			tmp := idIndex[id]
-			data.RemoveItem(tmp)
+			store.RemoveItem(tmp)
 		}
 	}
-	p.Tables[store.Table.Name] = data
 	p.DataLock.Unlock()
 
 	if len(missingIds) > 0 {
@@ -1127,21 +1121,19 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 			return
 		}
 		p.DataLock.Lock()
-		data := p.Tables[store.Table.Name]
-		if data.Index == nil {
+		if store.Index == nil {
 			// should not happen but might indicate a recent restart or backend issue
 			p.DataLock.Unlock()
 			return
 		}
 		for i := range *res {
 			resRow := (*res)[i]
-			row, nErr := NewDataRow(data, &resRow, columns, 0)
+			row, nErr := NewDataRow(store, &resRow, columns, 0)
 			if nErr != nil {
 				return nErr
 			}
-			data.AddItem(row)
+			store.AddItem(row)
 		}
-		p.Tables[store.Table.Name] = data
 		p.DataLock.Unlock()
 	}
 
@@ -1556,25 +1548,12 @@ cache:
 // It returns any error encountered.
 func (p *Peer) CreateObjectByType(table *Table) (err error) {
 	// log table does not create objects
-	if table.PassthroughOnly {
+	if table.PassthroughOnly || table.Virtual != nil {
 		return
 	}
 
-	var store *DataStore
-	if table.Virtual != nil {
-		store = table.Virtual(table, p)
-	} else {
-		store = NewDataStore(table, p)
-	}
+	store := NewDataStore(table, p)
 	keys, columns := store.GetInitialColumns()
-
-	// complete virtual table ends here
-	if len(keys) == 0 || table.Virtual != nil {
-		p.DataLock.Lock()
-		p.Tables[table.Name] = store
-		p.DataLock.Unlock()
-		return
-	}
 
 	// fetch remote objects
 	req := &Request{
@@ -1801,7 +1780,7 @@ func (p *Peer) UpdateObjectByType(tableName string) (restartRequired bool, err e
 		return
 	}
 	p.DataLock.RLock()
-	data := p.Tables[store.Table.Name].Data
+	data := store.Data
 	p.DataLock.RUnlock()
 	if len(*res) != len(data) {
 		log.Debugf("[%s] site returned different number of objects, assuming backend has been restarted, table: %s, expected: %d, received: %d", p.Name, store.Table.Name, len(data), len(*res))
@@ -1893,93 +1872,100 @@ func (p *Peer) WaitCondition(req *Request) bool {
 		req.WaitTimeout = 60 * 1000
 	}
 	c := make(chan struct{})
-	go func() {
-		// make sure we log panics properly
-		defer logPanicExitPeer(p)
-
-		p.DataLock.RLock()
-		store := p.Tables[req.Table]
-		p.DataLock.RUnlock()
-		var lastUpdate int64
-		for {
-			select {
-			case <-c:
-				// canceled
-				return
-			default:
-			}
-
-			// waiting for final update to complete
-			if lastUpdate > 0 {
-				curUpdate := p.StatusGet("LastUpdate").(int64)
-				// wait up to WaitTimeout till the update is complete
-				if curUpdate > lastUpdate {
-					close(c)
-					return
-				}
-				time.Sleep(time.Millisecond * 200)
-				continue
-			}
-
-			// get object to watch
-			var found = false
-			if req.WaitObject != "" {
-				p.DataLock.RLock()
-				obj, ok := p.Tables[req.Table].Index[req.WaitObject]
-				p.DataLock.RUnlock()
-				if !ok {
-					log.Errorf("WaitObject did not match any object: %s", req.WaitObject)
-					close(c)
-					return
-				}
-
-				found = true
-				for i := range req.WaitCondition {
-					if !obj.MatchFilter(req.WaitCondition[i]) {
-						found = false
-					}
-				}
-			} else if p.waitConditionTableMatches(store, &req.WaitCondition) {
-				found = true
-			}
-
-			// invert wait condition logic
-			if req.WaitConditionNegate {
-				found = !found
-			}
-
-			if found {
-				// trigger update for all, wait conditions are run against the last object
-				// but multiple commands may have been sent
-				p.ScheduleImmediateUpdate()
-				lastUpdate = p.StatusGet("LastUpdate").(int64)
-				continue
-			}
-
-			// nothing matched, update tables
-			time.Sleep(time.Millisecond * 200)
-			switch req.Table {
-			case "hosts":
-				p.UpdateDeltaTableHosts("Filter: name = " + req.WaitObject + "\n")
-			case "services":
-				tmp := strings.SplitN(req.WaitObject, ";", 2)
-				if len(tmp) < 2 {
-					log.Errorf("unsupported service wait object: %s", req.WaitObject)
-					close(c)
-					return
-				}
-				p.UpdateDeltaTableServices("Filter: host_name = " + tmp[0] + "\nFilter: description = " + tmp[1] + "\n")
-			default:
-				p.UpdateObjectByType(store.Table.Name)
-			}
-		}
-	}()
+	go func(p *Peer, c chan struct{}, req *Request) {
+		p.waitcondition(c, req)
+	}(p, c, req)
 	select {
 	case <-c:
 		return false // completed normally
 	case <-time.After(time.Duration(req.WaitTimeout) * time.Millisecond):
 		close(c)
 		return true // timed out
+	}
+}
+
+func (p *Peer) waitcondition(c chan struct{}, req *Request) {
+	// make sure we log panics properly
+	defer logPanicExitPeer(p)
+
+	var lastUpdate int64
+	for {
+		select {
+		case <-c:
+			// canceled
+			return
+		default:
+		}
+
+		store, err := p.GetDataStore(req.Table)
+		if err != nil {
+			time.Sleep(time.Millisecond * 200)
+			continue
+		}
+
+		// waiting for final update to complete
+		if lastUpdate > 0 {
+			curUpdate := p.StatusGet("LastUpdate").(int64)
+			// wait up to WaitTimeout till the update is complete
+			if curUpdate > lastUpdate {
+				close(c)
+				return
+			}
+			time.Sleep(time.Millisecond * 200)
+			continue
+		}
+
+		// get object to watch
+		var found = false
+		if req.WaitObject != "" {
+			p.DataLock.RLock()
+			obj, ok := store.Index[req.WaitObject]
+			p.DataLock.RUnlock()
+			if !ok {
+				log.Errorf("WaitObject did not match any object: %s", req.WaitObject)
+				close(c)
+				return
+			}
+
+			found = true
+			for i := range req.WaitCondition {
+				if !obj.MatchFilter(req.WaitCondition[i]) {
+					found = false
+				}
+			}
+		} else if p.waitConditionTableMatches(store, &req.WaitCondition) {
+			found = true
+		}
+
+		// invert wait condition logic
+		if req.WaitConditionNegate {
+			found = !found
+		}
+
+		if found {
+			// trigger update for all, wait conditions are run against the last object
+			// but multiple commands may have been sent
+			p.ScheduleImmediateUpdate()
+			lastUpdate = p.StatusGet("LastUpdate").(int64)
+			continue
+		}
+
+		// nothing matched, update tables
+		time.Sleep(time.Millisecond * 200)
+		switch req.Table {
+		case "hosts":
+			p.UpdateDeltaTableHosts("Filter: name = " + req.WaitObject + "\n")
+		case "services":
+			tmp := strings.SplitN(req.WaitObject, ";", 2)
+			if len(tmp) < 2 {
+				log.Errorf("unsupported service wait object: %s", req.WaitObject)
+				close(c)
+				return
+			}
+			p.UpdateDeltaTableServices("Filter: host_name = " + tmp[0] + "\nFilter: description = " + tmp[1] + "\n")
+		default:
+			p.UpdateObjectByType(store.Table.Name)
+		}
 	}
 }
 
@@ -2212,26 +2198,27 @@ func SpinUpPeers(peers []*Peer) {
 }
 
 // BuildLocalResponseData returns the result data for a given request
-func (p *Peer) BuildLocalResponseData(res *Response, resultcollector chan *DataRow) {
+func (p *Peer) BuildLocalResponseData(res *Response, store *DataStore, resultcollector chan *DataRow) {
 	req := res.Request
 	log.Tracef("BuildLocalResponseData: %s", p.Name)
 
 	// if a WaitTrigger is supplied, wait max ms till the condition is true
 	if req.WaitTrigger != "" {
 		p.WaitCondition(req)
+
+		// peer might have gone down meanwhile, ex. after waiting for a waittrigger, so check again
+		s, err := p.GetDataStore(req.Table)
+		if err != nil {
+			res.Lock.Lock()
+			res.Failed[p.ID] = err.Error()
+			res.Lock.Unlock()
+			return
+		}
+		store = s
 	}
 
 	p.DataLock.RLock()
 	defer p.DataLock.RUnlock()
-
-	// peer might have gone down meanwhile, ex. after waiting for a waittrigger, so check again
-	store := p.Tables[req.Table]
-	if store == nil || (!p.isOnline() && store.Table.Virtual == nil) {
-		res.Lock.Lock()
-		res.Failed[p.ID] = p.getError()
-		res.Lock.Unlock()
-		return
-	}
 
 	if len(store.Data) == 0 {
 		return
@@ -2695,4 +2682,22 @@ func (p *Peer) SetFlag(flag OptionalFlags) {
 // ClearFlags removes all flags
 func (p *Peer) ClearFlags() {
 	atomic.StoreUint32(&p.Flags, uint32(NoFlags))
+}
+
+// GetDataStore returns store for given name or error if peer is offline
+func (p *Peer) GetDataStore(tableName string) (store *DataStore, err error) {
+	table := Objects.Tables[tableName]
+	if table.Virtual != nil {
+		store = table.Virtual(table, p)
+		return
+	}
+	p.DataLock.RLock()
+	store = p.Tables[tableName]
+	p.DataLock.RUnlock()
+	if store == nil || !p.isOnline() {
+		store = nil
+		err = fmt.Errorf("%s", p.getError())
+		return
+	}
+	return
 }
