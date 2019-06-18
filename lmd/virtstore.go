@@ -35,11 +35,16 @@ func GetTableColumnsStore(table *Table, _ *Peer) *DataStore {
 			default:
 				log.Panicf("type not handled in table %s: %#v", t.Name, c)
 			}
-			row := make([]interface{}, 4)
-			row[0] = c.Name
-			row[1] = t.Name
-			row[2] = colTypeName
-			row[3] = c.Description
+			row := []interface{}{
+				c.Name,
+				t.Name,
+				colTypeName,
+				c.Description,
+				c.FetchType.String(),
+				c.DataType.String(),
+				c.StorageType.String(),
+				c.Optional.List(),
+			}
 			data = append(data, row)
 		}
 	}

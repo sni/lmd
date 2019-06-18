@@ -146,28 +146,37 @@ const (
 	Naemon1_0_10
 )
 
+var OptionalFlagsStrings = map[OptionalFlags]string{
+	LMD:          "LMD",
+	MultiBackend: "MultiBackend",
+	LMDSub:       "LMDSub",
+	HTTPSub:      "HTTPSub",
+	Shinken:      "Shinken",
+	Icinga2:      "Icinga2",
+	Naemon:       "Naemon",
+	Naemon1_0_10: "Naemon1_0_10",
+}
+
 // String returns the string representation of used flags
 func (f *OptionalFlags) String() string {
 	if *f == NoFlags {
 		return "<none>"
 	}
-	flags := map[OptionalFlags]string{
-		LMD:          "LMD",
-		MultiBackend: "MultiBackend",
-		LMDSub:       "LMDSub",
-		HTTPSub:      "HTTPSub",
-		Shinken:      "Shinken",
-		Icinga2:      "Icinga2",
-		Naemon:       "Naemon",
-		Naemon1_0_10: "Naemon1_0_10",
+	return (strings.Join(f.List(), ", "))
+}
+
+// List returns a string list of used flags
+func (f *OptionalFlags) List() (list []string) {
+	list = make([]string, 0)
+	if *f == NoFlags {
+		return
 	}
-	str := []string{}
-	for fl, name := range flags {
+	for fl, name := range OptionalFlagsStrings {
 		if f.HasFlag(fl) {
-			str = append(str, name)
+			list = append(list, name)
 		}
 	}
-	return (strings.Join(str, ", "))
+	return
 }
 
 // HasFlag returns true if flags are present

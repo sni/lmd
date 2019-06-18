@@ -105,6 +105,10 @@ func NewColumnsTable(name string) (t *Table) {
 	t.AddExtraColumn("table", LocalStore, None, StringCol, NoFlags, "The name of the table")
 	t.AddExtraColumn("type", LocalStore, None, StringCol, NoFlags, "The data type of the column (int, float, string, list)")
 	t.AddExtraColumn("description", LocalStore, None, StringCol, NoFlags, "A description of the column")
+	t.AddExtraColumn("lmd_update", LocalStore, None, StringCol, NoFlags, "The lmd update type")
+	t.AddExtraColumn("lmd_datatype", LocalStore, None, StringCol, NoFlags, "The lmd column type")
+	t.AddExtraColumn("lmd_storagetype", LocalStore, None, StringCol, NoFlags, "The lmd storage type")
+	t.AddExtraColumn("lmd_flags", LocalStore, None, StringListCol, NoFlags, "The lmd flags for this column")
 	return
 }
 
