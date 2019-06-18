@@ -1010,3 +1010,34 @@ func TestCustomVarCol(t *testing.T) {
 		panic(err.Error())
 	}
 }
+
+func TestShouldBeScheduled(t *testing.T) {
+	peer := StartTestPeer(1, 2, 9)
+	PauseTestPeers(peer)
+
+	if err := assertEq(1, len(PeerMap)); err != nil {
+		t.Error(err)
+	}
+
+	res, _, err := peer.QueryString("GET hosts\nColumns: should_be_scheduled\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := assertEq(1., (*res)[0][0]); err != nil {
+		t.Error(err)
+	}
+
+	res, _, err = peer.QueryString("GET services\nColumns: should_be_scheduled\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := assertEq(1., (*res)[0][0]); err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
