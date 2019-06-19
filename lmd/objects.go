@@ -326,6 +326,7 @@ func NewHostsTable() (t *Table) {
 	t.AddExtraColumn("obsess", LocalStore, Dynamic, IntCol, Naemon, "The obsessing over host")
 	t.AddExtraColumn("depends_exec", LocalStore, Static, StringListCol, Naemon1_0_10, "List of hosts this hosts depends on for execution")
 	t.AddExtraColumn("depends_notify", LocalStore, Static, StringListCol, Naemon1_0_10, "List of hosts this hosts depends on for notification")
+	t.AddExtraColumn("should_be_scheduled", LocalStore, Dynamic, IntCol, Naemon, "Whether Naemon still tries to run checks on this host (0/1)")
 
 	// shinken specific
 	t.AddExtraColumn("is_impact", LocalStore, Dynamic, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
@@ -472,6 +473,7 @@ func NewServicesTable() (t *Table) {
 	t.AddExtraColumn("depends_exec", LocalStore, Static, ServiceMemberListCol, Naemon1_0_10, "List of services this services depends on for execution")
 	t.AddExtraColumn("depends_notify", LocalStore, Static, ServiceMemberListCol, Naemon1_0_10, "List of services this services depends on for notification")
 	t.AddExtraColumn("parents", LocalStore, Static, StringListCol, Naemon1_0_10, "List of services descriptions this services depends on")
+	t.AddExtraColumn("should_be_scheduled", LocalStore, Dynamic, IntCol, Naemon, "Whether Naemon still tries to run checks on this service (0/1)")
 
 	// shinken specific
 	t.AddExtraColumn("is_impact", LocalStore, Dynamic, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
