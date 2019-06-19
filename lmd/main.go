@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/lkarlslund/stringdedup"
 )
 
 // Build contains the current git commit id
@@ -254,6 +255,7 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	once.Do(PrintVersion)
 
 	// just wait till someone hits ctrl+c or we have to reload
+	statsTimer := time.NewTicker(10 * time.Second)
 	for {
 		select {
 		case sig := <-osSignalChannel:
@@ -262,6 +264,8 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 			mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
 		case sig := <-mainSignalChannel:
 			return mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
+		case <-statsTimer.C:
+			updateStatistics()
 		}
 	}
 }
@@ -713,4 +717,9 @@ func ByteCountBinary(b int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f%ciB", float64(b)/float64(div), "KMGTPE"[exp])
+}
+
+func updateStatistics() {
+	promStringDedupCount.Set(float64(stringdedup.Size()))
+	promStringDedupBytes.Set(float64(stringdedup.ByteCount()))
 }
