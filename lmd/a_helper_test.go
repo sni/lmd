@@ -109,6 +109,7 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 			if err != nil {
 				panic("could not read file: " + err.Error())
 			}
+			conn.Write([]byte(fmt.Sprintf("%d %11d\n", 200, len(dat))))
 			conn.Write(dat)
 			conn.Close()
 		}
@@ -117,6 +118,8 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 	return
 }
 
+// prepareTmpData creates static json files which will be used to generate mocked backend response
+// if numServices is  0, empty test data will be used
 func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (tempFolder string) {
 	tempFolder, err := ioutil.TempDir("", fmt.Sprintf("mockdata%d_", nr))
 	if err != nil {
@@ -136,8 +139,8 @@ func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (t
 			panic("failed to open temp file: " + err.Error())
 		}
 		switch {
-		case numHosts == 0 && name != "status":
-			io.WriteString(file, "200           3\n[]\n")
+		case numServices == 0 && name != "status":
+			io.WriteString(file, "[]\n")
 			err = file.Close()
 		case name == "hosts" || name == "services":
 			err = file.Close()
@@ -156,8 +159,6 @@ func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (t
 func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Table, numHosts int, numServices int) {
 	name := table.Name
 	dat, _ := ioutil.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, name))
-	removeFirstLine := regexp.MustCompile("^200.*")
-	dat = removeFirstLine.ReplaceAll(dat, []byte{})
 	var raw = [][]interface{}{}
 	err := json.Unmarshal(dat, &raw)
 	if err != nil {
@@ -165,19 +166,44 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 	}
 	num := len(raw)
 	last := raw[num-1]
+
+	// create hosts and services names
+	serviceCount := 0
+	hosts := make([]struct {
+		hostname string
+		services []string
+	}, numHosts)
+	for x := 0; x < numHosts; x++ {
+		hosts[x].hostname = fmt.Sprintf("%s_%d", "testhost", x+1)
+		hosts[x].services = make([]string, 0)
+		for y := 1; y <= numServices/numHosts; y++ {
+			service := fmt.Sprintf("%s_%d", "testsvc", y)
+			hosts[x].services = append(hosts[x].services, service)
+			serviceCount++
+			if serviceCount == numServices {
+				break
+			}
+		}
+	}
+
 	newData := [][]interface{}{}
+	count := 0
 	if name == "hosts" {
 		nameIndex := GetTestColumnIndex(table, "name")
-		for x := 0; x < numHosts; x++ {
+		servicesIndex := GetTestColumnIndex(table, "services")
+		for x := range hosts {
+			host := hosts[x]
 			var newObj []interface{}
-			if x >= num {
+			count++
+			if count > num {
 				newObj = make([]interface{}, len(last))
 				copy(newObj, last)
 			} else {
-				newObj = make([]interface{}, len(raw[x]))
-				copy(newObj, raw[x])
+				newObj = make([]interface{}, len(raw[count-1]))
+				copy(newObj, raw[count-1])
 			}
-			newObj[nameIndex] = fmt.Sprintf("%s_%d", "testhost", x+1)
+			newObj[nameIndex] = host.hostname
+			newObj[servicesIndex] = host.services
 			newData = append(newData, newObj)
 		}
 	}
@@ -185,8 +211,9 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 		nameIndex := GetTestColumnIndex(table, "host_name")
 		descIndex := GetTestColumnIndex(table, "description")
 		count := 0
-		for x := 1; x <= numHosts; x++ {
-			for y := 1; y <= numServices/numHosts; y++ {
+		for x := range hosts {
+			host := hosts[x]
+			for y := range host.services {
 				var newObj []interface{}
 				count++
 				if count >= num {
@@ -196,15 +223,9 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 					newObj = make([]interface{}, len(raw[count]))
 					copy(newObj, raw[count])
 				}
-				newObj[nameIndex] = fmt.Sprintf("%s_%d", "testhost", x)
-				newObj[descIndex] = fmt.Sprintf("%s_%d", "testsvc", y)
+				newObj[nameIndex] = host.hostname
+				newObj[descIndex] = host.services[y]
 				newData = append(newData, newObj)
-				if len(newData) == numServices {
-					break
-				}
-			}
-			if len(newData) == numServices {
-				break
 			}
 		}
 	}
@@ -219,9 +240,7 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 		}
 	}
 	buf.Write([]byte("]\n"))
-	encoded := []byte(fmt.Sprintf("%d %11d\n", 200, len(buf.Bytes())))
-	encoded = append(encoded, buf.Bytes()...)
-	ioutil.WriteFile(fmt.Sprintf("%s/%s.json", tempFolder, name), encoded, 0644)
+	ioutil.WriteFile(fmt.Sprintf("%s/%s.json", tempFolder, name), buf.Bytes(), 0644)
 }
 
 var TestPeerWaitGroup *sync.WaitGroup
@@ -262,6 +281,7 @@ Loglevel = "` + testLogLevel + `"
 }
 
 // StartTestPeer just call StartTestPeerExtra
+// if numServices is  0, empty test data will be used
 func StartTestPeer(numPeers int, numHosts int, numServices int) *Peer {
 	return (StartTestPeerExtra(numPeers, numHosts, numServices, ""))
 }
@@ -270,6 +290,7 @@ func StartTestPeer(numPeers int, numHosts int, numServices int) *Peer {
 //  - a mock livestatus server which responds from status json
 //  - a main loop which has the mock server(s) as backend
 // It returns a peer with the "mainloop" connection configured
+// if numServices is  0, empty test data will be used
 func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig string) (peer *Peer) {
 	sockets := []string{}
 	for i := 0; i < numPeers; i++ {
@@ -367,6 +388,7 @@ func StartHTTPMockServer(t *testing.T) (*httptest.Server, func()) {
 				if err != nil {
 					panic("could not read file: " + err.Error())
 				}
+				fmt.Fprintf(w, "%d %11d\n", 200, len(dat))
 				fmt.Fprint(w, string(dat))
 				return
 			case req.Command == "COMMAND [0] test_ok":

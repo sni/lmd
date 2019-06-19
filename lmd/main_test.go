@@ -13,7 +13,7 @@ import (
 )
 
 func TestMainFunc(t *testing.T) {
-	peer := StartTestPeer(1, 0, 0)
+	peer := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET backends\n\n")
@@ -122,7 +122,7 @@ func TestAllOps(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping all ops test in short mode")
 	}
-	peer := StartTestPeer(1, 0, 0)
+	peer := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	ops := []string{"=", "!=", "=~", "!=~", "~", "!~", "~~", "!~~", "<", "<=", ">", ">=", "!>="}
@@ -136,9 +136,14 @@ func TestAllOps(t *testing.T) {
 		if row[2].(string) == "" {
 			t.Fatalf("got no description for %s in %s", row[1].(string), row[0].(string))
 		}
+		col := Objects.Tables[row[0].(string)].GetColumn(row[1].(string))
 		for _, op := range ops {
+			if col.Optional != NoFlags {
+				continue
+			}
 			for _, value := range values {
-				testquery(t, peer, row[0].(string), row[1].(string), op, value)
+				testqueryCol(t, peer, col.Table.Name, col.Name)
+				testqueryFilter(t, peer, col.Table.Name, col.Name, op, value)
 			}
 		}
 	}
@@ -148,13 +153,10 @@ func TestAllOps(t *testing.T) {
 	}
 }
 
-func testquery(t *testing.T, peer *Peer, table, column, op, value string) {
-	query := fmt.Sprintf("GET %s\nColumns: %s\nFilter: %s %s%s\nSort: %s asc\n\n",
+func testqueryCol(t *testing.T, peer *Peer, table, column string) {
+	query := fmt.Sprintf("GET %s\nColumns: %s\nSort: %s asc\n\n",
 		table,
 		column,
-		column,
-		op,
-		value,
 		column,
 	)
 	defer func() {
@@ -170,7 +172,65 @@ func testquery(t *testing.T, peer *Peer, table, column, op, value string) {
 			t.Fatal(err)
 		}
 	}
+	_, _, err = peer.QueryString(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testqueryFilter(t *testing.T, peer *Peer, table, column, op, value string) {
+	query := fmt.Sprintf("GET %s\nColumns: %s\nFilter: %s %s%s\n\n",
+		table,
+		column,
+		column,
+		op,
+		value,
+	)
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Recovered in f", r)
+			t.Fatalf("paniced for query:\n%s", query)
+		}
+	}()
+	buf := bufio.NewReader(bytes.NewBufferString(query))
+	req, _, err := NewRequest(buf)
+	if err == nil {
+		if err = assertEq(query, req.String()); err != nil {
+			t.Fatal(err)
+		}
+	}
 	peer.QueryString(query)
+}
+
+func TestAllTables(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping all ops test in short mode")
+	}
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	for table := range Objects.Tables {
+		if Objects.Tables[table].PassthroughOnly {
+			continue
+		}
+		query := fmt.Sprintf("GET %s\n\n",
+			table,
+		)
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Println("Recovered in f", r)
+				t.Fatalf("paniced for query:\n%s", query)
+			}
+		}()
+		_, _, err := peer.QueryString(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }
 
 func TestMainConfig(t *testing.T) {

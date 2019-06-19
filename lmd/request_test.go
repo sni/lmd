@@ -192,7 +192,7 @@ type ErrorRequest struct {
 }
 
 func TestResponseErrorsFunc(t *testing.T) {
-	peer := StartTestPeer(1, 0, 0)
+	peer := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	testRequestStrings := []ErrorRequest{
@@ -966,13 +966,43 @@ func TestMembersWithState(t *testing.T) {
 	if err := assertEq("testhost_2", value[0]); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq("testsvc_4", value[1]); err != nil {
+	if err := assertEq("testsvc_1", value[1]); err != nil {
 		t.Error(err)
 	}
 	if err := assertEq(0., value[2]); err != nil {
 		t.Error(err)
 	}
 	if err := assertEq(1., value[3]); err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestCustomVarCol(t *testing.T) {
+	peer := StartTestPeer(1, 2, 9)
+	PauseTestPeers(peer)
+
+	if err := assertEq(1, len(PeerMap)); err != nil {
+		t.Error(err)
+	}
+
+	res, _, err := peer.QueryString("GET hosts\nColumns: custom_variables custom_variable_names custom_variable_values\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	val := (*res)[0][1].([]interface{})
+	if err = assertEq("TEST", val[0].(string)); err != nil {
+		t.Error(err)
+	}
+	val = (*res)[0][2].([]interface{})
+	if err = assertEq("1", val[0].(string)); err != nil {
+		t.Error(err)
+	}
+	hash := (*res)[0][0].(map[string]interface{})
+	if err = assertEq("1", hash["TEST"].(string)); err != nil {
 		t.Error(err)
 	}
 

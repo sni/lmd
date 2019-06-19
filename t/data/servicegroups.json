@@ -1,3 +1,2 @@
-200         146
-[["","Http Checks",[["localhost","Http"]],"Http Check","","",1,0,1,0,0,0,1],
-["","svc4",[["testhost_2","testsvc_4"]],"svc4","","",1,0,1,0,0,0,1]]
+[["","Http Checks",[["testhost_1","testsvc_1"]],"Http Check","","",1,0,1,0,0,0,1],
+["","svc4",[["testhost_2","testsvc_1"]],"svc4","","",1,0,1,0,0,0,1]]

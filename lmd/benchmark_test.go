@@ -117,25 +117,6 @@ func BenchmarkPeerUpdate(b *testing.B) {
 	}
 }
 
-func BenchmarkSingleFilter(b *testing.B) {
-	b.StopTimer()
-	peer := StartTestPeer(1, 0, 0)
-	PauseTestPeers(peer)
-
-	b.StartTimer()
-	for n := 0; n < b.N; n++ {
-		_, _, err := peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
-		if err != nil {
-			panic(err.Error())
-		}
-	}
-	b.StopTimer()
-
-	if err := StopTestPeer(peer); err != nil {
-		panic(err.Error())
-	}
-}
-
 func BenchmarkSingleFilter_1k_svc__1Peer(b *testing.B) {
 	b.StopTimer()
 	peer := StartTestPeer(1, 100, 1000)
@@ -174,9 +155,9 @@ func BenchmarkSingleFilter_1k_svc_10Peer(b *testing.B) {
 	}
 }
 
-func BenchmarkMultiFilter(b *testing.B) {
+func BenchmarkMultiFilter_1k_svc__1Peer(b *testing.B) {
 	b.StopTimer()
-	peer := StartTestPeer(1, 0, 0)
+	peer := StartTestPeer(1, 100, 1000)
 	PauseTestPeers(peer)
 
 	b.StartTimer()
@@ -193,33 +174,14 @@ func BenchmarkMultiFilter(b *testing.B) {
 	}
 }
 
-func BenchmarkSimpleStats(b *testing.B) {
+func BenchmarkSimpleStats_1k_svc__1Peer(b *testing.B) {
 	b.StopTimer()
-	peer := StartTestPeer(1, 0, 0)
+	peer := StartTestPeer(1, 100, 1000)
 	PauseTestPeers(peer)
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		_, _, err := peer.QueryString("GET hosts\nStats: name != \nStats: avg latency\nStats: sum latency")
-		if err != nil {
-			panic(err.Error())
-		}
-	}
-	b.StopTimer()
-
-	if err := StopTestPeer(peer); err != nil {
-		panic(err.Error())
-	}
-}
-
-func BenchmarkTacStats(b *testing.B) {
-	b.StopTimer()
-	peer := StartTestPeer(1, 0, 0)
-	PauseTestPeers(peer)
-
-	b.StartTimer()
-	for n := 0; n < b.N; n++ {
-		_, _, err := peer.QueryString(tacPageStatsQuery)
 		if err != nil {
 			panic(err.Error())
 		}
