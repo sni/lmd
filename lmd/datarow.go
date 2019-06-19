@@ -789,6 +789,10 @@ func interface2intlist(in interface{}) []int {
 	if list, ok := in.([]int); ok {
 		return (list)
 	}
+	if in == nil {
+		val := make([]int, 0)
+		return val
+	}
 	if list, ok := in.([]interface{}); ok {
 		val := make([]int, 0, len(list))
 		for i := range list {
