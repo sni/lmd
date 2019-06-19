@@ -1024,7 +1024,7 @@ func TestShouldBeScheduled(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := assertEq(1., (*res)[0][0]); err != nil {
+	if err = assertEq(1., (*res)[0][0]); err != nil {
 		t.Error(err)
 	}
 
