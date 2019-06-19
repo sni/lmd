@@ -63,6 +63,8 @@ func (raw *RawResultSet) Less(i, j int) bool {
 		switch s.Column.DataType {
 		case IntCol:
 			fallthrough
+		case Int64Col:
+			fallthrough
 		case FloatCol:
 			valueA := raw.DataResult[i].GetFloat(s.Column)
 			valueB := raw.DataResult[j].GetFloat(s.Column)

@@ -166,7 +166,7 @@ func (f *Filter) strValue() string {
 		value = f.CustomTag + " " + f.StrValue
 	case IntListCol:
 		fallthrough
-	case IntCol:
+	case IntCol, Int64Col:
 		value = fmt.Sprintf("%d", int(f.FloatValue))
 	case FloatCol:
 		value = fmt.Sprintf("%v", f.FloatValue)
@@ -267,8 +267,8 @@ func (f *Filter) setFilterValue(strVal string) (err error) {
 	switch colType {
 	case IntListCol:
 		fallthrough
-	case IntCol:
-		filtervalue, cerr := strconv.Atoi(strVal)
+	case IntCol, Int64Col:
+		filtervalue, cerr := strconv.ParseInt(strVal, 10, 64)
 		if cerr != nil && !f.IsEmpty {
 			err = fmt.Errorf("could not convert %s to integer from filter", strVal)
 			return
@@ -450,6 +450,11 @@ func (f *Filter) Match(row *DataRow) bool {
 			return matchEmptyFilter(f.Operator)
 		}
 		return f.MatchInt(row.GetInt(f.Column))
+	case Int64Col:
+		if f.IsEmpty {
+			return matchEmptyFilter(f.Operator)
+		}
+		return f.MatchInt64(row.GetInt64(f.Column))
 	case FloatCol:
 		if f.IsEmpty {
 			return matchEmptyFilter(f.Operator)
@@ -469,7 +474,27 @@ func (f *Filter) Match(row *DataRow) bool {
 	return false
 }
 
-func (f *Filter) MatchInt(value int64) bool {
+func (f *Filter) MatchInt(value int) bool {
+	intVal := int(f.FloatValue)
+	switch f.Operator {
+	case Equal:
+		return value == intVal
+	case Unequal:
+		return value != intVal
+	case Less:
+		return value < intVal
+	case LessThan:
+		return value <= intVal
+	case Greater:
+		return value > intVal
+	case GreaterThan:
+		return value >= intVal
+	}
+	log.Warnf("not implemented op: %v", f.Operator)
+	return false
+}
+
+func (f *Filter) MatchInt64(value int64) bool {
 	intVal := int64(f.FloatValue)
 	switch f.Operator {
 	case Equal:
@@ -605,14 +630,14 @@ func (f *Filter) MatchStringList(list *[]*string) bool {
 	return false
 }
 
-func (f *Filter) MatchIntList(list []int64) bool {
+func (f *Filter) MatchIntList(list []int) bool {
 	switch f.Operator {
 	case Equal:
 		return f.IsEmpty && len(list) == 0
 	case Unequal:
 		return f.IsEmpty && len(list) != 0
 	case GreaterThan:
-		fVal := int64(f.FloatValue)
+		fVal := int(f.FloatValue)
 		for i := range list {
 			if fVal == list[i] {
 				return true
@@ -620,7 +645,7 @@ func (f *Filter) MatchIntList(list []int64) bool {
 		}
 		return false
 	case GroupContainsNot:
-		fVal := int64(f.FloatValue)
+		fVal := int(f.FloatValue)
 		for i := range list {
 			if fVal == list[i] {
 				return false

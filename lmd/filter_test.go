@@ -22,7 +22,7 @@ func TestStringListFilter(t *testing.T) {
 }
 
 func TestIntListFilter(t *testing.T) {
-	value := []int64{1, 2, 3, 4, 5}
+	value := []int{1, 2, 3, 4, 5}
 	if err := assertEq(true, (&Filter{Operator: GreaterThan, FloatValue: 5}).MatchIntList(value)); err != nil {
 		t.Error(err)
 	}

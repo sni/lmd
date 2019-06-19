@@ -123,6 +123,8 @@ func (res *Response) Less(i, j int) bool {
 		switch sortType {
 		case IntCol:
 			fallthrough
+		case Int64Col:
+			fallthrough
 		case FloatCol:
 			valueA := res.Result[i][s.Index].(float64)
 			valueB := res.Result[j][s.Index].(float64)
@@ -164,7 +166,7 @@ func (res *Response) Less(i, j int) bool {
 			}
 			return s1 > s2
 		}
-		panic(fmt.Sprintf("sorting not implemented for type %d", sortType))
+		panic(fmt.Sprintf("sorting not implemented for type %s", sortType))
 	}
 	return true
 }

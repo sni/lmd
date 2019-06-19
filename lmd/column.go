@@ -89,6 +89,8 @@ const (
 	IntCol
 	// IntListCol is used for integer list columns.
 	IntListCol
+	// Int64Col is used for large integer columns.
+	Int64Col
 	// FloatCol is used for float columns.
 	FloatCol
 	// HashMapCol is used for generic hash map columns.
@@ -259,13 +261,15 @@ func (c *Column) GetEmptyValue() interface{} {
 		return ""
 	case IntCol:
 		fallthrough
+	case Int64Col:
+		fallthrough
 	case FloatCol:
 		return -1
 	case IntListCol:
 		fallthrough
 	case StringListCol:
 		return (make([]interface{}, 0))
-	case HashMapCol:
+	case HashMapCol, CustomVarCol:
 		return (make(map[string]string))
 	case ServiceMemberListCol:
 		fallthrough

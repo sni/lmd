@@ -61,8 +61,8 @@ type Peer struct {
 	lastResponse    *[]byte
 	HTTPClient      *http.Client
 	connectionCache chan net.Conn
-	CommentsCache   map[string][]int64
-	DowntimesCache  map[string][]int64
+	CommentsCache   map[string][]int
+	DowntimesCache  map[string][]int
 }
 
 // PeerStatus contains the different states a peer can have
@@ -705,7 +705,7 @@ func (p *Peer) InitAllTables() bool {
 		p.DataLock.RUnlock()
 		return false
 	}
-	programStart := p.Tables["status"].Data[0].GetIntByName("program_start")
+	programStart := p.Tables["status"].Data[0].GetInt64ByName("program_start")
 	p.DataLock.RUnlock()
 
 	duration := time.Since(t1)
@@ -1050,7 +1050,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	if err != nil {
 		return
 	}
-	var maxID int64
+	var maxID int
 	p.DataLock.RLock()
 	entries := len(store.Data)
 	if entries > 0 {
@@ -1812,7 +1812,7 @@ func (p *Peer) UpdateObjectByType(tableName string) (restartRequired bool, err e
 		promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(*res)))
 	case "status":
 		p.checkStatusFlags()
-		if !p.HasFlag(MultiBackend) && len(data) >= 1 && p.StatusGet("ProgramStart") != data[0].GetIntByName("program_start") {
+		if !p.HasFlag(MultiBackend) && len(data) >= 1 && p.StatusGet("ProgramStart") != data[0].GetInt64ByName("program_start") {
 			log.Infof("[%s] site has been restarted, recreating objects", p.Name)
 			restartRequired = true
 		}
@@ -2640,9 +2640,9 @@ func (p *Peer) RebuildDowntimesCache() {
 }
 
 // buildDowntimesCache returns the downtimes/comments cache
-func (p *Peer) buildDowntimeCommentsCache(name string) map[string][]int64 {
+func (p *Peer) buildDowntimeCommentsCache(name string) map[string][]int {
 	p.DataLock.RLock()
-	cache := make(map[string][]int64)
+	cache := make(map[string][]int)
 	store := p.Tables[name]
 	idIndex := store.Table.GetColumn("id").Index
 	hostNameIndex := store.Table.GetColumn("host_name").Index
