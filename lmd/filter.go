@@ -176,7 +176,7 @@ func (f *Filter) strValue() string {
 		fallthrough
 	case InterfaceListCol:
 		fallthrough
-	case StringCol:
+	case StringCol, StringLargeCol:
 		value = f.StrValue
 	default:
 		log.Panicf("not implemented column type: %v", f.Column.DataType)
@@ -304,7 +304,7 @@ func (f *Filter) setFilterValue(strVal string) (err error) {
 		fallthrough
 	case ServiceMemberListCol:
 		fallthrough
-	case StringCol:
+	case StringCol, StringLargeCol:
 		f.StrValue = strVal
 		return
 	}
@@ -441,7 +441,7 @@ func ParseFilterOp(op GroupOperator, value []byte, stack *[]*Filter) (err error)
 func (f *Filter) Match(row *DataRow) bool {
 	colType := f.Column.DataType
 	switch colType {
-	case StringCol:
+	case StringCol, StringLargeCol:
 		return f.MatchString(row.GetString(f.Column))
 	case StringListCol:
 		return f.MatchStringList(row.GetStringList(f.Column))

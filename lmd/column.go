@@ -101,6 +101,8 @@ const (
 	ServiceMemberListCol
 	// InterfaceListCol is a list of arbitrary data
 	InterfaceListCol
+	// StringLargeCol is used for large strings
+	StringLargeCol
 )
 
 // StorageType defines how this column is stored
@@ -257,24 +259,14 @@ func (c *Column) String() string {
 // GetEmptyValue returns an empty placeholder representation for the given column type
 func (c *Column) GetEmptyValue() interface{} {
 	switch c.DataType {
-	case StringCol:
+	case StringCol, StringLargeCol:
 		return ""
-	case IntCol:
-		fallthrough
-	case Int64Col:
-		fallthrough
-	case FloatCol:
+	case IntCol, Int64Col, FloatCol:
 		return -1
-	case IntListCol:
-		fallthrough
-	case StringListCol:
+	case IntListCol, StringListCol, ServiceMemberListCol, InterfaceListCol:
 		return (make([]interface{}, 0))
 	case HashMapCol, CustomVarCol:
 		return (make(map[string]string))
-	case ServiceMemberListCol:
-		fallthrough
-	case InterfaceListCol:
-		return (make([]interface{}, 0))
 	default:
 		log.Panicf("type %s not supported", c.DataType)
 	}

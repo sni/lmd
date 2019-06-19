@@ -18,11 +18,12 @@ func _() {
 	_ = x[CustomVarCol-8]
 	_ = x[ServiceMemberListCol-9]
 	_ = x[InterfaceListCol-10]
+	_ = x[StringLargeCol-11]
 }
 
-const _DataType_name = "StringColStringListColIntColIntListColInt64ColFloatColHashMapColCustomVarColServiceMemberListColInterfaceListCol"
+const _DataType_name = "StringColStringListColIntColIntListColInt64ColFloatColHashMapColCustomVarColServiceMemberListColInterfaceListColStringLargeCol"
 
-var _DataType_index = [...]uint8{0, 9, 22, 28, 38, 46, 54, 64, 76, 96, 112}
+var _DataType_index = [...]uint8{0, 9, 22, 28, 38, 46, 54, 64, 76, 96, 112, 126}
 
 func (i DataType) String() string {
 	i -= 1

@@ -25,6 +25,7 @@ type DataRow struct {
 	dataStringList        []*[]*string        // stores stringlists
 	dataIntList           [][]int             // stores lists of integers
 	dataServiceMemberList []*[]ServiceMember  // stores list of servicemembers
+	dataStringLarge       []*StringContainer  // stores large strings
 	dataInterfaceList     [][]interface{}
 }
 
@@ -87,6 +88,7 @@ func (d *DataRow) SetData(raw *[]interface{}, columns *ColumnList, timestamp int
 	d.dataFloat = make([]float64, d.DataStore.DataSizes[FloatCol])
 	d.dataServiceMemberList = make([]*[]ServiceMember, d.DataStore.DataSizes[ServiceMemberListCol])
 	d.dataInterfaceList = make([][]interface{}, d.DataStore.DataSizes[InterfaceListCol])
+	d.dataStringLarge = make([]*StringContainer, d.DataStore.DataSizes[StringLargeCol])
 	return d.UpdateValues(raw, columns, timestamp)
 }
 
@@ -139,6 +141,8 @@ func (d *DataRow) GetString(col *Column) *string {
 		case Int64Col:
 			val := strconv.FormatInt(d.dataInt64[col.Index], 10)
 			return &val
+		case StringLargeCol:
+			return d.dataStringLarge[col.Index].StringRef()
 		}
 		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
@@ -337,6 +341,8 @@ func (d *DataRow) GetValueByColumn(col *Column) interface{} {
 			return d.dataString[col.Index]
 		case StringListCol:
 			return d.dataStringList[col.Index]
+		case StringLargeCol:
+			return d.dataStringLarge[col.Index].StringRef()
 		case IntCol:
 			return d.dataInt[col.Index]
 		case IntListCol:
@@ -629,6 +635,8 @@ func (d *DataRow) UpdateValues(data *[]interface{}, columns *ColumnList, timesta
 			} else {
 				d.dataStringList[col.Index] = interface2stringlist((*data)[i])
 			}
+		case StringLargeCol:
+			d.dataStringLarge[col.Index] = interface2stringlarge((*data)[i])
 		case IntCol:
 			d.dataInt[col.Index] = interface2int((*data)[i])
 		case Int64Col:
@@ -737,6 +745,22 @@ func interface2string(in interface{}) *string {
 	}
 	str := fmt.Sprintf("%v", in)
 	return &str
+}
+
+func interface2stringlarge(in interface{}) *StringContainer {
+	switch v := in.(type) {
+	case string:
+		return NewStringContainer(&v)
+	case *string:
+		return NewStringContainer(v)
+	case nil:
+		val := ""
+		return NewStringContainer(&val)
+	case *StringContainer:
+		return v
+	}
+	str := fmt.Sprintf("%v", in)
+	return NewStringContainer(&str)
 }
 
 func interface2stringlist(in interface{}) *[]*string {
@@ -901,7 +925,7 @@ func (d *DataRow) WriteJSON(json *jsoniter.Stream, columns *[]*Column) {
 			continue
 		}
 		switch col.DataType {
-		case StringCol:
+		case StringCol, StringLargeCol:
 			json.WriteString(*(d.GetString(col)))
 		case StringListCol:
 			json.WriteVal(d.GetStringList(col))

@@ -26,7 +26,7 @@ func GetTableColumnsStore(table *Table, _ *Peer) *DataStore {
 			switch c.DataType {
 			case IntCol, Int64Col:
 				colTypeName = "int"
-			case StringCol:
+			case StringCol, StringLargeCol:
 				colTypeName = "string"
 			case FloatCol:
 				colTypeName = "float"
