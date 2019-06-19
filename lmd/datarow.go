@@ -807,6 +807,9 @@ func interface2hashmap(in interface{}) map[string]string {
 		return (hashmap)
 	}
 	val := make(map[string]string)
+	if in == nil {
+		return val
+	}
 	if list, ok := in.([]interface{}); ok {
 		for _, tupelInterface := range list {
 			if tupel, ok := tupelInterface.([]interface{}); ok {
