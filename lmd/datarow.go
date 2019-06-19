@@ -139,7 +139,7 @@ func (d *DataRow) GetString(col *Column) *string {
 	case RefStore:
 		ref := d.Refs[col.RefCol.Table.Name]
 		if ref == nil {
-			return interface2string(nil)
+			return interface2string(col.GetEmptyValue())
 		}
 		return ref.GetString(col.RefCol)
 	}
@@ -162,7 +162,7 @@ func (d *DataRow) GetStringList(col *Column) *[]*string {
 	case RefStore:
 		ref := d.Refs[col.RefCol.Table.Name]
 		if ref == nil {
-			return interface2stringlist(nil)
+			return interface2stringlist(col.GetEmptyValue())
 		}
 		return ref.GetStringList(col.RefCol)
 	}
@@ -188,7 +188,7 @@ func (d *DataRow) GetFloat(col *Column) float64 {
 	case RefStore:
 		ref := d.Refs[col.RefCol.Table.Name]
 		if ref == nil {
-			return interface2float64(nil)
+			return interface2float64(col.GetEmptyValue())
 		}
 		return ref.GetFloat(col.RefCol)
 	}
@@ -209,7 +209,7 @@ func (d *DataRow) GetInt(col *Column) int64 {
 	case RefStore:
 		ref := d.Refs[col.RefCol.Table.Name]
 		if ref == nil {
-			return interface2int64(nil)
+			return interface2int64(col.GetEmptyValue())
 		}
 		return ref.GetInt(col.RefCol)
 	}
@@ -232,7 +232,7 @@ func (d *DataRow) GetIntList(col *Column) []int64 {
 	case RefStore:
 		ref := d.Refs[col.RefCol.Table.Name]
 		if ref == nil {
-			return interface2int64list(nil)
+			return interface2int64list(col.GetEmptyValue())
 		}
 		return ref.GetIntList(col.RefCol)
 	}
@@ -247,7 +247,7 @@ func (d *DataRow) GetHashMap(col *Column) map[string]string {
 	case RefStore:
 		ref := d.Refs[col.RefCol.Table.Name]
 		if ref == nil {
-			return interface2hashmap(nil)
+			return interface2hashmap(col.GetEmptyValue())
 		}
 		return ref.GetHashMap(col.RefCol)
 	}
@@ -265,7 +265,7 @@ func (d *DataRow) GetServiceMemberList(col *Column) *[]ServiceMember {
 	case RefStore:
 		ref := d.Refs[col.RefCol.Table.Name]
 		if ref == nil {
-			return interface2servicememberlist(nil)
+			return interface2servicememberlist(col.GetEmptyValue())
 		}
 		return ref.GetServiceMemberList(col.RefCol)
 	}
@@ -283,7 +283,7 @@ func (d *DataRow) GetInterfaceList(col *Column) []interface{} {
 	case RefStore:
 		ref := d.Refs[col.RefCol.Table.Name]
 		if ref == nil {
-			return interface2interfacelist(nil)
+			return interface2interfacelist(col.GetEmptyValue())
 		}
 		return ref.GetInterfaceList(col.RefCol)
 	}
