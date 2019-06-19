@@ -461,6 +461,9 @@ func (f *Filter) Match(row *DataRow) bool {
 		fallthrough
 	case CustomVarCol:
 		return f.MatchCustomVar(row.GetHashMap(f.Column))
+	case InterfaceListCol, ServiceMemberListCol:
+		// not implemented
+		return false
 	}
 	log.Panicf("not implemented filter type: %v", colType)
 	return false

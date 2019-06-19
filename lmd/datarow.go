@@ -137,7 +137,11 @@ func (d *DataRow) GetString(col *Column) *string {
 		}
 		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
-		return d.Refs[col.RefCol.Table.Name].GetString(col.RefCol)
+		ref := d.Refs[col.RefCol.Table.Name]
+		if ref == nil {
+			return interface2string(nil)
+		}
+		return ref.GetString(col.RefCol)
 	}
 	return interface2string(d.getVirtRowValue(col))
 }
@@ -156,7 +160,11 @@ func (d *DataRow) GetStringList(col *Column) *[]*string {
 		}
 		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
-		return d.Refs[col.RefCol.Table.Name].GetStringList(col.RefCol)
+		ref := d.Refs[col.RefCol.Table.Name]
+		if ref == nil {
+			return interface2stringlist(nil)
+		}
+		return ref.GetStringList(col.RefCol)
 	}
 	return interface2stringlist(d.getVirtRowValue(col))
 }
@@ -178,7 +186,11 @@ func (d *DataRow) GetFloat(col *Column) float64 {
 		}
 		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
-		return d.Refs[col.RefCol.Table.Name].GetFloat(col.RefCol)
+		ref := d.Refs[col.RefCol.Table.Name]
+		if ref == nil {
+			return interface2float64(nil)
+		}
+		return ref.GetFloat(col.RefCol)
 	}
 	return interface2float64(d.getVirtRowValue(col))
 }
@@ -195,7 +207,11 @@ func (d *DataRow) GetInt(col *Column) int64 {
 		}
 		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
-		return d.Refs[col.RefCol.Table.Name].GetInt(col.RefCol)
+		ref := d.Refs[col.RefCol.Table.Name]
+		if ref == nil {
+			return interface2int64(nil)
+		}
+		return ref.GetInt(col.RefCol)
 	}
 	return interface2int64(d.getVirtRowValue(col))
 }
@@ -214,7 +230,11 @@ func (d *DataRow) GetIntList(col *Column) []int64 {
 		}
 		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
-		return d.Refs[col.RefCol.Table.Name].GetIntList(col.RefCol)
+		ref := d.Refs[col.RefCol.Table.Name]
+		if ref == nil {
+			return interface2int64list(nil)
+		}
+		return ref.GetIntList(col.RefCol)
 	}
 	return interface2int64list(d.getVirtRowValue(col))
 }
@@ -225,7 +245,11 @@ func (d *DataRow) GetHashMap(col *Column) map[string]string {
 	case LocalStore:
 		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
-		return d.Refs[col.RefCol.Table.Name].GetHashMap(col.RefCol)
+		ref := d.Refs[col.RefCol.Table.Name]
+		if ref == nil {
+			return interface2hashmap(nil)
+		}
+		return ref.GetHashMap(col.RefCol)
 	}
 	return interface2hashmap(d.getVirtRowValue(col))
 }
@@ -239,7 +263,11 @@ func (d *DataRow) GetServiceMemberList(col *Column) *[]ServiceMember {
 		}
 		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
-		return d.Refs[col.RefCol.Table.Name].GetServiceMemberList(col.RefCol)
+		ref := d.Refs[col.RefCol.Table.Name]
+		if ref == nil {
+			return interface2servicememberlist(nil)
+		}
+		return ref.GetServiceMemberList(col.RefCol)
 	}
 	return interface2servicememberlist(d.getVirtRowValue(col))
 }
@@ -253,7 +281,11 @@ func (d *DataRow) GetInterfaceList(col *Column) []interface{} {
 		}
 		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
-		return d.Refs[col.RefCol.Table.Name].GetInterfaceList(col.RefCol)
+		ref := d.Refs[col.RefCol.Table.Name]
+		if ref == nil {
+			return interface2interfacelist(nil)
+		}
+		return ref.GetInterfaceList(col.RefCol)
 	}
 	return interface2interfacelist(d.getVirtRowValue(col))
 }
@@ -777,7 +809,7 @@ func cast2Type(val interface{}, col *Column) interface{} {
 		return (interface2int64list(val))
 	case FloatCol:
 		return (interface2float64(val))
-	case HashMapCol:
+	case HashMapCol, CustomVarCol:
 		return (interface2hashmap(val))
 	case ServiceMemberListCol:
 		return (interface2servicememberlist(val))
@@ -850,11 +882,8 @@ func (d *DataRow) isAuthorizedFor(authUser string, host string, service string) 
 
 	// get contacts on services
 	if service != "" {
-		var serviceID strings.Builder
-		serviceID.WriteString(host)
-		serviceID.WriteString(";")
-		serviceID.WriteString(service)
-		serviceObj, ok := p.Tables["services"].Index[serviceID.String()]
+		serviceID := host + ";" + service
+		serviceObj, ok := p.Tables["services"].Index[serviceID]
 		contactsColumn := p.Tables["services"].GetColumn("contacts")
 		if !ok {
 			return

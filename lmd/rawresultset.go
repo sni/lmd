@@ -114,8 +114,38 @@ func (raw *RawResultSet) Less(i, j int) bool {
 				return s1 < s2
 			}
 			return s1 > s2
+		case ServiceMemberListCol:
+			s1 := fmt.Sprintf("%v", raw.DataResult[i].GetServiceMemberList(s.Column))
+			s2 := fmt.Sprintf("%v", raw.DataResult[j].GetServiceMemberList(s.Column))
+			if s1 == s2 {
+				continue
+			}
+			if s.Direction == Asc {
+				return s1 < s2
+			}
+			return s1 > s2
+		case InterfaceListCol:
+			s1 := fmt.Sprintf("%v", raw.DataResult[i].GetInterfaceList(s.Column))
+			s2 := fmt.Sprintf("%v", raw.DataResult[j].GetInterfaceList(s.Column))
+			if s1 == s2 {
+				continue
+			}
+			if s.Direction == Asc {
+				return s1 < s2
+			}
+			return s1 > s2
+		case CustomVarCol:
+			s1 := fmt.Sprintf("%v", raw.DataResult[i].GetHashMap(s.Column))
+			s2 := fmt.Sprintf("%v", raw.DataResult[j].GetHashMap(s.Column))
+			if s1 == s2 {
+				continue
+			}
+			if s.Direction == Asc {
+				return s1 < s2
+			}
+			return s1 > s2
 		}
-		panic(fmt.Sprintf("sorting not implemented for type %d", s.Column.DataType))
+		panic(fmt.Sprintf("sorting not implemented for type %s", s.Column.DataType))
 	}
 	return true
 }
