@@ -630,14 +630,14 @@ func (f *Filter) MatchStringList(list *[]string) bool {
 	return false
 }
 
-func (f *Filter) MatchIntList(list []int) bool {
+func (f *Filter) MatchIntList(list []int32) bool {
 	switch f.Operator {
 	case Equal:
 		return f.IsEmpty && len(list) == 0
 	case Unequal:
 		return f.IsEmpty && len(list) != 0
 	case GreaterThan:
-		fVal := int(f.FloatValue)
+		fVal := int32(f.FloatValue)
 		for i := range list {
 			if fVal == list[i] {
 				return true
@@ -645,7 +645,7 @@ func (f *Filter) MatchIntList(list []int) bool {
 		}
 		return false
 	case GroupContainsNot:
-		fVal := int(f.FloatValue)
+		fVal := int32(f.FloatValue)
 		for i := range list {
 			if fVal == list[i] {
 				return false

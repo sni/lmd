@@ -19,11 +19,11 @@ type DataRow struct {
 	Refs                  map[TableName]*DataRow // contains references to other objects, ex.: hosts from the services table
 	LastUpdate            int64                  // timestamp when this row has been updated
 	dataString            []string               // stores string data
-	dataInt               []int                  // stores integers
+	dataInt               []int32                // stores integers
 	dataInt64             []int64                // stores large integers
 	dataFloat             []float64              // stores floats
 	dataStringList        [][]string             // stores stringlists
-	dataIntList           [][]int                // stores lists of integers
+	dataIntList           [][]int32              // stores lists of integers
 	dataServiceMemberList [][]ServiceMember      // stores list of servicemembers
 	dataStringLarge       []StringContainer      // stores large strings
 	dataInterfaceList     [][]interface{}
@@ -40,7 +40,7 @@ func NewDataRow(store *DataStore, raw *[]interface{}, columns *ColumnList, times
 		return
 	}
 
-	if !store.Table.PassthroughOnly {
+	if !store.Table.PassthroughOnly && len(store.Table.RefTables) > 0 {
 		d.Refs = make(map[TableName]*DataRow, len(store.Table.RefTables))
 	}
 
@@ -82,9 +82,9 @@ func (d *DataRow) setID() (err error) {
 func (d *DataRow) SetData(raw *[]interface{}, columns *ColumnList, timestamp int64) error {
 	d.dataString = make([]string, d.DataStore.DataSizes[StringCol])
 	d.dataStringList = make([][]string, d.DataStore.DataSizes[StringListCol])
-	d.dataInt = make([]int, d.DataStore.DataSizes[IntCol])
+	d.dataInt = make([]int32, d.DataStore.DataSizes[IntCol])
 	d.dataInt64 = make([]int64, d.DataStore.DataSizes[Int64Col])
-	d.dataIntList = make([][]int, d.DataStore.DataSizes[IntListCol])
+	d.dataIntList = make([][]int32, d.DataStore.DataSizes[IntListCol])
 	d.dataFloat = make([]float64, d.DataStore.DataSizes[FloatCol])
 	d.dataServiceMemberList = make([][]ServiceMember, d.DataStore.DataSizes[ServiceMemberListCol])
 	d.dataInterfaceList = make([][]interface{}, d.DataStore.DataSizes[InterfaceListCol])
@@ -212,7 +212,7 @@ func (d *DataRow) GetInt(col *Column) int {
 	case LocalStore:
 		switch col.DataType {
 		case IntCol:
-			return d.dataInt[col.Index]
+			return int(d.dataInt[col.Index])
 		case FloatCol:
 			return int(d.dataFloat[col.Index])
 		}
@@ -261,7 +261,7 @@ func (d *DataRow) GetInt64ByName(name string) int64 {
 }
 
 // GetIntList returns the int64 list for given column
-func (d *DataRow) GetIntList(col *Column) []int {
+func (d *DataRow) GetIntList(col *Column) []int32 {
 	switch col.StorageType {
 	case LocalStore:
 		if col.DataType == IntListCol {
@@ -638,7 +638,7 @@ func (d *DataRow) UpdateValues(data *[]interface{}, columns *ColumnList, timesta
 		case StringLargeCol:
 			d.dataStringLarge[col.Index] = *interface2stringlarge((*data)[i])
 		case IntCol:
-			d.dataInt[col.Index] = interface2int((*data)[i])
+			d.dataInt[col.Index] = int32(interface2int((*data)[i]))
 		case Int64Col:
 			d.dataInt64[col.Index] = interface2int64((*data)[i])
 		case IntListCol:
@@ -663,7 +663,7 @@ func (d *DataRow) UpdateValues(data *[]interface{}, columns *ColumnList, timesta
 // CheckChangedIntValues returns true if the given data results in an update
 func (d *DataRow) CheckChangedIntValues(data *[]interface{}, columns *ColumnList) bool {
 	for j := range *columns {
-		if interface2int((*data)[j]) != d.dataInt[(*columns)[j].Index] {
+		if int32(interface2int((*data)[j])) != d.dataInt[(*columns)[j].Index] {
 			return true
 		}
 	}
@@ -700,6 +700,8 @@ func interface2int(in interface{}) int {
 		return int(v)
 	case int:
 		return v
+	case int32:
+		return int(v)
 	case bool:
 		if v {
 			return 1
@@ -788,7 +790,7 @@ func interface2servicememberlist(in interface{}) *[]ServiceMember {
 	case []ServiceMember:
 		return &list
 	case []interface{}:
-		val := make([]ServiceMember, len(list), len(list))
+		val := make([]ServiceMember, len(list))
 		for i := range list {
 			if l2, ok := list[i].([]interface{}); ok {
 				if len(l2) == 2 {
@@ -804,23 +806,30 @@ func interface2servicememberlist(in interface{}) *[]ServiceMember {
 	return &val
 }
 
-func interface2intlist(in interface{}) []int {
-	if list, ok := in.([]int); ok {
+func interface2intlist(in interface{}) []int32 {
+	if list, ok := in.([]int32); ok {
 		return (list)
 	}
 	if in == nil {
-		val := make([]int, 0)
+		val := make([]int32, 0)
 		return val
 	}
-	if list, ok := in.([]interface{}); ok {
-		val := make([]int, 0, len(list))
+	if list, ok := in.([]int); ok {
+		val := make([]int32, 0, len(list))
 		for i := range list {
-			val = append(val, interface2int(list[i]))
+			val = append(val, int32(interface2int(list[i])))
 		}
 		return val
 	}
-	log.Warnf("unsupported int64 list type: %v", in)
-	val := make([]int, 0)
+	if list, ok := in.([]interface{}); ok {
+		val := make([]int32, 0, len(list))
+		for i := range list {
+			val = append(val, int32(interface2int(list[i])))
+		}
+		return val
+	}
+	log.Warnf("unsupported int list type: %v", in)
+	val := make([]int32, 0)
 	return val
 }
 

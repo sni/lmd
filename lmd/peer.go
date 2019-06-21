@@ -61,8 +61,8 @@ type Peer struct {
 	lastResponse    *[]byte
 	HTTPClient      *http.Client
 	connectionCache chan net.Conn
-	CommentsCache   map[string][]int
-	DowntimesCache  map[string][]int
+	CommentsCache   map[string][]int32
+	DowntimesCache  map[string][]int32
 }
 
 // PeerStatus contains the different states a peer can have
@@ -2636,9 +2636,9 @@ func (p *Peer) RebuildDowntimesCache() {
 }
 
 // buildDowntimesCache returns the downtimes/comments cache
-func (p *Peer) buildDowntimeCommentsCache(name TableName) map[string][]int {
+func (p *Peer) buildDowntimeCommentsCache(name TableName) map[string][]int32 {
 	p.DataLock.RLock()
-	cache := make(map[string][]int)
+	cache := make(map[string][]int32)
 	store := p.Tables[name]
 	idIndex := store.Table.GetColumn("id").Index
 	hostNameIndex := store.Table.GetColumn("host_name").Index
