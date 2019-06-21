@@ -8,8 +8,8 @@ import (
 
 // StringContainer wraps large strings
 type StringContainer struct {
-	Data       string
-	compressed bool
+	StringData     string
+	CompressedData *[]byte
 }
 
 // NewStringContainer returns a new StringContainer
@@ -23,27 +23,28 @@ func NewStringContainer(data *string) *StringContainer {
 func (s *StringContainer) Set(data *string) {
 	// it only makes sense to compress larger strings
 	if len(*data) < 1000 {
-		s.Data = *data
-		s.compressed = false
+		s.StringData = *data
+		s.CompressedData = nil
 		return
 	}
 	var b bytes.Buffer
 	gz := gzip.NewWriter(&b)
 	gz.Write([]byte(*data))
 	gz.Close()
-	s.Data = b.String()
-	s.compressed = true
+	s.StringData = ""
+	by := b.Bytes()
+	s.CompressedData = &by
 	if log.IsV(2) {
-		log.Tracef("compressed string from %d to %d (%.1f%%)", len(*data), len(s.Data), 100-(float64(len(s.Data))/float64(len(*data))*100))
+		log.Tracef("compressed string from %d to %d (%.1f%%)", len(*data), len(s.StringData), 100-(float64(len(s.StringData))/float64(len(*data))*100))
 	}
 }
 
 // String returns the string data
 func (s *StringContainer) String() string {
-	if !s.compressed {
-		return s.Data
+	if s.CompressedData == nil {
+		return s.StringData
 	}
-	rdata := bytes.NewReader([]byte(s.Data))
+	rdata := bytes.NewReader(*s.CompressedData)
 	r, _ := gzip.NewReader(rdata)
 	b, _ := ioutil.ReadAll(r)
 	str := string(b)
@@ -52,10 +53,10 @@ func (s *StringContainer) String() string {
 
 // StringRef returns the string data
 func (s *StringContainer) StringRef() *string {
-	if !s.compressed {
-		return &s.Data
+	if s.CompressedData == nil {
+		return &s.StringData
 	}
-	rdata := bytes.NewReader([]byte(s.Data))
+	rdata := bytes.NewReader(*s.CompressedData)
 	r, _ := gzip.NewReader(rdata)
 	b, _ := ioutil.ReadAll(r)
 	str := string(b)
