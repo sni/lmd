@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -11,10 +12,83 @@ type TableRef struct {
 	Columns ColumnList // local column(s) which holds the values to determince the ID of the referenced item, ex.: host_name
 }
 
+// TableName contains all table names
+type TableName int
+
+const (
+	TableNone TableName = iota
+	TableBackends
+	TableSites
+	TableColumns
+	TableTables
+	TableStatus
+	TableTimeperiods
+	TableContacts
+	TableContactgroups
+	TableCommands
+	TableHosts
+	TableHostgroups
+	TableServices
+	TableServicegroups
+	TableComments
+	TableDowntimes
+	TableLog
+	TableHostsbygroup
+	TableServicesbygroup
+	TableServicesbyhostgroup
+)
+
+var TableNameMapping = map[TableName]string{
+	TableBackends:            "backends",
+	TableSites:               "sites",
+	TableColumns:             "columns",
+	TableTables:              "tables",
+	TableStatus:              "status",
+	TableTimeperiods:         "timeperiods",
+	TableContacts:            "contacts",
+	TableContactgroups:       "contactgroups",
+	TableCommands:            "commands",
+	TableHosts:               "hosts",
+	TableHostgroups:          "hostgroups",
+	TableServices:            "services",
+	TableServicegroups:       "servicegroups",
+	TableComments:            "comments",
+	TableDowntimes:           "downtimes",
+	TableLog:                 "log",
+	TableHostsbygroup:        "hostsbygroup",
+	TableServicesbygroup:     "servicesbygroup",
+	TableServicesbyhostgroup: "servicesbyhostgroup",
+}
+var TableNameLookup = map[string]TableName{}
+
+// InitTableNames initializes the table name lookup map
+func InitTableNames() {
+	for t, s := range TableNameMapping {
+		TableNameLookup[s] = t
+	}
+}
+
+// NewTableName returns a table for given name or an error
+func NewTableName(name string) (TableName, error) {
+	if v, ok := TableNameLookup[strings.ToLower(name)]; ok {
+		return v, nil
+	}
+	return TableNone, fmt.Errorf("table %s does not exist", name)
+}
+
+// String returns the name of this table as String
+func (t *TableName) String() string {
+	if s, ok := TableNameMapping[*t]; ok {
+		return s
+	}
+	log.Panicf("unsupported tablename: %v", t)
+	return ""
+}
+
 // Table defines available columns and table options
 type Table struct {
 	noCopy          noCopy
-	Name            string
+	Name            TableName
 	Columns         ColumnList
 	ColumnsIndex    map[string]*Column // access columns by name
 	PassthroughOnly bool               // flag wether table will be cached or simply passed through to remote sites
@@ -82,7 +156,7 @@ func (t *Table) AddPeerInfoColumn(name string, datatype DataType, description st
 // tableName: name of the referenced table
 // Prefix: column prefix for the added columns
 // LocalName: column(s) which holds the reference value(s)
-func (t *Table) AddRefColumns(tableName string, prefix string, localName []string) {
+func (t *Table) AddRefColumns(tableName TableName, prefix string, localName []string) {
 	refTable, Ok := Objects.Tables[tableName]
 	if !Ok {
 		log.Panicf("no such reference %s from column %s", tableName, strings.Join(localName, ","))

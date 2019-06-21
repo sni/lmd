@@ -13,9 +13,7 @@ func TestStringFilter(t *testing.T) {
 }
 
 func TestStringListFilter(t *testing.T) {
-	a := "abc"
-	b := "def"
-	value := []*string{&a, &b}
+	value := []string{"abc", "def"}
 	if err := assertEq(true, (&Filter{Operator: GreaterThan, StrValue: "def"}).MatchStringList(&value)); err != nil {
 		t.Error(err)
 	}

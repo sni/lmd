@@ -69,7 +69,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 	PeerMapLock.RUnlock()
 
 	// only use the first backend when requesting table or columns table
-	if table.Name == "tables" || table.Name == "columns" {
+	if table.Name == TableTables || table.Name == TableColumns {
 		selectedPeers = []*Peer{PeerMap[PeerMapOrder[0]]}
 	}
 

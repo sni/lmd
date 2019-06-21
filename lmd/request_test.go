@@ -51,7 +51,7 @@ func TestRequestHeader(t *testing.T) {
 func TestRequestHeaderTable(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\n"))
 	req, _, _ := NewRequest(buf)
-	if err := assertEq("hosts", req.Table); err != nil {
+	if err := assertEq("hosts", req.Table.String()); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -82,17 +82,17 @@ func TestRequestHeaderColumns(t *testing.T) {
 
 func TestRequestHeaderSort(t *testing.T) {
 	req, _, _ := NewRequest(bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: latency state name\nSort: name desc\nSort: state asc\n")))
-	if err := assertEq(&SortField{Name: "name", Direction: Desc, Index: 0, Column: Objects.Tables["hosts"].GetColumn("name")}, req.Sort[0]); err != nil {
+	if err := assertEq(&SortField{Name: "name", Direction: Desc, Index: 0, Column: Objects.Tables[TableHosts].GetColumn("name")}, req.Sort[0]); err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(&SortField{Name: "state", Direction: Asc, Index: 0, Column: Objects.Tables["hosts"].GetColumn("state")}, req.Sort[1]); err != nil {
+	if err := assertEq(&SortField{Name: "state", Direction: Asc, Index: 0, Column: Objects.Tables[TableHosts].GetColumn("state")}, req.Sort[1]); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestRequestHeaderSortCust(t *testing.T) {
 	req, _, _ := NewRequest(bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name custom_variables\nSort: custom_variables TEST asc\n")))
-	if err := assertEq(&SortField{Name: "custom_variables", Direction: Asc, Index: 0, Args: "TEST", Column: Objects.Tables["hosts"].GetColumn("custom_variables")}, req.Sort[0]); err != nil {
+	if err := assertEq(&SortField{Name: "custom_variables", Direction: Asc, Index: 0, Args: "TEST", Column: Objects.Tables[TableHosts].GetColumn("custom_variables")}, req.Sort[0]); err != nil {
 		t.Fatal(err)
 	}
 }

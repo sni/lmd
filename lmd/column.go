@@ -61,7 +61,7 @@ var VirtColumnList = []VirtColumnMapEntry{
 var VirtColumnMap = map[string]*VirtColumnMapEntry{}
 
 // ServiceMember is a host_name / description pair
-type ServiceMember [2]*string
+type ServiceMember [2]string
 
 // FetchType defines if and how the column is updated.
 //go:generate stringer -type=FetchType

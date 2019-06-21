@@ -47,7 +47,7 @@ type Peer struct {
 	Source          []string
 	PeerLock        *LoggingLock // must be used for Peer.Status access
 	DataLock        *LoggingLock // must be used for Peer.Table access
-	Tables          map[string]*DataStore
+	Tables          map[TableName]*DataStore
 	Status          map[string]interface{}
 	ErrorCount      int
 	ErrorLogged     bool
@@ -160,7 +160,7 @@ func NewPeer(localConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 		Name:            config.Name,
 		ID:              config.ID,
 		Source:          config.Source,
-		Tables:          make(map[string]*DataStore),
+		Tables:          make(map[TableName]*DataStore),
 		Status:          make(map[string]interface{}),
 		ErrorCount:      0,
 		waitGroup:       waitGroup,
@@ -262,16 +262,16 @@ func (p *Peer) countFromServer(name string, queryCondition string) (count int) {
 
 func (p *Peer) hasChanged() (changed bool) {
 	changed = false
-	tablenames := []string{"commands", "contactgroups", "contacts", "hostgroups", "hosts", "servicegroups", "timeperiods"}
+	tablenames := []TableName{TableCommands, TableContactgroups, TableContacts, TableHostgroups, TableHosts, TableServicegroups, TableTimeperiods}
 	for _, name := range tablenames {
-		counter := p.countFromServer(name, "name !=")
+		counter := p.countFromServer(name.String(), "name !=")
 		p.DataLock.RLock()
 		changed = changed || (counter != len(p.Tables[name].Data))
 		p.DataLock.RUnlock()
 	}
 	counter := p.countFromServer("services", "host_name !=")
 	p.DataLock.RLock()
-	changed = changed || (counter != len(p.Tables["services"].Data))
+	changed = changed || (counter != len(p.Tables[TableServices].Data))
 	p.DataLock.RUnlock()
 	p.clearLastRequest()
 
@@ -281,7 +281,7 @@ func (p *Peer) hasChanged() (changed bool) {
 // Clear resets the data table.
 func (p *Peer) Clear() {
 	p.DataLock.Lock()
-	p.Tables = make(map[string]*DataStore)
+	p.Tables = make(map[TableName]*DataStore)
 	p.DataLock.Unlock()
 }
 
@@ -359,9 +359,9 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 		// update timeperiods every full minute except when idling
 		if *ok && *lastTimeperiodUpdateMinute != currentMinute && lastStatus != PeerStatusBroken {
 			log.Debugf("[%s] updating timeperiods and host/servicegroup statistics", p.Name)
-			p.UpdateObjectByType("timeperiods")
-			p.UpdateObjectByType("hostgroups")
-			p.UpdateObjectByType("servicegroups")
+			p.UpdateObjectByType(TableTimeperiods)
+			p.UpdateObjectByType(TableHostgroups)
+			p.UpdateObjectByType(TableServicegroups)
 			*lastTimeperiodUpdateMinute = currentMinute
 
 			*ok = p.checkIcinga2Reload()
@@ -377,7 +377,7 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 	p.StatusSet("LastUpdate", time.Now().Unix())
 
 	if lastStatus == PeerStatusBroken {
-		restartRequired, _ := p.UpdateObjectByType("status")
+		restartRequired, _ := p.UpdateObjectByType(TableStatus)
 		if restartRequired {
 			log.Debugf("[%s] broken peer has reloaded, trying again.", p.Name)
 			*ok = p.InitAllTables()
@@ -426,7 +426,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 
 	columns := []string{"key", "name", "status", "addr", "last_error", "last_update", "last_online", "last_query", "idling"}
 	req := &Request{
-		Table:           "sites",
+		Table:           TableSites,
 		Columns:         columns,
 		ResponseFixed16: true,
 		OutputFormat:    OutputFormatJSON,
@@ -464,7 +464,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 			// try to fetch section information
 			// may fail for older lmd versions
 			req := &Request{
-				Table:           "sites",
+				Table:           TableSites,
 				Columns:         []string{"section"},
 				ResponseFixed16: true,
 				OutputFormat:    OutputFormatJSON,
@@ -653,7 +653,7 @@ func (p *Peer) InitAllTables() bool {
 	t1 := time.Now()
 	for _, n := range Objects.Order {
 		t := Objects.Tables[n]
-		if p.HasFlag(MultiBackend) && t.Name != "status" {
+		if p.HasFlag(MultiBackend) && t.Name != TableStatus {
 			// just create empty data pools
 			// real data is handled by separate peers
 			continue
@@ -664,9 +664,9 @@ func (p *Peer) InitAllTables() bool {
 			return false
 		}
 		switch t.Name {
-		case "status":
+		case TableStatus:
 			p.DataLock.RLock()
-			hasStatus := len(p.Tables["status"].Data) > 0
+			hasStatus := len(p.Tables[TableStatus].Data) > 0
 			p.DataLock.RUnlock()
 			// this may happen if we query another lmd daemon which has no backends ready yet
 			if !hasStatus {
@@ -692,20 +692,20 @@ func (p *Peer) InitAllTables() bool {
 					p.StatusSet("ConfigTool", configtool)
 				}
 			}
-		case "comments":
+		case TableComments:
 			p.RebuildCommentsCache()
-		case "downtimes":
+		case TableDowntimes:
 			p.RebuildDowntimesCache()
 		}
 	}
 
 	p.DataLock.RLock()
-	if len(p.Tables["status"].Data) == 0 {
+	if len(p.Tables[TableStatus].Data) == 0 {
 		// not ready yet
 		p.DataLock.RUnlock()
 		return false
 	}
-	programStart := p.Tables["status"].Data[0].GetInt64ByName("program_start")
+	programStart := p.Tables[TableStatus].Data[0].GetInt64ByName("program_start")
 	p.DataLock.RUnlock()
 
 	duration := time.Since(t1)
@@ -787,7 +787,7 @@ func (p *Peer) UpdateAllTables() bool {
 func (p *Peer) UpdateDeltaTables() bool {
 	t1 := time.Now()
 
-	restartRequired, err := p.UpdateObjectByType("status")
+	restartRequired, err := p.UpdateObjectByType(TableStatus)
 	if restartRequired {
 		return p.InitAllTables()
 	}
@@ -798,10 +798,10 @@ func (p *Peer) UpdateDeltaTables() bool {
 		err = p.UpdateDeltaTableServices("")
 	}
 	if err == nil {
-		err = p.UpdateDeltaCommentsOrDowntimes("comments")
+		err = p.UpdateDeltaCommentsOrDowntimes(TableComments)
 	}
 	if err == nil {
-		err = p.UpdateDeltaCommentsOrDowntimes("downtimes")
+		err = p.UpdateDeltaCommentsOrDowntimes(TableDowntimes)
 	}
 
 	duration := time.Since(t1)
@@ -834,7 +834,7 @@ func (p *Peer) UpdateDeltaTables() bool {
 // It returns any error encountered.
 func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	// update changed hosts
-	table := p.Tables["hosts"]
+	table := p.Tables[TableHosts]
 	if filterStr == "" {
 		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.StatusGet("LastUpdate").(int64) - UpdateAdditionalDelta))
 		// no filter means regular delta update, so lets check if all last_check dates match
@@ -884,7 +884,7 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 // It returns any error encountered.
 func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	// update changed services
-	table := p.Tables["services"]
+	table := p.Tables[TableServices]
 	if filterStr == "" {
 		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.StatusGet("LastUpdate").(int64) - UpdateAdditionalDelta))
 		// no filter means regular delta update, so lets check if all last_check dates match
@@ -940,12 +940,12 @@ func (p *Peer) UpdateDeltaTableFullScan(store *DataStore, filterStr string) (upd
 	p.PeerLock.RLock()
 	var lastUpdate int64
 	switch store.Table.Name {
-	case "services":
+	case TableServices:
 		lastUpdate = p.Status["LastFullServiceUpdate"].(int64)
-	case "hosts":
+	case TableHosts:
 		lastUpdate = p.Status["LastFullHostUpdate"].(int64)
 	default:
-		log.Panicf("not implemented for: " + store.Table.Name)
+		log.Panicf("not implemented for: " + store.Table.Name.String())
 	}
 	p.PeerLock.RUnlock()
 
@@ -988,16 +988,16 @@ func (p *Peer) UpdateDeltaTableFullScan(store *DataStore, filterStr string) (upd
 			filter = append(filter, fmt.Sprintf("Filter: last_check = %d\n", lastCheck))
 		}
 		filter = append(filter, fmt.Sprintf("Or: %d\n", len(filter)))
-		if store.Table.Name == "services" {
+		if store.Table.Name == TableServices {
 			err = p.UpdateDeltaTableServices(strings.Join(filter, ""))
-		} else if store.Table.Name == "hosts" {
+		} else if store.Table.Name == TableHosts {
 			err = p.UpdateDeltaTableHosts(strings.Join(filter, ""))
 		}
 	}
 
-	if store.Table.Name == "services" {
+	if store.Table.Name == TableServices {
 		p.StatusSet("LastFullServiceUpdate", time.Now().Unix())
-	} else if store.Table.Name == "hosts" {
+	} else if store.Table.Name == TableHosts {
 		p.StatusSet("LastFullHostUpdate", time.Now().Unix())
 	}
 	updated = true
@@ -1015,9 +1015,9 @@ func (p *Peer) getMissingTimestamps(store *DataStore, res *ResultSet, columns *C
 			p.checkIcinga2Reload()
 			return
 		}
-		err = &PeerError{msg: fmt.Sprintf("%s cache not ready, got %d entries but only have %d in cache", store.Table.Name, len(*res), len(data)), kind: ResponseError}
+		err = &PeerError{msg: fmt.Sprintf("%s cache not ready, got %d entries but only have %d in cache", store.Table.Name.String(), len(*res), len(data)), kind: ResponseError}
 		log.Warnf("[%s] %s", p.Name, err.Error())
-		p.setBroken(fmt.Sprintf("got more %s than expected. Hint: check clients 'max_response_size' setting.", store.Table.Name))
+		p.setBroken(fmt.Sprintf("got more %s than expected. Hint: check clients 'max_response_size' setting.", store.Table.Name.String()))
 		return
 	}
 	for i := range *res {
@@ -1034,7 +1034,7 @@ func (p *Peer) getMissingTimestamps(store *DataStore, res *ResultSet, columns *C
 // the remote comments/downtimes. If an update is required, it then fetches all ids to check which are new and
 // which have to be removed.
 // It returns any error encountered.
-func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
+func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
 	// add new comments / downtimes
 	store := p.Tables[name]
 
@@ -1059,7 +1059,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 	p.DataLock.RUnlock()
 
 	if len(*res) == 0 || float64(entries) == interface2float64((*res)[0][0]) && (entries == 0 || interface2float64((*res)[0][1]) == float64(maxID)) {
-		log.Debugf("[%s] %s did not change", p.Name, name)
+		log.Debugf("[%s] %s did not change", p.Name, name.String())
 		return
 	}
 
@@ -1139,9 +1139,9 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name string) (err error) {
 
 	// reset cache
 	switch store.Table.Name {
-	case "comments":
+	case TableComments:
 		p.RebuildCommentsCache()
-	case "downtimes":
+	case TableDowntimes:
 		p.RebuildDowntimesCache()
 	}
 
@@ -1219,7 +1219,7 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 	p.Status["LastColumns"] = []string{}
 	p.Status["LastTotalCount"] = int64(0)
 	p.PeerLock.Unlock()
-	log.Debugf("[%s] got %s answer: size: %d kB", p.Name, req.Table, len(*resBytes)/1024)
+	log.Debugf("[%s] got %s answer: size: %d kB", p.Name, req.Table.String(), len(*resBytes)/1024)
 	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(totalBytesReceived))
 
 	data, meta, err := req.parseResult(resBytes)
@@ -1582,7 +1582,7 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 	p.Status["LastUpdate"] = now
 	p.Status["LastFullUpdate"] = now
 	p.PeerLock.Unlock()
-	promObjectCount.WithLabelValues(p.Name, table.Name).Set(float64(len((*res))))
+	promObjectCount.WithLabelValues(p.Name, table.Name.String()).Set(float64(len((*res))))
 
 	return
 }
@@ -1590,7 +1590,7 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 func (p *Peer) checkStatusFlags() {
 	// set backend specific flags
 	p.DataLock.RLock()
-	data := p.Tables["status"].Data
+	data := p.Tables[TableStatus].Data
 	if len(data) == 0 {
 		p.DataLock.RUnlock()
 		return
@@ -1755,7 +1755,7 @@ func (p *Peer) fetchRemotePeersFromAddr(peerAddr string) (sites []interface{}, e
 // UpdateObjectByType updates a given table by requesting all dynamic columns from the remote peer.
 // Assuming we get the objects always in the same order, we can just iterate over the index and update the fields.
 // It returns a boolean flag whether the remote site has been restarted and any error encountered.
-func (p *Peer) UpdateObjectByType(tableName string) (restartRequired bool, err error) {
+func (p *Peer) UpdateObjectByType(tableName TableName) (restartRequired bool, err error) {
 	store := p.Tables[tableName]
 	if p.skipTableUpdate(store) {
 		return
@@ -1788,9 +1788,9 @@ func (p *Peer) UpdateObjectByType(tableName string) (restartRequired bool, err e
 		return
 	}
 
-	promObjectUpdate.WithLabelValues(p.Name, store.Table.Name).Add(float64(len(*res)))
+	promObjectUpdate.WithLabelValues(p.Name, store.Table.Name.String()).Add(float64(len(*res)))
 
-	if store.Table.Name == "timeperiods" {
+	if store.Table.Name == TableTimeperiods {
 		// check for changed timeperiods, because we have to update the linked hosts and services as well
 		p.updateTimeperiodsData(store, res, &store.DynamicColumnCache)
 	} else {
@@ -1807,7 +1807,7 @@ func (p *Peer) UpdateObjectByType(tableName string) (restartRequired bool, err e
 		p.DataLock.Unlock()
 	}
 
-	if store.Table.Name == "status" {
+	if store.Table.Name == TableStatus {
 		p.checkStatusFlags()
 		if !p.HasFlag(MultiBackend) && len(data) >= 1 && p.StatusGet("ProgramStart") != data[0].GetInt64ByName("program_start") {
 			log.Infof("[%s] site has been restarted, recreating objects", p.Name)
@@ -1829,7 +1829,7 @@ func (p *Peer) skipTableUpdate(store *DataStore) bool {
 	if store.Table.PassthroughOnly {
 		return true
 	}
-	if p.HasFlag(MultiBackend) && store.Table.Name != "status" {
+	if p.HasFlag(MultiBackend) && store.Table.Name != TableStatus {
 		return true
 	}
 	if len(store.DynamicColumnNamesCache) == 0 {
@@ -1949,9 +1949,9 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) {
 		// nothing matched, update tables
 		time.Sleep(time.Millisecond * 200)
 		switch req.Table {
-		case "hosts":
+		case TableHosts:
 			p.UpdateDeltaTableHosts("Filter: name = " + req.WaitObject + "\n")
-		case "services":
+		case TableServices:
 			tmp := strings.SplitN(req.WaitObject, ";", 2)
 			if len(tmp) < 2 {
 				log.Errorf("unsupported service wait object: %s", req.WaitObject)
@@ -2180,7 +2180,7 @@ func SpinUpPeers(peers []*Peer) {
 			log.Infof("[%s] switched back to normal update interval", peer.Name)
 			if peer.StatusGet("PeerStatus").(PeerStatus) == PeerStatusUp {
 				log.Debugf("[%s] spin up update", peer.Name)
-				peer.UpdateObjectByType("timeperiods")
+				peer.UpdateObjectByType(TableTimeperiods)
 				peer.UpdateDeltaTables()
 				log.Debugf("[%s] spin up update done", peer.Name)
 			} else {
@@ -2619,7 +2619,7 @@ func (p *Peer) setFederationInfo(data map[string]interface{}, statuskey, datakey
 
 // RebuildCommentsCache updates the comment cache
 func (p *Peer) RebuildCommentsCache() {
-	cache := p.buildDowntimeCommentsCache("comments")
+	cache := p.buildDowntimeCommentsCache(TableComments)
 	p.PeerLock.Lock()
 	p.CommentsCache = cache
 	p.PeerLock.Unlock()
@@ -2628,7 +2628,7 @@ func (p *Peer) RebuildCommentsCache() {
 
 // RebuildDowntimesCache updates the comment cache
 func (p *Peer) RebuildDowntimesCache() {
-	cache := p.buildDowntimeCommentsCache("downtimes")
+	cache := p.buildDowntimeCommentsCache(TableDowntimes)
 	p.PeerLock.Lock()
 	p.DowntimesCache = cache
 	p.PeerLock.Unlock()
@@ -2636,7 +2636,7 @@ func (p *Peer) RebuildDowntimesCache() {
 }
 
 // buildDowntimesCache returns the downtimes/comments cache
-func (p *Peer) buildDowntimeCommentsCache(name string) map[string][]int {
+func (p *Peer) buildDowntimeCommentsCache(name TableName) map[string][]int {
 	p.DataLock.RLock()
 	cache := make(map[string][]int)
 	store := p.Tables[name]
@@ -2645,8 +2645,8 @@ func (p *Peer) buildDowntimeCommentsCache(name string) map[string][]int {
 	serviceDescIndex := store.Table.GetColumn("service_description").Index
 	for i := range store.Data {
 		row := store.Data[i]
-		key := *(row.dataString[hostNameIndex])
-		serviceName := *(row.dataString[serviceDescIndex])
+		key := row.dataString[hostNameIndex]
+		serviceName := row.dataString[serviceDescIndex]
 		if serviceName != "" {
 			key = key + ";" + serviceName
 		}
@@ -2654,7 +2654,7 @@ func (p *Peer) buildDowntimeCommentsCache(name string) map[string][]int {
 		cache[key] = append(cache[key], id)
 	}
 	p.DataLock.RUnlock()
-	promObjectCount.WithLabelValues(p.Name, name).Set(float64(len(store.Data)))
+	promObjectCount.WithLabelValues(p.Name, name.String()).Set(float64(len(store.Data)))
 
 	return cache
 }
@@ -2681,7 +2681,7 @@ func (p *Peer) ClearFlags() {
 }
 
 // GetDataStore returns store for given name or error if peer is offline
-func (p *Peer) GetDataStore(tableName string) (store *DataStore, err error) {
+func (p *Peer) GetDataStore(tableName TableName) (store *DataStore, err error) {
 	table := Objects.Tables[tableName]
 	if table.Virtual != nil {
 		store = table.Virtual(table, p)

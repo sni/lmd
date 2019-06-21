@@ -105,7 +105,7 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 				continue
 			}
 
-			dat, err := ioutil.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, req.Table))
+			dat, err := ioutil.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, req.Table.String()))
 			if err != nil {
 				panic("could not read file: " + err.Error())
 			}
@@ -130,19 +130,19 @@ func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (t
 		if table.Virtual != nil {
 			continue
 		}
-		file, err := os.Create(fmt.Sprintf("%s/%s.json", tempFolder, name))
+		file, err := os.Create(fmt.Sprintf("%s/%s.json", tempFolder, name.String()))
 		if err != nil {
 			panic("failed to create temp file: " + err.Error())
 		}
-		template, err := os.Open(fmt.Sprintf("%s/%s.json", dataFolder, name))
+		template, err := os.Open(fmt.Sprintf("%s/%s.json", dataFolder, name.String()))
 		if err != nil {
 			panic("failed to open temp file: " + err.Error())
 		}
 		switch {
-		case numServices == 0 && name != "status":
+		case numServices == 0 && name != TableStatus:
 			io.WriteString(file, "[]\n")
 			err = file.Close()
-		case name == "hosts" || name == "services":
+		case name == TableHosts || name == TableServices:
 			err = file.Close()
 			prepareTmpDataHostService(dataFolder, tempFolder, table, numHosts, numServices)
 		default:
@@ -158,7 +158,7 @@ func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (t
 
 func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Table, numHosts int, numServices int) {
 	name := table.Name
-	dat, _ := ioutil.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, name))
+	dat, _ := ioutil.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, name.String()))
 	var raw = [][]interface{}{}
 	err := json.Unmarshal(dat, &raw)
 	if err != nil {
@@ -188,7 +188,7 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 
 	newData := [][]interface{}{}
 	count := 0
-	if name == "hosts" {
+	if name == TableHosts {
 		nameIndex := GetTestColumnIndex(table, "name")
 		servicesIndex := GetTestColumnIndex(table, "services")
 		for x := range hosts {
@@ -207,7 +207,7 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 			newData = append(newData, newObj)
 		}
 	}
-	if name == "services" {
+	if name == TableServices {
 		nameIndex := GetTestColumnIndex(table, "host_name")
 		descIndex := GetTestColumnIndex(table, "description")
 		count := 0
@@ -240,7 +240,7 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 		}
 	}
 	buf.Write([]byte("]\n"))
-	ioutil.WriteFile(fmt.Sprintf("%s/%s.json", tempFolder, name), buf.Bytes(), 0644)
+	ioutil.WriteFile(fmt.Sprintf("%s/%s.json", tempFolder, name.String()), buf.Bytes(), 0644)
 }
 
 var TestPeerWaitGroup *sync.WaitGroup
@@ -383,8 +383,8 @@ func StartHTTPMockServer(t *testing.T) (*httptest.Server, func()) {
 				t.Fatalf("failed to parse request: %s", err.Error())
 			}
 			switch {
-			case req.Table != "":
-				dat, err := ioutil.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, req.Table))
+			case req.Table != TableNone:
+				dat, err := ioutil.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, req.Table.String()))
 				if err != nil {
 					panic("could not read file: " + err.Error())
 				}

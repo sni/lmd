@@ -136,7 +136,8 @@ func TestAllOps(t *testing.T) {
 		if row[2].(string) == "" {
 			t.Fatalf("got no description for %s in %s", row[1].(string), row[0].(string))
 		}
-		col := Objects.Tables[row[0].(string)].GetColumn(row[1].(string))
+		tableName, _ := NewTableName(*interface2string(row[0]))
+		col := Objects.Tables[tableName].GetColumn(row[1].(string))
 		for _, op := range ops {
 			if col.Optional != NoFlags {
 				continue
@@ -153,9 +154,9 @@ func TestAllOps(t *testing.T) {
 	}
 }
 
-func testqueryCol(t *testing.T, peer *Peer, table, column string) {
+func testqueryCol(t *testing.T, peer *Peer, table TableName, column string) {
 	query := fmt.Sprintf("GET %s\nColumns: %s\nSort: %s asc\n\n",
-		table,
+		table.String(),
 		column,
 		column,
 	)
@@ -178,9 +179,9 @@ func testqueryCol(t *testing.T, peer *Peer, table, column string) {
 	}
 }
 
-func testqueryFilter(t *testing.T, peer *Peer, table, column, op, value string) {
+func testqueryFilter(t *testing.T, peer *Peer, table TableName, column, op, value string) {
 	query := fmt.Sprintf("GET %s\nColumns: %s\nFilter: %s %s%s\n\n",
-		table,
+		table.String(),
 		column,
 		column,
 		op,
@@ -213,9 +214,7 @@ func TestAllTables(t *testing.T) {
 		if Objects.Tables[table].PassthroughOnly {
 			continue
 		}
-		query := fmt.Sprintf("GET %s\n\n",
-			table,
-		)
+		query := fmt.Sprintf("GET %s\n\n", table.String())
 		defer func() {
 			if r := recover(); r != nil {
 				fmt.Println("Recovered in f", r)

@@ -37,7 +37,7 @@ func GetTableColumnsStore(table *Table, _ *Peer) *DataStore {
 			}
 			row := []interface{}{
 				c.Name,
-				t.Name,
+				t.Name.String(),
 				colTypeName,
 				c.Description,
 				c.FetchType.String(),
@@ -59,21 +59,21 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 	peer.DataLock.RLock()
 	defer peer.DataLock.RUnlock()
 	switch store.Table.Name {
-	case "hostsbygroup":
-		nameCol := peer.Tables["hosts"].GetColumn("name")
-		groupCol := peer.Tables["hosts"].GetColumn("groups")
-		for _, row := range peer.Tables["hosts"].Data {
+	case TableHostsbygroup:
+		nameCol := peer.Tables[TableHosts].GetColumn("name")
+		groupCol := peer.Tables[TableHosts].GetColumn("groups")
+		for _, row := range peer.Tables[TableHosts].Data {
 			name := row.GetString(nameCol)
 			groups := row.GetStringList(groupCol)
 			for i := range *groups {
 				data = append(data, []interface{}{*name, (*groups)[i]})
 			}
 		}
-	case "servicesbygroup":
-		hostNameCol := peer.Tables["services"].GetColumn("host_name")
-		descCol := peer.Tables["services"].GetColumn("description")
-		groupCol := peer.Tables["services"].GetColumn("groups")
-		for _, row := range peer.Tables["services"].Data {
+	case TableServicesbygroup:
+		hostNameCol := peer.Tables[TableServices].GetColumn("host_name")
+		descCol := peer.Tables[TableServices].GetColumn("description")
+		groupCol := peer.Tables[TableServices].GetColumn("groups")
+		for _, row := range peer.Tables[TableServices].Data {
 			hostName := row.GetString(hostNameCol)
 			description := row.GetString(descCol)
 			groups := row.GetStringList(groupCol)
@@ -81,11 +81,11 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 				data = append(data, []interface{}{*hostName, *description, (*groups)[i]})
 			}
 		}
-	case "servicesbyhostgroup":
-		hostNameCol := peer.Tables["services"].GetColumn("host_name")
-		descCol := peer.Tables["services"].GetColumn("description")
-		hostGroupsCol := peer.Tables["services"].GetColumn("host_groups")
-		for _, row := range peer.Tables["services"].Data {
+	case TableServicesbyhostgroup:
+		hostNameCol := peer.Tables[TableServices].GetColumn("host_name")
+		descCol := peer.Tables[TableServices].GetColumn("description")
+		hostGroupsCol := peer.Tables[TableServices].GetColumn("host_groups")
+		for _, row := range peer.Tables[TableServices].Data {
 			hostName := row.GetString(hostNameCol)
 			description := row.GetString(descCol)
 			groups := row.GetStringList(hostGroupsCol)

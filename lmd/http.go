@@ -29,11 +29,11 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 	w.Header().Set("Content-Type", "application/json")
 
 	// Requested table (name)
-	tableName := requestData["table"].(string)
+	_, err := NewTableName(*interface2string(requestData["table"]))
 
 	// Check if table exists
-	if _, exists := Objects.Tables[tableName]; !exists {
-		c.errorOutput(fmt.Errorf("table not found: %s", tableName), w)
+	if err != nil {
+		c.errorOutput(err, w)
 		return
 	}
 
@@ -142,7 +142,11 @@ func (c *HTTPServerController) query(w http.ResponseWriter, request *http.Reques
 func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request, err error) {
 	// New request object for specified table
 	req = &Request{}
-	req.Table = requestData["table"].(string)
+	table, err := NewTableName(*interface2string(requestData["table"]))
+	if err != nil {
+		return
+	}
+	req.Table = table
 
 	// Send header row by default
 	req.ColumnsHeaders = true
@@ -151,9 +155,7 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 	}
 
 	// Offset
-	if val, ok := requestData["offset"]; ok {
-		req.Offset = int(val.(float64))
-	}
+	req.Offset = interface2int(requestData["offset"])
 
 	// Limit
 	if val, ok := requestData["limit"]; ok {

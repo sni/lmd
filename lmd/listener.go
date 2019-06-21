@@ -123,7 +123,7 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string) (keepalive bool
 			if req.WaitTrigger != "" {
 				c.SetDeadline(time.Now().Add(time.Duration(req.WaitTimeout+1000) * time.Millisecond))
 			}
-			if req.Table == "log" {
+			if req.Table == TableLog {
 				c.SetDeadline(time.Now().Add(time.Duration(60) * time.Second))
 			}
 			var response *Response

@@ -13,19 +13,19 @@ import (
 
 // DataRow represents a single entry in a DataTable
 type DataRow struct {
-	noCopy                noCopy              // we don't want to make copies, use references
-	DataStore             *DataStore          // reference to the datastore itself
-	ID                    string              // uniq id
-	Refs                  map[string]*DataRow // contains references to other objects, ex.: hosts from the services table
-	LastUpdate            int64               // timestamp when this row has been updated
-	dataString            []*string           // stores string data
-	dataInt               []int               // stores integers
-	dataInt64             []int64             // stores large integers
-	dataFloat             []float64           // stores floats
-	dataStringList        []*[]*string        // stores stringlists
-	dataIntList           [][]int             // stores lists of integers
-	dataServiceMemberList []*[]ServiceMember  // stores list of servicemembers
-	dataStringLarge       []*StringContainer  // stores large strings
+	noCopy                noCopy                 // we don't want to make copies, use references
+	DataStore             *DataStore             // reference to the datastore itself
+	ID                    string                 // uniq id
+	Refs                  map[TableName]*DataRow // contains references to other objects, ex.: hosts from the services table
+	LastUpdate            int64                  // timestamp when this row has been updated
+	dataString            []string               // stores string data
+	dataInt               []int                  // stores integers
+	dataInt64             []int64                // stores large integers
+	dataFloat             []float64              // stores floats
+	dataStringList        [][]string             // stores stringlists
+	dataIntList           [][]int                // stores lists of integers
+	dataServiceMemberList [][]ServiceMember      // stores list of servicemembers
+	dataStringLarge       []StringContainer      // stores large strings
 	dataInterfaceList     [][]interface{}
 }
 
@@ -41,7 +41,7 @@ func NewDataRow(store *DataStore, raw *[]interface{}, columns *ColumnList, times
 	}
 
 	if !store.Table.PassthroughOnly {
-		d.Refs = make(map[string]*DataRow, len(store.Table.RefTables))
+		d.Refs = make(map[TableName]*DataRow, len(store.Table.RefTables))
 	}
 
 	err = d.SetData(raw, columns, timestamp)
@@ -73,22 +73,22 @@ func (d *DataRow) setID() (err error) {
 	}
 	d.ID = key.String()
 	if d.ID == "" || d.ID == ";" {
-		err = fmt.Errorf("id for %s is null", d.DataStore.Table.Name)
+		err = fmt.Errorf("id for %s is null", d.DataStore.Table.Name.String())
 	}
 	return
 }
 
 // setData creates initial data
 func (d *DataRow) SetData(raw *[]interface{}, columns *ColumnList, timestamp int64) error {
-	d.dataString = make([]*string, d.DataStore.DataSizes[StringCol])
-	d.dataStringList = make([]*[]*string, d.DataStore.DataSizes[StringListCol])
+	d.dataString = make([]string, d.DataStore.DataSizes[StringCol])
+	d.dataStringList = make([][]string, d.DataStore.DataSizes[StringListCol])
 	d.dataInt = make([]int, d.DataStore.DataSizes[IntCol])
 	d.dataInt64 = make([]int64, d.DataStore.DataSizes[Int64Col])
 	d.dataIntList = make([][]int, d.DataStore.DataSizes[IntListCol])
 	d.dataFloat = make([]float64, d.DataStore.DataSizes[FloatCol])
-	d.dataServiceMemberList = make([]*[]ServiceMember, d.DataStore.DataSizes[ServiceMemberListCol])
+	d.dataServiceMemberList = make([][]ServiceMember, d.DataStore.DataSizes[ServiceMemberListCol])
 	d.dataInterfaceList = make([][]interface{}, d.DataStore.DataSizes[InterfaceListCol])
-	d.dataStringLarge = make([]*StringContainer, d.DataStore.DataSizes[StringLargeCol])
+	d.dataStringLarge = make([]StringContainer, d.DataStore.DataSizes[StringLargeCol])
 	return d.UpdateValues(raw, columns, timestamp)
 }
 
@@ -108,16 +108,16 @@ func (d *DataRow) setReferences(store *DataStore) (err error) {
 		}
 		refValue := key.String()
 		if refValue == "" {
-			return fmt.Errorf("failed to create refValue in table %s", d.DataStore.Table.Name)
+			return fmt.Errorf("failed to create refValue in table %s", d.DataStore.Table.Name.String())
 		}
 
 		d.Refs[tableName] = refsByName[refValue]
 		if d.Refs[tableName] == nil {
-			if tableName == "services" && (store.Table.Name == "comments" || store.Table.Name == "downtimes") {
+			if tableName == TableServices && (store.Table.Name == TableComments || store.Table.Name == TableDowntimes) {
 				// this may happen for optional reference columns, ex. services in comments
 				continue
 			}
-			return fmt.Errorf("%s '%s' ref not found from table %s, refmap contains %d elements", tableName, refValue, store.Table.Name, len(refsByName))
+			return fmt.Errorf("%s '%s' ref not found from table %s, refmap contains %d elements", tableName.String(), refValue, store.Table.Name.String(), len(refsByName))
 		}
 	}
 	return
@@ -134,7 +134,7 @@ func (d *DataRow) GetString(col *Column) *string {
 	case LocalStore:
 		switch col.DataType {
 		case StringCol:
-			return d.dataString[col.Index]
+			return &(d.dataString[col.Index])
 		case IntCol:
 			val := fmt.Sprintf("%d", d.dataInt[col.Index])
 			return &val
@@ -161,11 +161,11 @@ func (d *DataRow) GetStringByName(name string) *string {
 }
 
 // GetStringList returns the string list for given column
-func (d *DataRow) GetStringList(col *Column) *[]*string {
+func (d *DataRow) GetStringList(col *Column) *[]string {
 	switch col.StorageType {
 	case LocalStore:
 		if col.DataType == StringListCol {
-			return d.dataStringList[col.Index]
+			return &(d.dataStringList[col.Index])
 		}
 		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
@@ -179,7 +179,7 @@ func (d *DataRow) GetStringList(col *Column) *[]*string {
 }
 
 // GetStringListByName returns the string list for given column name
-func (d *DataRow) GetStringListByName(name string) *[]*string {
+func (d *DataRow) GetStringListByName(name string) *[]string {
 	return d.GetStringList(d.DataStore.Table.ColumnsIndex[name])
 }
 
@@ -298,7 +298,7 @@ func (d *DataRow) GetServiceMemberList(col *Column) *[]ServiceMember {
 	switch col.StorageType {
 	case LocalStore:
 		if col.DataType == ServiceMemberListCol {
-			return d.dataServiceMemberList[col.Index]
+			return &(d.dataServiceMemberList[col.Index])
 		}
 		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
@@ -419,13 +419,13 @@ func VirtColHasLongPluginOutput(d *DataRow, col *Column) interface{} {
 func VirtColServicesWithInfo(d *DataRow, col *Column) interface{} {
 	services := d.GetStringListByName("services")
 	hostName := d.GetStringByName("name")
-	servicesStore := d.DataStore.Peer.Tables["services"]
+	servicesStore := d.DataStore.Peer.Tables[TableServices]
 	stateCol := servicesStore.Table.GetColumn("state")
 	checkedCol := servicesStore.Table.GetColumn("has_been_checked")
 	outputCol := servicesStore.Table.GetColumn("plugin_output")
 	res := make([]interface{}, 0)
 	for i := range *services {
-		serviceID := *hostName + ";" + *((*services)[i])
+		serviceID := *hostName + ";" + (*services)[i]
 		service, ok := servicesStore.Index[serviceID]
 		if !ok {
 			log.Errorf("Could not find service: %s\n", serviceID)
@@ -444,33 +444,33 @@ func VirtColServicesWithInfo(d *DataRow, col *Column) interface{} {
 func VirtColMembersWithState(d *DataRow, col *Column) interface{} {
 	res := make([]interface{}, 0)
 	switch d.DataStore.Table.Name {
-	case "hostgroups":
+	case TableHostgroups:
 		members := d.GetStringListByName("members")
-		hostsStore := d.DataStore.Peer.Tables["hosts"]
+		hostsStore := d.DataStore.Peer.Tables[TableHosts]
 		stateCol := hostsStore.Table.GetColumn("state")
 		checkedCol := hostsStore.Table.GetColumn("has_been_checked")
 
 		for _, hostName := range *members {
-			host, ok := hostsStore.Index[*hostName]
+			host, ok := hostsStore.Index[hostName]
 			if !ok {
-				log.Errorf("Could not find host: %s\n", *hostName)
+				log.Errorf("Could not find host: %s\n", hostName)
 				continue
 			}
-			hostValue := []interface{}{*hostName, host.GetInt(stateCol), host.GetInt(checkedCol)}
+			hostValue := []interface{}{hostName, host.GetInt(stateCol), host.GetInt(checkedCol)}
 			res = append(res, hostValue)
 		}
-	case "servicegroups":
+	case TableServicegroups:
 		membersCol := d.DataStore.GetColumn("members")
 		members := d.GetServiceMemberList(membersCol)
-		servicesStore := d.DataStore.Peer.Tables["services"]
+		servicesStore := d.DataStore.Peer.Tables[TableServices]
 		stateCol := servicesStore.Table.GetColumn("state")
 		checkedCol := servicesStore.Table.GetColumn("has_been_checked")
 
-		for _, member := range *members {
-			hostName := member[0]
-			serviceDescription := member[1]
+		for i := range *members {
+			hostName := (*members)[i][0]
+			serviceDescription := (*members)[i][1]
 
-			serviceID := *hostName + ";" + *serviceDescription
+			serviceID := hostName + ";" + serviceDescription
 			service, ok := servicesStore.Index[serviceID]
 			if !ok {
 				log.Errorf("Could not find service: %s\n", serviceID)
@@ -485,7 +485,7 @@ func VirtColMembersWithState(d *DataRow, col *Column) interface{} {
 
 // VirtColComments returns list of comment IDs (with optional additional information)
 func VirtColComments(d *DataRow, col *Column) interface{} {
-	commentsStore := d.DataStore.Peer.Tables["comments"]
+	commentsStore := d.DataStore.Peer.Tables[TableComments]
 	commentsTable := commentsStore.Table
 	authorCol := commentsTable.GetColumn("author")
 	commentCol := commentsTable.GetColumn("comment")
@@ -529,7 +529,7 @@ func VirtColCustomVariables(d *DataRow, col *Column) interface{} {
 	values := d.GetStringList(valuesCol)
 	res := make(map[string]string, len(*names))
 	for i := range *names {
-		res[*(*names)[i]] = *(*values)[i]
+		res[(*names)[i]] = (*values)[i]
 	}
 	return res
 }
@@ -621,22 +621,22 @@ func (d *DataRow) getStatsKey(res *Response) string {
 // UpdateValues updates this datarow with new values
 func (d *DataRow) UpdateValues(data *[]interface{}, columns *ColumnList, timestamp int64) error {
 	if len(*columns) != len(*data) {
-		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.DataStore.Table.Name, len(*columns), len(*data))
+		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.DataStore.Table.Name.String(), len(*columns), len(*data))
 	}
 	for i := range *columns {
 		col := (*columns)[i]
 		switch col.DataType {
 		case StringCol:
-			d.dataString[col.Index] = interface2string((*data)[i])
+			d.dataString[col.Index] = *(interface2string((*data)[i]))
 		case StringListCol:
 			if col.FetchType == Static {
 				// deduplicate string lists
-				d.dataStringList[col.Index] = d.deduplicateStringlist(interface2stringlist((*data)[i]))
+				d.dataStringList[col.Index] = *d.deduplicateStringlist(interface2stringlist((*data)[i]))
 			} else {
-				d.dataStringList[col.Index] = interface2stringlist((*data)[i])
+				d.dataStringList[col.Index] = *interface2stringlist((*data)[i])
 			}
 		case StringLargeCol:
-			d.dataStringLarge[col.Index] = interface2stringlarge((*data)[i])
+			d.dataStringLarge[col.Index] = *interface2stringlarge((*data)[i])
 		case IntCol:
 			d.dataInt[col.Index] = interface2int((*data)[i])
 		case Int64Col:
@@ -646,7 +646,7 @@ func (d *DataRow) UpdateValues(data *[]interface{}, columns *ColumnList, timesta
 		case FloatCol:
 			d.dataFloat[col.Index] = interface2float64((*data)[i])
 		case ServiceMemberListCol:
-			d.dataServiceMemberList[col.Index] = interface2servicememberlist((*data)[i])
+			d.dataServiceMemberList[col.Index] = *interface2servicememberlist((*data)[i])
 		case InterfaceListCol:
 			d.dataInterfaceList[col.Index] = interface2interfacelist((*data)[i])
 		default:
@@ -763,27 +763,21 @@ func interface2stringlarge(in interface{}) *StringContainer {
 	return NewStringContainer(&str)
 }
 
-func interface2stringlist(in interface{}) *[]*string {
+func interface2stringlist(in interface{}) *[]string {
 	switch list := in.(type) {
-	case *[]*string:
+	case *[]string:
 		return list
-	case []*string:
-		return &list
 	case []string:
-		val := make([]*string, 0, len(list))
-		for i := range list {
-			val = append(val, interface2string(list[i]))
-		}
-		return &val
+		return &list
 	case []interface{}:
-		val := make([]*string, 0, len(list))
+		val := make([]string, 0, len(list))
 		for i := range list {
-			val = append(val, interface2string(list[i]))
+			val = append(val, *(interface2string(list[i])))
 		}
 		return &val
 	}
 	log.Warnf("unsupported string list type: %v", in)
-	val := make([]*string, 0)
+	val := make([]string, 0)
 	return &val
 }
 
@@ -794,11 +788,12 @@ func interface2servicememberlist(in interface{}) *[]ServiceMember {
 	case []ServiceMember:
 		return &list
 	case []interface{}:
-		val := make([]ServiceMember, 0, len(list))
+		val := make([]ServiceMember, len(list), len(list))
 		for i := range list {
 			if l2, ok := list[i].([]interface{}); ok {
 				if len(l2) == 2 {
-					val = append(val, ServiceMember{interface2string(l2[0]), interface2string(l2[1])})
+					val[i][0] = *interface2string(l2[0])
+					val[i][1] = *interface2string(l2[1])
 				}
 			}
 		}
@@ -867,20 +862,20 @@ func interface2interfacelist(in interface{}) []interface{} {
 }
 
 // deduplicateStringlist store duplicate string lists only once
-func (d *DataRow) deduplicateStringlist(list *[]*string) *[]*string {
+func (d *DataRow) deduplicateStringlist(list *[]string) *[]string {
 	sum := sha256.Sum256([]byte(*joinStringlist(list, ";")))
 	if l, ok := d.DataStore.dupStringList[sum]; ok {
-		return l
+		return &l
 	}
-	d.DataStore.dupStringList[sum] = list
+	d.DataStore.dupStringList[sum] = *list
 	return list
 }
 
 // joinStringlist joins list with given character
-func joinStringlist(list *[]*string, join string) *string {
+func joinStringlist(list *[]string, join string) *string {
 	var joined strings.Builder
 	for _, s := range *list {
-		joined.WriteString(*s)
+		joined.WriteString(s)
 		joined.WriteString(join)
 	}
 	str := joined.String()
@@ -960,14 +955,14 @@ func (d *DataRow) isAuthorizedFor(authUser string, host string, service string) 
 	// get contacts for host, if we are checking a host or
 	// if this is a service and ServiceAuthorization is loose
 	if (service != "" && p.LocalConfig.ServiceAuthorization == loose) || service == "" {
-		hostObj, ok := p.Tables["hosts"].Index[host]
-		contactsColumn := p.Tables["hosts"].GetColumn("contacts")
+		hostObj, ok := p.Tables[TableHosts].Index[host]
+		contactsColumn := p.Tables[TableHosts].GetColumn("contacts")
 		// Make sure the host we found is actually valid
 		if !ok {
 			return
 		}
 		for _, contact := range *hostObj.GetStringList(contactsColumn) {
-			if *contact == authUser {
+			if contact == authUser {
 				canView = true
 				return
 			}
@@ -977,13 +972,13 @@ func (d *DataRow) isAuthorizedFor(authUser string, host string, service string) 
 	// get contacts on services
 	if service != "" {
 		serviceID := host + ";" + service
-		serviceObj, ok := p.Tables["services"].Index[serviceID]
-		contactsColumn := p.Tables["services"].GetColumn("contacts")
+		serviceObj, ok := p.Tables[TableServices].Index[serviceID]
+		contactsColumn := p.Tables[TableServices].GetColumn("contacts")
 		if !ok {
 			return
 		}
 		for _, contact := range *serviceObj.GetStringList(contactsColumn) {
-			if *contact == authUser {
+			if contact == authUser {
 				canView = true
 				return
 			}
@@ -997,8 +992,8 @@ func (d *DataRow) isAuthorizedForHostGroup(authUser string, hostgroup string) (c
 	p := d.DataStore.Peer
 	canView = false
 
-	hostgroupObj, ok := p.Tables["hostgroups"].Index[hostgroup]
-	membersColumn := p.Tables["hostgroups"].GetColumn("members")
+	hostgroupObj, ok := p.Tables[TableHostgroups].Index[hostgroup]
+	membersColumn := p.Tables[TableHostgroups].GetColumn("members")
 	if !ok {
 		return
 	}
@@ -1014,12 +1009,12 @@ func (d *DataRow) isAuthorizedForHostGroup(authUser string, hostgroup string) (c
 		 */
 		switch p.LocalConfig.GroupAuthorization {
 		case loose:
-			if d.isAuthorizedFor(authUser, *hostname, "") {
+			if d.isAuthorizedFor(authUser, hostname, "") {
 				canView = true
 				return
 			}
 		case strict:
-			if !d.isAuthorizedFor(authUser, *hostname, "") {
+			if !d.isAuthorizedFor(authUser, hostname, "") {
 				canView = false
 				return
 			} else if i == len(members)-1 {
@@ -1036,14 +1031,14 @@ func (d *DataRow) isAuthorizedForServiceGroup(authUser string, servicegroup stri
 	p := d.DataStore.Peer
 	canView = false
 
-	servicegroupObj, ok := p.Tables["servicegroups"].Index[servicegroup]
-	membersColumn := p.Tables["servicegroups"].GetColumn("members")
+	servicegroupObj, ok := p.Tables[TableServicegroups].Index[servicegroup]
+	membersColumn := p.Tables[TableServicegroups].GetColumn("members")
 	if !ok {
 		return
 	}
 
 	members := *((*servicegroupObj).GetServiceMemberList(membersColumn))
-	for i, member := range members {
+	for i := range members {
 		/* If GroupAuthorization is loose, we just need to find the contact
 		 * in any hosts in the group, then we can return.
 		 * If it is strict, the user must be a contact on every single host.
@@ -1053,12 +1048,12 @@ func (d *DataRow) isAuthorizedForServiceGroup(authUser string, servicegroup stri
 		 */
 		switch p.LocalConfig.GroupAuthorization {
 		case loose:
-			if d.isAuthorizedFor(authUser, *member[0], *member[1]) {
+			if d.isAuthorizedFor(authUser, members[i][0], members[i][1]) {
 				canView = true
 				return
 			}
 		case strict:
-			if !d.isAuthorizedFor(authUser, *member[0], *member[1]) {
+			if !d.isAuthorizedFor(authUser, members[i][0], members[i][1]) {
 				canView = false
 				return
 			} else if i == len(members)-1 {
@@ -1081,51 +1076,51 @@ func (d *DataRow) checkAuth(authUser string) (canView bool) {
 	table := d.DataStore.Table
 
 	switch table.Name {
-	case "hosts":
+	case TableHosts:
 		hostNameIndex := table.GetColumn("name").Index
-		hostName := *d.dataString[hostNameIndex]
+		hostName := d.dataString[hostNameIndex]
 		canView = d.isAuthorizedFor(authUser, hostName, "")
-	case "services":
+	case TableServices:
 		hostNameIndex := table.GetColumn("host_name").Index
-		hostName := *d.dataString[hostNameIndex]
+		hostName := d.dataString[hostNameIndex]
 		serviceIndex := table.GetColumn("description").Index
-		serviceDescription := *d.dataString[serviceIndex]
+		serviceDescription := d.dataString[serviceIndex]
 		canView = d.isAuthorizedFor(authUser, hostName, serviceDescription)
-	case "hostgroups":
+	case TableHostgroups:
 		nameIndex := table.GetColumn("name").Index
-		hostgroupName := *d.dataString[nameIndex]
+		hostgroupName := d.dataString[nameIndex]
 		canView = d.isAuthorizedForHostGroup(authUser, hostgroupName)
-	case "servicegroups":
+	case TableServicegroups:
 		nameIndex := table.GetColumn("name").Index
-		servicegroupName := *d.dataString[nameIndex]
+		servicegroupName := d.dataString[nameIndex]
 		canView = d.isAuthorizedForServiceGroup(authUser, servicegroupName)
-	case "hostsbygroup":
+	case TableHostsbygroup:
 		hostNameIndex := table.GetColumn("name").Index
-		hostName := *d.dataString[hostNameIndex]
+		hostName := d.dataString[hostNameIndex]
 		hostGroupIndex := table.GetColumn("hostgroup_name").Index
-		hostGroupName := *d.dataString[hostGroupIndex]
+		hostGroupName := d.dataString[hostGroupIndex]
 		canView = d.isAuthorizedFor(authUser, hostName, "") &&
 			d.isAuthorizedForHostGroup(authUser, hostGroupName)
-	case "servicesbygroup", "servicesbyhostgroup":
+	case TableServicesbygroup, TableServicesbyhostgroup:
 		hostNameIndex := table.GetColumn("host_name").Index
-		hostName := *d.dataString[hostNameIndex]
+		hostName := d.dataString[hostNameIndex]
 		serviceIndex := table.GetColumn("description").Index
-		serviceDescription := *d.dataString[serviceIndex]
+		serviceDescription := d.dataString[serviceIndex]
 
-		if table.Name == "servicesbygroup" {
+		if table.Name == TableServicesbygroup {
 			servicegroupIndex := table.GetColumn("servicegroup_name").Index
-			servicegroupName := *d.dataString[servicegroupIndex]
+			servicegroupName := d.dataString[servicegroupIndex]
 			canView = d.isAuthorizedFor(authUser, hostName, serviceDescription) && d.isAuthorizedForServiceGroup(authUser, servicegroupName)
 		} else {
 			hostgroupIndex := table.GetColumn("hostgroup_name").Index
-			hostgroupName := *d.dataString[hostgroupIndex]
+			hostgroupName := d.dataString[hostgroupIndex]
 			canView = d.isAuthorizedFor(authUser, hostName, serviceDescription) && d.isAuthorizedForHostGroup(authUser, hostgroupName)
 		}
-	case "downtimes", "comments":
+	case TableDowntimes, TableComments:
 		hostIndex := table.GetColumn("host_name").Index
 		serviceIndex := table.GetColumn("service_description").Index
-		hostName := *d.dataString[hostIndex]
-		serviceDescription := *d.dataString[serviceIndex]
+		hostName := d.dataString[hostIndex]
+		serviceDescription := d.dataString[serviceIndex]
 		canView = d.isAuthorizedFor(authUser, hostName, serviceDescription)
 	default:
 		canView = true

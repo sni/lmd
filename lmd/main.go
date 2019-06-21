@@ -162,6 +162,7 @@ var reHTTPHostPort *regexp.Regexp
 
 // initialize objects structure
 func init() {
+	InitTableNames()
 	InitObjects()
 	mainSignalChannel = make(chan os.Signal)
 	PeerMapLock = NewLoggingLock("PeerMapLock")
