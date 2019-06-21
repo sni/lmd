@@ -126,24 +126,6 @@ var (
 		},
 		[]string{"peer"},
 	)
-	promPeerUpdatedHosts = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: NAME,
-			Subsystem: "peer",
-			Name:      "updated_hosts",
-			Help:      "Peer Updated Hosts Counter",
-		},
-		[]string{"peer"},
-	)
-	promPeerUpdatedServices = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: NAME,
-			Subsystem: "peer",
-			Name:      "updated_services",
-			Help:      "Peer Updated Services Counter",
-		},
-		[]string{"peer"},
-	)
 
 	promObjectCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -151,6 +133,16 @@ var (
 			Subsystem: "peer",
 			Name:      "object_count",
 			Help:      "Number of objects",
+		},
+		[]string{"peer", "type"},
+	)
+
+	promObjectUpdate = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: NAME,
+			Subsystem: "peer",
+			Name:      "updated_objects",
+			Help:      "Peer Updated Objects Counter",
 		},
 		[]string{"peer", "type"},
 	)
@@ -200,8 +192,7 @@ func initPrometheus(localConfig *Config) (prometheusListener io.Closer) {
 	prometheus.Register(promPeerBytesReceived)
 	prometheus.Register(promPeerUpdates)
 	prometheus.Register(promPeerUpdateDuration)
-	prometheus.Register(promPeerUpdatedHosts)
-	prometheus.Register(promPeerUpdatedServices)
+	prometheus.Register(promObjectUpdate)
 	prometheus.Register(promObjectCount)
 	prometheus.Register(promStringDedupCount)
 	prometheus.Register(promStringDedupBytes)

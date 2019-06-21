@@ -873,7 +873,7 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 		}
 	}
 	p.DataLock.Unlock()
-	promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(*res)))
+	promObjectUpdate.WithLabelValues(p.Name, "hosts").Add(float64(len(*res)))
 	log.Debugf("[%s] updated %d hosts", p.Name, len(*res))
 
 	return
@@ -923,7 +923,7 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 		}
 	}
 	p.DataLock.Unlock()
-	promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(*res)))
+	promObjectUpdate.WithLabelValues(p.Name, "services").Add(float64(len(*res)))
 	log.Debugf("[%s] updated %d services", p.Name, len(*res))
 
 	return
@@ -1788,6 +1788,8 @@ func (p *Peer) UpdateObjectByType(tableName string) (restartRequired bool, err e
 		return
 	}
 
+	promObjectUpdate.WithLabelValues(p.Name, store.Table.Name).Add(float64(len(*res)))
+
 	if store.Table.Name == "timeperiods" {
 		// check for changed timeperiods, because we have to update the linked hosts and services as well
 		p.updateTimeperiodsData(store, res, &store.DynamicColumnCache)
@@ -1805,18 +1807,12 @@ func (p *Peer) UpdateObjectByType(tableName string) (restartRequired bool, err e
 		p.DataLock.Unlock()
 	}
 
-	switch store.Table.Name {
-	case "hosts":
-		promPeerUpdatedHosts.WithLabelValues(p.Name).Add(float64(len(*res)))
-	case "services":
-		promPeerUpdatedServices.WithLabelValues(p.Name).Add(float64(len(*res)))
-	case "status":
+	if store.Table.Name == "status" {
 		p.checkStatusFlags()
 		if !p.HasFlag(MultiBackend) && len(data) >= 1 && p.StatusGet("ProgramStart") != data[0].GetInt64ByName("program_start") {
 			log.Infof("[%s] site has been restarted, recreating objects", p.Name)
 			restartRequired = true
 		}
-		return
 	}
 
 	return
