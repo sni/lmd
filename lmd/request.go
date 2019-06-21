@@ -913,12 +913,12 @@ func (req *Request) parseResult(resBytes *[]byte) (*ResultSet, *ResultMetaData, 
 			err = aErr
 			return
 		}
-		row, dErr := djson.Decode(rowBytes)
+		row, dErr := djson.DecodeArray(rowBytes)
 		if dErr != nil {
 			err = dErr
 			return
 		}
-		res = append(res, row.([]interface{}))
+		res = append(res, row)
 	})
 	// trailing comma error will be ignored
 	if jErr != nil && offset < len(*resBytes)-3 {
