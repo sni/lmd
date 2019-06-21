@@ -61,8 +61,8 @@ type Peer struct {
 	lastResponse    *[]byte
 	HTTPClient      *http.Client
 	connectionCache chan net.Conn
-	CommentsCache   map[string][]int32
-	DowntimesCache  map[string][]int32
+	CommentsCache   map[*DataRow][]int32
+	DowntimesCache  map[*DataRow][]int32
 }
 
 // PeerStatus contains the different states a peer can have
@@ -2636,22 +2636,28 @@ func (p *Peer) RebuildDowntimesCache() {
 }
 
 // buildDowntimesCache returns the downtimes/comments cache
-func (p *Peer) buildDowntimeCommentsCache(name TableName) map[string][]int32 {
+func (p *Peer) buildDowntimeCommentsCache(name TableName) map[*DataRow][]int32 {
 	p.DataLock.RLock()
-	cache := make(map[string][]int32)
+	cache := make(map[*DataRow][]int32)
 	store := p.Tables[name]
 	idIndex := store.Table.GetColumn("id").Index
 	hostNameIndex := store.Table.GetColumn("host_name").Index
 	serviceDescIndex := store.Table.GetColumn("service_description").Index
+	hostIndex := p.Tables[TableHosts].Index
+	serviceIndex := p.Tables[TableServices].Index
 	for i := range store.Data {
 		row := store.Data[i]
 		key := row.dataString[hostNameIndex]
 		serviceName := row.dataString[serviceDescIndex]
+		var obj *DataRow
 		if serviceName != "" {
 			key = key + ";" + serviceName
+			obj = serviceIndex[key]
+		} else {
+			obj = hostIndex[key]
 		}
 		id := row.dataInt[idIndex]
-		cache[key] = append(cache[key], id)
+		cache[obj] = append(cache[obj], id)
 	}
 	p.DataLock.RUnlock()
 	promObjectCount.WithLabelValues(p.Name, name.String()).Set(float64(len(store.Data)))

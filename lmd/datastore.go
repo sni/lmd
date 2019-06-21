@@ -84,19 +84,18 @@ func (d *DataStore) InsertData(data *ResultSet, columns *ColumnList) error {
 // AddItem adds an new DataRow to a DataStore.
 func (d *DataStore) AddItem(row *DataRow) {
 	d.Data = append(d.Data, row)
-	if row.ID != "" {
-		d.Index[row.ID] = row
+	if len(d.Table.PrimaryKey) > 0 {
+		d.Index[row.GetID()] = row
 	}
 }
 
 // RemoveItem removes a DataRow from a DataStore.
 func (d *DataStore) RemoveItem(row *DataRow) {
-	if row.ID != "" {
-		delete(d.Index, row.ID)
+	if len(d.Table.PrimaryKey) > 0 {
+		delete(d.Index, row.GetID())
 	}
 	for i := range d.Data {
-		r := d.Data[i]
-		if r.ID == row.ID {
+		if d.Data[i] == row {
 			d.Data = append(d.Data[:i], d.Data[i+1:]...)
 			return
 		}

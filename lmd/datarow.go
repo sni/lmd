@@ -15,7 +15,6 @@ import (
 type DataRow struct {
 	noCopy                noCopy                 // we don't want to make copies, use references
 	DataStore             *DataStore             // reference to the datastore itself
-	ID                    string                 // uniq id
 	Refs                  map[TableName]*DataRow // contains references to other objects, ex.: hosts from the services table
 	LastUpdate            int64                  // timestamp when this row has been updated
 	dataString            []string               // stores string data
@@ -49,19 +48,21 @@ func NewDataRow(store *DataStore, raw *[]interface{}, columns *ColumnList, times
 		return
 	}
 
-	err = d.setID()
-	if err != nil {
-		return
-	}
-
 	err = d.setReferences(store)
 	return
 }
 
-// setID calculates and set the ID field
-func (d *DataRow) setID() (err error) {
+// GetID calculates and the ID value
+func (d *DataRow) GetID() string {
 	if len(d.DataStore.Table.PrimaryKey) == 0 {
-		return
+		return ""
+	}
+	if len(d.DataStore.Table.PrimaryKey) == 1 {
+		id := d.GetStringByName(d.DataStore.Table.PrimaryKey[0])
+		if *id == "" {
+			log.Errorf("[%s] id for %s is null", d.DataStore.Peer.Name, d.DataStore.Table.Name.String())
+		}
+		return *id
 	}
 
 	var key strings.Builder
@@ -71,11 +72,11 @@ func (d *DataRow) setID() (err error) {
 		}
 		key.WriteString(*(d.GetStringByName(k)))
 	}
-	d.ID = key.String()
-	if d.ID == "" || d.ID == ";" {
-		err = fmt.Errorf("id for %s is null", d.DataStore.Table.Name.String())
+	id := key.String()
+	if id == "" || id == ";" {
+		log.Errorf("[%s] id for %s is null", d.DataStore.Peer.Name, d.DataStore.Table.Name.String())
 	}
-	return
+	return id
 }
 
 // setData creates initial data
@@ -489,9 +490,8 @@ func VirtColComments(d *DataRow, col *Column) interface{} {
 	commentsTable := commentsStore.Table
 	authorCol := commentsTable.GetColumn("author")
 	commentCol := commentsTable.GetColumn("comment")
-	key := d.ID
 	res := make([]interface{}, 0)
-	comments, ok := d.DataStore.Peer.CommentsCache[key]
+	comments, ok := d.DataStore.Peer.CommentsCache[d]
 	if !ok {
 		return res
 	}
@@ -513,8 +513,7 @@ func VirtColComments(d *DataRow, col *Column) interface{} {
 
 // VirtColDowntimes returns list of downtimes IDs
 func VirtColDowntimes(d *DataRow, col *Column) interface{} {
-	key := d.ID
-	downtimes, ok := d.DataStore.Peer.DowntimesCache[key]
+	downtimes, ok := d.DataStore.Peer.DowntimesCache[d]
 	if !ok {
 		return nil
 	}
