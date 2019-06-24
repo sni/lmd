@@ -23,7 +23,7 @@ func (l *LoggingLock) Lock() {
 	if atomic.LoadInt32(&l.currentlyLocked) == 0 {
 		l.lock.Lock()
 	} else {
-		timeout := time.Second * 2
+		timeout := time.Second * 3
 		c := make(chan struct{})
 		go func() {
 			defer close(c)
@@ -60,7 +60,7 @@ func (l *LoggingLock) RLock() {
 	if atomic.LoadInt32(&l.currentlyLocked) == 0 {
 		l.lock.RLock()
 	} else {
-		timeout := time.Second * 2
+		timeout := time.Second * 3
 		c := make(chan struct{})
 		go func() {
 			defer close(c)
