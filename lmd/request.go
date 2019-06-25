@@ -47,6 +47,7 @@ type Request struct {
 	WaitConditionNegate bool
 	KeepAlive           bool
 	AuthUser            string
+	Negate              bool
 }
 
 // SortDirection can be either Asc or Desc
@@ -229,6 +230,9 @@ func (req *Request) String() (str string) {
 	}
 	if req.WaitConditionNegate {
 		str += fmt.Sprintf("WaitConditionNegate\n")
+	}
+	if req.Negate {
+		str += fmt.Sprintf("Negate:\n")
 	}
 	if req.AuthUser != "" {
 		str += fmt.Sprintf("AuthUser: %s\n", req.AuthUser)
@@ -698,6 +702,12 @@ func (req *Request) ParseRequestHeaderLine(line []byte) (err error) {
 		return
 	case "waitconditionnegate":
 		req.WaitConditionNegate = true
+		return
+	case "negate":
+		if len(req.Filter) == 0 && req.FilterStr == "" {
+			err = fmt.Errorf("no Filter: header to negate")
+		}
+		req.Negate = true
 		return
 	case "keepalive":
 		err = parseOnOff(&req.KeepAlive, args)
