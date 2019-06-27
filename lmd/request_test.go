@@ -35,6 +35,7 @@ func TestRequestHeader(t *testing.T) {
 		"GET hosts\nColumns: name\nFilter: last_check >= 123456789\n\n",
 		"GET hosts\nColumns: name\nFilter: last_check =\n\n",
 		"GET hosts\nAuthUser: testUser\n\n",
+		"GET hosts\nColumns: name\nFilter: contact_groups >= test\nNegate:\n\n",
 	}
 	for _, str := range testRequestStrings {
 		buf := bufio.NewReader(bytes.NewBufferString(str))
@@ -1035,6 +1036,29 @@ func TestShouldBeScheduled(t *testing.T) {
 
 	if err := assertEq(1., (*res)[0][0]); err != nil {
 		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestNegate(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	res, _, err := peer.QueryString("GET hosts\nColumns: name\nFilter: host_name = testhost_1\nNegate:\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(9, len(*res)); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, host := range *res {
+		if err = assertNeq("testhost_1", host[0]); err != nil {
+			t.Error(err)
+		}
 	}
 
 	if err := StopTestPeer(peer); err != nil {

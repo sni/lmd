@@ -43,6 +43,13 @@ func assertEq(exp, got interface{}) error {
 	return nil
 }
 
+func assertNeq(exp, got interface{}) error {
+	if reflect.DeepEqual(exp, got) {
+		return fmt.Errorf("\n%#v\nIs equal to\n%#v", exp, got)
+	}
+	return nil
+}
+
 func assertLike(exp string, got string) error {
 	regex, err := regexp.Compile(exp)
 	if err != nil {
