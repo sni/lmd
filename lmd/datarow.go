@@ -533,6 +533,12 @@ func VirtColCustomVariables(d *DataRow, col *Column) interface{} {
 	return res
 }
 
+// VirtColHasLongPluginOutput returns 1 if there is long plugin output, 0 if not
+func VirtColTotalServices(d *DataRow, col *Column) interface{} {
+	val := d.GetIntByName("num_services")
+	return val
+}
+
 // getVirtSubLMDValue returns status values for LMDSub backends
 func (d *DataRow) getVirtSubLMDValue(col *Column) (val interface{}, ok bool) {
 	ok = true

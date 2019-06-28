@@ -54,6 +54,7 @@ var VirtColumnList = []VirtColumnMapEntry{
 	{Name: "downtimes", ResolvFunc: VirtColDowntimes},
 	{Name: "members_with_state", ResolvFunc: VirtColMembersWithState},
 	{Name: "custom_variables", ResolvFunc: VirtColCustomVariables},
+	{Name: "total_services", ResolvFunc: VirtColTotalServices},
 	{Name: "empty", ResolvFunc: func(_ *DataRow, _ *Column) interface{} { return "" }}, // return empty string as placeholder for nonexisting columns
 }
 

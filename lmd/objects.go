@@ -273,6 +273,7 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("icon_image_expanded", Static, StringCol, "The name of an image file to be used in the web pages")
 	t.AddColumn("in_check_period", Dynamic, IntCol, "Time period in which this host will be checked. If empty then the host will always be checked")
 	t.AddColumn("in_notification_period", Dynamic, IntCol, "Time period in which problems of this host will be notified. If empty then notification will be always")
+	t.AddColumn("initial_state", Static, IntCol, "Initial host state")
 	t.AddColumn("is_executing", Dynamic, IntCol, "is there a host check currently running... (0/1)")
 	t.AddColumn("is_flapping", Dynamic, IntCol, "Whether the host state is flapping (0/1)")
 	t.AddColumn("last_check", Dynamic, Int64Col, "Time of the last check (Unix timestamp)")
@@ -356,6 +357,7 @@ func NewHostsTable() (t *Table) {
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
 	t.AddExtraColumn("last_state_change_order", VirtStore, None, IntCol, NoFlags, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked")
 	t.AddExtraColumn("has_long_plugin_output", VirtStore, None, IntCol, NoFlags, "Flag wether this host has long_plugin_output or not")
+	t.AddExtraColumn("total_services", VirtStore, None, IntCol, NoFlags, "The total number of services of the host")
 	return
 }
 
