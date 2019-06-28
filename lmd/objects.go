@@ -273,6 +273,7 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("icon_image_expanded", Static, StringCol, "The name of an image file to be used in the web pages")
 	t.AddColumn("in_check_period", Dynamic, IntCol, "Time period in which this host will be checked. If empty then the host will always be checked")
 	t.AddColumn("in_notification_period", Dynamic, IntCol, "Time period in which problems of this host will be notified. If empty then notification will be always")
+	t.AddColumn("initial_state", Static, IntCol, "Initial host state")
 	t.AddColumn("is_executing", Dynamic, IntCol, "is there a host check currently running... (0/1)")
 	t.AddColumn("is_flapping", Dynamic, IntCol, "Whether the host state is flapping (0/1)")
 	t.AddColumn("last_check", Dynamic, Int64Col, "Time of the last check (Unix timestamp)")
@@ -351,11 +352,13 @@ func NewHostsTable() (t *Table) {
 	t.AddExtraColumn("comments", VirtStore, None, IntListCol, NoFlags, "A list of the ids of all comments of this host")
 	t.AddExtraColumn("comments_with_info", VirtStore, None, InterfaceListCol, NoFlags, "A list of all comments of the host with id, author and comment")
 	t.AddExtraColumn("downtimes", VirtStore, None, IntListCol, NoFlags, "A list of the ids of all scheduled downtimes of this host")
+	t.AddExtraColumn("downtimes_with_info", VirtStore, None, InterfaceListCol, NoFlags, "A list of all downtimes of the host with id, author and comment")
 	t.AddPeerInfoColumn("lmd_last_cache_update", Int64Col, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
 	t.AddExtraColumn("last_state_change_order", VirtStore, None, IntCol, NoFlags, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked")
 	t.AddExtraColumn("has_long_plugin_output", VirtStore, None, IntCol, NoFlags, "Flag wether this host has long_plugin_output or not")
+	t.AddExtraColumn("total_services", VirtStore, None, IntCol, NoFlags, "The total number of services of the host")
 	return
 }
 
@@ -400,6 +403,7 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("action_url_expanded", Static, StringCol, "An optional URL for actions or custom information about the service")
 	t.AddColumn("active_checks_enabled", Dynamic, IntCol, "Whether active checks are enabled for the service (0/1)")
 	t.AddColumn("check_command", Static, StringCol, "Naemon command used for active checks")
+	t.AddColumn("check_freshness", Dynamic, IntCol, "Whether freshness checks are activated (0/1)")
 	t.AddColumn("check_interval", Static, IntCol, "Number of basic interval lengths between two scheduled checks of the service")
 	t.AddColumn("check_options", Dynamic, IntCol, "The current check option, forced, normal, freshness... (0/1)")
 	t.AddColumn("check_period", Static, StringCol, "The name of the check period of the service. It this is empty, the service is always checked")
@@ -496,6 +500,7 @@ func NewServicesTable() (t *Table) {
 	t.AddExtraColumn("comments", VirtStore, None, IntListCol, NoFlags, "A list of all comment ids of the service")
 	t.AddExtraColumn("comments_with_info", VirtStore, None, InterfaceListCol, NoFlags, "A list of all comments of the host with id, author and comment")
 	t.AddExtraColumn("downtimes", VirtStore, None, IntListCol, NoFlags, "A list of all downtime ids of the service")
+	t.AddExtraColumn("downtimes_with_info", VirtStore, None, InterfaceListCol, NoFlags, "A list of all downtimes of the service with id, author and comment")
 	t.AddPeerInfoColumn("lmd_last_cache_update", Int64Col, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
