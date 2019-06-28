@@ -402,6 +402,7 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("action_url_expanded", Static, StringCol, "An optional URL for actions or custom information about the service")
 	t.AddColumn("active_checks_enabled", Dynamic, IntCol, "Whether active checks are enabled for the service (0/1)")
 	t.AddColumn("check_command", Static, StringCol, "Naemon command used for active checks")
+	t.AddColumn("check_freshness", Dynamic, IntCol, "Whether freshness checks are activated (0/1)")
 	t.AddColumn("check_interval", Static, IntCol, "Number of basic interval lengths between two scheduled checks of the service")
 	t.AddColumn("check_options", Dynamic, IntCol, "The current check option, forced, normal, freshness... (0/1)")
 	t.AddColumn("check_period", Static, StringCol, "The name of the check period of the service. It this is empty, the service is always checked")
