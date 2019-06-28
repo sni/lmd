@@ -513,11 +513,29 @@ func VirtColComments(d *DataRow, col *Column) interface{} {
 
 // VirtColDowntimes returns list of downtimes IDs
 func VirtColDowntimes(d *DataRow, col *Column) interface{} {
+	downtimesStore := d.DataStore.Peer.Tables[TableDowntimes]
+	downtimesTable := downtimesStore.Table
+	authorCol := downtimesTable.GetColumn("author")
+	commentCol := downtimesTable.GetColumn("comment")
+	res := make([]interface{}, 0)
 	downtimes, ok := d.DataStore.Peer.DowntimesCache[d]
 	if !ok {
-		return nil
+		return res
 	}
-	return downtimes
+	if col.Name == "downtimes" {
+		return downtimes
+	}
+	for i := range downtimes {
+		downtimeID := fmt.Sprintf("%d", downtimes[i])
+		downtime, ok := downtimesStore.Index[downtimeID]
+		if !ok {
+			log.Errorf("Could not find downtime: %s\n", downtimeID)
+			continue
+		}
+		downtimeWithInfo := []interface{}{downtimes[i], downtime.GetString(authorCol), downtime.GetString(commentCol)}
+		res = append(res, downtimeWithInfo)
+	}
+	return res
 }
 
 // VirtColCustomVariables returns a custom variables hash
