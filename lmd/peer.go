@@ -855,8 +855,10 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 	if err != nil {
 		return
 	}
-	p.DataLock.Lock()
+
 	now := time.Now().Unix()
+	p.DataLock.Lock()
+	defer p.DataLock.Unlock()
 	nameIndex := table.Index
 	for i := range *res {
 		resRow := &(*res)[i]
@@ -872,7 +874,6 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 			return
 		}
 	}
-	p.DataLock.Unlock()
 	promObjectUpdate.WithLabelValues(p.Name, "hosts").Add(float64(len(*res)))
 	log.Debugf("[%s] updated %d hosts", p.Name, len(*res))
 
@@ -905,9 +906,11 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	if err != nil {
 		return
 	}
-	p.DataLock.Lock()
-	nameindex := table.Index
+
 	now := time.Now().Unix()
+	p.DataLock.Lock()
+	defer p.DataLock.Unlock()
+	nameindex := table.Index
 	for i := range *res {
 		resRow := &(*res)[i]
 		lookUp := *(interface2string((*resRow)[0])) + ";" + *(interface2string((*resRow)[1]))
@@ -922,7 +925,6 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 			return
 		}
 	}
-	p.DataLock.Unlock()
 	promObjectUpdate.WithLabelValues(p.Name, "services").Add(float64(len(*res)))
 	log.Debugf("[%s] updated %d services", p.Name, len(*res))
 
