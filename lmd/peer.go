@@ -199,7 +199,7 @@ func NewPeer(localConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 	p.Status["PeerParent"] = ""
 	p.Status["LastColumns"] = []string{}
 	p.Status["LastTotalCount"] = int64(0)
-	p.Status["ThrukVersion"] = float64(0)
+	p.Status["ThrukVersion"] = float64(-1)
 	p.Status["SubKey"] = []string{}
 	p.Status["SubName"] = []string{}
 	p.Status["SubAddr"] = []string{}
@@ -660,7 +660,7 @@ func (p *Peer) InitAllTables() bool {
 		}
 		err = p.CreateObjectByType(t)
 		if err != nil {
-			log.Debugf("[%s] creating initial objects failed in table %s: %s", p.Name, t.Name, err.Error())
+			log.Debugf("[%s] creating initial objects failed in table %s: %s", p.Name, t.Name.String(), err.Error())
 			return false
 		}
 		switch t.Name {
@@ -1086,7 +1086,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
 		id := fmt.Sprintf("%v", (*resRow)[0])
 		_, ok := idIndex[id]
 		if !ok {
-			log.Debugf("adding %s with id %s", name, id)
+			log.Debugf("adding %s with id %s", name.String(), id)
 			id64 := int64((*resRow)[0].(float64))
 			missingIds = append(missingIds, id64)
 		}
@@ -1097,7 +1097,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
 	for id := range idIndex {
 		_, ok := resIndex[id]
 		if !ok {
-			log.Debugf("removing %s with id %s", name, id)
+			log.Debugf("removing %s with id %s", name.String(), id)
 			tmp := idIndex[id]
 			store.RemoveItem(tmp)
 		}
@@ -1147,7 +1147,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
 		p.RebuildDowntimesCache()
 	}
 
-	log.Debugf("[%s] updated %s", p.Name, name)
+	log.Debugf("[%s] updated %s", p.Name, name.String())
 	return
 }
 
@@ -1714,7 +1714,7 @@ func (p *Peer) fetchRemotePeers() (sites []interface{}, err error) {
 		return
 	}
 	if p.StatusGet("ThrukVersion").(float64) < 2.23 {
-		log.Warnf("[%s] remote thruk version too old (%f < 2.23) cannot fetch all sites.", p.Name, p.StatusGet("ThrukVersion").(float64))
+		log.Warnf("[%s] remote thruk version too old (%.2f < 2.23) cannot fetch all sites.", p.Name, p.StatusGet("ThrukVersion").(float64))
 		return
 	}
 	// try all http connections and use first working connection
@@ -2465,7 +2465,7 @@ func (p *Peer) setBroken(details string) {
 	p.PeerLock.Lock()
 	p.Status["PeerStatus"] = PeerStatusBroken
 	p.Status["LastError"] = "broken: " + details
-	p.Status["ThrukVersion"] = float64(0)
+	p.Status["ThrukVersion"] = float64(-1)
 	p.PeerLock.Unlock()
 	p.Clear()
 }
