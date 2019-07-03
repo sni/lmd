@@ -518,6 +518,7 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		return (-1)
 	case syscall.SIGUSR1:
 		log.Errorf("requested thread dump via signal %s", sig)
+		logCurrentsLocks()
 		logThreaddump()
 		return (0)
 	default:
@@ -526,8 +527,8 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 	return (1)
 }
 
-func logThreaddump() {
-	log.Errorf("*** Full Threaddump:")
+func logCurrentsLocks() {
+	log.Errorf("*** current held locks:")
 	PeerMapLock.RLock()
 	for id := range PeerMap {
 		p := PeerMap[id]
@@ -541,6 +542,10 @@ func logThreaddump() {
 		}
 	}
 	PeerMapLock.RUnlock()
+}
+
+func logThreaddump() {
+	log.Errorf("*** full thread dump:")
 	buf := make([]byte, 1<<16)
 	runtime.Stack(buf, true)
 	log.Errorf("%s", buf)
