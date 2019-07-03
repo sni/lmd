@@ -144,7 +144,7 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string) (keepalive bool
 			var size int64
 			size, err = response.Send(c)
 			duration := time.Since(t1)
-			log.Infof("incoming %s request from %s to %s finished in %s, response size: %s", req.Table, remote, c.LocalAddr().String(), duration.String(), ByteCountBinary(size))
+			log.Infof("incoming %s request from %s to %s finished in %s, response size: %s", req.Table.String(), remote, c.LocalAddr().String(), duration.String(), ByteCountBinary(size))
 			if err != nil || !req.KeepAlive {
 				return
 			}
