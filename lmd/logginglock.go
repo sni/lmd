@@ -15,6 +15,14 @@ type LoggingLock struct {
 	name               string
 }
 
+// NewLoggingLock returns a new LoggingLock
+func NewLoggingLock(name string) *LoggingLock {
+	l := new(LoggingLock)
+	l.lock = new(sync.RWMutex)
+	l.name = name
+	return l
+}
+
 // Lock just calls sync.RWMutex.Lock and stores the current caller
 func (l *LoggingLock) Lock() {
 	caller := make([]uintptr, 20)
@@ -94,14 +102,6 @@ func (l *LoggingLock) Unlock() {
 // RUnlock just calls sync.RWMutex.RUnlock
 func (l *LoggingLock) RUnlock() {
 	l.lock.RUnlock()
-}
-
-// NewLoggingLock returns a new LoggingLock
-func NewLoggingLock(name string) *LoggingLock {
-	l := new(LoggingLock)
-	l.lock = new(sync.RWMutex)
-	l.name = name
-	return l
 }
 
 func LogCaller(logger func(format string, v ...interface{}), caller *[]uintptr) {
