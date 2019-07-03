@@ -925,8 +925,17 @@ func (req *Request) parseResult(resBytes *[]byte) (*ResultSet, *ResultMetaData, 
 		}
 		row, dErr := djson.DecodeArray(rowBytes)
 		if dErr != nil {
-			err = dErr
-			return
+			// try to fix invalid escape sequences and unknown utf8 characters
+			if strings.Contains(dErr.Error(), "invalid character") {
+				rowBytes = bytesToValidUTF8(rowBytes, []byte("\uFFFD"))
+				row, dErr = djson.DecodeArray(rowBytes)
+			}
+			// still failing
+			if dErr != nil {
+				err = dErr
+				return
+			}
+			log.Debugf("fixed invalid characters in json data")
 		}
 		res = append(res, row)
 	})
