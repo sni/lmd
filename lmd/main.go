@@ -527,6 +527,7 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 }
 
 func logThreaddump() {
+	log.Errorf("*** Full Threaddump:")
 	PeerMapLock.RLock()
 	for id := range PeerMap {
 		p := PeerMap[id]

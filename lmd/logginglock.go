@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -43,10 +44,7 @@ func (l *LoggingLock) Lock() {
 			break
 		case <-time.After(timeout):
 			// still waiting...
-			log.Warnf("[%s] waiting for write lock in:", l.name)
-			LogCaller(log.Warnf, &caller)
-			log.Warnf("[%s] current lock held by:", l.name)
-			LogCaller(log.Warnf, l.currentLockpointer.Load().(*[]uintptr))
+			l.logWaiting(&caller, fmt.Sprintf("[%s] waiting for write lock in:", l.name))
 			waited = true
 		}
 	}
@@ -54,8 +52,7 @@ func (l *LoggingLock) Lock() {
 	l.currentLockpointer.Store(&caller)
 	atomic.StoreInt32(&l.currentlyLocked, 1)
 	if waited {
-		log.Infof("[%s] got write lock in:", l.name)
-		LogCaller(log.Infof, &caller)
+		log.Infof("[%s] finally got write lock", l.name)
 	}
 }
 
@@ -80,16 +77,12 @@ func (l *LoggingLock) RLock() {
 			break
 		case <-time.After(timeout):
 			// still waiting...
-			log.Warnf("[%s] waiting for read lock in:", l.name)
-			LogCaller(log.Warnf, &caller)
-			log.Warnf("[%s] current lock held by:", l.name)
-			LogCaller(log.Warnf, l.currentLockpointer.Load().(*[]uintptr))
+			l.logWaiting(&caller, fmt.Sprintf("[%s] waiting for read lock in:", l.name))
 			waited = true
 		}
 	}
 	if waited {
-		log.Infof("[%s] got read lock in:", l.name)
-		LogCaller(log.Infof, &caller)
+		log.Infof("[%s] finally got read lock", l.name)
 	}
 }
 
@@ -116,4 +109,12 @@ func LogCaller(logger func(format string, v ...interface{}), caller *[]uintptr) 
 			break
 		}
 	}
+}
+
+func (l *LoggingLock) logWaiting(caller *[]uintptr, message string) {
+	log.Errorf("%s", message)
+	LogCaller(log.Errorf, caller)
+	log.Errorf("[%s] current lock held by:", l.name)
+	LogCaller(log.Errorf, l.currentLockpointer.Load().(*[]uintptr))
+	logThreaddump()
 }
