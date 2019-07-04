@@ -44,11 +44,7 @@ func (s *StringContainer) String() string {
 	if s.CompressedData == nil {
 		return s.StringData
 	}
-	r, _ := gzip.NewReader(bytes.NewReader(*s.CompressedData))
-	b, _ := ioutil.ReadAll(r)
-	r.Close()
-	str := string(b)
-	return str
+	return *s.StringRef()
 }
 
 // StringRef returns the string data
@@ -56,9 +52,19 @@ func (s *StringContainer) StringRef() *string {
 	if s.CompressedData == nil {
 		return &s.StringData
 	}
-	r, _ := gzip.NewReader(bytes.NewReader(*s.CompressedData))
-	b, _ := ioutil.ReadAll(r)
+	r, err := gzip.NewReader(bytes.NewReader(*s.CompressedData))
+	if err != nil {
+		log.Errorf("failed to create gzip reader: %s", err.Error())
+		str := ""
+		return &str
+	}
+	b, err := ioutil.ReadAll(r)
 	r.Close()
+	if err != nil {
+		log.Errorf("failed to read compressed data: %s", err.Error())
+		str := ""
+		return &str
+	}
 	str := string(b)
 	return &str
 }
