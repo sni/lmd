@@ -22,16 +22,16 @@ func NewStringContainer(data *string) *StringContainer {
 // Set sets the current string
 func (s *StringContainer) Set(data *string) {
 	// it only makes sense to compress larger strings
-	if len(*data) < 1000 {
+	if len(*data) < 500 {
 		s.StringData = *data
 		s.CompressedData = nil
 		return
 	}
+	s.StringData = ""
 	var b bytes.Buffer
 	gz := gzip.NewWriter(&b)
 	gz.Write([]byte(*data))
 	gz.Close()
-	s.StringData = ""
 	by := b.Bytes()
 	s.CompressedData = &by
 	if log.IsV(2) {
@@ -44,8 +44,7 @@ func (s *StringContainer) String() string {
 	if s.CompressedData == nil {
 		return s.StringData
 	}
-	rdata := bytes.NewReader(*s.CompressedData)
-	r, _ := gzip.NewReader(rdata)
+	r, _ := gzip.NewReader(bytes.NewReader(*s.CompressedData))
 	b, _ := ioutil.ReadAll(r)
 	str := string(b)
 	return str
@@ -56,8 +55,7 @@ func (s *StringContainer) StringRef() *string {
 	if s.CompressedData == nil {
 		return &s.StringData
 	}
-	rdata := bytes.NewReader(*s.CompressedData)
-	r, _ := gzip.NewReader(rdata)
+	r, _ := gzip.NewReader(bytes.NewReader(*s.CompressedData))
 	b, _ := ioutil.ReadAll(r)
 	str := string(b)
 	return &str
