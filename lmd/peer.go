@@ -612,7 +612,7 @@ func (p *Peer) updateIdleStatus() bool {
 		shouldIdle = true
 	}
 	if !idling && shouldIdle {
-		log.Infof("[%s] switched to idle interval, last query: %s", p.Name, timeOrNever(lastQuery))
+		log.Infof("[%s] switched to idle interval, last query: %s (idle timeout: %d)", p.Name, timeOrNever(lastQuery), p.LocalConfig.IdleTimeout)
 		p.StatusSet("Idling", true)
 		idling = true
 	}
