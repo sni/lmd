@@ -278,11 +278,16 @@ func (p *Peer) hasChanged() (changed bool) {
 	return
 }
 
+// ClearLocked resets the data table.
+func (p *Peer) ClearLocked() {
+	p.DataLock.Lock()
+	p.Clear()
+	p.DataLock.Unlock()
+}
+
 // Clear resets the data table.
 func (p *Peer) Clear() {
-	p.DataLock.Lock()
 	p.Tables = make(map[TableName]*DataStore)
-	p.DataLock.Unlock()
 }
 
 // updateLoop is the main loop updating this peer.
@@ -497,7 +502,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 			if _, ok := existing[id]; !ok {
 				log.Debugf("[%s] removing sub peer", peer.Name)
 				peer.Stop()
-				peer.Clear()
+				peer.ClearLocked()
 				PeerMapRemove(id)
 				removed++
 			}
@@ -590,7 +595,7 @@ func (p *Peer) periodicUpdateMultiBackends(ok *bool, force bool) {
 			if _, ok := existing[id]; !ok {
 				log.Debugf("[%s] removing sub peer", peer.Name)
 				peer.Stop()
-				peer.Clear()
+				peer.ClearLocked()
 				PeerMapRemove(id)
 				removed++
 			}
@@ -674,7 +679,7 @@ func (p *Peer) InitAllTables() bool {
 				p.Status["PeerStatus"] = PeerStatusDown
 				p.Status["LastError"] = "peered partner not ready yet"
 				p.PeerLock.Unlock()
-				p.Clear()
+				p.ClearLocked()
 				return false
 			}
 
@@ -1500,8 +1505,13 @@ func (p *Peer) setNextAddrFromErr(err error) {
 		return
 	}
 	promPeerFailedConnections.WithLabelValues(p.Name).Inc()
+
+	// both locks are required, because we might clear the datastore
+	p.DataLock.Lock()
+	defer p.DataLock.Unlock()
 	p.PeerLock.Lock()
 	defer p.PeerLock.Unlock()
+
 	peerAddr := p.Status["PeerAddr"].(string)
 	log.Debugf("[%s] connection error %s: %s", p.Name, peerAddr, err)
 	p.Status["LastError"] = err.Error()
@@ -2473,7 +2483,7 @@ func (p *Peer) setBroken(details string) {
 	p.Status["LastError"] = "broken: " + details
 	p.Status["ThrukVersion"] = float64(-1)
 	p.PeerLock.Unlock()
-	p.Clear()
+	p.ClearLocked()
 }
 
 func logPanicExitPeer(p *Peer) {
