@@ -46,6 +46,7 @@ func (s *StringContainer) String() string {
 	}
 	r, _ := gzip.NewReader(bytes.NewReader(*s.CompressedData))
 	b, _ := ioutil.ReadAll(r)
+	r.Close()
 	str := string(b)
 	return str
 }
@@ -57,6 +58,7 @@ func (s *StringContainer) StringRef() *string {
 	}
 	r, _ := gzip.NewReader(bytes.NewReader(*s.CompressedData))
 	b, _ := ioutil.ReadAll(r)
+	r.Close()
 	str := string(b)
 	return &str
 }
