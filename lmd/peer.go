@@ -856,6 +856,9 @@ func (p *Peer) UpdateDeltaTableHosts(filterStr string) (err error) {
 		return
 	}
 
+	// precompress large strings to reduce time needed to hold the data lock
+	res.Precompress(1, &table.DynamicColumnCache)
+
 	now := time.Now().Unix()
 	p.DataLock.Lock()
 	defer p.DataLock.Unlock()
@@ -906,6 +909,9 @@ func (p *Peer) UpdateDeltaTableServices(filterStr string) (err error) {
 	if err != nil {
 		return
 	}
+
+	// precompress large strings to reduce time needed to hold the data lock
+	res.Precompress(2, &table.DynamicColumnCache)
 
 	now := time.Now().Unix()
 	p.DataLock.Lock()
