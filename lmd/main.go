@@ -256,7 +256,7 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	once.Do(PrintVersion)
 
 	// just wait till someone hits ctrl+c or we have to reload
-	statsTimer := time.NewTicker(10 * time.Second)
+	statsTimer := time.NewTicker(30 * time.Second)
 	for {
 		select {
 		case sig := <-osSignalChannel:
@@ -727,6 +727,8 @@ func ByteCountBinary(b int64) string {
 }
 
 func updateStatistics() {
-	promStringDedupCount.Set(float64(stringdedup.Size()))
+	size := stringdedup.Size()
+	promStringDedupCount.Set(float64(size))
 	promStringDedupBytes.Set(float64(stringdedup.ByteCount()))
+	promStringDedupIndexBytes.Set(float64(32 * size))
 }

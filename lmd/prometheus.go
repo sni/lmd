@@ -160,6 +160,13 @@ var (
 			Name:      "string_dedup_bytes",
 			Help:      "total bytes of all deduplicated strings",
 		})
+
+	promStringDedupIndexBytes = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: NAME,
+			Name:      "string_dedup_index_bytes",
+			Help:      "total bytes for storing the index",
+		})
 )
 
 func initPrometheus(localConfig *Config) (prometheusListener io.Closer) {
@@ -196,6 +203,7 @@ func initPrometheus(localConfig *Config) (prometheusListener io.Closer) {
 	prometheus.Register(promObjectCount)
 	prometheus.Register(promStringDedupCount)
 	prometheus.Register(promStringDedupBytes)
+	prometheus.Register(promStringDedupIndexBytes)
 
 	promInfoCount.WithLabelValues(VERSION).Set(1)
 
