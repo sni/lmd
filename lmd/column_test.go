@@ -23,11 +23,11 @@ func TestColumnFlag(t *testing.T) {
 	if err := assertEq(true, peer.HasFlag(Naemon)); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq(false, peer.HasFlag(Naemon1_0_10)); err != nil {
+	if err := assertEq(false, peer.HasFlag(HasDependencyColumn)); err != nil {
 		t.Error(err)
 	}
-	peer.SetFlag(Naemon1_0_10)
-	if err := assertEq(true, peer.HasFlag(Naemon1_0_10)); err != nil {
+	peer.SetFlag(HasDependencyColumn)
+	if err := assertEq(true, peer.HasFlag(HasDependencyColumn)); err != nil {
 		t.Error(err)
 	}
 	if err := assertEq(false, peer.HasFlag(MultiBackend)); err != nil {

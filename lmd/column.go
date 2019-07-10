@@ -148,19 +148,23 @@ const (
 	// Naemon flag is set if the remote site is a naemon installation.
 	Naemon
 
-	// Naemon1_0_10 flag is set if the remote site is a naemon installation with version 1.0.10 or greater.
-	Naemon1_0_10
+	// HasDependencyColumn flag is set if the remote site has depends_exec and depends_notify columns
+	HasDependencyColumn
+
+	// HasLastUpdate flag is set if the remote site has a last_update column for hosts and services
+	HasLastUpdateColumn
 )
 
 var OptionalFlagsStrings = map[OptionalFlags]string{
-	LMD:          "LMD",
-	MultiBackend: "MultiBackend",
-	LMDSub:       "LMDSub",
-	HTTPSub:      "HTTPSub",
-	Shinken:      "Shinken",
-	Icinga2:      "Icinga2",
-	Naemon:       "Naemon",
-	Naemon1_0_10: "Naemon1_0_10",
+	LMD:                 "LMD",
+	MultiBackend:        "MultiBackend",
+	LMDSub:              "LMDSub",
+	HTTPSub:             "HTTPSub",
+	Shinken:             "Shinken",
+	Icinga2:             "Icinga2",
+	Naemon:              "Naemon",
+	HasDependencyColumn: "HasDependencyColumn",
+	HasLastUpdateColumn: "HasLastUpdateColumn",
 }
 
 // String returns the string representation of used flags

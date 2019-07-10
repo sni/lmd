@@ -71,7 +71,7 @@ func (d *DataStore) InsertData(data *ResultSet, columns *ColumnList) error {
 	for i := range *data {
 		row, err := NewDataRow(d, &(*data)[i], columns, now)
 		if err != nil {
-			log.Errorf("adding new %s failed: %s", d.Table.Name, err.Error())
+			log.Errorf("adding new %s failed: %s", d.Table.Name.String(), err.Error())
 			return err
 		}
 		d.AddItem(row)

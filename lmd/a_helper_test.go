@@ -106,6 +106,19 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 				continue
 			}
 
+			if req.Table == TableColumns {
+				// make the peer detect dependency columns
+				b, _ := json.Marshal([][]string{
+					{"hosts", "name"},
+					{"hosts", "depends_exec"},
+					{"services", "description"},
+				})
+				conn.Write([]byte(fmt.Sprintf("200 %11d\n", len(b)+1)))
+				conn.Write(b)
+				conn.Write([]byte("\n"))
+				conn.Close()
+				continue
+			}
 			if len(req.Filter) > 0 || len(req.Stats) > 0 {
 				conn.Write([]byte("200           3\n[]\n"))
 				conn.Close()
@@ -390,6 +403,16 @@ func StartHTTPMockServer(t *testing.T) (*httptest.Server, func()) {
 				t.Fatalf("failed to parse request: %s", err.Error())
 			}
 			switch {
+			case req.Table == TableColumns:
+				// make the peer detect dependency columns
+				b, _ := json.Marshal([][]string{
+					{"hosts", "name"},
+					{"hosts", "depends_exec"},
+					{"services", "description"},
+				})
+				fmt.Fprintf(w, "%d %11d\n", 200, len(b))
+				fmt.Fprint(w, string(b))
+				return
 			case req.Table != TableNone:
 				dat, err := ioutil.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, req.Table.String()))
 				if err != nil {
