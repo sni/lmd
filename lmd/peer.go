@@ -1620,7 +1620,11 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 func (p *Peer) checkStatusFlags() {
 	// set backend specific flags
 	p.DataLock.RLock()
-	data := p.Tables[TableStatus].Data
+	store := p.Tables[TableStatus]
+	if store == nil {
+		return
+	}
+	data := store.Data
 	if len(data) == 0 {
 		p.DataLock.RUnlock()
 		return
