@@ -858,14 +858,16 @@ func interface2intlist(in interface{}) []int32 {
 
 // interface2hashmap converts an interface to a hashmap
 func interface2hashmap(in interface{}) map[string]string {
-	if hashmap, ok := in.(map[string]string); ok {
-		return (hashmap)
-	}
-	val := make(map[string]string)
 	if in == nil {
+		val := make(map[string]string)
 		return val
 	}
-	if list, ok := in.([]interface{}); ok {
+
+	switch list := in.(type) {
+	case map[string]string:
+		return list
+	case []interface{}:
+		val := make(map[string]string)
 		for _, tupelInterface := range list {
 			if tupel, ok := tupelInterface.([]interface{}); ok {
 				if len(tupel) == 2 {
@@ -877,10 +879,22 @@ func interface2hashmap(in interface{}) map[string]string {
 				}
 			}
 		}
-	} else {
+		return val
+	case map[string]interface{}:
+		val := make(map[string]string)
+		for k, v := range list {
+			if s, ok := v.(string); ok {
+				val[k] = s
+			} else {
+				val[k] = ""
+			}
+		}
+		return val
+	default:
 		log.Warnf("unsupported hashmap list type: %v", in)
+		val := make(map[string]string)
+		return val
 	}
-	return val
 }
 
 // interface2interfacelist converts anything to a list of interfaces
