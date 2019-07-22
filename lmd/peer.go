@@ -369,7 +369,9 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 			p.UpdateFullTable(TableServicegroups)
 			*lastTimeperiodUpdateMinute = currentMinute
 
-			*ok = p.checkIcinga2Reload()
+			if p.HasFlag(Icinga2) {
+				*ok = p.reloadIfNumberOfObjectsChanged()
+			}
 		}
 
 		if now < lastUpdate+p.LocalConfig.Updateinterval {
@@ -1032,8 +1034,9 @@ func (p *Peer) getMissingTimestamps(store *DataStore, res *ResultSet, columns *C
 	data := store.Data
 	if len(data) < len(*res) {
 		p.DataLock.RUnlock()
-		if p.HasFlag(Icinga2) {
-			p.checkIcinga2Reload()
+		// sometimes
+		if p.HasFlag(Icinga2) || len(data) == 0 {
+			p.reloadIfNumberOfObjectsChanged()
 			return
 		}
 		err = &PeerError{msg: fmt.Sprintf("%s cache not ready, got %d entries but only have %d in cache", store.Table.Name.String(), len(*res), len(data)), kind: ResponseError}
@@ -2507,8 +2510,8 @@ func (p *Peer) clearLastRequest() {
 	p.PeerLock.Unlock()
 }
 
-func (p *Peer) checkIcinga2Reload() bool {
-	if p.HasFlag(Icinga2) && p.hasChanged() {
+func (p *Peer) reloadIfNumberOfObjectsChanged() bool {
+	if p.hasChanged() {
 		return (p.InitAllTables())
 	}
 	return (true)
