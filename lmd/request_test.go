@@ -1052,11 +1052,30 @@ func TestNegate(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err = assertEq(9, len(*res)); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	for _, host := range *res {
 		if err = assertNeq("testhost_1", host[0]); err != nil {
+			t.Error(err)
+		}
+	}
+
+	res, _, err = peer.QueryString("GET services\nColumns: host_name state\nFilter: host_name ~ testhost_1\nFilter: state = 0\nNegate:\nAnd: 2\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = assertEq(1, len(*res)); err != nil {
+		t.Error(err)
+	}
+
+	for _, host := range *res {
+		if err = assertEq("testhost_1", host[0]); err != nil {
+			t.Error(err)
+		}
+
+		if err = assertNeq("0", host[1]); err != nil {
 			t.Error(err)
 		}
 	}

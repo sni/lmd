@@ -50,6 +50,7 @@ type Filter struct {
 	Regexp     *regexp.Regexp
 	CustomTag  string
 	IsEmpty    bool
+	Negate     bool
 
 	// or a group of filters
 	Filter        []*Filter
@@ -150,6 +151,9 @@ func (f *Filter) String(prefix string) (str string) {
 	default:
 		str = fmt.Sprintf("Stats: %s %s\n", f.StatsType.String(), f.Column.Name)
 	}
+	if f.Negate {
+		str += fmt.Sprintf("%s\n", "Negate:")
+	}
 	return
 }
 
@@ -235,6 +239,7 @@ func ParseFilter(value []byte, table TableName, stack *[]*Filter) (err error) {
 	filter := &Filter{
 		Operator: op,
 		Column:   col,
+		Negate:   false,
 	}
 
 	err = filter.setFilterValue(string(tmp[2]))
@@ -434,6 +439,14 @@ func ParseFilterOp(op GroupOperator, value []byte, stack *[]*Filter) (err error)
 	*stack = make([]*Filter, 0, len(remainingStack)+1)
 	*stack = append(*stack, remainingStack...)
 	*stack = append(*stack, stackedFilter)
+	return
+}
+
+// ParseFilterNegate sets the last filter group to be negated
+func ParseFilterNegate(stack *[]*Filter) (err error) {
+	stackLen := len(*stack)
+	filter := (*stack)[stackLen-1]
+	filter.Negate = true
 	return
 }
 
