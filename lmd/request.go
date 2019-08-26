@@ -700,10 +700,6 @@ func (req *Request) ParseRequestHeaderLine(line []byte) (err error) {
 		req.WaitConditionNegate = true
 		return
 	case "negate":
-		if len(req.Filter) == 0 && req.FilterStr == "" {
-			err = fmt.Errorf("no Filter: header to negate")
-			return
-		}
 		err = ParseFilterNegate(&req.Filter)
 		return
 	case "keepalive":

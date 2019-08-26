@@ -445,6 +445,10 @@ func ParseFilterOp(op GroupOperator, value []byte, stack *[]*Filter) (err error)
 // ParseFilterNegate sets the last filter group to be negated
 func ParseFilterNegate(stack *[]*Filter) (err error) {
 	stackLen := len(*stack)
+	if stackLen == 0 {
+		err = fmt.Errorf("no filter on stack to negate")
+		return
+	}
 	filter := (*stack)[stackLen-1]
 	filter.Negate = true
 	return
