@@ -623,10 +623,16 @@ func (d *DataRow) MatchFilter(filter *Filter) bool {
 			Regexp:    filter.Regexp,
 			IsEmpty:   filter.IsEmpty,
 			CustomTag: filter.CustomTag,
+			Negate:    filter.Negate,
+		}
+		if f.Negate {
+			return !f.Match(d)
 		}
 		return f.Match(d)
 	}
-
+	if filter.Negate {
+		return !filter.Match(d)
+	}
 	return filter.Match(d)
 }
 

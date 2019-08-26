@@ -2384,11 +2384,7 @@ Rows:
 		row := store.Data[j]
 		// does our filter match?
 		for i := range req.Filter {
-			if req.Negate {
-				if row.MatchFilter(req.Filter[i]) {
-					continue Rows
-				}
-			} else if !row.MatchFilter(req.Filter[i]) {
+			if !row.MatchFilter(req.Filter[i]) {
 				continue Rows
 			}
 		}
@@ -2422,11 +2418,7 @@ Rows:
 		row := store.Data[j]
 		// does our filter match?
 		for i := range req.Filter {
-			if req.Negate {
-				if row.MatchFilter(req.Filter[i]) {
-					continue Rows
-				}
-			} else if !row.MatchFilter(req.Filter[i]) {
+			if !row.MatchFilter(req.Filter[i]) {
 				continue Rows
 			}
 		}
