@@ -289,7 +289,6 @@ func (res *Response) CalculateFinalStats() {
 		}
 		sort.Sort(res)
 	}
-
 }
 
 func finalStatsApply(s *Filter) (res float64) {

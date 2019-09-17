@@ -364,7 +364,6 @@ func (l *Listener) LocalListenerHTTP(httpType string, listen string) {
 		WriteTimeout: 5 * time.Second,
 	}
 	server.Serve(c)
-
 }
 
 func getTLSListenerConfig(localConfig *Config) (config *tls.Config, err error) {

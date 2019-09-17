@@ -177,7 +177,6 @@ func (n *Nodes) Initialize() {
 	if n.IsClustered() {
 		n.checkNodeAvailability()
 	}
-
 }
 
 // Start starts the loop that periodically checks which nodes are online.
@@ -215,7 +214,6 @@ func (n *Nodes) loop() {
 			return
 		case <-ticker.C:
 			n.checkNodeAvailability()
-
 		}
 	}
 }
@@ -256,10 +254,8 @@ func (n *Nodes) checkNodeAvailability() {
 				newOnlineNodes = append(newOnlineNodes, node)
 			}
 			wg.Done()
-
 		}(&wg, node)
 	}
-
 	// Handle timeout
 	timeout := n.heartbeatTimeout
 	if waitTimeout(&wg, time.Duration(timeout)*time.Second) {

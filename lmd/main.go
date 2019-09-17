@@ -391,7 +391,6 @@ func initializePeers(localConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 	nodeAccessor = NewNodes(localConfig, nodeAddresses, nodeListenAddress, waitGroupInit, shutdownChannel)
 	nodeAccessor.Initialize() // starts peers in single mode
 	nodeAccessor.Start()      // nodes loop starts/stops peers in cluster mode
-
 }
 
 func checkFlags() {

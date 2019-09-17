@@ -9,7 +9,6 @@ import (
 )
 
 func TestPeerSource(t *testing.T) {
-
 	waitGroup := &sync.WaitGroup{}
 	shutdownChannel := make(chan bool)
 	connection := Connection{Name: "Test", Source: []string{"http://localhost/test/", "http://clusternode/test"}}
