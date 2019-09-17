@@ -15,6 +15,5 @@ func (res *ResultSet) Precompress(offset int, columns *ColumnList) {
 				(*res)[j][i+offset] = interface2stringlarge((*res)[j][i+offset])
 			}
 		}
-
 	}
 }

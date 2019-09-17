@@ -19,6 +19,9 @@ linters-settings:
     settings:
       rangeValCopy:
         sizeThreshold: 32
+  funlen:
+    lines: 150
+    statements: 120
 linters:
   enable-all: true
   disable:
@@ -31,7 +34,6 @@ linters:
     - dupl
     - goconst
   fast: false
-
 issues:
   max-same-issues: 0
   exclude-use-default: true
