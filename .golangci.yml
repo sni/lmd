@@ -22,6 +22,8 @@ linters-settings:
   funlen:
     lines: 150
     statements: 120
+  gocognit:
+    min-complexity: 35
 linters:
   enable-all: true
   disable:
@@ -33,6 +35,7 @@ linters:
     - gochecknoinits
     - dupl
     - goconst
+    - interfacer
   fast: false
 issues:
   max-same-issues: 0

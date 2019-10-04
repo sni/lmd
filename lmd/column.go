@@ -226,7 +226,7 @@ type Column struct {
 }
 
 // NewColumn adds a column object.
-func NewColumn(table *Table, name string, storage StorageType, update FetchType, datatype DataType, restrict OptionalFlags, refCol *Column, description string) *Column {
+func NewColumn(table *Table, name string, storage StorageType, update FetchType, datatype DataType, restrict OptionalFlags, refCol *Column, description string) {
 	col := &Column{
 		Table:       table,
 		Name:        name,
@@ -254,7 +254,6 @@ func NewColumn(table *Table, name string, storage StorageType, update FetchType,
 	}
 	table.ColumnsIndex[col.Name] = col
 	table.Columns = append(table.Columns, col)
-	return col
 }
 
 // String returns the string representation of a column list
