@@ -36,6 +36,7 @@ linters:
     - dupl
     - goconst
     - interfacer
+    - wsl
   fast: false
 issues:
   max-same-issues: 0
