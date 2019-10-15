@@ -50,3 +50,4 @@ issues:
     - "cyclomatic complexity .* of func `.*Less` is high"
     - "cyclomatic complexity .* of func `matchStringListFilter` is high"
     - "cyclomatic complexity .* of func `.*String` is high"
+    - "G108: Profiling endpoint is automatically exposed"
