@@ -800,6 +800,13 @@ func interface2stringlist(in interface{}) *[]string {
 		return list
 	case []string:
 		return &list
+	case float64:
+		val := make([]string, 0, 1)
+		// icinga 2 sends a 0 for empty lists, ex.: modified_attributes_list
+		if in != 0 {
+			val = append(val, *(interface2string(in)))
+		}
+		return &val
 	case []interface{}:
 		val := make([]string, 0, len(list))
 		for i := range list {
