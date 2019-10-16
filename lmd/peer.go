@@ -687,12 +687,13 @@ func (p *Peer) InitAllTables() bool {
 
 			// if its http and a status request, try a processinfo query to fetch all backends
 			configtool, _ := p.fetchConfigTool() // this also sets the thruk version so it should be called first
-			err = p.checkAvailableTables()
+			p.fetchRemotePeers()
+			p.checkStatusFlags()
+
+			err = p.checkAvailableTables() // must be done after checkStatusFlags, because it does not work on Icinga2
 			if err != nil {
 				return false
 			}
-			p.fetchRemotePeers()
-			p.checkStatusFlags()
 
 			// check thruk config tool settings
 			p.PeerLock.Lock()
@@ -1681,6 +1682,10 @@ func (p *Peer) checkStatusFlags() {
 }
 
 func (p *Peer) checkAvailableTables() (err error) {
+	if p.HasFlag(Icinga2) {
+		log.Debugf("[%s] Icinga2 does not support checking tables and columns", p.Name)
+		return
+	}
 	availableTables, err := p.GetSupportedColumns()
 	if err != nil {
 		return
