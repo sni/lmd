@@ -1074,11 +1074,11 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
 	if err != nil {
 		return
 	}
-	var maxID int
+	var maxID int64
 	p.DataLock.RLock()
 	entries := len(store.Data)
 	if entries > 0 {
-		maxID = store.Data[entries-1].GetIntByName("id")
+		maxID = store.Data[entries-1].GetInt64ByName("id")
 	}
 	p.DataLock.RUnlock()
 
