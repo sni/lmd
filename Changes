@@ -1,7 +1,8 @@
 This file documents the revision history for the Livestatus Multitool Daemon
 
-next:
+1.7.0    Thu 17 Oct 2019 06:45:57 PM CEST
           - support faster updates if client has a last_update column
+          - fix negate header in filter groups (#82)
 
 1.6.1    Thu Jul  4 13:58:48 CEST 2019
           - remove unparsable characters from json inpurt
