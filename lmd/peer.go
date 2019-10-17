@@ -61,8 +61,8 @@ type Peer struct {
 	lastResponse    *[]byte
 	HTTPClient      *http.Client
 	connectionCache chan net.Conn
-	CommentsCache   map[*DataRow][]int32
-	DowntimesCache  map[*DataRow][]int32
+	CommentsCache   map[*DataRow][]int64
+	DowntimesCache  map[*DataRow][]int64
 }
 
 // PeerStatus contains the different states a peer can have
@@ -2700,9 +2700,9 @@ func (p *Peer) RebuildDowntimesCache() {
 }
 
 // buildDowntimesCache returns the downtimes/comments cache
-func (p *Peer) buildDowntimeCommentsCache(name TableName) map[*DataRow][]int32 {
+func (p *Peer) buildDowntimeCommentsCache(name TableName) map[*DataRow][]int64 {
 	p.DataLock.RLock()
-	cache := make(map[*DataRow][]int32)
+	cache := make(map[*DataRow][]int64)
 	store := p.Tables[name]
 	idIndex := store.Table.GetColumn("id").Index
 	hostNameIndex := store.Table.GetColumn("host_name").Index
@@ -2720,7 +2720,7 @@ func (p *Peer) buildDowntimeCommentsCache(name TableName) map[*DataRow][]int32 {
 		} else {
 			obj = hostIndex[key]
 		}
-		id := row.dataInt[idIndex]
+		id := row.dataInt64[idIndex]
 		cache[obj] = append(cache[obj], id)
 	}
 	p.DataLock.RUnlock()
