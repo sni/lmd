@@ -95,10 +95,10 @@ func (raw *RawResultSet) Less(i, j int) bool {
 				return *s1 < *s2
 			}
 			return *s1 > *s2
-		case IntListCol:
+		case Int64ListCol:
 			// join numbers to string
-			s1 := strings.Join(strings.Fields(fmt.Sprint(raw.DataResult[i].GetIntList(s.Column))), ";")
-			s2 := strings.Join(strings.Fields(fmt.Sprint(raw.DataResult[j].GetIntList(s.Column))), ";")
+			s1 := strings.Join(strings.Fields(fmt.Sprint(raw.DataResult[i].GetInt64List(s.Column))), ";")
+			s2 := strings.Join(strings.Fields(fmt.Sprint(raw.DataResult[j].GetInt64List(s.Column))), ";")
 			if s1 == s2 {
 				continue
 			}

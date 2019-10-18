@@ -152,7 +152,7 @@ func (res *Response) Less(i, j int) bool {
 		case StringListCol:
 			// not implemented
 			return s.Direction == Asc
-		case IntListCol:
+		case Int64ListCol:
 			// not implemented
 			return s.Direction == Asc
 		case HashMapCol:

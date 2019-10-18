@@ -168,7 +168,7 @@ func (f *Filter) strValue() string {
 		fallthrough
 	case CustomVarCol:
 		value = f.CustomTag + " " + f.StrValue
-	case IntListCol:
+	case Int64ListCol:
 		fallthrough
 	case IntCol, Int64Col:
 		value = fmt.Sprintf("%d", int(f.FloatValue))
@@ -270,7 +270,7 @@ func (f *Filter) setFilterValue(strVal string) (err error) {
 		f.IsEmpty = true
 	}
 	switch colType {
-	case IntListCol:
+	case Int64ListCol:
 		fallthrough
 	case IntCol, Int64Col:
 		filtervalue, cerr := strconv.ParseInt(strVal, 10, 64)
@@ -477,8 +477,8 @@ func (f *Filter) Match(row *DataRow) bool {
 			return matchEmptyFilter(f.Operator)
 		}
 		return f.MatchFloat(row.GetFloat(f.Column))
-	case IntListCol:
-		return f.MatchIntList(row.GetIntList(f.Column))
+	case Int64ListCol:
+		return f.MatchInt64List(row.GetInt64List(f.Column))
 	case HashMapCol:
 		fallthrough
 	case CustomVarCol:
@@ -647,14 +647,14 @@ func (f *Filter) MatchStringList(list *[]string) bool {
 	return false
 }
 
-func (f *Filter) MatchIntList(list []int32) bool {
+func (f *Filter) MatchInt64List(list []int64) bool {
 	switch f.Operator {
 	case Equal:
 		return f.IsEmpty && len(list) == 0
 	case Unequal:
 		return f.IsEmpty && len(list) != 0
 	case GreaterThan:
-		fVal := int32(f.FloatValue)
+		fVal := int64(f.FloatValue)
 		for i := range list {
 			if fVal == list[i] {
 				return true
@@ -662,7 +662,7 @@ func (f *Filter) MatchIntList(list []int32) bool {
 		}
 		return false
 	case GroupContainsNot:
-		fVal := int32(f.FloatValue)
+		fVal := int64(f.FloatValue)
 		for i := range list {
 			if fVal == list[i] {
 				return false

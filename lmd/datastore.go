@@ -37,7 +37,7 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 		StringCol:     0,
 		StringListCol: 0,
 		IntCol:        0,
-		IntListCol:    0,
+		Int64ListCol:  0,
 		FloatCol:      0,
 		CustomVarCol:  0,
 	}

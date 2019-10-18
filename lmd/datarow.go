@@ -22,7 +22,7 @@ type DataRow struct {
 	dataInt64             []int64                // stores large integers
 	dataFloat             []float64              // stores floats
 	dataStringList        [][]string             // stores stringlists
-	dataIntList           [][]int32              // stores lists of integers
+	dataInt64List         [][]int64              // stores lists of integers
 	dataServiceMemberList [][]ServiceMember      // stores list of servicemembers
 	dataStringLarge       []StringContainer      // stores large strings
 	dataInterfaceList     [][]interface{}
@@ -85,7 +85,7 @@ func (d *DataRow) SetData(raw *[]interface{}, columns *ColumnList, timestamp int
 	d.dataStringList = make([][]string, d.DataStore.DataSizes[StringListCol])
 	d.dataInt = make([]int32, d.DataStore.DataSizes[IntCol])
 	d.dataInt64 = make([]int64, d.DataStore.DataSizes[Int64Col])
-	d.dataIntList = make([][]int32, d.DataStore.DataSizes[IntListCol])
+	d.dataInt64List = make([][]int64, d.DataStore.DataSizes[Int64ListCol])
 	d.dataFloat = make([]float64, d.DataStore.DataSizes[FloatCol])
 	d.dataServiceMemberList = make([][]ServiceMember, d.DataStore.DataSizes[ServiceMemberListCol])
 	d.dataInterfaceList = make([][]interface{}, d.DataStore.DataSizes[InterfaceListCol])
@@ -261,22 +261,22 @@ func (d *DataRow) GetInt64ByName(name string) int64 {
 	return d.GetInt64(d.DataStore.Table.ColumnsIndex[name])
 }
 
-// GetIntList returns the int64 list for given column
-func (d *DataRow) GetIntList(col *Column) []int32 {
+// GetInt64List returns the int64 list for given column
+func (d *DataRow) GetInt64List(col *Column) []int64 {
 	switch col.StorageType {
 	case LocalStore:
-		if col.DataType == IntListCol {
-			return d.dataIntList[col.Index]
+		if col.DataType == Int64ListCol {
+			return d.dataInt64List[col.Index]
 		}
 		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
 		ref := d.Refs[col.RefCol.Table.Name]
 		if ref == nil {
-			return interface2intlist(col.GetEmptyValue())
+			return interface2int64list(col.GetEmptyValue())
 		}
-		return ref.GetIntList(col.RefCol)
+		return ref.GetInt64List(col.RefCol)
 	}
-	return interface2intlist(d.getVirtRowValue(col))
+	return interface2int64list(d.getVirtRowValue(col))
 }
 
 // GetHashMap returns the hashmap for given column
@@ -346,8 +346,8 @@ func (d *DataRow) GetValueByColumn(col *Column) interface{} {
 			return d.dataStringLarge[col.Index].StringRef()
 		case IntCol:
 			return d.dataInt[col.Index]
-		case IntListCol:
-			return d.dataIntList[col.Index]
+		case Int64ListCol:
+			return d.dataInt64List[col.Index]
 		case Int64Col:
 			return d.dataInt64[col.Index]
 		case FloatCol:
@@ -670,8 +670,8 @@ func (d *DataRow) UpdateValues(data *[]interface{}, columns *ColumnList, timesta
 			d.dataInt[col.Index] = int32(interface2int((*data)[i]))
 		case Int64Col:
 			d.dataInt64[col.Index] = interface2int64((*data)[i])
-		case IntListCol:
-			d.dataIntList[col.Index] = interface2intlist((*data)[i])
+		case Int64ListCol:
+			d.dataInt64List[col.Index] = interface2int64list((*data)[i])
 		case FloatCol:
 			d.dataFloat[col.Index] = interface2float64((*data)[i])
 		case ServiceMemberListCol:
@@ -842,30 +842,30 @@ func interface2servicememberlist(in interface{}) *[]ServiceMember {
 	return &val
 }
 
-func interface2intlist(in interface{}) []int32 {
-	if list, ok := in.([]int32); ok {
+func interface2int64list(in interface{}) []int64 {
+	if list, ok := in.([]int64); ok {
 		return (list)
 	}
 	if in == nil {
-		val := make([]int32, 0)
+		val := make([]int64, 0)
 		return val
 	}
 	if list, ok := in.([]int); ok {
-		val := make([]int32, 0, len(list))
+		val := make([]int64, 0, len(list))
 		for i := range list {
-			val = append(val, int32(interface2int(list[i])))
+			val = append(val, interface2int64(list[i]))
 		}
 		return val
 	}
 	if list, ok := in.([]interface{}); ok {
-		val := make([]int32, 0, len(list))
+		val := make([]int64, 0, len(list))
 		for i := range list {
-			val = append(val, int32(interface2int(list[i])))
+			val = append(val, interface2int64(list[i]))
 		}
 		return val
 	}
 	log.Warnf("unsupported int list type: %v", in)
-	val := make([]int32, 0)
+	val := make([]int64, 0)
 	return val
 }
 
@@ -951,8 +951,8 @@ func cast2Type(val interface{}, col *Column) interface{} {
 		return (interface2int(val))
 	case Int64Col:
 		return (interface2int64(val))
-	case IntListCol:
-		return (interface2intlist(val))
+	case Int64ListCol:
+		return (interface2int64list(val))
 	case FloatCol:
 		return (interface2float64(val))
 	case HashMapCol, CustomVarCol:
@@ -989,8 +989,8 @@ func (d *DataRow) WriteJSON(json *jsoniter.Stream, columns *[]*Column) {
 			json.WriteInt64(d.GetInt64(col))
 		case FloatCol:
 			json.WriteFloat64(d.GetFloat(col))
-		case IntListCol:
-			json.WriteVal(d.GetIntList(col))
+		case Int64ListCol:
+			json.WriteVal(d.GetInt64List(col))
 		case ServiceMemberListCol:
 			json.WriteVal(d.GetServiceMemberList(col))
 		case InterfaceListCol:

@@ -30,7 +30,7 @@ func GetTableColumnsStore(table *Table, _ *Peer) *DataStore {
 				colTypeName = "string"
 			case FloatCol:
 				colTypeName = "float"
-			case StringListCol, IntListCol, HashMapCol, ServiceMemberListCol, InterfaceListCol, CustomVarCol:
+			case StringListCol, Int64ListCol, HashMapCol, ServiceMemberListCol, InterfaceListCol, CustomVarCol:
 				colTypeName = "list"
 			default:
 				log.Panicf("type not handled in table %s: %#v", t.Name, c)
