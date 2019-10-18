@@ -1084,3 +1084,36 @@ func TestNegate(t *testing.T) {
 		panic(err.Error())
 	}
 }
+
+func TestComments(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	res, _, err := peer.QueryString("GET comments\nColumns: id host_name service_description\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(2, len(*res)); err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(float64(1), (*res)[0][0]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(float64(2), (*res)[1][0]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq("testhost_2", (*res)[1][1]); err != nil {
+		t.Error(err)
+	}
+
+	res, _, err = peer.QueryString("GET hosts\nColumns: comments\nFilter: name = testhost_2\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(1, len(*res)); err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq([]interface{}{interface{}(float64(2))}, (*res)[0][0]); err != nil {
+		t.Error(err)
+	}
+}

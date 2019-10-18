@@ -1,2 +1,2 @@
 [["thrukadmin","This service has been scheduled for fixed downtime from 2019-05-15 20:51:00 to 2019-05-15 22:51:00.  Notifications for the service will not be sent out during that time period.",1557953527,2,0,0,1,1,0,0,2,"testhost_1","testsvc_1"],
-["thrukadmin","This host has been scheduled for fixed downtime from 2019-05-15 20:51:00 to 2019-05-15 22:51:00.  Notifications for the host will not be sent out during that time period.",1557953527,2,0,0,1,1,0,0,2,"testhost_2",""]]
+["thrukadmin","This host has been scheduled for fixed downtime from 2019-05-15 20:51:00 to 2019-05-15 22:51:00.  Notifications for the host will not be sent out during that time period.",1557953527,2,0,0,2,1,0,0,2,"testhost_2",""]]
