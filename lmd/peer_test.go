@@ -197,7 +197,7 @@ func TestPeerDeltaUpdate(t *testing.T) {
 	peer := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	res := peer.UpdateDelta(0)
+	res := peer.UpdateDelta(0, 0)
 	if err := assertEq(true, res); err != nil {
 		t.Error(err)
 	}

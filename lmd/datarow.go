@@ -90,7 +90,7 @@ func (d *DataRow) SetData(raw *[]interface{}, columns *ColumnList, timestamp int
 	d.dataServiceMemberList = make([][]ServiceMember, d.DataStore.DataSizes[ServiceMemberListCol])
 	d.dataInterfaceList = make([][]interface{}, d.DataStore.DataSizes[InterfaceListCol])
 	d.dataStringLarge = make([]StringContainer, d.DataStore.DataSizes[StringLargeCol])
-	return d.UpdateValues(raw, columns, timestamp)
+	return d.UpdateValues(0, raw, columns, timestamp)
 }
 
 // setReferences creates reference entries for cross referenced objects
@@ -648,12 +648,13 @@ func (d *DataRow) getStatsKey(res *Response) string {
 }
 
 // UpdateValues updates this datarow with new values
-func (d *DataRow) UpdateValues(data *[]interface{}, columns *ColumnList, timestamp int64) error {
-	if len(*columns) != len(*data) {
+func (d *DataRow) UpdateValues(dataOffset int, data *[]interface{}, columns *ColumnList, timestamp int64) error {
+	if len(*columns) != len(*data)-dataOffset {
 		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.DataStore.Table.Name.String(), len(*columns), len(*data))
 	}
 	for i := range *columns {
 		col := (*columns)[i]
+		i += dataOffset
 		switch col.DataType {
 		case StringCol:
 			d.dataString[col.Index] = *(interface2string((*data)[i]))

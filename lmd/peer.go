@@ -381,7 +381,7 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 
 	// set last update timestamp, otherwise we would retry the connection every 500ms instead
 	// of the update interval
-	p.StatusSet("LastUpdate", time.Now().Unix())
+	p.StatusSet("LastUpdate", now)
 
 	if lastStatus == PeerStatusBroken {
 		restartRequired, _ := p.UpdateFullTable(TableStatus)
@@ -409,7 +409,7 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 		return
 	}
 
-	*ok = p.UpdateDelta(lastUpdate)
+	*ok = p.UpdateDelta(lastUpdate, now)
 }
 
 // periodicUpdateLMD runs the periodic updates from the update loop for LMD backends
@@ -796,7 +796,7 @@ func (p *Peer) UpdateFull() bool {
 
 // UpdateDelta runs a delta update on all status, hosts, services, comments and downtimes table.
 // It returns true if the update was successful or false otherwise.
-func (p *Peer) UpdateDelta(lastUpdate int64) bool {
+func (p *Peer) UpdateDelta(from, to int64) bool {
 	t1 := time.Now()
 
 	restartRequired, err := p.UpdateFullTable(TableStatus)
@@ -804,8 +804,8 @@ func (p *Peer) UpdateDelta(lastUpdate int64) bool {
 		return p.InitAllTables()
 	}
 	filterStr := ""
-	if lastUpdate > 0 && p.HasFlag(HasLastUpdateColumn) {
-		filterStr = fmt.Sprintf("Filter: last_update >= %v\nFilter: last_update < %v\nAnd: 2\n", lastUpdate, time.Now().Unix())
+	if from > 0 && p.HasFlag(HasLastUpdateColumn) {
+		filterStr = fmt.Sprintf("Filter: last_update >= %v\nFilter: last_update < %v\nAnd: 2\n", from, to)
 	}
 	if err == nil {
 		err = p.UpdateDeltaHosts(filterStr)
@@ -837,7 +837,7 @@ func (p *Peer) UpdateDelta(lastUpdate int64) bool {
 	}
 	p.resetErrors()
 	p.PeerLock.Lock()
-	p.Status["LastUpdate"] = time.Now().Unix()
+	p.Status["LastUpdate"] = to
 	p.Status["ReponseTime"] = duration.Seconds()
 	p.PeerLock.Unlock()
 	promPeerUpdates.WithLabelValues(p.Name).Inc()
@@ -886,9 +886,7 @@ func (p *Peer) UpdateDeltaHosts(filterStr string) (err error) {
 		if dataRow == nil {
 			return fmt.Errorf("cannot update host, no host named '%s' found", *hostName)
 		}
-		// shift hostname from result
-		*resRow = (*resRow)[1:]
-		err = dataRow.UpdateValues(resRow, &table.DynamicColumnCache, now)
+		err = dataRow.UpdateValues(1, resRow, &table.DynamicColumnCache, now)
 		if err != nil {
 			return
 		}
@@ -940,9 +938,7 @@ func (p *Peer) UpdateDeltaServices(filterStr string) (err error) {
 		if dataRow == nil {
 			return fmt.Errorf("cannot update service, no service named '%s' found", lookUp)
 		}
-		// shift hostname and description from result
-		*resRow = (*resRow)[2:]
-		err = dataRow.UpdateValues(resRow, &table.DynamicColumnCache, now)
+		err = dataRow.UpdateValues(2, resRow, &table.DynamicColumnCache, now)
 		if err != nil {
 			return
 		}
@@ -1862,7 +1858,7 @@ func (p *Peer) UpdateFullTable(tableName TableName) (restartRequired bool, err e
 		now := time.Now().Unix()
 		for i := range *res {
 			row := (*res)[i]
-			err = data[i].UpdateValues(&row, &store.DynamicColumnCache, now)
+			err = data[i].UpdateValues(0, &row, &store.DynamicColumnCache, now)
 			if err != nil {
 				p.DataLock.Unlock()
 				return
@@ -1913,7 +1909,7 @@ func (p *Peer) updateTimeperiodsData(store *DataStore, res *ResultSet, columns *
 		if data[i].CheckChangedIntValues(&row, columns) {
 			changedTimeperiods[*(data[i].GetString(nameCol))] = true
 		}
-		data[i].UpdateValues(&row, columns, now)
+		data[i].UpdateValues(0, &row, columns, now)
 	}
 	p.DataLock.Unlock()
 	// Update hosts and services with those changed timeperiods
@@ -2245,7 +2241,7 @@ func SpinUpPeers(peers []*Peer) {
 			if peer.StatusGet("PeerStatus").(PeerStatus) == PeerStatusUp {
 				log.Debugf("[%s] spin up update", peer.Name)
 				peer.UpdateFullTable(TableTimeperiods)
-				peer.UpdateDelta(p.Status["LastUpdate"].(int64))
+				peer.UpdateDelta(p.StatusGet("LastUpdate").(int64), time.Now().Unix())
 				log.Debugf("[%s] spin up update done", peer.Name)
 			} else {
 				// force new update sooner
