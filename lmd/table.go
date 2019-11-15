@@ -92,6 +92,7 @@ type Table struct {
 	Columns         ColumnList
 	ColumnsIndex    map[string]*Column // access columns by name
 	PassthroughOnly bool               // flag wether table will be cached or simply passed through to remote sites
+	WorksUnlocked   bool               // flag wether locking the peer.DataLock can be skipped to anwer the query
 	PrimaryKey      []string
 	RefTables       []*TableRef // referenced tables
 	Virtual         VirtStoreResolveFunc

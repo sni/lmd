@@ -72,7 +72,7 @@ func (o *ObjectsType) AddTable(name TableName, table *Table) {
 
 // NewBackendsTable returns a new backends table
 func NewBackendsTable() (t *Table) {
-	t = &Table{Virtual: GetTableBackendsStore}
+	t = &Table{Virtual: GetTableBackendsStore, WorksUnlocked: true}
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
 	t.AddPeerInfoColumn("key", StringCol, "Id of this peer")
@@ -101,7 +101,7 @@ func NewBackendsTable() (t *Table) {
 
 // NewColumnsTable returns a new columns table
 func NewColumnsTable() (t *Table) {
-	t = &Table{Virtual: GetTableColumnsStore, DefaultSort: []string{"table", "name"}}
+	t = &Table{Virtual: GetTableColumnsStore, DefaultSort: []string{"table", "name"}, WorksUnlocked: true}
 	t.AddExtraColumn("name", LocalStore, None, StringCol, NoFlags, "The name of the column within the table")
 	t.AddExtraColumn("table", LocalStore, None, StringCol, NoFlags, "The name of the table")
 	t.AddExtraColumn("type", LocalStore, None, StringCol, NoFlags, "The data type of the column (int, float, string, list)")
