@@ -29,14 +29,17 @@ func (l *LoggingLock) Lock() {
 	caller := make([]uintptr, 20)
 	runtime.Callers(0, caller)
 	waited := false
+
 	if atomic.LoadInt32(&l.currentlyLocked) == 0 {
 		l.lock.Lock()
+		atomic.StoreInt32(&l.currentlyLocked, 1)
 	} else {
 		timeout := time.Second * 3
 		c := make(chan struct{})
 		go func() {
 			defer close(c)
 			l.lock.Lock()
+			atomic.StoreInt32(&l.currentlyLocked, 1)
 		}()
 		select {
 		case <-c:
@@ -46,11 +49,11 @@ func (l *LoggingLock) Lock() {
 			// still waiting...
 			l.logWaiting(&caller, fmt.Sprintf("[%s] waiting for write lock in:", l.name))
 			waited = true
+			<-c
 		}
 	}
 
 	l.currentLockpointer.Store(&caller)
-	atomic.StoreInt32(&l.currentlyLocked, 1)
 	if waited {
 		log.Infof("[%s] finally got write lock", l.name)
 	}
@@ -79,6 +82,7 @@ func (l *LoggingLock) RLock() {
 			// still waiting...
 			l.logWaiting(&caller, fmt.Sprintf("[%s] waiting for read lock in:", l.name))
 			waited = true
+			<-c
 		}
 	}
 	if waited {
