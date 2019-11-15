@@ -824,15 +824,18 @@ func (p *Peer) UpdateDelta(from, to int64) bool {
 		return false
 	}
 	log.Debugf("[%s] delta update complete in: %s", p.Name, duration.String())
-	peerStatus := p.StatusGet("PeerStatus").(PeerStatus)
-	if peerStatus != PeerStatusUp && peerStatus != PeerStatusPending {
-		log.Infof("[%s] site soft recovered from short outage", p.Name)
-	}
+
 	p.PeerLock.Lock()
+	peerStatus := p.Status["PeerStatus"].(PeerStatus)
 	p.resetErrors()
 	p.Status["LastUpdate"] = to
 	p.Status["ReponseTime"] = duration.Seconds()
 	p.PeerLock.Unlock()
+
+	if peerStatus != PeerStatusUp && peerStatus != PeerStatusPending {
+		log.Infof("[%s] site soft recovered from short outage", p.Name)
+	}
+
 	promPeerUpdates.WithLabelValues(p.Name).Inc()
 	promPeerUpdateDuration.WithLabelValues(p.Name).Set(duration.Seconds())
 	return true
