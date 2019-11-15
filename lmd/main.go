@@ -101,6 +101,7 @@ type Config struct {
 	NetTimeout           int
 	ListenTimeout        int
 	LockTimeout          int
+	SaveTempRequests     bool
 	ListenPrometheus     string
 	SkipSSLCheck         int
 	IdleTimeout          int64
@@ -642,7 +643,10 @@ func PrintVersion() {
 func ReadConfig(files []string) *Config {
 	// combine listeners from all files
 	allListeners := make([]string, 0)
-	conf := &Config{BackendKeepAlive: true}
+	conf := &Config{
+		BackendKeepAlive: true,
+		SaveTempRequests: true,
+	}
 	for _, configFile := range files {
 		if _, err := os.Stat(configFile); err != nil {
 			fmt.Fprintf(os.Stderr, "ERROR: could not load configuration from %s: %s\nuse --help to see all options.\n", configFile, err.Error())

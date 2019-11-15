@@ -63,6 +63,9 @@ BackendKeepAlive = true
 # LockTimeout sets the timeout for logging waiting for locks
 LockTimeout = 5
 
+# Sets wether peer querys req/res object will be saved for crash reports
+SaveTempRequests = true
+
 # Naemon automatically regards a contact for a host also as a contact for all
 # services of that host. We call this method loose. By setting it to strict, one
 # must be an explicity contact of a service in order to see it when using the

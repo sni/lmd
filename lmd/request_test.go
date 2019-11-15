@@ -651,6 +651,7 @@ func TestRequestColumnsWrappedJson(t *testing.T) {
 		t.Error(err)
 	}
 
+	peer.LocalConfig.SaveTempRequests = true
 	res, meta, err := peer.QueryString("GET hosts\nColumns: name state alias\nOutputFormat: wrapped_json\nColumnHeaders: on\nLimit: 5\n\n")
 	if err != nil {
 		t.Fatal(err)
@@ -845,18 +846,18 @@ func TestRequestPassthrough(t *testing.T) {
 
 func TestRequestSites(t *testing.T) {
 	extraConfig := `
-	Listen = ["test.sock"]
+    Listen = ["test.sock"]
 
-	[[Connections]]
-	name   = 'offline1'
-	id     = 'offline1'
-	source = ['/does/not/exist.sock']
+    [[Connections]]
+    name   = 'offline1'
+    id     = 'offline1'
+    source = ['/does/not/exist.sock']
 
-	[[Connections]]
-	name   = 'offline2'
-	id     = 'offline2'
-	source = ['/does/not/exist.sock']
-	`
+    [[Connections]]
+    name   = 'offline2'
+    id     = 'offline2'
+    source = ['/does/not/exist.sock']
+    `
 	peer := StartTestPeerExtra(4, 10, 10, extraConfig)
 	PauseTestPeers(peer)
 

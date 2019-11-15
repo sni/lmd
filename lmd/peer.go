@@ -1195,8 +1195,10 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 	}
 
 	p.PeerLock.Lock()
-	p.lastRequest = req
-	p.lastResponse = nil
+	if p.LocalConfig.SaveTempRequests {
+		p.lastRequest = req
+		p.lastResponse = nil
+	}
 	p.Status["Querys"] = p.Status["Querys"].(int64) + 1
 	totalBytesSend := p.Status["BytesSend"].(int64) + int64(len(query))
 	p.Status["BytesSend"] = totalBytesSend
@@ -1229,7 +1231,9 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 		log.Tracef("[%s] result: %s", p.Name, string(*resBytes))
 	}
 	p.PeerLock.Lock()
-	p.lastResponse = resBytes
+	if p.LocalConfig.SaveTempRequests {
+		p.lastResponse = resBytes
+	}
 	totalBytesReceived := p.Status["BytesReceived"].(int64) + int64(len(*resBytes))
 	p.Status["BytesReceived"] = totalBytesReceived
 	p.Status["LastColumns"] = []string{}
@@ -2493,6 +2497,9 @@ func optimizeResultLimit(req *Request) (limit int) {
 }
 
 func (p *Peer) clearLastRequest(lock bool) {
+	if !p.LocalConfig.SaveTempRequests {
+		return
+	}
 	if lock {
 		p.PeerLock.Lock()
 		defer p.PeerLock.Unlock()
