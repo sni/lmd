@@ -61,8 +61,6 @@ func (l *LoggingLock) Lock() {
 
 // RLock just calls sync.RWMutex.RLock
 func (l *LoggingLock) RLock() {
-	caller := make([]uintptr, 20)
-	runtime.Callers(0, caller)
 	waited := false
 
 	if atomic.LoadInt32(&l.currentlyLocked) == 0 {
@@ -80,6 +78,8 @@ func (l *LoggingLock) RLock() {
 			break
 		case <-time.After(timeout):
 			// still waiting...
+			caller := make([]uintptr, 20)
+			runtime.Callers(0, caller)
 			l.logWaiting(&caller, fmt.Sprintf("[%s] waiting for read lock in:", l.name))
 			waited = true
 			<-c
