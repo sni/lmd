@@ -637,9 +637,11 @@ func (p *Peer) StatusGet(key string) interface{} {
 // ScheduleImmediateUpdate resets all update timer so the next updateloop iteration
 // will performan an update.
 func (p *Peer) ScheduleImmediateUpdate() {
-	p.StatusSet("LastUpdate", time.Now().Unix()-p.LocalConfig.Updateinterval-1)
-	p.StatusSet("LastFullServiceUpdate", time.Now().Unix()-MinFullScanInterval-1)
-	p.StatusSet("LastFullHostUpdate", time.Now().Unix()-MinFullScanInterval-1)
+	p.PeerLock.Lock()
+	p.Status["LastUpdate"] = time.Now().Unix() - p.LocalConfig.Updateinterval - 1
+	p.Status["LastFullServiceUpdate"] = time.Now().Unix() - MinFullScanInterval - 1
+	p.Status["LastFullHostUpdate"] = time.Now().Unix() - MinFullScanInterval - 1
+	p.PeerLock.Unlock()
 }
 
 // InitAllTables creates all tables for this peer.
@@ -1639,10 +1641,11 @@ func (p *Peer) checkStatusFlags() {
 			if !strings.HasPrefix(p.Status["PeerAddr"].(string), "http") {
 				p.SetFlag(LMD)
 			}
+			// force immediate update to fetch all sites
+			p.Status["LastUpdate"] = time.Now().Unix() - p.LocalConfig.Updateinterval
 			p.PeerLock.Unlock()
 			p.DataLock.RUnlock()
-			// force immediate update to fetch all sites
-			p.StatusSet("LastUpdate", time.Now().Unix()-p.LocalConfig.Updateinterval)
+
 			ok := true
 			if p.HasFlag(LMD) {
 				p.periodicUpdateLMD(&ok, true)
