@@ -531,11 +531,11 @@ func logCurrentsLocks() {
 	PeerMapLock.RLock()
 	for id := range PeerMap {
 		p := PeerMap[id]
-		if atomic.LoadInt32(&p.PeerLock.currentlyLocked) == 0 {
+		if atomic.LoadInt32(&p.PeerLock.currentlyLocked) == 1 {
 			log.Errorf("[%s] peer holding peer lock:", p.Name)
 			LogCaller(log.Errorf, p.PeerLock.currentLockpointer.Load().(*[]uintptr))
 		}
-		if atomic.LoadInt32(&p.DataLock.currentlyLocked) == 0 {
+		if atomic.LoadInt32(&p.DataLock.currentlyLocked) == 1 {
 			log.Errorf("[%s] peer holding data lock:", p.Name)
 			LogCaller(log.Errorf, p.DataLock.currentLockpointer.Load().(*[]uintptr))
 		}
