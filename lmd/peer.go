@@ -189,10 +189,10 @@ func NewPeer(localConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 	p.Status["LastError"] = "connecting..."
 	p.Status["LastOnline"] = int64(0)
 	p.Status["ProgramStart"] = 0
-	p.Status["BytesSend"] = 0
-	p.Status["BytesReceived"] = 0
-	p.Status["Querys"] = 0
-	p.Status["ReponseTime"] = 0
+	p.Status["BytesSend"] = int64(0)
+	p.Status["BytesReceived"] = int64(0)
+	p.Status["Querys"] = int64(0)
+	p.Status["ReponseTime"] = float64(0)
 	p.Status["Idling"] = false
 	p.Status["Updating"] = false
 	p.Status["Section"] = config.Section
@@ -273,20 +273,17 @@ func (p *Peer) hasChanged() (changed bool) {
 	p.DataLock.RLock()
 	changed = changed || (counter != len(p.Tables[TableServices].Data))
 	p.DataLock.RUnlock()
-	p.clearLastRequest()
+	p.clearLastRequest(true)
 
 	return
 }
 
-// ClearLocked resets the data table.
-func (p *Peer) ClearLocked() {
-	p.DataLock.Lock()
-	p.Clear()
-	p.DataLock.Unlock()
-}
-
 // Clear resets the data table.
-func (p *Peer) Clear() {
+func (p *Peer) Clear(lock bool) {
+	if lock {
+		p.DataLock.Lock()
+		defer p.DataLock.Unlock()
+	}
 	p.Tables = make(map[TableName]*DataStore)
 }
 
@@ -311,8 +308,8 @@ func (p *Peer) updateLoop() {
 		p.PeerLock.Lock()
 		p.Status["LastUpdateOK"] = ok
 		p.Status["LastTimeperiodUpdateMinute"] = lastTimeperiodUpdateMinute
+		p.clearLastRequest(false)
 		p.PeerLock.Unlock()
-		p.clearLastRequest()
 	}
 
 	ticker := time.NewTicker(500 * time.Millisecond)
@@ -328,8 +325,8 @@ func (p *Peer) updateLoop() {
 			p.PeerLock.Lock()
 			p.Status["LastUpdateOK"] = ok
 			p.Status["LastTimeperiodUpdateMinute"] = lastTimeperiodUpdateMinute
+			p.clearLastRequest(false)
 			p.PeerLock.Unlock()
-			p.clearLastRequest()
 			return
 		case <-ticker.C:
 			switch {
@@ -340,7 +337,7 @@ func (p *Peer) updateLoop() {
 			default:
 				p.periodicUpdate(&ok, &lastTimeperiodUpdateMinute)
 			}
-			p.clearLastRequest()
+			p.clearLastRequest(true)
 		}
 	}
 }
@@ -504,7 +501,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 			if _, ok := existing[id]; !ok {
 				log.Debugf("[%s] removing sub peer", peer.Name)
 				peer.Stop()
-				peer.ClearLocked()
+				peer.Clear(true)
 				PeerMapRemove(id)
 				removed++
 			}
@@ -597,7 +594,7 @@ func (p *Peer) periodicUpdateMultiBackends(ok *bool, force bool) {
 			if _, ok := existing[id]; !ok {
 				log.Debugf("[%s] removing sub peer", peer.Name)
 				peer.Stop()
-				peer.ClearLocked()
+				peer.Clear(true)
 				PeerMapRemove(id)
 				removed++
 			}
@@ -680,8 +677,8 @@ func (p *Peer) InitAllTables() bool {
 				p.PeerLock.Lock()
 				p.Status["PeerStatus"] = PeerStatusDown
 				p.Status["LastError"] = "peered partner not ready yet"
+				p.Clear(false)
 				p.PeerLock.Unlock()
-				p.ClearLocked()
 				return false
 			}
 
@@ -733,7 +730,9 @@ func (p *Peer) InitAllTables() bool {
 		if peerStatus == PeerStatusDown {
 			log.Infof("[%s] site is back online", p.Name)
 		}
+		p.PeerLock.Lock()
 		p.resetErrors()
+		p.PeerLock.Unlock()
 	}
 	promPeerUpdates.WithLabelValues(p.Name).Inc()
 	promPeerUpdateDuration.WithLabelValues(p.Name).Set(duration.Seconds())
@@ -744,13 +743,11 @@ func (p *Peer) InitAllTables() bool {
 // resetErrors reset the error counter after the site has recovered
 func (p *Peer) resetErrors() {
 	now := time.Now().Unix()
-	p.PeerLock.Lock()
 	p.Status["LastError"] = ""
 	p.Status["LastOnline"] = now
 	p.ErrorCount = 0
 	p.ErrorLogged = false
 	p.Status["PeerStatus"] = PeerStatusUp
-	p.PeerLock.Unlock()
 }
 
 // UpdateFull runs a full update on all dynamic values for all tables which have dynamic updated columns.
@@ -782,8 +779,8 @@ func (p *Peer) UpdateFull() bool {
 	if peerStatus != PeerStatusUp && peerStatus != PeerStatusPending {
 		log.Infof("[%s] site soft recovered from short outage", p.Name)
 	}
-	p.resetErrors()
 	p.PeerLock.Lock()
+	p.resetErrors()
 	p.Status["ReponseTime"] = duration.Seconds()
 	p.Status["LastUpdate"] = time.Now().Unix()
 	p.Status["LastFullUpdate"] = time.Now().Unix()
@@ -835,8 +832,8 @@ func (p *Peer) UpdateDelta(from, to int64) bool {
 	if peerStatus != PeerStatusUp && peerStatus != PeerStatusPending {
 		log.Infof("[%s] site soft recovered from short outage", p.Name)
 	}
-	p.resetErrors()
 	p.PeerLock.Lock()
+	p.resetErrors()
 	p.Status["LastUpdate"] = to
 	p.Status["ReponseTime"] = duration.Seconds()
 	p.PeerLock.Unlock()
@@ -1204,8 +1201,8 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 	p.PeerLock.Lock()
 	p.lastRequest = req
 	p.lastResponse = nil
-	p.Status["Querys"] = p.Status["Querys"].(int) + 1
-	totalBytesSend := p.Status["BytesSend"].(int) + len(query)
+	p.Status["Querys"] = p.Status["Querys"].(int64) + 1
+	totalBytesSend := p.Status["BytesSend"].(int64) + int64(len(query))
 	p.Status["BytesSend"] = totalBytesSend
 	peerAddr := p.Status["PeerAddr"].(string)
 	p.PeerLock.Unlock()
@@ -1237,7 +1234,7 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 	}
 	p.PeerLock.Lock()
 	p.lastResponse = resBytes
-	totalBytesReceived := p.Status["BytesReceived"].(int) + len(*resBytes)
+	totalBytesReceived := p.Status["BytesReceived"].(int64) + int64(len(*resBytes))
 	p.Status["BytesReceived"] = totalBytesReceived
 	p.Status["LastColumns"] = []string{}
 	p.Status["LastTotalCount"] = int64(0)
@@ -1564,7 +1561,7 @@ cache:
 		if p.Status["PeerStatus"].(PeerStatus) != PeerStatusDown {
 			log.Warnf("[%s] site went offline: %s", p.Name, err.Error())
 			// clear existing data from memory
-			p.Clear()
+			p.Clear(false)
 		}
 		p.Status["PeerStatus"] = PeerStatusDown
 	}
@@ -2498,11 +2495,13 @@ func optimizeResultLimit(req *Request) (limit int) {
 	return
 }
 
-func (p *Peer) clearLastRequest() {
-	p.PeerLock.Lock()
+func (p *Peer) clearLastRequest(lock bool) {
+	if lock {
+		p.PeerLock.Lock()
+		defer p.PeerLock.Unlock()
+	}
 	p.lastRequest = nil
 	p.lastResponse = nil
-	p.PeerLock.Unlock()
 }
 
 func (p *Peer) reloadIfNumberOfObjectsChanged() bool {
@@ -2518,8 +2517,8 @@ func (p *Peer) setBroken(details string) {
 	p.Status["PeerStatus"] = PeerStatusBroken
 	p.Status["LastError"] = "broken: " + details
 	p.Status["ThrukVersion"] = float64(-1)
+	p.Clear(false)
 	p.PeerLock.Unlock()
-	p.ClearLocked()
 }
 
 func logPanicExitPeer(p *Peer) {

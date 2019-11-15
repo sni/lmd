@@ -340,7 +340,7 @@ func initializePeers(localConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 		}
 		if !found {
 			PeerMap[id].Stop()
-			PeerMap[id].ClearLocked()
+			PeerMap[id].Clear(true)
 			PeerMapRemove(id)
 		}
 	}
