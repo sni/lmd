@@ -18,7 +18,7 @@ type DataRow struct {
 	Refs                  map[TableName]*DataRow // contains references to other objects, ex.: hosts from the services table
 	LastUpdate            int64                  // timestamp when this row has been updated
 	dataString            []string               // stores string data
-	dataInt               []int32                // stores integers
+	dataInt               []int                  // stores integers
 	dataInt64             []int64                // stores large integers
 	dataFloat             []float64              // stores floats
 	dataStringList        [][]string             // stores stringlists
@@ -79,11 +79,27 @@ func (d *DataRow) GetID() string {
 	return id
 }
 
+// GetID2 calculates and the ID value
+func (d *DataRow) GetID2() (string, string) {
+	if len(d.DataStore.Table.PrimaryKey) != 2 {
+		panic("not implemented")
+	}
+	id1 := d.GetStringByName(d.DataStore.Table.PrimaryKey[0])
+	if *id1 == "" {
+		log.Errorf("[%s] id1 for %s is null", d.DataStore.Peer.Name, d.DataStore.Table.Name.String())
+	}
+	id2 := d.GetStringByName(d.DataStore.Table.PrimaryKey[1])
+	if *id2 == "" {
+		log.Errorf("[%s] id2 for %s is null", d.DataStore.Peer.Name, d.DataStore.Table.Name.String())
+	}
+	return *id1, *id2
+}
+
 // setData creates initial data
 func (d *DataRow) SetData(raw *[]interface{}, columns *ColumnList, timestamp int64) error {
 	d.dataString = make([]string, d.DataStore.DataSizes[StringCol])
 	d.dataStringList = make([][]string, d.DataStore.DataSizes[StringListCol])
-	d.dataInt = make([]int32, d.DataStore.DataSizes[IntCol])
+	d.dataInt = make([]int, d.DataStore.DataSizes[IntCol])
 	d.dataInt64 = make([]int64, d.DataStore.DataSizes[Int64Col])
 	d.dataInt64List = make([][]int64, d.DataStore.DataSizes[Int64ListCol])
 	d.dataFloat = make([]float64, d.DataStore.DataSizes[FloatCol])
@@ -99,26 +115,20 @@ func (d *DataRow) setReferences(store *DataStore) (err error) {
 		ref := store.Table.RefTables[i]
 		tableName := ref.Table.Name
 		refsByName := store.Peer.Tables[tableName].Index
+		refsByName2 := store.Peer.Tables[tableName].Index2
 
-		var key strings.Builder
-		for i := range ref.Columns {
-			if i > 0 {
-				key.WriteString(";")
-			}
-			key.WriteString(*(d.GetString(ref.Columns[i])))
+		switch len(ref.Columns) {
+		case 1:
+			d.Refs[tableName] = refsByName[*(d.GetString(ref.Columns[0]))]
+		case 2:
+			d.Refs[tableName] = refsByName2[*(d.GetString(ref.Columns[0]))][*(d.GetString(ref.Columns[1]))]
 		}
-		refValue := key.String()
-		if refValue == "" {
-			return fmt.Errorf("failed to create refValue in table %s", d.DataStore.Table.Name.String())
-		}
-
-		d.Refs[tableName] = refsByName[refValue]
 		if d.Refs[tableName] == nil {
 			if tableName == TableServices && (store.Table.Name == TableComments || store.Table.Name == TableDowntimes) {
 				// this may happen for optional reference columns, ex. services in comments
 				continue
 			}
-			return fmt.Errorf("%s '%s' ref not found from table %s, refmap contains %d elements", tableName.String(), refValue, store.Table.Name.String(), len(refsByName))
+			return fmt.Errorf("%s reference not found from table %s, refmap contains %d elements", tableName.String(), store.Table.Name.String(), len(refsByName))
 		}
 	}
 	return
@@ -149,11 +159,11 @@ func (d *DataRow) GetString(col *Column) *string {
 	case RefStore:
 		ref := d.Refs[col.RefCol.Table.Name]
 		if ref == nil {
-			return interface2string(col.GetEmptyValue())
+			return interface2stringNoDedup(col.GetEmptyValue())
 		}
 		return ref.GetString(col.RefCol)
 	}
-	return interface2string(d.getVirtRowValue(col))
+	return interface2stringNoDedup(d.getVirtRowValue(col))
 }
 
 // GetStringByName returns the string value for given column name
@@ -213,7 +223,7 @@ func (d *DataRow) GetInt(col *Column) int {
 	case LocalStore:
 		switch col.DataType {
 		case IntCol:
-			return int(d.dataInt[col.Index])
+			return d.dataInt[col.Index]
 		case FloatCol:
 			return int(d.dataFloat[col.Index])
 		}
@@ -426,10 +436,9 @@ func VirtColServicesWithInfo(d *DataRow, col *Column) interface{} {
 	outputCol := servicesStore.Table.GetColumn("plugin_output")
 	res := make([]interface{}, 0)
 	for i := range *services {
-		serviceID := *hostName + ";" + (*services)[i]
-		service, ok := servicesStore.Index[serviceID]
+		service, ok := servicesStore.Index2[*hostName][(*services)[i]]
 		if !ok {
-			log.Errorf("Could not find service: %s\n", serviceID)
+			log.Errorf("Could not find service: %s - %s\n", *hostName, (*services)[i])
 			continue
 		}
 		serviceValue := []interface{}{(*services)[i], service.GetInt(stateCol), service.GetInt(checkedCol)}
@@ -471,10 +480,9 @@ func VirtColMembersWithState(d *DataRow, col *Column) interface{} {
 			hostName := (*members)[i][0]
 			serviceDescription := (*members)[i][1]
 
-			serviceID := hostName + ";" + serviceDescription
-			service, ok := servicesStore.Index[serviceID]
+			service, ok := servicesStore.Index2[hostName][serviceDescription]
 			if !ok {
-				log.Errorf("Could not find service: %s\n", serviceID)
+				log.Errorf("Could not find service: %s - %s\n", hostName, serviceDescription)
 				continue
 			}
 			serviceValue := []interface{}{hostName, serviceDescription, service.GetInt(stateCol), service.GetInt(checkedCol)}
@@ -668,7 +676,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data *[]interface{}, columns *Col
 		case StringLargeCol:
 			d.dataStringLarge[col.Index] = *interface2stringlarge((*data)[i])
 		case IntCol:
-			d.dataInt[col.Index] = int32(interface2int((*data)[i]))
+			d.dataInt[col.Index] = interface2int((*data)[i])
 		case Int64Col:
 			d.dataInt64[col.Index] = interface2int64((*data)[i])
 		case Int64ListCol:
@@ -693,7 +701,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data *[]interface{}, columns *Col
 // CheckChangedIntValues returns true if the given data results in an update
 func (d *DataRow) CheckChangedIntValues(data *[]interface{}, columns *ColumnList) bool {
 	for j := range *columns {
-		if int32(interface2int((*data)[j])) != d.dataInt[(*columns)[j].Index] {
+		if interface2int((*data)[j]) != d.dataInt[(*columns)[j].Index] {
 			return true
 		}
 	}
@@ -769,6 +777,20 @@ func interface2string(in interface{}) *string {
 	case string:
 		dedupedstring := stringdedup.S(v)
 		return &dedupedstring
+	case *string:
+		return v
+	case nil:
+		val := ""
+		return &val
+	}
+	str := fmt.Sprintf("%v", in)
+	return &str
+}
+
+func interface2stringNoDedup(in interface{}) *string {
+	switch v := in.(type) {
+	case string:
+		return &v
 	case *string:
 		return v
 	case nil:
@@ -945,7 +967,7 @@ func joinStringlist(list *[]string, join string) *string {
 func cast2Type(val interface{}, col *Column) interface{} {
 	switch col.DataType {
 	case StringCol:
-		return (interface2string(val))
+		return (interface2stringNoDedup(val))
 	case StringListCol:
 		return (interface2stringlist(val))
 	case IntCol:
@@ -1031,8 +1053,7 @@ func (d *DataRow) isAuthorizedFor(authUser string, host string, service string) 
 
 	// get contacts on services
 	if service != "" {
-		serviceID := host + ";" + service
-		serviceObj, ok := p.Tables[TableServices].Index[serviceID]
+		serviceObj, ok := p.Tables[TableServices].Index2[host][service]
 		contactsColumn := p.Tables[TableServices].GetColumn("contacts")
 		if !ok {
 			return

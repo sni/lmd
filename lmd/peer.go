@@ -474,7 +474,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 			}
 			res, _, err := subPeer.query(req)
 			if err == nil {
-				section := *(interface2string((*res)[0][0]))
+				section := *(interface2stringNoDedup((*res)[0][0]))
 				section = strings.TrimPrefix(section, "Default")
 				section = strings.TrimPrefix(section, "/")
 				subPeer.StatusSet("Section", section)
@@ -867,9 +867,14 @@ func (p *Peer) UpdateDeltaHosts(filterStr string) (err error) {
 	if err != nil {
 		return
 	}
+	return p.insertDeltaHostResult(res, table)
+}
+
+func (p *Peer) insertDeltaHostResult(res *ResultSet, table *DataStore) (err error) {
+	hostDataOffset := 1
 
 	// precompress large strings to reduce time needed to hold the data lock
-	res.Precompress(1, &table.DynamicColumnCache)
+	res.Precompress(hostDataOffset, &table.DynamicColumnCache)
 
 	now := time.Now().Unix()
 	p.DataLock.Lock()
@@ -877,12 +882,12 @@ func (p *Peer) UpdateDeltaHosts(filterStr string) (err error) {
 	nameIndex := table.Index
 	for i := range *res {
 		resRow := &(*res)[i]
-		hostName := interface2string((*resRow)[0])
+		hostName := interface2stringNoDedup((*resRow)[0])
 		dataRow := nameIndex[*hostName]
 		if dataRow == nil {
 			return fmt.Errorf("cannot update host, no host named '%s' found", *hostName)
 		}
-		err = dataRow.UpdateValues(1, resRow, &table.DynamicColumnCache, now)
+		err = dataRow.UpdateValues(hostDataOffset, resRow, &table.DynamicColumnCache, now)
 		if err != nil {
 			return
 		}
@@ -919,22 +924,26 @@ func (p *Peer) UpdateDeltaServices(filterStr string) (err error) {
 	if err != nil {
 		return
 	}
+	return p.insertDeltaServiceResult(res, table)
+}
+
+func (p *Peer) insertDeltaServiceResult(res *ResultSet, table *DataStore) (err error) {
+	serviceDataOffset := 2
 
 	// precompress large strings to reduce time needed to hold the data lock
-	res.Precompress(2, &table.DynamicColumnCache)
+	res.Precompress(serviceDataOffset, &table.DynamicColumnCache)
 
 	now := time.Now().Unix()
 	p.DataLock.Lock()
 	defer p.DataLock.Unlock()
-	nameindex := table.Index
+	nameindex := table.Index2
 	for i := range *res {
 		resRow := &(*res)[i]
-		lookUp := *(interface2string((*resRow)[0])) + ";" + *(interface2string((*resRow)[1]))
-		dataRow := nameindex[lookUp]
+		dataRow := nameindex[*(interface2stringNoDedup((*resRow)[0]))][*(interface2stringNoDedup((*resRow)[1]))]
 		if dataRow == nil {
-			return fmt.Errorf("cannot update service, no service named '%s' found", lookUp)
+			return fmt.Errorf("cannot update service, no service named '%s' - '%s' found", *(interface2stringNoDedup((*resRow)[0])), *(interface2stringNoDedup((*resRow)[1])))
 		}
-		err = dataRow.UpdateValues(2, resRow, &table.DynamicColumnCache, now)
+		err = dataRow.UpdateValues(serviceDataOffset, resRow, &table.DynamicColumnCache, now)
 		if err != nil {
 			return
 		}
@@ -2788,12 +2797,12 @@ func (p *Peer) GetSupportedColumns() (tables map[TableName]map[string]bool, err 
 	tables = make(map[TableName]map[string]bool)
 	for i := range *res {
 		row := (*res)[i]
-		table := interface2string(row[0])
+		table := interface2stringNoDedup(row[0])
 		tableName, e := NewTableName(*table)
 		if e != nil {
 			continue
 		}
-		column := interface2string(row[1])
+		column := interface2stringNoDedup(row[1])
 		if _, ok := tables[tableName]; !ok {
 			tables[tableName] = make(map[string]bool)
 		}

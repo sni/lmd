@@ -29,7 +29,7 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 	w.Header().Set("Content-Type", "application/json")
 
 	// Requested table (name)
-	_, err := NewTableName(*interface2string(requestData["table"]))
+	_, err := NewTableName(*interface2stringNoDedup(requestData["table"]))
 
 	// Check if table exists
 	if err != nil {
@@ -142,7 +142,7 @@ func (c *HTTPServerController) query(w http.ResponseWriter, request *http.Reques
 func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request, err error) {
 	// New request object for specified table
 	req = &Request{}
-	table, err := NewTableName(*interface2string(requestData["table"]))
+	table, err := NewTableName(*interface2stringNoDedup(requestData["table"]))
 	if err != nil {
 		return
 	}

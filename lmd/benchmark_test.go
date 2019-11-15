@@ -117,6 +117,38 @@ func BenchmarkPeerUpdate(b *testing.B) {
 	}
 }
 
+func BenchmarkPeerUpdateServiceInsert(b *testing.B) {
+	b.StopTimer()
+	peer := StartTestPeer(1, 1000, 10000)
+	PauseTestPeers(peer)
+
+	table := peer.Tables[TableServices]
+	req := &Request{
+		Table:           table.Table.Name,
+		Columns:         table.DynamicColumnNamesCache,
+		ResponseFixed16: true,
+		OutputFormat:    OutputFormatJSON,
+		FilterStr:       "Filter: host_name !=\n",
+	}
+	res, _, err := peer.Query(req)
+	if err != nil {
+		return
+	}
+
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		res := peer.insertDeltaServiceResult(res, table)
+		if res != nil {
+			panic("Update failed")
+		}
+	}
+	b.StopTimer()
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
 func BenchmarkSingleFilter_1k_svc__1Peer(b *testing.B) {
 	b.StopTimer()
 	peer := StartTestPeer(1, 100, 1000)
