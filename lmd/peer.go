@@ -237,9 +237,7 @@ func (p *Peer) Start() {
 		defer logPanicExitPeer(p)
 		p.updateLoop()
 		p.StatusSet("Updating", false)
-		p.PeerLock.Lock()
 		p.waitGroup.Done()
-		p.PeerLock.Unlock()
 	}()
 }
 
@@ -584,11 +582,9 @@ func (p *Peer) periodicUpdateMultiBackends(ok *bool, force bool) {
 			subPeer.Start()
 		}
 	}
-	PeerMapLock.Unlock()
 
 	// remove exceeding peers
 	removed := 0
-	PeerMapLock.Lock()
 	for id, peer := range PeerMap {
 		if peer.ParentID == p.ID {
 			if _, ok := existing[id]; !ok {
@@ -721,19 +717,17 @@ func (p *Peer) InitAllTables() bool {
 	p.PeerLock.Lock()
 	p.Status["ProgramStart"] = programStart
 	p.Status["ReponseTime"] = duration.Seconds()
-	p.PeerLock.Unlock()
+	peerStatus := p.Status["PeerStatus"].(PeerStatus)
 	log.Infof("[%s] objects created in: %s", p.Name, duration.String())
-
-	peerStatus := p.StatusGet("PeerStatus").(PeerStatus)
 	if peerStatus != PeerStatusUp {
 		// Reset errors
 		if peerStatus == PeerStatusDown {
 			log.Infof("[%s] site is back online", p.Name)
 		}
-		p.PeerLock.Lock()
 		p.resetErrors()
-		p.PeerLock.Unlock()
 	}
+	p.PeerLock.Unlock()
+
 	promPeerUpdates.WithLabelValues(p.Name).Inc()
 	promPeerUpdateDuration.WithLabelValues(p.Name).Set(duration.Seconds())
 
