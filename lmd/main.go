@@ -100,6 +100,7 @@ type Config struct {
 	ConnectTimeout       int
 	NetTimeout           int
 	ListenTimeout        int
+	LockTimeout          int
 	ListenPrometheus     string
 	SkipSSLCheck         int
 	IdleTimeout          int64
@@ -126,6 +127,9 @@ var Listeners map[string]*Listener
 var ListenersLock *LoggingLock
 
 type configFiles []string
+
+// LockTimeout sets the timeout for logging waiting for locks
+var LockTimeout int
 
 // String returns the config files list as string.
 func (c *configFiles) String() string {
@@ -215,6 +219,7 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	setServiceAuthorization(&localConfig)
 	setGroupAuthorization(&localConfig)
 
+	LockTimeout = localConfig.LockTimeout
 	promPeerUpdateInterval.Set(float64(localConfig.Updateinterval))
 
 	osSignalChannel := make(chan os.Signal, 1)
@@ -595,6 +600,9 @@ func setDefaults(conf *Config) {
 	}
 	if conf.StaleBackendTimeout <= 0 {
 		conf.StaleBackendTimeout = 30
+	}
+	if conf.LockTimeout <= 0 {
+		conf.LockTimeout = 5
 	}
 }
 

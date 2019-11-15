@@ -34,7 +34,7 @@ func (l *LoggingLock) Lock() {
 		l.lock.Lock()
 		atomic.StoreInt32(&l.currentlyLocked, 1)
 	} else {
-		timeout := time.Second * 3
+		timeout := time.Second * time.Duration(LockTimeout)
 		c := make(chan struct{})
 		go func() {
 			defer close(c)
@@ -61,30 +61,31 @@ func (l *LoggingLock) Lock() {
 
 // RLock just calls sync.RWMutex.RLock
 func (l *LoggingLock) RLock() {
-	waited := false
-
 	if atomic.LoadInt32(&l.currentlyLocked) == 0 {
 		l.lock.RLock()
-	} else {
-		timeout := time.Second * 3
-		c := make(chan struct{})
-		go func() {
-			defer close(c)
-			l.lock.RLock()
-		}()
-		select {
-		case <-c:
-			// got lock within timeout, no logging
-			break
-		case <-time.After(timeout):
-			// still waiting...
-			caller := make([]uintptr, 20)
-			runtime.Callers(0, caller)
-			l.logWaiting(&caller, fmt.Sprintf("[%s] waiting for read lock in:", l.name))
-			waited = true
-			<-c
-		}
+		return
 	}
+
+	waited := false
+	timeout := time.Second * time.Duration(LockTimeout)
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		l.lock.RLock()
+	}()
+	select {
+	case <-c:
+		// got lock within timeout, no logging
+		break
+	case <-time.After(timeout):
+		// still waiting...
+		caller := make([]uintptr, 20)
+		runtime.Callers(0, caller)
+		l.logWaiting(&caller, fmt.Sprintf("[%s] waiting for read lock in:", l.name))
+		waited = true
+		<-c
+	}
+
 	if waited {
 		log.Infof("[%s] finally got read lock", l.name)
 	}
