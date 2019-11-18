@@ -43,7 +43,7 @@ func NewListener(localConfig *Config, listen string, waitGroupInit *sync.WaitGro
 
 // QueryServer handles a single client connection.
 // It returns any error encountered.
-func QueryServer(c net.Conn) error {
+func QueryServer(c net.Conn, conf *Config) error {
 	localAddr := c.LocalAddr().String()
 	keepAlive := false
 	remote := c.RemoteAddr().String()
@@ -75,7 +75,7 @@ func QueryServer(c net.Conn) error {
 		switch {
 		case len(reqs) > 0:
 			promFrontendQueries.WithLabelValues(localAddr).Add(float64(len(reqs)))
-			keepAlive, err = ProcessRequests(reqs, c, remote)
+			keepAlive, err = ProcessRequests(reqs, c, remote, conf)
 
 			// keep open keepalive request until either the client closes the connection or the deadline timeout is hit
 			if keepAlive {
@@ -98,7 +98,7 @@ func QueryServer(c net.Conn) error {
 }
 
 // ProcessRequests creates response for all given requests
-func ProcessRequests(reqs []*Request, c net.Conn, remote string) (keepalive bool, err error) {
+func ProcessRequests(reqs []*Request, c net.Conn, remote string, conf *Config) (keepalive bool, err error) {
 	if len(reqs) == 0 {
 		return
 	}
@@ -145,6 +145,11 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string) (keepalive bool
 			size, err = response.Send(c)
 			duration := time.Since(t1)
 			log.Infof("incoming %s request from %s to %s finished in %s, response size: %s", req.Table.String(), remote, c.LocalAddr().String(), duration.String(), ByteCountBinary(size))
+			if duration > time.Duration(conf.LogSlowQueryThreshold)*time.Second {
+				log.Warnf("slow query finished after %s, response size: %s\n%s", duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
+			} else if size > int64(conf.LogHugeQueryThreshold*1024*1024) {
+				log.Warnf("huge query finished after %s, response size: %s\n%s", duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
+			}
 			if err != nil || !req.KeepAlive {
 				return
 			}
@@ -302,7 +307,7 @@ func (l *Listener) LocalListenerLivestatus(connType string, listen string) {
 				// make sure we log panics properly
 				defer logPanicExit()
 
-				ch <- QueryServer(fd)
+				ch <- QueryServer(fd, l.LocalConfig)
 			}()
 			select {
 			case <-ch:

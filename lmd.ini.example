@@ -26,6 +26,12 @@ LogLevel        = "Info"
 # LogLockTimeout sets the timeout for logging waiting for locks
 LogLockTimeout = 5
 
+# LogSlowQueryThreshold sets the maximum amount of seconds before logging a query as slow query
+LogSlowQueryThreshold = 5
+
+# LogHugeQueryThreshold sets the maximum size in megabytes before logging a query as huge query
+LogHugeQueryThreshold = 100
+
 # After this amount of seconds, a backend will be marked down when there
 # is no response
 StaleBackendTimeout = 30

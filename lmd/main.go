@@ -87,29 +87,31 @@ func (c *Connection) Equals(other *Connection) bool {
 
 // Config defines the available configuration options from supplied config files.
 type Config struct {
-	Listen               []string
-	Nodes                []string
-	TLSCertificate       string
-	TLSKey               string
-	TLSClientPems        []string
-	Updateinterval       int64
-	FullUpdateInterval   int64
-	Connections          []Connection
-	LogFile              string
-	LogLevel             string
-	ConnectTimeout       int
-	NetTimeout           int
-	ListenTimeout        int
-	LogLockTimeout       int
-	SaveTempRequests     bool
-	ListenPrometheus     string
-	SkipSSLCheck         int
-	IdleTimeout          int64
-	IdleInterval         int64
-	StaleBackendTimeout  int
-	BackendKeepAlive     bool
-	ServiceAuthorization string
-	GroupAuthorization   string
+	Listen                []string
+	Nodes                 []string
+	TLSCertificate        string
+	TLSKey                string
+	TLSClientPems         []string
+	Updateinterval        int64
+	FullUpdateInterval    int64
+	Connections           []Connection
+	LogFile               string
+	LogLevel              string
+	LogLockTimeout        int
+	LogSlowQueryThreshold int
+	LogHugeQueryThreshold int
+	ConnectTimeout        int
+	NetTimeout            int
+	ListenTimeout         int
+	SaveTempRequests      bool
+	ListenPrometheus      string
+	SkipSSLCheck          int
+	IdleTimeout           int64
+	IdleInterval          int64
+	StaleBackendTimeout   int
+	BackendKeepAlive      bool
+	ServiceAuthorization  string
+	GroupAuthorization    string
 }
 
 // PeerMap contains a map of available remote peers.
@@ -604,6 +606,12 @@ func setDefaults(conf *Config) {
 	}
 	if conf.LogLockTimeout <= 0 {
 		conf.LogLockTimeout = 5
+	}
+	if conf.LogSlowQueryThreshold <= 0 {
+		conf.LogSlowQueryThreshold = 5
+	}
+	if conf.LogHugeQueryThreshold <= 0 {
+		conf.LogHugeQueryThreshold = 100
 	}
 }
 
