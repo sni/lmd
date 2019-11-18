@@ -256,7 +256,7 @@ func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
 	size += len(firstLine)
 	firstLine = strings.TrimSpace(firstLine)
 	// probably a open connection without new data from a keepalive request
-	if log.IsV(2) && firstLine != "" {
+	if log.IsV(LogVerbosityDebug) && firstLine != "" {
 		log.Debugf("request: %s", firstLine)
 	}
 
@@ -278,7 +278,7 @@ func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
 			break
 		}
 
-		if log.IsV(2) {
+		if log.IsV(LogVerbosityDebug) {
 			log.Debugf("request: %s", line)
 		}
 		perr := req.ParseRequestHeaderLine(line)
@@ -709,7 +709,7 @@ func (req *Request) ParseRequestHeaderLine(line []byte) (err error) {
 		err = parseOnOff(&req.ColumnsHeaders, args)
 		return
 	case "localtime":
-		if log.IsV(2) {
+		if log.IsV(LogVerbosityDebug) {
 			log.Debugf("Ignoring %s as LMD works on unix timestamps only.", matched[0])
 		}
 		return

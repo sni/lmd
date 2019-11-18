@@ -324,7 +324,7 @@ func (res *Response) Send(c net.Conn) (size int64, err error) {
 	}
 	size = int64(resBuffer.Len()) + 1
 	if res.Request.ResponseFixed16 {
-		if log.IsV(3) {
+		if log.IsV(LogVerbosityTrace) {
 			log.Tracef("write: %s", fmt.Sprintf("%d %11d", res.Code, size))
 		}
 		_, err = c.Write([]byte(fmt.Sprintf("%d %11d\n", res.Code, size)))
@@ -333,7 +333,7 @@ func (res *Response) Send(c net.Conn) (size int64, err error) {
 			return
 		}
 	}
-	if log.IsV(3) {
+	if log.IsV(LogVerbosityTrace) {
 		log.Tracef("write: %s", resBuffer.Bytes())
 	}
 	written, err := resBuffer.WriteTo(c)

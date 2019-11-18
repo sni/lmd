@@ -44,10 +44,28 @@ const (
 	VERSION = "1.7.1"
 	// NAME defines the name of this project
 	NAME = "lmd"
-)
 
-const loose = "loose"
-const strict = "strict"
+	// AuthLoose is used for loose authorization when host contacts are granted all services
+	AuthLoose = "loose"
+
+	// AuthStrict is used for strict authorization when host contacts are not granted all services
+	AuthStrict = "strict"
+
+	// ExitCritical is used to non-ok exits
+	ExitCritical = 2
+
+	// ExitUnknown is used as exit code for help
+	ExitUnknown = 3
+
+	// StatsTimerInterval sets the interval at which statistics will be updated
+	StatsTimerInterval = 30 * time.Second
+
+	// HTTPClientTimeout sets the default HTTP client timeout
+	HTTPClientTimeout = 30 * time.Second
+
+	// BlockProfileRateInterval sets the profiling interval when started with -profile
+	BlockProfileRateInterval = 10
+)
 
 // https://github.com/golang/go/issues/8005#issuecomment-190753527
 type noCopy struct{}
@@ -264,7 +282,7 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	once.Do(PrintVersion)
 
 	// just wait till someone hits ctrl+c or we have to reload
-	statsTimer := time.NewTicker(30 * time.Second)
+	statsTimer := time.NewTicker(StatsTimerInterval)
 	for {
 		select {
 		case sig := <-osSignalChannel:
@@ -405,11 +423,11 @@ func checkFlags() {
 	flag.Parse()
 	if flagVersion {
 		fmt.Printf("%s - version %s\n", NAME, Version())
-		os.Exit(2)
+		os.Exit(ExitCritical)
 	}
 
 	if flagProfile != "" {
-		runtime.SetBlockProfileRate(10)
+		runtime.SetBlockProfileRate(BlockProfileRateInterval)
 		go func() {
 			// make sure we log panics properly
 			defer logPanicExit()
@@ -419,7 +437,7 @@ func checkFlags() {
 
 	if len(flagConfigFile) == 0 {
 		fmt.Print("ERROR: no config files specified.\nSee --help for all options.\n")
-		os.Exit(2)
+		os.Exit(ExitCritical)
 	}
 
 	createPidFile(flagPidfile)
@@ -436,7 +454,7 @@ func createPidFile(path string) {
 			if process, err := os.FindProcess(pid); err == nil {
 				if err := process.Signal(syscall.Signal(0)); err == nil {
 					fmt.Fprintf(os.Stderr, "ERROR: lmd already running: %d\n", pid)
-					os.Exit(2)
+					os.Exit(ExitCritical)
 				}
 			}
 		}
@@ -445,7 +463,7 @@ func createPidFile(path string) {
 	err := ioutil.WriteFile(path, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0664)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: Could not write pidfile: %s\n", err.Error())
-		os.Exit(2)
+		os.Exit(ExitCritical)
 	}
 }
 
@@ -485,7 +503,7 @@ func NewLMDHTTPClient(tlsConfig *tls.Config, proxy string) *http.Client {
 		tr.Proxy = http.ProxyURL(proxyURL)
 	}
 	netClient := &http.Client{
-		Timeout:   time.Second * 30,
+		Timeout:   HTTPClientTimeout,
 		Transport: tr,
 	}
 	return netClient
@@ -618,26 +636,26 @@ func setDefaults(conf *Config) {
 func setServiceAuthorization(conf *Config) {
 	ServiceAuth := strings.ToLower(conf.ServiceAuthorization)
 	switch {
-	case ServiceAuth == loose, ServiceAuth == strict:
+	case ServiceAuth == AuthLoose, ServiceAuth == AuthStrict:
 		conf.ServiceAuthorization = ServiceAuth
 	case ServiceAuth != "":
 		log.Warnf("Invalid ServiceAuthorization: %s, using loose", conf.ServiceAuthorization)
-		conf.ServiceAuthorization = loose
+		conf.ServiceAuthorization = AuthLoose
 	default:
-		conf.ServiceAuthorization = loose
+		conf.ServiceAuthorization = AuthLoose
 	}
 }
 
 func setGroupAuthorization(conf *Config) {
 	GroupAuth := strings.ToLower(conf.GroupAuthorization)
 	switch {
-	case GroupAuth == loose, GroupAuth == strict:
+	case GroupAuth == AuthLoose, GroupAuth == AuthStrict:
 		conf.GroupAuthorization = GroupAuth
 	case GroupAuth != "":
 		log.Warnf("Invalid GroupAuthorization: %s, using strict", conf.GroupAuthorization)
-		conf.GroupAuthorization = strict
+		conf.GroupAuthorization = AuthStrict
 	default:
-		conf.GroupAuthorization = strict
+		conf.GroupAuthorization = AuthStrict
 	}
 }
 
@@ -658,7 +676,7 @@ func ReadConfig(files []string) *Config {
 	for _, configFile := range files {
 		if _, err := os.Stat(configFile); err != nil {
 			fmt.Fprintf(os.Stderr, "ERROR: could not load configuration from %s: %s\nuse --help to see all options.\n", configFile, err.Error())
-			os.Exit(3)
+			os.Exit(ExitUnknown)
 		}
 		if _, err := toml.DecodeFile(configFile, &conf); err != nil {
 			panic(err)
@@ -688,7 +706,7 @@ func logPanicExit() {
 		log.Errorf("Version: %s", Version())
 		log.Errorf("%s", debug.Stack())
 		deletePidFile(flagPidfile)
-		os.Exit(1)
+		os.Exit(ExitCritical)
 	}
 }
 

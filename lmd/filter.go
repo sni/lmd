@@ -423,7 +423,7 @@ func ParseFilterOp(op GroupOperator, value []byte, stack *[]*Filter) (err error)
 		return
 	}
 	if num == 0 {
-		if log.IsV(2) {
+		if log.IsV(LogVerbosityDebug) {
 			log.Debugf("ignoring %s as value is not positive", value)
 		}
 		return

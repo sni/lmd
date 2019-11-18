@@ -36,6 +36,21 @@ const (
 
 	// MinFullScanInterval is the minimum interval between two full scans
 	MinFullScanInterval = 30
+
+	// ConnectionPoolCacheSize sets the number of cached connections per peer
+	ConnectionPoolCacheSize = 5
+
+	// UpdateLoopTickerInterval sets the interval for the peer to check if updates should be fetched
+	UpdateLoopTickerInterval = 500 * time.Millisecond
+
+	// SpinUpPeersTimeout sets timeout to wait for peers after spinup
+	SpinUpPeersTimeout = 5 * time.Second
+
+	// WaitTimeoutDefault sets the default timeout if nothing specified (1 minute in milliseconds)
+	WaitTimeoutDefault = 60000
+
+	// ErrorContentPreviewSize sets the number of bytes from the response to include in the error message
+	ErrorContentPreviewSize = 50
 )
 
 // Peer is the object which handles collecting and updating data and connections.
@@ -170,7 +185,7 @@ func NewPeer(localConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 		DataLock:        NewLoggingLock(config.Name + "DataLock"),
 		Config:          config,
 		LocalConfig:     localConfig,
-		connectionCache: make(chan net.Conn, 10),
+		connectionCache: make(chan net.Conn, ConnectionPoolCacheSize),
 		Flags:           uint32(NoFlags),
 	}
 	if len(p.Source) == 0 {
@@ -310,7 +325,7 @@ func (p *Peer) updateLoop() {
 		p.PeerLock.Unlock()
 	}
 
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(UpdateLoopTickerInterval)
 	for {
 		select {
 		case <-p.shutdownChannel:
@@ -1202,7 +1217,7 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 	}
 
 	query := req.String()
-	if log.IsV(3) {
+	if log.IsV(LogVerbosityTrace) {
 		log.Tracef("[%s] query: %s", p.Name, query)
 	}
 
@@ -1239,7 +1254,7 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 		return nil, nil, nil
 	}
 
-	if log.IsV(3) {
+	if log.IsV(LogVerbosityTrace) {
 		log.Tracef("[%s] result: %s", p.Name, string(*resBytes))
 	}
 	p.PeerLock.Lock()
@@ -1408,7 +1423,10 @@ func (p *Peer) parseResponseHeader(resBytes *[]byte) (expSize int64, err error) 
 	header := string((*resBytes)[0:15])
 	matched := reResponseHeader.FindStringSubmatch(header)
 	if len(matched) != 3 {
-		err = fmt.Errorf("[%s] incorrect response header: '%s'", p.Name, string((*resBytes)[0:50]))
+		if len(*resBytes) > ErrorContentPreviewSize {
+			*resBytes = (*resBytes)[:ErrorContentPreviewSize]
+		}
+		err = fmt.Errorf("[%s] incorrect response header: '%s'", p.Name, string((*resBytes)))
 		return
 	}
 	resCode, _ := strconv.Atoi(matched[1])
@@ -1561,7 +1579,7 @@ cache:
 			break cache
 		}
 	}
-	p.connectionCache = make(chan net.Conn, 10)
+	p.connectionCache = make(chan net.Conn, ConnectionPoolCacheSize)
 
 	if p.Status["PeerStatus"].(PeerStatus) == PeerStatusUp || p.Status["PeerStatus"].(PeerStatus) == PeerStatusPending {
 		p.Status["PeerStatus"] = PeerStatusWarning
@@ -1935,7 +1953,7 @@ func (p *Peer) updateTimeperiodsData(store *DataStore, res *ResultSet, columns *
 func (p *Peer) WaitCondition(req *Request) bool {
 	// wait up to one minute if nothing specified
 	if req.WaitTimeout <= 0 {
-		req.WaitTimeout = 60 * 1000
+		req.WaitTimeout = WaitTimeoutDefault
 	}
 	c := make(chan struct{})
 	go func(p *Peer, c chan struct{}, req *Request) {
@@ -2126,8 +2144,8 @@ func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url
 		return
 	}
 	if len(contents) < 1 || contents[0] != '{' {
-		if len(contents) > 50 {
-			contents = contents[:50]
+		if len(contents) > ErrorContentPreviewSize {
+			contents = contents[:ErrorContentPreviewSize]
 		}
 		err = &PeerError{msg: fmt.Sprintf("site did not return a proper response: %s", contents), kind: ResponseError}
 		return
@@ -2165,7 +2183,7 @@ func (p *Peer) HTTPPostQuery(req *Request, peerAddr string, postData url.Values,
 		return
 	}
 	remoteError := ""
-	if log.IsV(3) {
+	if log.IsV(LogVerbosityTrace) {
 		log.Tracef("[%s] response: %s", p.Name, result.Output)
 	}
 	if len(output) >= 4 {
@@ -2259,7 +2277,7 @@ func SpinUpPeers(peers []*Peer) {
 			}
 		}(p, waitgroup)
 	}
-	waitTimeout(waitgroup, 5*time.Second)
+	waitTimeout(waitgroup, SpinUpPeersTimeout)
 	log.Debugf("spin up completed")
 }
 

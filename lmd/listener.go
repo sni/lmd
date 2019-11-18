@@ -14,6 +14,26 @@ import (
 	"time"
 )
 
+const (
+	// LogRequestExtraTimeout sets the extra timeout while handling log requests
+	LogRequestExtraTimeout = 1 * time.Minute
+
+	// HTTPServerRequestTimeout sets the read/write timeout for the HTTP Server
+	HTTPServerRequestTimeout = 5 * time.Second
+
+	// RequestReadTimeout sets the read timeout when listening to incoming requests
+	RequestReadTimeout = 10 * time.Second
+
+	// KeepAliveWaitInterval sets the interval at which the listeners checks for new requests in keepalive connections
+	KeepAliveWaitInterval = 100 * time.Millisecond
+
+	// WaitTimeoutExtraMillis sets the extra number of milliseconds to add when waiting for WaitTimeout queries
+	WaitTimeoutExtraMillis = 1000
+
+	// PeerCommandTimeout sets the timeout when waiting for peers to process commands
+	PeerCommandTimeout = 9500 * time.Millisecond
+)
+
 // Listener is the object which handles incoming connections
 type Listener struct {
 	noCopy           noCopy
@@ -56,7 +76,7 @@ func QueryServer(c net.Conn, conf *Config) error {
 		if !keepAlive {
 			promFrontendConnections.WithLabelValues(localAddr).Inc()
 			log.Debugf("incoming request from: %s to %s", remote, localAddr)
-			c.SetDeadline(time.Now().Add(time.Duration(10) * time.Second))
+			c.SetDeadline(time.Now().Add(RequestReadTimeout))
 		}
 
 		reqs, err := ParseRequests(c)
@@ -80,12 +100,12 @@ func QueryServer(c net.Conn, conf *Config) error {
 			// keep open keepalive request until either the client closes the connection or the deadline timeout is hit
 			if keepAlive {
 				log.Debugf("keepalive connection from %s, waiting for more requests", remote)
-				c.SetDeadline(time.Now().Add(time.Duration(10) * time.Second))
+				c.SetDeadline(time.Now().Add(RequestReadTimeout))
 				continue
 			}
 		case keepAlive:
 			// wait up to deadline after the last keep alive request
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(KeepAliveWaitInterval)
 			continue
 		default:
 			err = errors.New("bad request: empty request")
@@ -121,10 +141,10 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string, conf *Config) (
 				log.Infof("incoming command request from %s to %s finished in %s", remote, c.LocalAddr().String(), time.Since(t1))
 			}
 			if req.WaitTrigger != "" {
-				c.SetDeadline(time.Now().Add(time.Duration(req.WaitTimeout+1000) * time.Millisecond))
+				c.SetDeadline(time.Now().Add(time.Duration(req.WaitTimeout+WaitTimeoutExtraMillis) * time.Millisecond))
 			}
 			if req.Table == TableLog {
-				c.SetDeadline(time.Now().Add(time.Duration(60) * time.Second))
+				c.SetDeadline(time.Now().Add(LogRequestExtraTimeout))
 			}
 			var response *Response
 			response, err = req.GetResponse()
@@ -189,8 +209,8 @@ func SendCommands(commandsByPeer map[string][]string) (code int, msg string) {
 		}(p)
 	}
 
-	// Wait up to 10 seconds for all commands being sent
-	if waitTimeout(wg, 9500*time.Millisecond) {
+	// Wait up to 9.5 seconds for all commands being sent
+	if waitTimeout(wg, PeerCommandTimeout) {
 		code = 202
 		msg = "sending command timed out but will continue in background"
 		return
@@ -365,8 +385,8 @@ func (l *Listener) LocalListenerHTTP(httpType string, listen string) {
 	// Wait for and handle http requests
 	server := &http.Server{
 		Handler:      router,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 5 * time.Second,
+		ReadTimeout:  HTTPServerRequestTimeout,
+		WriteTimeout: HTTPServerRequestTimeout,
 	}
 	server.Serve(c)
 }

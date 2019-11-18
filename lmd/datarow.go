@@ -81,9 +81,6 @@ func (d *DataRow) GetID() string {
 
 // GetID2 calculates and the ID value
 func (d *DataRow) GetID2() (string, string) {
-	if len(d.DataStore.Table.PrimaryKey) != 2 {
-		panic("not implemented")
-	}
 	id1 := d.GetStringByName(d.DataStore.Table.PrimaryKey[0])
 	if *id1 == "" {
 		log.Errorf("[%s] id1 for %s is null", d.DataStore.Peer.Name, d.DataStore.Table.Name.String())
@@ -1036,7 +1033,7 @@ func (d *DataRow) isAuthorizedFor(authUser string, host string, service string) 
 
 	// get contacts for host, if we are checking a host or
 	// if this is a service and ServiceAuthorization is loose
-	if (service != "" && p.LocalConfig.ServiceAuthorization == loose) || service == "" {
+	if (service != "" && p.LocalConfig.ServiceAuthorization == AuthLoose) || service == "" {
 		hostObj, ok := p.Tables[TableHosts].Index[host]
 		contactsColumn := p.Tables[TableHosts].GetColumn("contacts")
 		// Make sure the host we found is actually valid
@@ -1089,12 +1086,12 @@ func (d *DataRow) isAuthorizedForHostGroup(authUser string, hostgroup string) (c
 		 * on the final host
 		 */
 		switch p.LocalConfig.GroupAuthorization {
-		case loose:
+		case AuthLoose:
 			if d.isAuthorizedFor(authUser, hostname, "") {
 				canView = true
 				return
 			}
-		case strict:
+		case AuthStrict:
 			if !d.isAuthorizedFor(authUser, hostname, "") {
 				canView = false
 				return
@@ -1128,12 +1125,12 @@ func (d *DataRow) isAuthorizedForServiceGroup(authUser string, servicegroup stri
 		 * on the final host
 		 */
 		switch p.LocalConfig.GroupAuthorization {
-		case loose:
+		case AuthLoose:
 			if d.isAuthorizedFor(authUser, members[i][0], members[i][1]) {
 				canView = true
 				return
 			}
-		case strict:
+		case AuthStrict:
 			if !d.isAuthorizedFor(authUser, members[i][0], members[i][1]) {
 				canView = false
 				return

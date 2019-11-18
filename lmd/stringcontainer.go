@@ -19,10 +19,15 @@ func NewStringContainer(data *string) *StringContainer {
 	return c
 }
 
+const (
+	// CompressMinimumSize sets the minimum number of characters to use compression
+	CompressMinimumSize = 500
+)
+
 // Set sets the current string
 func (s *StringContainer) Set(data *string) {
 	// it only makes sense to compress larger strings
-	if len(*data) < 500 {
+	if len(*data) < CompressMinimumSize {
 		s.StringData = *data
 		s.CompressedData = nil
 		return
@@ -34,7 +39,7 @@ func (s *StringContainer) Set(data *string) {
 	gz.Close()
 	by := b.Bytes()
 	s.CompressedData = &by
-	if log.IsV(2) {
+	if log.IsV(LogVerbosityTrace) {
 		log.Tracef("compressed string from %d to %d (%.1f%%)", len(*data), len(s.StringData), 100-(float64(len(s.StringData))/float64(len(*data))*100))
 	}
 }
