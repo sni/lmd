@@ -34,7 +34,7 @@ func (l *LoggingLock) Lock() {
 		l.lock.Lock()
 		atomic.StoreInt32(&l.currentlyLocked, 1)
 	} else {
-		timeout := time.Second * time.Duration(LockTimeout)
+		timeout := time.Second * time.Duration(LogLockTimeout)
 		c := make(chan struct{})
 		go func() {
 			defer close(c)
@@ -67,7 +67,7 @@ func (l *LoggingLock) RLock() {
 	}
 
 	waited := false
-	timeout := time.Second * time.Duration(LockTimeout)
+	timeout := time.Second * time.Duration(LogLockTimeout)
 	c := make(chan struct{})
 	go func() {
 		defer close(c)

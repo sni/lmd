@@ -23,6 +23,9 @@ ListenTimeout = 60
 # May be Error, Warn, Info, Debug and Trace
 LogLevel        = "Info"
 
+# LogLockTimeout sets the timeout for logging waiting for locks
+LogLockTimeout = 5
+
 # After this amount of seconds, a backend will be marked down when there
 # is no response
 StaleBackendTimeout = 30
@@ -59,9 +62,6 @@ BackendKeepAlive = true
 
 # Uncomment to export runtime statistics in prometheus format
 #ListenPrometheus = "127.0.0.1:8080"
-
-# LockTimeout sets the timeout for logging waiting for locks
-LockTimeout = 5
 
 # Sets wether peer querys req/res object will be saved for crash reports
 SaveTempRequests = true
