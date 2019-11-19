@@ -863,7 +863,10 @@ func (p *Peer) UpdateDeltaHosts(filterStr string) (err error) {
 	// update changed hosts
 	table := p.Tables[TableHosts]
 	if filterStr == "" {
-		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.StatusGet("LastUpdate").(int64) - UpdateAdditionalDelta))
+		filterStr = fmt.Sprintf("Filter: last_check >= %v\n", (p.StatusGet("LastUpdate").(int64) - UpdateAdditionalDelta))
+		if p.LocalConfig.SyncIsExecuting {
+			filterStr += "\nFilter: is_executing = 1\nOr: 2\n"
+		}
 		// no filter means regular delta update, so lets check if all last_check dates match
 		ok, uErr := p.UpdateDeltaFullScan(table, filterStr)
 		if ok || uErr != nil {
@@ -920,7 +923,10 @@ func (p *Peer) UpdateDeltaServices(filterStr string) (err error) {
 	// update changed services
 	table := p.Tables[TableServices]
 	if filterStr == "" {
-		filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: is_executing = 1\nOr: 2\n", (p.StatusGet("LastUpdate").(int64) - UpdateAdditionalDelta))
+		filterStr = fmt.Sprintf("Filter: last_check >= %v\n", (p.StatusGet("LastUpdate").(int64) - UpdateAdditionalDelta))
+		if p.LocalConfig.SyncIsExecuting {
+			filterStr += "\nFilter: is_executing = 1\nOr: 2\n"
+		}
 		// no filter means regular delta update, so lets check if all last_check dates match
 		ok, uErr := p.UpdateDeltaFullScan(table, filterStr)
 		if ok || uErr != nil {

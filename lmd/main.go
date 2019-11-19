@@ -130,6 +130,7 @@ type Config struct {
 	BackendKeepAlive      bool
 	ServiceAuthorization  string
 	GroupAuthorization    string
+	SyncIsExecuting       bool
 }
 
 // PeerMap contains a map of available remote peers.
