@@ -1,5 +1,14 @@
 This file documents the revision history for the Livestatus Multitool Daemon
 
+next:
+          - performance improvements
+          - add new configuration options:
+            - LogLockTimeout
+            - LogSlowQueryThreshold
+            - LogHugeQueryThreshold
+            - SyncIsExecuting
+            - SaveTempRequests
+
 1.7.1    Fri 18 Oct 2019 05:01:20 PM CEST
           - fix comment handling
 
