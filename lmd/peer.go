@@ -891,12 +891,23 @@ func (p *Peer) UpdateDeltaHosts(filterStr string) (err error) {
 func (p *Peer) insertDeltaHostResult(res *ResultSet, table *DataStore) (err error) {
 	hostDataOffset := 1
 
-	// precompress large strings to reduce time needed to hold the data lock
-	res.Precompress(hostDataOffset, &table.DynamicColumnCache)
+	// compare last check date and only update large strings if the last check date has changed
+	lastCheckCol := table.GetColumn("last_check")
+	lastCheckIndex := table.DynamicColumnCache.GetColumnIndex("last_check") + hostDataOffset
 
-	now := time.Now().Unix()
-	p.DataLock.Lock()
-	defer p.DataLock.Unlock()
+	updateSet := make([]ResultPrepared, len(*res))
+
+	// prepare list of large strings
+	stringlistIndexes := make([]int, 0)
+	for i := range table.DynamicColumnCache {
+		col := table.DynamicColumnCache[i]
+		if col.DataType == StringLargeCol {
+			stringlistIndexes = append(stringlistIndexes, i+hostDataOffset)
+		}
+	}
+
+	// prepare update
+	p.DataLock.RLock()
 	nameIndex := table.Index
 	for i := range *res {
 		resRow := &(*res)[i]
@@ -905,7 +916,34 @@ func (p *Peer) insertDeltaHostResult(res *ResultSet, table *DataStore) (err erro
 		if dataRow == nil {
 			return fmt.Errorf("cannot update host, no host named '%s' found", *hostName)
 		}
-		err = dataRow.UpdateValues(hostDataOffset, resRow, &table.DynamicColumnCache, now)
+		prepared := ResultPrepared{
+			ResultRow:  resRow,
+			DataRow:    dataRow,
+			FullUpdate: false,
+		}
+
+		// compare last check date and prepare large strings if the last check date has changed
+		if interface2int64((*resRow)[lastCheckIndex]) != dataRow.GetInt64(lastCheckCol) {
+			prepared.FullUpdate = true
+			for j := range stringlistIndexes {
+				(*res)[i][j] = interface2stringlarge((*res)[i][j])
+			}
+		}
+		updateSet[i] = prepared
+	}
+	p.DataLock.RUnlock()
+
+	now := time.Now().Unix()
+
+	p.DataLock.Lock()
+	defer p.DataLock.Unlock()
+	for i := range updateSet {
+		update := updateSet[i]
+		if update.FullUpdate {
+			err = update.DataRow.UpdateValues(hostDataOffset, update.ResultRow, &table.DynamicColumnCache, now)
+		} else {
+			err = update.DataRow.UpdateValuesNumberOnly(hostDataOffset, update.ResultRow, &table.DynamicColumnCache, now)
+		}
 		if err != nil {
 			return
 		}
@@ -951,24 +989,63 @@ func (p *Peer) UpdateDeltaServices(filterStr string) (err error) {
 func (p *Peer) insertDeltaServiceResult(res *ResultSet, table *DataStore) (err error) {
 	serviceDataOffset := 2
 
-	// precompress large strings to reduce time needed to hold the data lock
-	res.Precompress(serviceDataOffset, &table.DynamicColumnCache)
+	// compare last check date and only update large strings if the last check date has changed
+	lastCheckCol := table.GetColumn("last_check")
+	lastCheckIndex := table.DynamicColumnCache.GetColumnIndex("last_check") + serviceDataOffset
 
-	now := time.Now().Unix()
-	p.DataLock.Lock()
-	defer p.DataLock.Unlock()
-	nameindex := table.Index2
+	updateSet := make([]ResultPrepared, len(*res))
+
+	// prepare list of large strings
+	stringlistIndexes := make([]int, 0)
+	for i := range table.DynamicColumnCache {
+		col := table.DynamicColumnCache[i]
+		if col.DataType == StringLargeCol {
+			stringlistIndexes = append(stringlistIndexes, i+serviceDataOffset)
+		}
+	}
+
+	// prepare update
+	p.DataLock.RLock()
+	nameIndex := table.Index2
 	for i := range *res {
 		resRow := &(*res)[i]
-		dataRow := nameindex[*(interface2stringNoDedup((*resRow)[0]))][*(interface2stringNoDedup((*resRow)[1]))]
+		dataRow := nameIndex[*(interface2stringNoDedup((*resRow)[0]))][*(interface2stringNoDedup((*resRow)[1]))]
 		if dataRow == nil {
 			return fmt.Errorf("cannot update service, no service named '%s' - '%s' found", *(interface2stringNoDedup((*resRow)[0])), *(interface2stringNoDedup((*resRow)[1])))
 		}
-		err = dataRow.UpdateValues(serviceDataOffset, resRow, &table.DynamicColumnCache, now)
+		prepared := ResultPrepared{
+			ResultRow:  resRow,
+			DataRow:    dataRow,
+			FullUpdate: false,
+		}
+
+		// compare last check date and prepare large strings if the last check date has changed
+		if interface2int64((*resRow)[lastCheckIndex]) != dataRow.GetInt64(lastCheckCol) {
+			prepared.FullUpdate = true
+			for j := range stringlistIndexes {
+				(*res)[i][j] = interface2stringlarge((*res)[i][j])
+			}
+		}
+		updateSet[i] = prepared
+	}
+	p.DataLock.RUnlock()
+
+	now := time.Now().Unix()
+
+	p.DataLock.Lock()
+	defer p.DataLock.Unlock()
+	for i := range updateSet {
+		update := updateSet[i]
+		if update.FullUpdate {
+			err = update.DataRow.UpdateValues(serviceDataOffset, update.ResultRow, &table.DynamicColumnCache, now)
+		} else {
+			err = update.DataRow.UpdateValuesNumberOnly(serviceDataOffset, update.ResultRow, &table.DynamicColumnCache, now)
+		}
 		if err != nil {
 			return
 		}
 	}
+
 	promObjectUpdate.WithLabelValues(p.Name, "services").Add(float64(len(*res)))
 	log.Debugf("[%s] updated %d services", p.Name, len(*res))
 

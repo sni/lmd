@@ -18,3 +18,10 @@ func (res *ResultSet) Precompress(offset int, columns *ColumnList) {
 		}
 	}
 }
+
+// ResultPreparedSet is a list of result rows prepared to insert faster
+type ResultPrepared struct {
+	ResultRow  *[]interface{}
+	DataRow    *DataRow
+	FullUpdate bool
+}

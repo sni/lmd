@@ -15,3 +15,12 @@ func (dl *ColumnList) String() string {
 	}
 	return strings.Join(names, ", ")
 }
+
+func (dl *ColumnList) GetColumnIndex(name string) int {
+	for i := range *dl {
+		if (*dl)[i].String() == name {
+			return i
+		}
+	}
+	return -1
+}

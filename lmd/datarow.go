@@ -695,6 +695,31 @@ func (d *DataRow) UpdateValues(dataOffset int, data *[]interface{}, columns *Col
 	return nil
 }
 
+// UpdateValuesNumberOnly updates this datarow with new values but skips strings
+func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data *[]interface{}, columns *ColumnList, timestamp int64) error {
+	if len(*columns) != len(*data)-dataOffset {
+		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.DataStore.Table.Name.String(), len(*columns), len(*data))
+	}
+	for i := range *columns {
+		col := (*columns)[i]
+		i += dataOffset
+		switch col.DataType {
+		case IntCol:
+			d.dataInt[col.Index] = interface2int((*data)[i])
+		case Int64Col:
+			d.dataInt64[col.Index] = interface2int64((*data)[i])
+		case Int64ListCol:
+			d.dataInt64List[col.Index] = interface2int64list((*data)[i])
+		case FloatCol:
+			d.dataFloat[col.Index] = interface2float64((*data)[i])
+		case InterfaceListCol:
+			d.dataInterfaceList[col.Index] = interface2interfacelist((*data)[i])
+		}
+	}
+	d.LastUpdate = timestamp
+	return nil
+}
+
 // CheckChangedIntValues returns true if the given data results in an update
 func (d *DataRow) CheckChangedIntValues(data *[]interface{}, columns *ColumnList) bool {
 	for j := range *columns {
