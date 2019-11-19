@@ -6,10 +6,14 @@ import (
 	"io/ioutil"
 )
 
-const (
-	// CompressMinimumSize sets the minimum number of characters to use compression
-	CompressMinimumSize = 500
-)
+// DefaultCompressionMinimumSize sets the default minimum number of characters to use compression
+const DefaultCompressionMinimumSize = 500
+
+// CompressionMinimumSize sets the minimum number of characters to use compression
+var CompressionMinimumSize = DefaultCompressionMinimumSize
+
+// CompressionLevel sets the minimum number of characters to use compression
+var CompressionLevel = gzip.DefaultCompression
 
 // StringContainer wraps large strings
 type StringContainer struct {
@@ -27,14 +31,14 @@ func NewStringContainer(data *string) *StringContainer {
 // Set sets the current string
 func (s *StringContainer) Set(data *string) {
 	// it only makes sense to compress larger strings
-	if len(*data) < CompressMinimumSize {
+	if len(*data) < CompressionMinimumSize {
 		s.StringData = *data
 		s.CompressedData = nil
 		return
 	}
 	s.StringData = ""
 	var b bytes.Buffer
-	gz, _ := gzip.NewWriterLevel(&b, gzip.DefaultCompression)
+	gz, _ := gzip.NewWriterLevel(&b, CompressionLevel)
 	gz.Write([]byte(*data))
 	gz.Close()
 	by := b.Bytes()

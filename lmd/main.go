@@ -105,32 +105,34 @@ func (c *Connection) Equals(other *Connection) bool {
 
 // Config defines the available configuration options from supplied config files.
 type Config struct {
-	Listen                []string
-	Nodes                 []string
-	TLSCertificate        string
-	TLSKey                string
-	TLSClientPems         []string
-	Updateinterval        int64
-	FullUpdateInterval    int64
-	Connections           []Connection
-	LogFile               string
-	LogLevel              string
-	LogLockTimeout        int
-	LogSlowQueryThreshold int
-	LogHugeQueryThreshold int
-	ConnectTimeout        int
-	NetTimeout            int
-	ListenTimeout         int
-	SaveTempRequests      bool
-	ListenPrometheus      string
-	SkipSSLCheck          int
-	IdleTimeout           int64
-	IdleInterval          int64
-	StaleBackendTimeout   int
-	BackendKeepAlive      bool
-	ServiceAuthorization  string
-	GroupAuthorization    string
-	SyncIsExecuting       bool
+	Listen                 []string
+	Nodes                  []string
+	TLSCertificate         string
+	TLSKey                 string
+	TLSClientPems          []string
+	Updateinterval         int64
+	FullUpdateInterval     int64
+	Connections            []Connection
+	LogFile                string
+	LogLevel               string
+	LogLockTimeout         int
+	LogSlowQueryThreshold  int
+	LogHugeQueryThreshold  int
+	ConnectTimeout         int
+	NetTimeout             int
+	ListenTimeout          int
+	SaveTempRequests       bool
+	ListenPrometheus       string
+	SkipSSLCheck           int
+	IdleTimeout            int64
+	IdleInterval           int64
+	StaleBackendTimeout    int
+	BackendKeepAlive       bool
+	ServiceAuthorization   string
+	GroupAuthorization     string
+	SyncIsExecuting        bool
+	CompressionMinimumSize int
+	CompressionLevel       int
 }
 
 // PeerMap contains a map of available remote peers.
@@ -242,6 +244,8 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	setGroupAuthorization(&localConfig)
 
 	LogLockTimeout = localConfig.LogLockTimeout
+	CompressionLevel = localConfig.CompressionLevel
+	CompressionMinimumSize = localConfig.CompressionMinimumSize
 	promPeerUpdateInterval.Set(float64(localConfig.Updateinterval))
 
 	osSignalChannel := make(chan os.Signal, 1)
@@ -632,6 +636,9 @@ func setDefaults(conf *Config) {
 	if conf.LogHugeQueryThreshold <= 0 {
 		conf.LogHugeQueryThreshold = 100
 	}
+	if conf.CompressionMinimumSize <= 0 {
+		conf.CompressionMinimumSize = 500
+	}
 }
 
 func setServiceAuthorization(conf *Config) {
@@ -671,8 +678,10 @@ func ReadConfig(files []string) *Config {
 	// combine listeners from all files
 	allListeners := make([]string, 0)
 	conf := &Config{
-		BackendKeepAlive: true,
-		SaveTempRequests: true,
+		BackendKeepAlive:       true,
+		SaveTempRequests:       true,
+		CompressionLevel:       -1,
+		CompressionMinimumSize: DefaultCompressionMinimumSize,
 	}
 	for _, configFile := range files {
 		if _, err := os.Stat(configFile); err != nil {

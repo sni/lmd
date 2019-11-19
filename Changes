@@ -8,6 +8,8 @@ next:
             - LogHugeQueryThreshold
             - SyncIsExecuting
             - SaveTempRequests
+            - CompressionMinimumSize
+            - CompressionLevel
 
 1.7.1    Fri 18 Oct 2019 05:01:20 PM CEST
           - fix comment handling
