@@ -18,6 +18,47 @@ var (
 		},
 		[]string{"version"})
 
+	promCompressionLevel = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: NAME,
+			Subsystem: "peer",
+			Name:      "compression_level",
+			Help:      "CompressionLevel setting from config",
+		},
+	)
+	promCompressionMinimumSize = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: NAME,
+			Subsystem: "peer",
+			Name:      "compression_minimum_size",
+			Help:      "CompressionMinimumSize setting from config",
+		},
+	)
+	promSyncIsExecuting = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: NAME,
+			Subsystem: "peer",
+			Name:      "sync_is_executing",
+			Help:      "SyncIsExecuting setting from config",
+		},
+	)
+	promSaveTempRequests = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: NAME,
+			Subsystem: "peer",
+			Name:      "save_temp_requests",
+			Help:      "SaveTempRequests setting from config",
+		},
+	)
+	promBackendKeepAlive = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: NAME,
+			Subsystem: "peer",
+			Name:      "backend_keepalive",
+			Help:      "BackendKeepAlive setting from config",
+		},
+	)
+
 	promFrontendConnections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: NAME,
@@ -61,6 +102,14 @@ var (
 			Subsystem: "peer",
 			Name:      "update_interval",
 			Help:      "Peer Backend Update Interval",
+		},
+	)
+	promPeerFullUpdateInterval = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: NAME,
+			Subsystem: "peer",
+			Name:      "full_update_interval",
+			Help:      "Peer Backend Full Update Interval",
 		},
 	)
 	promPeerConnections = prometheus.NewCounterVec(
@@ -187,11 +236,17 @@ func initPrometheus(localConfig *Config) (prometheusListener io.Closer) {
 		log.Infof("serving prometheus metrics at %s/metrics", localConfig.ListenPrometheus)
 	}
 	prometheus.Register(promInfoCount)
+	prometheus.Register(promCompressionLevel)
+	prometheus.Register(promCompressionMinimumSize)
+	prometheus.Register(promSyncIsExecuting)
+	prometheus.Register(promSaveTempRequests)
+	prometheus.Register(promBackendKeepAlive)
 	prometheus.Register(promFrontendConnections)
 	prometheus.Register(promFrontendQueries)
 	prometheus.Register(promFrontendBytesSend)
 	prometheus.Register(promFrontendBytesReceived)
 	prometheus.Register(promPeerUpdateInterval)
+	prometheus.Register(promPeerFullUpdateInterval)
 	prometheus.Register(promPeerConnections)
 	prometheus.Register(promPeerFailedConnections)
 	prometheus.Register(promPeerQueries)

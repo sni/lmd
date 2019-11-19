@@ -246,7 +246,15 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	LogLockTimeout = localConfig.LogLockTimeout
 	CompressionLevel = localConfig.CompressionLevel
 	CompressionMinimumSize = localConfig.CompressionMinimumSize
+
+	// put some configuration settings into metrics
 	promPeerUpdateInterval.Set(float64(localConfig.Updateinterval))
+	promPeerFullUpdateInterval.Set(float64(localConfig.FullUpdateInterval))
+	promCompressionLevel.Set(float64(CompressionLevel))
+	promCompressionMinimumSize.Set(float64(CompressionMinimumSize))
+	promSyncIsExecuting.Set(float64(interface2int(localConfig.SyncIsExecuting)))
+	promSaveTempRequests.Set(float64(interface2int(localConfig.SaveTempRequests)))
+	promBackendKeepAlive.Set(float64(interface2int(localConfig.BackendKeepAlive)))
 
 	osSignalChannel := make(chan os.Signal, 1)
 	signal.Notify(osSignalChannel, syscall.SIGHUP)

@@ -766,6 +766,7 @@ func interface2int(in interface{}) int {
 		if v {
 			return 1
 		}
+		return 0
 	case string:
 		val, _ := strconv.ParseInt(v, 10, 64)
 		return int(val)
