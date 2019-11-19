@@ -885,12 +885,11 @@ func (p *Peer) UpdateDeltaHosts(filterStr string) (err error) {
 	if err != nil {
 		return
 	}
-	return p.insertDeltaHostResult(res, table)
+	hostDataOffset := 1
+	return p.insertDeltaHostResult(hostDataOffset, res, table)
 }
 
-func (p *Peer) insertDeltaHostResult(res *ResultSet, table *DataStore) (err error) {
-	hostDataOffset := 1
-
+func (p *Peer) insertDeltaHostResult(hostDataOffset int, res *ResultSet, table *DataStore) (err error) {
 	// compare last check date and only update large strings if the last check date has changed
 	lastCheckCol := table.GetColumn("last_check")
 	lastCheckIndex := table.DynamicColumnCache.GetColumnIndex("last_check") + hostDataOffset
@@ -911,19 +910,23 @@ func (p *Peer) insertDeltaHostResult(res *ResultSet, table *DataStore) (err erro
 	nameIndex := table.Index
 	for i := range *res {
 		resRow := &(*res)[i]
-		hostName := interface2stringNoDedup((*resRow)[0])
-		dataRow := nameIndex[*hostName]
-		if dataRow == nil {
-			return fmt.Errorf("cannot update host, no host named '%s' found", *hostName)
-		}
 		prepared := ResultPrepared{
 			ResultRow:  resRow,
-			DataRow:    dataRow,
 			FullUpdate: false,
+		}
+		if hostDataOffset == 0 {
+			prepared.DataRow = table.Data[i]
+		} else {
+			hostName := interface2stringNoDedup((*resRow)[0])
+			dataRow := nameIndex[*hostName]
+			if dataRow == nil {
+				return fmt.Errorf("cannot update host, no host named '%s' found", *hostName)
+			}
+			prepared.DataRow = dataRow
 		}
 
 		// compare last check date and prepare large strings if the last check date has changed
-		if interface2int64((*resRow)[lastCheckIndex]) != dataRow.GetInt64(lastCheckCol) {
+		if interface2int64((*resRow)[lastCheckIndex]) != prepared.DataRow.GetInt64(lastCheckCol) {
 			prepared.FullUpdate = true
 			for j := range stringlistIndexes {
 				(*res)[i][j] = interface2stringlarge((*res)[i][j])
@@ -983,12 +986,11 @@ func (p *Peer) UpdateDeltaServices(filterStr string) (err error) {
 	if err != nil {
 		return
 	}
-	return p.insertDeltaServiceResult(res, table)
+	serviceDataOffset := 2
+	return p.insertDeltaServiceResult(serviceDataOffset, res, table)
 }
 
-func (p *Peer) insertDeltaServiceResult(res *ResultSet, table *DataStore) (err error) {
-	serviceDataOffset := 2
-
+func (p *Peer) insertDeltaServiceResult(serviceDataOffset int, res *ResultSet, table *DataStore) (err error) {
 	// compare last check date and only update large strings if the last check date has changed
 	lastCheckCol := table.GetColumn("last_check")
 	lastCheckIndex := table.DynamicColumnCache.GetColumnIndex("last_check") + serviceDataOffset
@@ -1009,18 +1011,22 @@ func (p *Peer) insertDeltaServiceResult(res *ResultSet, table *DataStore) (err e
 	nameIndex := table.Index2
 	for i := range *res {
 		resRow := &(*res)[i]
-		dataRow := nameIndex[*(interface2stringNoDedup((*resRow)[0]))][*(interface2stringNoDedup((*resRow)[1]))]
-		if dataRow == nil {
-			return fmt.Errorf("cannot update service, no service named '%s' - '%s' found", *(interface2stringNoDedup((*resRow)[0])), *(interface2stringNoDedup((*resRow)[1])))
-		}
 		prepared := ResultPrepared{
 			ResultRow:  resRow,
-			DataRow:    dataRow,
 			FullUpdate: false,
+		}
+		if serviceDataOffset == 0 {
+			prepared.DataRow = table.Data[i]
+		} else {
+			dataRow := nameIndex[*(interface2stringNoDedup((*resRow)[0]))][*(interface2stringNoDedup((*resRow)[1]))]
+			if dataRow == nil {
+				return fmt.Errorf("cannot update service, no service named '%s' - '%s' found", *(interface2stringNoDedup((*resRow)[0])), *(interface2stringNoDedup((*resRow)[1])))
+			}
+			prepared.DataRow = dataRow
 		}
 
 		// compare last check date and prepare large strings if the last check date has changed
-		if interface2int64((*resRow)[lastCheckIndex]) != dataRow.GetInt64(lastCheckCol) {
+		if interface2int64((*resRow)[lastCheckIndex]) != prepared.DataRow.GetInt64(lastCheckCol) {
 			prepared.FullUpdate = true
 			for j := range stringlistIndexes {
 				(*res)[i][j] = interface2stringlarge((*res)[i][j])
@@ -1961,10 +1967,15 @@ func (p *Peer) UpdateFullTable(tableName TableName) (restartRequired bool, err e
 
 	promObjectUpdate.WithLabelValues(p.Name, tableName.String()).Add(float64(len(*res)))
 
-	if tableName == TableTimeperiods {
+	switch tableName {
+	case TableTimeperiods:
 		// check for changed timeperiods, because we have to update the linked hosts and services as well
 		p.updateTimeperiodsData(store, res, &store.DynamicColumnCache)
-	} else {
+	case TableHosts:
+		p.insertDeltaHostResult(0, res, store)
+	case TableServices:
+		p.insertDeltaServiceResult(0, res, store)
+	default:
 		p.DataLock.Lock()
 		now := time.Now().Unix()
 		for i := range *res {
