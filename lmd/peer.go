@@ -1959,9 +1959,9 @@ func (p *Peer) UpdateFullTable(tableName TableName) (restartRequired bool, err e
 		return
 	}
 
-	promObjectUpdate.WithLabelValues(p.Name, store.Table.Name.String()).Add(float64(len(*res)))
+	promObjectUpdate.WithLabelValues(p.Name, tableName.String()).Add(float64(len(*res)))
 
-	if store.Table.Name == TableTimeperiods {
+	if tableName == TableTimeperiods {
 		// check for changed timeperiods, because we have to update the linked hosts and services as well
 		p.updateTimeperiodsData(store, res, &store.DynamicColumnCache)
 	} else {
@@ -1978,7 +1978,7 @@ func (p *Peer) UpdateFullTable(tableName TableName) (restartRequired bool, err e
 		p.DataLock.Unlock()
 	}
 
-	if store.Table.Name == TableStatus {
+	if tableName == TableStatus {
 		p.checkStatusFlags()
 		if !p.HasFlag(MultiBackend) && len(data) >= 1 && p.StatusGet("ProgramStart") != data[0].GetInt64ByName("program_start") {
 			log.Infof("[%s] site has been restarted, recreating objects", p.Name)
