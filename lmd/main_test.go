@@ -235,8 +235,8 @@ func TestAllTables(t *testing.T) {
 func TestMainConfig(t *testing.T) {
 	testConfig := []string{
 		`Loglevel = "Warn"`,
-		`Listen = ["test1.sock"]`,
-		`Listen = ["test2.sock"]`,
+		"Listen = [\"test1.sock\"]\nSkipSSLCheck = 1",
+		"Listen = [\"test2.sock\"]\nSkipSSLCheck = 0",
 	}
 
 	ioutil.WriteFile("test1.ini", []byte(testConfig[0]), 0644)
@@ -252,9 +252,15 @@ func TestMainConfig(t *testing.T) {
 	if err := assertEq(len(conf.Listen), 1); err != nil {
 		t.Error(err)
 	}
+	if err := assertEq(conf.SkipSSLCheck, 1); err != nil {
+		t.Error(err)
+	}
 
 	conf = ReadConfig([]string{"test1.ini", "test2.ini", "test3.ini"})
 	if err := assertEq(len(conf.Listen), 2); err != nil {
+		t.Error(err)
+	}
+	if err := assertEq(conf.SkipSSLCheck, 0); err != nil {
 		t.Error(err)
 	}
 
