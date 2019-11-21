@@ -1970,11 +1970,11 @@ func (p *Peer) UpdateFullTable(tableName TableName) (restartRequired bool, err e
 	switch tableName {
 	case TableTimeperiods:
 		// check for changed timeperiods, because we have to update the linked hosts and services as well
-		p.updateTimeperiodsData(store, res, &store.DynamicColumnCache)
+		err = p.updateTimeperiodsData(store, res, &store.DynamicColumnCache)
 	case TableHosts:
-		p.insertDeltaHostResult(0, res, store)
+		err = p.insertDeltaHostResult(0, res, store)
 	case TableServices:
-		p.insertDeltaServiceResult(0, res, store)
+		err = p.insertDeltaServiceResult(0, res, store)
 	default:
 		p.DataLock.Lock()
 		now := time.Now().Unix()
@@ -2020,7 +2020,7 @@ func (p *Peer) skipTableUpdate(store *DataStore) bool {
 	return false
 }
 
-func (p *Peer) updateTimeperiodsData(store *DataStore, res *ResultSet, columns *ColumnList) {
+func (p *Peer) updateTimeperiodsData(store *DataStore, res *ResultSet, columns *ColumnList) (err error) {
 	changedTimeperiods := make(map[string]bool)
 	p.DataLock.Lock()
 	data := store.Data
@@ -2037,9 +2037,16 @@ func (p *Peer) updateTimeperiodsData(store *DataStore, res *ResultSet, columns *
 	// Update hosts and services with those changed timeperiods
 	for name, state := range changedTimeperiods {
 		log.Debugf("[%s] timeperiod %s has changed to %v, need to update affected hosts/services", p.Name, name, state)
-		p.UpdateDeltaHosts("Filter: check_period = " + name + "\nFilter: notification_period = " + name + "\nOr: 2\n")
-		p.UpdateDeltaServices("Filter: check_period = " + name + "\nFilter: notification_period = " + name + "\nOr: 2\n")
+		err = p.UpdateDeltaHosts("Filter: check_period = " + name + "\nFilter: notification_period = " + name + "\nOr: 2\n")
+		if err != nil {
+			return
+		}
+		err = p.UpdateDeltaServices("Filter: check_period = " + name + "\nFilter: notification_period = " + name + "\nOr: 2\n")
+		if err != nil {
+			return
+		}
 	}
+	return
 }
 
 // WaitCondition waits for a given condition.
