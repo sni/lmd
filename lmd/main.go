@@ -10,6 +10,7 @@ package main
 
 import (
 	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -518,6 +519,20 @@ func NewLMDHTTPClient(tlsConfig *tls.Config, proxy string) *http.Client {
 	netClient := &http.Client{
 		Timeout:   HTTPClientTimeout,
 		Transport: tr,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if strings.Contains(req.URL.RawQuery, "/omd/error.py%3fcode=500") {
+				log.Warnf("HTTP request redirected to %s which indicates an internal error in the backend", req.URL.String())
+				return http.ErrUseLastResponse
+			}
+			if strings.Contains(req.URL.Path, "/thruk/cgi-bin/login.cgi") {
+				log.Warnf("HTTP request redirected to %s, this indicates an issue with authentication", req.URL.String())
+				return http.ErrUseLastResponse
+			}
+			if len(via) >= 10 {
+				return errors.New("stopped after 10 redirects")
+			}
+			return nil
+		},
 	}
 	return netClient
 }
