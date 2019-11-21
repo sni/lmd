@@ -890,52 +890,10 @@ func (p *Peer) UpdateDeltaHosts(filterStr string) (err error) {
 }
 
 func (p *Peer) insertDeltaHostResult(hostDataOffset int, res *ResultSet, table *DataStore) (err error) {
-	// compare last check date and only update large strings if the last check date has changed
-	lastCheckCol := table.GetColumn("last_check")
-	lastCheckIndex := table.DynamicColumnCache.GetColumnIndex("last_check") + hostDataOffset
-
-	updateSet := make([]ResultPrepared, len(*res))
-
-	// prepare list of large strings
-	stringlistIndexes := make([]int, 0)
-	for i := range table.DynamicColumnCache {
-		col := table.DynamicColumnCache[i]
-		if col.DataType == StringLargeCol {
-			stringlistIndexes = append(stringlistIndexes, i+hostDataOffset)
-		}
+	updateSet, err := p.prepareHostUpdateSet(hostDataOffset, res, table)
+	if err != nil {
+		return
 	}
-
-	// prepare update
-	p.DataLock.RLock()
-	nameIndex := table.Index
-	for i := range *res {
-		resRow := &(*res)[i]
-		prepared := ResultPrepared{
-			ResultRow:  resRow,
-			FullUpdate: false,
-		}
-		if hostDataOffset == 0 {
-			prepared.DataRow = table.Data[i]
-		} else {
-			hostName := interface2stringNoDedup((*resRow)[0])
-			dataRow := nameIndex[*hostName]
-			if dataRow == nil {
-				return fmt.Errorf("cannot update host, no host named '%s' found", *hostName)
-			}
-			prepared.DataRow = dataRow
-		}
-
-		// compare last check date and prepare large strings if the last check date has changed
-		if interface2int64((*resRow)[lastCheckIndex]) != prepared.DataRow.GetInt64(lastCheckCol) {
-			prepared.FullUpdate = true
-			for j := range stringlistIndexes {
-				(*res)[i][j] = interface2stringlarge((*res)[i][j])
-			}
-		}
-		updateSet[i] = prepared
-	}
-	p.DataLock.RUnlock()
-
 	now := time.Now().Unix()
 
 	p.DataLock.Lock()
@@ -955,6 +913,55 @@ func (p *Peer) insertDeltaHostResult(hostDataOffset int, res *ResultSet, table *
 	log.Debugf("[%s] updated %d hosts", p.Name, len(*res))
 
 	return
+}
+
+func (p *Peer) prepareHostUpdateSet(hostDataOffset int, res *ResultSet, table *DataStore) (updateSet []ResultPrepared, err error) {
+	updateSet = make([]ResultPrepared, len(*res))
+
+	// prepare list of large strings
+	stringlistIndexes := make([]int, 0)
+	for i := range table.DynamicColumnCache {
+		col := table.DynamicColumnCache[i]
+		if col.DataType == StringLargeCol {
+			stringlistIndexes = append(stringlistIndexes, i+hostDataOffset)
+		}
+	}
+
+	// compare last check date and only update large strings if the last check date has changed
+	lastCheckCol := table.GetColumn("last_check")
+	lastCheckIndex := table.DynamicColumnCache.GetColumnIndex("last_check") + hostDataOffset
+
+	// prepare update
+	p.DataLock.RLock()
+	defer p.DataLock.RUnlock()
+	nameIndex := table.Index
+	for i := range *res {
+		resRow := &(*res)[i]
+		prepared := ResultPrepared{
+			ResultRow:  resRow,
+			FullUpdate: false,
+		}
+		if hostDataOffset == 0 {
+			prepared.DataRow = table.Data[i]
+		} else {
+			hostName := interface2stringNoDedup((*resRow)[0])
+			dataRow := nameIndex[*hostName]
+			if dataRow == nil {
+				return updateSet, fmt.Errorf("cannot update host, no host named '%s' found", *hostName)
+			}
+			prepared.DataRow = dataRow
+		}
+
+		// compare last check date and prepare large strings if the last check date has changed
+		if interface2int64((*resRow)[lastCheckIndex]) != prepared.DataRow.GetInt64(lastCheckCol) {
+			prepared.FullUpdate = true
+			for j := range stringlistIndexes {
+				(*res)[i][j] = interface2stringlarge((*res)[i][j])
+			}
+		}
+		updateSet[i] = prepared
+	}
+	return updateSet, nil
 }
 
 // UpdateDeltaServices update services by fetching all dynamic data with a last_check filter on the timestamp since
@@ -991,51 +998,10 @@ func (p *Peer) UpdateDeltaServices(filterStr string) (err error) {
 }
 
 func (p *Peer) insertDeltaServiceResult(serviceDataOffset int, res *ResultSet, table *DataStore) (err error) {
-	// compare last check date and only update large strings if the last check date has changed
-	lastCheckCol := table.GetColumn("last_check")
-	lastCheckIndex := table.DynamicColumnCache.GetColumnIndex("last_check") + serviceDataOffset
-
-	updateSet := make([]ResultPrepared, len(*res))
-
-	// prepare list of large strings
-	stringlistIndexes := make([]int, 0)
-	for i := range table.DynamicColumnCache {
-		col := table.DynamicColumnCache[i]
-		if col.DataType == StringLargeCol {
-			stringlistIndexes = append(stringlistIndexes, i+serviceDataOffset)
-		}
+	updateSet, err := p.prepareServiceUpdateSet(serviceDataOffset, res, table)
+	if err != nil {
+		return
 	}
-
-	// prepare update
-	p.DataLock.RLock()
-	nameIndex := table.Index2
-	for i := range *res {
-		resRow := &(*res)[i]
-		prepared := ResultPrepared{
-			ResultRow:  resRow,
-			FullUpdate: false,
-		}
-		if serviceDataOffset == 0 {
-			prepared.DataRow = table.Data[i]
-		} else {
-			dataRow := nameIndex[*(interface2stringNoDedup((*resRow)[0]))][*(interface2stringNoDedup((*resRow)[1]))]
-			if dataRow == nil {
-				return fmt.Errorf("cannot update service, no service named '%s' - '%s' found", *(interface2stringNoDedup((*resRow)[0])), *(interface2stringNoDedup((*resRow)[1])))
-			}
-			prepared.DataRow = dataRow
-		}
-
-		// compare last check date and prepare large strings if the last check date has changed
-		if interface2int64((*resRow)[lastCheckIndex]) != prepared.DataRow.GetInt64(lastCheckCol) {
-			prepared.FullUpdate = true
-			for j := range stringlistIndexes {
-				(*res)[i][j] = interface2stringlarge((*res)[i][j])
-			}
-		}
-		updateSet[i] = prepared
-	}
-	p.DataLock.RUnlock()
-
 	now := time.Now().Unix()
 
 	p.DataLock.Lock()
@@ -1056,6 +1022,54 @@ func (p *Peer) insertDeltaServiceResult(serviceDataOffset int, res *ResultSet, t
 	log.Debugf("[%s] updated %d services", p.Name, len(*res))
 
 	return
+}
+
+func (p *Peer) prepareServiceUpdateSet(serviceDataOffset int, res *ResultSet, table *DataStore) (updateSet []ResultPrepared, err error) {
+	updateSet = make([]ResultPrepared, len(*res))
+
+	// prepare list of large strings
+	stringlistIndexes := make([]int, 0)
+	for i := range table.DynamicColumnCache {
+		col := table.DynamicColumnCache[i]
+		if col.DataType == StringLargeCol {
+			stringlistIndexes = append(stringlistIndexes, i+serviceDataOffset)
+		}
+	}
+
+	// compare last check date and only update large strings if the last check date has changed
+	lastCheckCol := table.GetColumn("last_check")
+	lastCheckIndex := table.DynamicColumnCache.GetColumnIndex("last_check") + serviceDataOffset
+
+	// prepare update
+	p.DataLock.RLock()
+	defer p.DataLock.RUnlock()
+	nameIndex := table.Index2
+	for i := range *res {
+		resRow := &(*res)[i]
+		prepared := ResultPrepared{
+			ResultRow:  resRow,
+			FullUpdate: false,
+		}
+		if serviceDataOffset == 0 {
+			prepared.DataRow = table.Data[i]
+		} else {
+			dataRow := nameIndex[*(interface2stringNoDedup((*resRow)[0]))][*(interface2stringNoDedup((*resRow)[1]))]
+			if dataRow == nil {
+				return updateSet, fmt.Errorf("cannot update service, no service named '%s' - '%s' found", *(interface2stringNoDedup((*resRow)[0])), *(interface2stringNoDedup((*resRow)[1])))
+			}
+			prepared.DataRow = dataRow
+		}
+
+		// compare last check date and prepare large strings if the last check date has changed
+		if interface2int64((*resRow)[lastCheckIndex]) != prepared.DataRow.GetInt64(lastCheckCol) {
+			prepared.FullUpdate = true
+			for j := range stringlistIndexes {
+				(*res)[i][j] = interface2stringlarge((*res)[i][j])
+			}
+		}
+		updateSet[i] = prepared
+	}
+	return updateSet, nil
 }
 
 // UpdateDeltaFullScan updates hosts and services tables by fetching some key indicator fields like last_check
