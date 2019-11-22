@@ -74,3 +74,27 @@ func InitLogging(conf *Config) {
 		}
 	}
 }
+
+// LogWriter implements the io.Writer interface and simply logs everything with given level
+type LogWriter struct {
+	level string
+}
+
+func (l *LogWriter) Write(p []byte) (n int, err error) {
+	msg := strings.TrimSpace(string(p))
+	switch strings.ToLower(l.level) {
+	case "error":
+		log.Error(msg)
+	case "warn":
+		log.Warn(msg)
+	case "info":
+		log.Info(msg)
+	}
+	return 0, nil
+}
+
+func NewLogWriter(level string) *LogWriter {
+	l := new(LogWriter)
+	l.level = level
+	return l
+}

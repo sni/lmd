@@ -12,17 +12,18 @@ import (
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
+	"github.com/sasha-s/go-deadlock"
 )
 
 // Response contains the livestatus response data as long with some meta data
 type Response struct {
 	noCopy      noCopy
-	Lock        *LoggingLock  // must be used for Result and Failed access
-	Request     *Request      // the initial request
-	Result      ResultSet     // final processed result table
-	Code        int           // 200 if the query was successful
-	Error       error         // error object if the query was not successful
-	RawResults  *RawResultSet // collected results from peers
+	Lock        *deadlock.RWMutex // must be used for Result and Failed access
+	Request     *Request          // the initial request
+	Result      ResultSet         // final processed result table
+	Code        int               // 200 if the query was successful
+	Error       error             // error object if the query was not successful
+	RawResults  *RawResultSet     // collected results from peers
 	ResultTotal int
 	Failed      map[string]string
 }
@@ -34,7 +35,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 		Code:    200,
 		Failed:  req.BackendErrors,
 		Request: req,
-		Lock:    NewLoggingLock("ResponseLock"),
+		Lock:    new(deadlock.RWMutex),
 	}
 	if res.Failed == nil {
 		res.Failed = make(map[string]string)

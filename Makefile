@@ -25,6 +25,7 @@ EXTERNAL_DEPS = \
 	golang.org/x/tools/cmd/stringer \
 	github.com/json-iterator/go \
 	github.com/lkarlslund/stringdedup \
+	github.com/sasha-s/go-deadlock \
 
 
 all: deps fmt build

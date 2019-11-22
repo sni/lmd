@@ -21,6 +21,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/sasha-s/go-deadlock"
 )
 
 var reResponseHeader = regexp.MustCompile(`^(\d+)\s+(\d+)$`)
@@ -60,8 +62,8 @@ type Peer struct {
 	ID              string
 	ParentID        string
 	Source          []string
-	PeerLock        *LoggingLock // must be used for Peer.Status access
-	DataLock        *LoggingLock // must be used for Peer.Table access
+	PeerLock        *deadlock.RWMutex // must be used for Peer.Status access
+	DataLock        *deadlock.RWMutex // must be used for Peer.Table access
 	Tables          map[TableName]*DataStore
 	Status          map[string]interface{}
 	ErrorCount      int
@@ -181,8 +183,8 @@ func NewPeer(localConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 		waitGroup:       waitGroup,
 		shutdownChannel: shutdownChannel,
 		stopChannel:     make(chan bool),
-		PeerLock:        NewLoggingLock(config.Name + "PeerLock"),
-		DataLock:        NewLoggingLock(config.Name + "DataLock"),
+		PeerLock:        new(deadlock.RWMutex),
+		DataLock:        new(deadlock.RWMutex),
 		Config:          config,
 		LocalConfig:     localConfig,
 		connectionCache: make(chan net.Conn, ConnectionPoolCacheSize),

@@ -28,12 +28,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/lkarlslund/stringdedup"
+	"github.com/sasha-s/go-deadlock"
 )
 
 // Build contains the current git commit id
@@ -116,7 +116,6 @@ type Config struct {
 	Connections            []Connection
 	LogFile                string
 	LogLevel               string
-	LogLockTimeout         int
 	LogSlowQueryThreshold  int
 	LogHugeQueryThreshold  int
 	ConnectTimeout         int
@@ -143,18 +142,15 @@ var PeerMap map[string]*Peer
 var PeerMapOrder []string
 
 // PeerMapLock is the lock for the PeerMap map
-var PeerMapLock *LoggingLock
+var PeerMapLock *deadlock.RWMutex
 
 // Listeners stores if we started a listener
 var Listeners map[string]*Listener
 
 // ListenersLock is the lock for the Listeners map
-var ListenersLock *LoggingLock
+var ListenersLock *deadlock.RWMutex
 
 type configFiles []string
-
-// LogLockTimeout sets the timeout for logging waiting for locks
-var LogLockTimeout int
 
 // String returns the config files list as string.
 func (c *configFiles) String() string {
@@ -182,6 +178,7 @@ var flagVersion bool
 var flagLogFile string
 var flagPidfile string
 var flagProfile string
+var flagDeadlock int
 
 var once sync.Once
 var mainSignalChannel chan os.Signal
@@ -194,11 +191,11 @@ func init() {
 	InitTableNames()
 	InitObjects()
 	mainSignalChannel = make(chan os.Signal)
-	PeerMapLock = NewLoggingLock("PeerMapLock")
+	PeerMapLock = new(deadlock.RWMutex)
 	PeerMap = make(map[string]*Peer)
 	PeerMapOrder = make([]string, 0)
 	Listeners = make(map[string]*Listener)
-	ListenersLock = NewLoggingLock("ListenersLock")
+	ListenersLock = new(deadlock.RWMutex)
 	reHTTPHostPort = regexp.MustCompile("^(https?)://(.*?):(.*)")
 }
 
@@ -212,7 +209,8 @@ func setFlags() {
 	flag.BoolVar(&flagVeryVerbose, "vv", false, "enable very verbose output")
 	flag.BoolVar(&flagTraceVerbose, "vvv", false, "enable trace output")
 	flag.BoolVar(&flagVersion, "version", false, "print version and exit")
-	flag.StringVar(&flagProfile, "profiler", "", "start pprof profiler on this port, ex. :6060")
+	flag.StringVar(&flagProfile, "debug-profiler", "", "start pprof profiler on this port, ex. :6060")
+	flag.IntVar(&flagDeadlock, "debug-deadlock", 0, "enable deadlock detection with given timeout")
 }
 
 func main() {
@@ -244,7 +242,6 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	setServiceAuthorization(&localConfig)
 	setGroupAuthorization(&localConfig)
 
-	LogLockTimeout = localConfig.LogLockTimeout
 	CompressionLevel = localConfig.CompressionLevel
 	CompressionMinimumSize = localConfig.CompressionMinimumSize
 
@@ -449,6 +446,14 @@ func checkFlags() {
 		}()
 	}
 
+	if flagDeadlock <= 0 {
+		deadlock.Opts.Disable = true
+	} else {
+		deadlock.Opts.Disable = false
+		deadlock.Opts.DeadlockTimeout = time.Duration(flagDeadlock) * time.Second
+		deadlock.Opts.LogBuf = NewLogWriter("Error")
+	}
+
 	if len(flagConfigFile) == 0 {
 		fmt.Print("ERROR: no config files specified.\nSee --help for all options.\n")
 		os.Exit(ExitCritical)
@@ -571,30 +576,12 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		return (-1)
 	case syscall.SIGUSR1:
 		log.Errorf("requested thread dump via signal %s", sig)
-		logCurrentsLocks()
 		logThreaddump()
 		return (0)
 	default:
 		log.Warnf("Signal not handled: %v", sig)
 	}
 	return (1)
-}
-
-func logCurrentsLocks() {
-	log.Errorf("*** current held locks:")
-	PeerMapLock.RLock()
-	for id := range PeerMap {
-		p := PeerMap[id]
-		if atomic.LoadInt32(&p.PeerLock.currentlyLocked) == 1 {
-			log.Errorf("[%s] peer holding peer lock:", p.Name)
-			LogCaller(log.Errorf, p.PeerLock.currentLockpointer.Load().(*[]uintptr))
-		}
-		if atomic.LoadInt32(&p.DataLock.currentlyLocked) == 1 {
-			log.Errorf("[%s] peer holding data lock:", p.Name)
-			LogCaller(log.Errorf, p.DataLock.currentLockpointer.Load().(*[]uintptr))
-		}
-	}
-	PeerMapLock.RUnlock()
 }
 
 func logThreaddump() {
@@ -649,9 +636,6 @@ func setDefaults(conf *Config) {
 	}
 	if conf.StaleBackendTimeout <= 0 {
 		conf.StaleBackendTimeout = 30
-	}
-	if conf.LogLockTimeout <= 0 {
-		conf.LogLockTimeout = 5
 	}
 	if conf.LogSlowQueryThreshold <= 0 {
 		conf.LogSlowQueryThreshold = 5

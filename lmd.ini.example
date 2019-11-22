@@ -23,9 +23,6 @@ ListenTimeout = 60
 # May be Error, Warn, Info, Debug and Trace
 LogLevel        = "Info"
 
-# LogLockTimeout sets the timeout for logging waiting for locks
-LogLockTimeout = 5
-
 # LogSlowQueryThreshold sets the maximum amount of seconds before logging a query as slow query
 LogSlowQueryThreshold = 5
 

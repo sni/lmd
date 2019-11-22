@@ -30,6 +30,7 @@ var GlobalTestConfig Config
 func init() {
 	setDefaults(&GlobalTestConfig)
 	InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
+	flagDeadlock = 15
 
 	TestPeerWaitGroup = &sync.WaitGroup{}
 
@@ -268,6 +269,7 @@ var TestPeerWaitGroup *sync.WaitGroup
 func StartMockMainLoop(sockets []string, extraConfig string) {
 	var testConfig = `
 Loglevel = "` + testLogLevel + `"
+LogLockTimeout = 10
 
 `
 	testConfig += extraConfig
