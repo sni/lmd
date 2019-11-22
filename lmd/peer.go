@@ -445,12 +445,10 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 
 	columns := []string{"key", "name", "status", "addr", "last_error", "last_update", "last_online", "last_query", "idling"}
 	req := &Request{
-		Table:           TableSites,
-		Columns:         columns,
-		ResponseFixed16: true,
-		OutputFormat:    OutputFormatJSON,
-		KeepAlive:       p.LocalConfig.BackendKeepAlive,
+		Table:   TableSites,
+		Columns: columns,
 	}
+	p.setQueryOptions(req)
 	res, _, err := p.query(req)
 	if err != nil {
 		log.Infof("[%s] failed to fetch sites information: %s", p.Name, err.Error())
@@ -483,12 +481,10 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 			// try to fetch section information
 			// may fail for older lmd versions
 			req := &Request{
-				Table:           TableSites,
-				Columns:         []string{"section"},
-				ResponseFixed16: true,
-				OutputFormat:    OutputFormatJSON,
-				KeepAlive:       p.LocalConfig.BackendKeepAlive,
+				Table:   TableSites,
+				Columns: []string{"section"},
 			}
+			subPeer.setQueryOptions(req)
 			res, _, err := subPeer.query(req)
 			if err == nil {
 				section := *(interface2stringNoDedup((*res)[0][0]))
@@ -876,13 +872,11 @@ func (p *Peer) UpdateDeltaHosts(filterStr string) (err error) {
 		}
 	}
 	req := &Request{
-		Table:           table.Table.Name,
-		Columns:         table.DynamicColumnNamesCache,
-		ResponseFixed16: true,
-		OutputFormat:    OutputFormatJSON,
-		FilterStr:       filterStr,
-		KeepAlive:       p.LocalConfig.BackendKeepAlive,
+		Table:     table.Table.Name,
+		Columns:   table.DynamicColumnNamesCache,
+		FilterStr: filterStr,
 	}
+	p.setQueryOptions(req)
 	res, _, err := p.Query(req)
 	if err != nil {
 		return
@@ -984,13 +978,11 @@ func (p *Peer) UpdateDeltaServices(filterStr string) (err error) {
 		}
 	}
 	req := &Request{
-		Table:           table.Table.Name,
-		Columns:         table.DynamicColumnNamesCache,
-		ResponseFixed16: true,
-		OutputFormat:    OutputFormatJSON,
-		FilterStr:       filterStr,
-		KeepAlive:       p.LocalConfig.BackendKeepAlive,
+		Table:     table.Table.Name,
+		Columns:   table.DynamicColumnNamesCache,
+		FilterStr: filterStr,
 	}
+	p.setQueryOptions(req)
 	res, _, err := p.Query(req)
 	if err != nil {
 		return
@@ -1106,12 +1098,10 @@ func (p *Peer) UpdateDeltaFullScan(store *DataStore, filterStr string) (updated 
 		"notifications_enabled",
 	}
 	req := &Request{
-		Table:           store.Table.Name,
-		Columns:         scanColumns,
-		ResponseFixed16: true,
-		OutputFormat:    OutputFormatJSON,
-		KeepAlive:       p.LocalConfig.BackendKeepAlive,
+		Table:   store.Table.Name,
+		Columns: scanColumns,
 	}
+	p.setQueryOptions(req)
 	res, _, err := p.Query(req)
 	if err != nil {
 		return
@@ -1186,12 +1176,10 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
 
 	// get number of entrys and max id
 	req := &Request{
-		Table:           store.Table.Name,
-		ResponseFixed16: true,
-		OutputFormat:    OutputFormatJSON,
-		FilterStr:       "Stats: id != -1\nStats: max id\n",
-		KeepAlive:       p.LocalConfig.BackendKeepAlive,
+		Table:     store.Table.Name,
+		FilterStr: "Stats: id != -1\nStats: max id\n",
 	}
+	p.setQueryOptions(req)
 	res, _, err := p.Query(req)
 	if err != nil {
 		return
@@ -1211,12 +1199,10 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
 
 	// fetch all ids to see which ones are missing or to be removed
 	req = &Request{
-		Table:           store.Table.Name,
-		Columns:         []string{"id"},
-		ResponseFixed16: true,
-		OutputFormat:    OutputFormatJSON,
-		KeepAlive:       p.LocalConfig.BackendKeepAlive,
+		Table:   store.Table.Name,
+		Columns: []string{"id"},
 	}
+	p.setQueryOptions(req)
 	res, _, err = p.Query(req)
 	if err != nil {
 		return
@@ -1251,17 +1237,15 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
 	if len(missingIds) > 0 {
 		keys, columns := store.GetInitialColumns()
 		req := &Request{
-			Table:           store.Table.Name,
-			Columns:         keys,
-			ResponseFixed16: true,
-			OutputFormat:    OutputFormatJSON,
-			FilterStr:       "",
-			KeepAlive:       p.LocalConfig.BackendKeepAlive,
+			Table:     store.Table.Name,
+			Columns:   keys,
+			FilterStr: "",
 		}
 		for _, id := range missingIds {
 			req.FilterStr += fmt.Sprintf("Filter: id = %d\n", id)
 		}
 		req.FilterStr += fmt.Sprintf("Or: %d\n", len(missingIds))
+		p.setQueryOptions(req)
 		res, _, err = p.Query(req)
 		if err != nil {
 			return
@@ -1719,12 +1703,10 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 
 	// fetch remote objects
 	req := &Request{
-		Table:           store.Table.Name,
-		Columns:         keys,
-		ResponseFixed16: true,
-		OutputFormat:    OutputFormatJSON,
-		KeepAlive:       p.LocalConfig.BackendKeepAlive,
+		Table:   store.Table.Name,
+		Columns: keys,
 	}
+	p.setQueryOptions(req)
 	res, _, err := p.Query(req)
 
 	if err != nil {
@@ -1962,12 +1944,10 @@ func (p *Peer) UpdateFullTable(tableName TableName) (restartRequired bool, err e
 	}
 
 	req := &Request{
-		Table:           store.Table.Name,
-		Columns:         columns,
-		ResponseFixed16: true,
-		OutputFormat:    OutputFormatJSON,
-		KeepAlive:       p.LocalConfig.BackendKeepAlive,
+		Table:   store.Table.Name,
+		Columns: columns,
 	}
+	p.setQueryOptions(req)
 	res, _, err := p.Query(req)
 	if err != nil {
 		return
@@ -2788,6 +2768,7 @@ func (p *Peer) SendCommands(commands []string) (err error) {
 	commandRequest := &Request{
 		Command: strings.Join(commands, "\n\n"),
 	}
+	p.setQueryOptions(commandRequest)
 	_, _, err = p.Query(commandRequest)
 	if err != nil {
 		switch err := err.(type) {
@@ -2919,12 +2900,10 @@ func (p *Peer) GetDataStore(tableName TableName) (store *DataStore, err error) {
 // GetSupportedColumns returns a list of supported columns
 func (p *Peer) GetSupportedColumns() (tables map[TableName]map[string]bool, err error) {
 	req := &Request{
-		Table:           TableColumns,
-		Columns:         []string{"table", "name"},
-		ResponseFixed16: true,
-		OutputFormat:    OutputFormatJSON,
-		KeepAlive:       p.LocalConfig.BackendKeepAlive,
+		Table:   TableColumns,
+		Columns: []string{"table", "name"},
 	}
+	p.setQueryOptions(req)
 	res, _, err := p.Query(req)
 	if err != nil {
 		return nil, err
@@ -2944,4 +2923,16 @@ func (p *Peer) GetSupportedColumns() (tables map[TableName]map[string]bool, err 
 		tables[tableName][*column] = true
 	}
 	return
+}
+
+// setQueryOptions sets common required query options
+func (p *Peer) setQueryOptions(req *Request) {
+	if req.Command == "" {
+		req.KeepAlive = p.LocalConfig.BackendKeepAlive
+		req.ResponseFixed16 = true
+		req.OutputFormat = OutputFormatJSON
+	}
+	if p.ParentID != "" {
+		req.Backends = []string{p.ID}
+	}
 }
