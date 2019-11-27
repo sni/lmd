@@ -469,8 +469,8 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 		if ok {
 			log.Tracef("[%s] already got a sub peer for id %s", p.Name, subID)
 		} else {
-			log.Debugf("[%s] starting sub peer for %s", p.Name, subName)
-			c := Connection{ID: subID, Name: subName, Source: p.Source}
+			log.Debugf("[%s] starting sub peer for %s, id: %s", p.Name, subName, subID)
+			c := Connection{ID: subID, Name: subName, Source: p.Source, RemoteName: subName}
 			subPeer = NewPeer(p.LocalConfig, &c, p.waitGroup, p.shutdownChannel)
 			subPeer.ParentID = p.ID
 			subPeer.SetFlag(LMDSub)
@@ -565,7 +565,7 @@ func (p *Peer) periodicUpdateMultiBackends(ok *bool, force bool) {
 		if ok {
 			log.Tracef("[%s] already got a sub peer for id %s", p.Name, subPeer.ID)
 		} else {
-			log.Debugf("[%s] starting sub peer for %s", p.Name, subName)
+			log.Debugf("[%s] starting sub peer for %s, id: %s", p.Name, subName, subID)
 			c := Connection{
 				ID:             subID,
 				Name:           subName,
@@ -1506,7 +1506,7 @@ func (p *Peer) parseResponseHeader(resBytes *[]byte) (expSize int64, err error) 
 		return
 	}
 	if resSize < 16 {
-		err = fmt.Errorf("[%s] uncomplete response header: '%s'", p.Name, string(*resBytes))
+		err = fmt.Errorf("[%s] incomplete response header: '%s'", p.Name, string(*resBytes))
 		return
 	}
 	header := string((*resBytes)[0:15])
@@ -2931,7 +2931,7 @@ func (p *Peer) setQueryOptions(req *Request) {
 		req.ResponseFixed16 = true
 		req.OutputFormat = OutputFormatJSON
 	}
-	if p.ParentID != "" {
+	if p.ParentID != "" && p.HasFlag(LMDSub) {
 		req.Backends = []string{p.ID}
 	}
 }
