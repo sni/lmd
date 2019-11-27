@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -75,7 +74,7 @@ func (raw *RawResultSet) Less(i, j int) bool {
 				return valueA < valueB
 			}
 			return valueA > valueB
-		case StringCol, StringLargeCol:
+		case StringCol, StringLargeCol, StringListCol, ServiceMemberListCol, InterfaceListCol, HashMapCol, CustomVarCol:
 			s1 := raw.DataResult[i].GetString(s.Column)
 			s2 := raw.DataResult[j].GetString(s.Column)
 			if *s1 == *s2 {
@@ -85,9 +84,10 @@ func (raw *RawResultSet) Less(i, j int) bool {
 				return *s1 < *s2
 			}
 			return *s1 > *s2
-		case StringListCol:
-			s1 := joinStringlist(raw.DataResult[i].GetStringList(s.Column), ";")
-			s2 := joinStringlist(raw.DataResult[j].GetStringList(s.Column), ";")
+		case Int64ListCol:
+			// join numbers to string
+			s1 := raw.DataResult[i].GetString(s.Column)
+			s2 := raw.DataResult[j].GetString(s.Column)
 			if *s1 == *s2 {
 				continue
 			}
@@ -95,57 +95,6 @@ func (raw *RawResultSet) Less(i, j int) bool {
 				return *s1 < *s2
 			}
 			return *s1 > *s2
-		case Int64ListCol:
-			// join numbers to string
-			s1 := strings.Join(strings.Fields(fmt.Sprint(raw.DataResult[i].GetInt64List(s.Column))), ";")
-			s2 := strings.Join(strings.Fields(fmt.Sprint(raw.DataResult[j].GetInt64List(s.Column))), ";")
-			if s1 == s2 {
-				continue
-			}
-			if s.Direction == Asc {
-				return s1 < s2
-			}
-			return s1 > s2
-		case HashMapCol:
-			s1 := raw.DataResult[i].GetHashMap(s.Column)[s.Args]
-			s2 := raw.DataResult[j].GetHashMap(s.Column)[s.Args]
-			if s1 == s2 {
-				continue
-			}
-			if s.Direction == Asc {
-				return s1 < s2
-			}
-			return s1 > s2
-		case ServiceMemberListCol:
-			s1 := fmt.Sprintf("%v", raw.DataResult[i].GetServiceMemberList(s.Column))
-			s2 := fmt.Sprintf("%v", raw.DataResult[j].GetServiceMemberList(s.Column))
-			if s1 == s2 {
-				continue
-			}
-			if s.Direction == Asc {
-				return s1 < s2
-			}
-			return s1 > s2
-		case InterfaceListCol:
-			s1 := fmt.Sprintf("%v", raw.DataResult[i].GetInterfaceList(s.Column))
-			s2 := fmt.Sprintf("%v", raw.DataResult[j].GetInterfaceList(s.Column))
-			if s1 == s2 {
-				continue
-			}
-			if s.Direction == Asc {
-				return s1 < s2
-			}
-			return s1 > s2
-		case CustomVarCol:
-			s1 := fmt.Sprintf("%v", raw.DataResult[i].GetHashMap(s.Column))
-			s2 := fmt.Sprintf("%v", raw.DataResult[j].GetHashMap(s.Column))
-			if s1 == s2 {
-				continue
-			}
-			if s.Direction == Asc {
-				return s1 < s2
-			}
-			return s1 > s2
 		}
 		panic(fmt.Sprintf("sorting not implemented for type %s", s.Column.DataType))
 	}

@@ -263,9 +263,12 @@ func (res *Response) CalculateFinalStats() {
 		rowSize += hasColumns
 		res.Result[j] = make([]interface{}, rowSize)
 		if hasColumns > 0 {
-			parts := strings.Split(key, ";")
+			parts := strings.Split(key, ListSepChar1)
 			for i := range parts {
 				res.Result[j][i] = &parts[i]
+				if i >= hasColumns {
+					break
+				}
 			}
 		}
 		for i := range stats {

@@ -599,7 +599,7 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan ResultSet, c
 					for x := 0; x < hasColumns; x++ {
 						keys = append(keys, *(row[x].(*string)))
 					}
-					key = strings.Join(keys, ";")
+					key = strings.Join(keys, ListSepChar1)
 				}
 				if _, ok := req.StatsResult[key]; !ok {
 					req.StatsResult[key] = createLocalStatsCopy(&req.Stats)

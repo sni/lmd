@@ -145,6 +145,7 @@ func TestAllOps(t *testing.T) {
 			for _, value := range values {
 				testqueryCol(t, peer, col.Table.Name, col.Name)
 				testqueryFilter(t, peer, col.Table.Name, col.Name, op, value)
+				testqueryGroup(t, peer, col.Table.Name, col.Name, op, value)
 			}
 		}
 	}
@@ -181,6 +182,30 @@ func testqueryCol(t *testing.T, peer *Peer, table TableName, column string) {
 
 func testqueryFilter(t *testing.T, peer *Peer, table TableName, column, op, value string) {
 	query := fmt.Sprintf("GET %s\nColumns: %s\nFilter: %s %s%s\n\n",
+		table.String(),
+		column,
+		column,
+		op,
+		value,
+	)
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Recovered in f", r)
+			t.Fatalf("paniced for query:\n%s", query)
+		}
+	}()
+	buf := bufio.NewReader(bytes.NewBufferString(query))
+	req, _, err := NewRequest(buf)
+	if err == nil {
+		if err = assertEq(query, req.String()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	peer.QueryString(query)
+}
+
+func testqueryGroup(t *testing.T, peer *Peer, table TableName, column, op, value string) {
+	query := fmt.Sprintf("GET %s\nColumns: %s\nStats: %s %s%s\n\n",
 		table.String(),
 		column,
 		column,

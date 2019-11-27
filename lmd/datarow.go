@@ -11,6 +11,8 @@ import (
 	"github.com/lkarlslund/stringdedup"
 )
 
+const ListSepChar1 = string(0)
+
 // DataRow represents a single entry in a DataTable
 type DataRow struct {
 	noCopy                noCopy                 // we don't want to make copies, use references
@@ -68,12 +70,12 @@ func (d *DataRow) GetID() string {
 	var key strings.Builder
 	for i, k := range d.DataStore.Table.PrimaryKey {
 		if i > 0 {
-			key.WriteString(";")
+			key.WriteString(ListSepChar1)
 		}
 		key.WriteString(*(d.GetStringByName(k)))
 	}
 	id := key.String()
-	if id == "" || id == ";" {
+	if id == "" || id == ListSepChar1 {
 		log.Errorf("[%s] id for %s is null", d.DataStore.Peer.Name, d.DataStore.Table.Name.String())
 	}
 	return id
@@ -149,8 +151,22 @@ func (d *DataRow) GetString(col *Column) *string {
 		case Int64Col:
 			val := strconv.FormatInt(d.dataInt64[col.Index], 10)
 			return &val
+		case FloatCol:
+			val := fmt.Sprintf("%v", d.dataFloat[col.Index])
+			return &val
 		case StringLargeCol:
 			return d.dataStringLarge[col.Index].StringRef()
+		case StringListCol:
+			return joinStringlist(&d.dataStringList[col.Index], ListSepChar1)
+		case ServiceMemberListCol:
+			val := fmt.Sprintf("%v", d.dataServiceMemberList[col.Index])
+			return &val
+		case InterfaceListCol:
+			val := fmt.Sprintf("%v", d.dataInterfaceList[col.Index])
+			return &val
+		case Int64ListCol:
+			val := strings.Join(strings.Fields(fmt.Sprint(d.dataInt64List[col.Index])), ListSepChar1)
+			return &val
 		}
 		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
@@ -649,7 +665,7 @@ func (d *DataRow) getStatsKey(res *Response) string {
 	for i := range res.Request.RequestColumns {
 		keyValues = append(keyValues, *(d.GetString(res.Request.RequestColumns[i])))
 	}
-	return strings.Join(keyValues, ";")
+	return strings.Join(keyValues, ListSepChar1)
 }
 
 // UpdateValues updates this datarow with new values
@@ -968,7 +984,7 @@ func interface2interfacelist(in interface{}) []interface{} {
 
 // deduplicateStringlist store duplicate string lists only once
 func (d *DataRow) deduplicateStringlist(list *[]string) *[]string {
-	sum := sha256.Sum256([]byte(*joinStringlist(list, ";")))
+	sum := sha256.Sum256([]byte(*joinStringlist(list, ListSepChar1)))
 	if l, ok := d.DataStore.dupStringList[sum]; ok {
 		return &l
 	}
