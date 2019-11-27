@@ -1451,6 +1451,11 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) (*[]byte
 	if err != nil {
 		return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: &resBytes}
 	}
+	if bytes.Contains(resBytes, []byte("No UNIX socket /")) {
+		io.CopyN(header, conn, ErrorContentPreviewSize)
+		resBytes = bytes.TrimSpace(header.Bytes())
+		return nil, &PeerError{msg: fmt.Sprintf("%s", resBytes), kind: ConnectionError}
+	}
 	expSize, err := p.parseResponseHeader(&resBytes)
 	if err != nil {
 		return nil, err
