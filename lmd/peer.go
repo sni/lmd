@@ -1678,7 +1678,7 @@ cache:
 	log.Debugf("[%s] last online: %s", p.Name, timeOrNever(lastOnline))
 	if lastOnline < now-int64(p.LocalConfig.StaleBackendTimeout) || (p.ErrorCount > numSources && lastOnline <= 0) {
 		if p.Status["PeerStatus"].(PeerStatus) != PeerStatusDown {
-			log.Warnf("[%s] site went offline: %s", p.Name, err.Error())
+			log.Infof("[%s] site went offline: %s", p.Name, err.Error())
 			// clear existing data from memory
 			p.Clear(false)
 		}
