@@ -2837,15 +2837,14 @@ func (p *Peer) buildDowntimeCommentsCache(name TableName) map[*DataRow][]int64 {
 	hostNameIndex := store.Table.GetColumn("host_name").Index
 	serviceDescIndex := store.Table.GetColumn("service_description").Index
 	hostIndex := p.Tables[TableHosts].Index
-	serviceIndex := p.Tables[TableServices].Index
+	serviceIndex := p.Tables[TableServices].Index2
 	for i := range store.Data {
 		row := store.Data[i]
 		key := row.dataString[hostNameIndex]
 		serviceName := row.dataString[serviceDescIndex]
 		var obj *DataRow
 		if serviceName != "" {
-			key = key + ";" + serviceName
-			obj = serviceIndex[key]
+			obj = serviceIndex[key][serviceName]
 		} else {
 			obj = hostIndex[key]
 		}
