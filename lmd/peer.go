@@ -859,7 +859,13 @@ func (p *Peer) UpdateDelta(from, to int64) bool {
 // It returns any error encountered.
 func (p *Peer) UpdateDeltaHosts(filterStr string) (err error) {
 	// update changed hosts
+	p.PeerLock.RLock()
 	table := p.Tables[TableHosts]
+	p.PeerLock.RUnlock()
+	if table == nil {
+		err = fmt.Errorf("peer not ready, either not initialized or went offline recently")
+		return
+	}
 	if filterStr == "" {
 		filterStr = fmt.Sprintf("Filter: last_check >= %v\n", (p.StatusGet("LastUpdate").(int64) - UpdateAdditionalDelta))
 		if p.LocalConfig.SyncIsExecuting {
@@ -965,7 +971,13 @@ func (p *Peer) prepareHostUpdateSet(hostDataOffset int, res *ResultSet, table *D
 // It returns any error encountered.
 func (p *Peer) UpdateDeltaServices(filterStr string) (err error) {
 	// update changed services
+	p.PeerLock.RLock()
 	table := p.Tables[TableServices]
+	p.PeerLock.RUnlock()
+	if table == nil {
+		err = fmt.Errorf("peer not ready, either not initialized or went offline recently")
+		return
+	}
 	if filterStr == "" {
 		filterStr = fmt.Sprintf("Filter: last_check >= %v\n", (p.StatusGet("LastUpdate").(int64) - UpdateAdditionalDelta))
 		if p.LocalConfig.SyncIsExecuting {
