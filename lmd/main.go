@@ -161,9 +161,11 @@ func (c *configFiles) String() string {
 // Set appends a config file to the list of config files.
 func (c *configFiles) Set(value string) (err error) {
 	_, err = os.Stat(value)
-	if err != nil {
+	// check if the file exists but skip errors for file globs
+	if err != nil && !strings.ContainsAny(value, "?*") {
 		return
 	}
+	err = nil
 	*c = append(*c, value)
 	return
 }
