@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"runtime/debug"
@@ -200,8 +201,8 @@ func init() {
 }
 
 func setFlags() {
-	flag.Var(&flagConfigFile, "c", "set location for config file, can be specified multiple times")
-	flag.Var(&flagConfigFile, "config", "set location for config file, can be specified multiple times")
+	flag.Var(&flagConfigFile, "c", "set location for config file, can be specified multiple times, can contain globs like lmd.ini.d/*.ini")
+	flag.Var(&flagConfigFile, "config", "set location for config file, can be specified multiple times, can contain globs like lmd.ini.d/*.ini")
 	flag.StringVar(&flagPidfile, "pidfile", "", "set path to pidfile")
 	flag.StringVar(&flagLogFile, "logfile", "", "override logfile from the configuration file")
 	flag.BoolVar(&flagVerbose, "v", false, "enable verbose output")
@@ -690,16 +691,27 @@ func ReadConfig(files []string) *Config {
 		CompressionLevel:       -1,
 		CompressionMinimumSize: DefaultCompressionMinimumSize,
 	}
-	for _, configFile := range files {
-		if _, err := os.Stat(configFile); err != nil {
-			fmt.Fprintf(os.Stderr, "ERROR: could not load configuration from %s: %s\nuse --help to see all options.\n", configFile, err.Error())
+	for _, pattern := range files {
+		configFiles, errGlob := filepath.Glob(pattern)
+		if errGlob != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: config file pattern %s is invalid: %s\n", pattern, errGlob.Error())
 			os.Exit(ExitUnknown)
 		}
-		if _, err := toml.DecodeFile(configFile, &conf); err != nil {
-			panic(err)
+		if configFiles == nil {
+			log.Debugf("config file pattern %s did not match any files", pattern)
+			continue
 		}
-		allListeners = append(allListeners, conf.Listen...)
-		conf.Listen = []string{}
+		for _, configFile := range configFiles {
+			if _, err := os.Stat(configFile); err != nil {
+				fmt.Fprintf(os.Stderr, "ERROR: could not load configuration from %s: %s\nuse --help to see all options.\n", configFile, err.Error())
+				os.Exit(ExitUnknown)
+			}
+			if _, err := toml.DecodeFile(configFile, &conf); err != nil {
+				panic(err)
+			}
+			allListeners = append(allListeners, conf.Listen...)
+			conf.Listen = []string{}
+		}
 	}
 	if flagLogFile != "" {
 		conf.LogFile = flagLogFile
