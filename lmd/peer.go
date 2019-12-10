@@ -2900,6 +2900,10 @@ func (p *Peer) GetDataStore(tableName TableName) (store *DataStore, err error) {
 	table := Objects.Tables[tableName]
 	if table.Virtual != nil {
 		store = table.Virtual(table, p)
+		if store == nil {
+			err = fmt.Errorf("%s", p.getError())
+			return
+		}
 		return
 	}
 	p.DataLock.RLock()

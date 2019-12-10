@@ -54,6 +54,9 @@ func GetTableColumnsStore(table *Table, _ *Peer) *DataStore {
 
 // GetGroupByData returns fake query result for given groupby table
 func GetGroupByData(table *Table, peer *Peer) *DataStore {
+	if !peer.isOnline() {
+		return nil
+	}
 	store := NewDataStore(table, peer)
 	data := make(ResultSet, 0)
 	peer.DataLock.RLock()
