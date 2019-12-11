@@ -1398,6 +1398,8 @@ func (p *Peer) getHTTPQueryResponse(req *Request, query string, peerAddr string)
 	if req.ResponseFixed16 {
 		expSize, err := p.parseResponseHeader(&res)
 		if err != nil {
+			log.Debugf("[%s] LastQuery:", p.Name)
+			log.Debugf("[%s] %s", p.Name, req.String())
 			return nil, err
 		}
 		res = res[16:]
@@ -1470,6 +1472,8 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) (*[]byte
 	}
 	expSize, err := p.parseResponseHeader(&resBytes)
 	if err != nil {
+		log.Debugf("[%s] LastQuery:", p.Name)
+		log.Debugf("[%s] %s", p.Name, req.String())
 		return nil, err
 	}
 	body := new(bytes.Buffer)
