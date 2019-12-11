@@ -123,9 +123,25 @@ func (res *Response) Less(i, j int) bool {
 		}
 		switch sortType {
 		case IntCol:
-			fallthrough
+			valueA := res.Result[i][s.Index].(int)
+			valueB := res.Result[j][s.Index].(int)
+			if valueA == valueB {
+				continue
+			}
+			if s.Direction == Asc {
+				return valueA < valueB
+			}
+			return valueA > valueB
 		case Int64Col:
-			fallthrough
+			valueA := res.Result[i][s.Index].(int64)
+			valueB := res.Result[j][s.Index].(int64)
+			if valueA == valueB {
+				continue
+			}
+			if s.Direction == Asc {
+				return valueA < valueB
+			}
+			return valueA > valueB
 		case FloatCol:
 			valueA := res.Result[i][s.Index].(float64)
 			valueB := res.Result[j][s.Index].(float64)
