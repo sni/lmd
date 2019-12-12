@@ -123,28 +123,12 @@ func (res *Response) Less(i, j int) bool {
 		}
 		switch sortType {
 		case IntCol:
-			valueA := res.Result[i][s.Index].(int)
-			valueB := res.Result[j][s.Index].(int)
-			if valueA == valueB {
-				continue
-			}
-			if s.Direction == Asc {
-				return valueA < valueB
-			}
-			return valueA > valueB
+			fallthrough
 		case Int64Col:
-			valueA := res.Result[i][s.Index].(int64)
-			valueB := res.Result[j][s.Index].(int64)
-			if valueA == valueB {
-				continue
-			}
-			if s.Direction == Asc {
-				return valueA < valueB
-			}
-			return valueA > valueB
+			fallthrough
 		case FloatCol:
-			valueA := res.Result[i][s.Index].(float64)
-			valueB := res.Result[j][s.Index].(float64)
+			valueA := interface2float64(res.Result[i][s.Index])
+			valueB := interface2float64(res.Result[j][s.Index])
 			if valueA == valueB {
 				continue
 			}
@@ -157,8 +141,8 @@ func (res *Response) Less(i, j int) bool {
 			if s.Group {
 				index = 0
 			}
-			s1 := *(res.Result[i][index].(*string))
-			s2 := *(res.Result[j][index].(*string))
+			s1 := *interface2stringNoDedup(res.Result[i][index])
+			s2 := *interface2stringNoDedup(res.Result[j][index])
 			if s1 == s2 {
 				continue
 			}
@@ -173,8 +157,8 @@ func (res *Response) Less(i, j int) bool {
 			// not implemented
 			return s.Direction == Asc
 		case HashMapCol:
-			s1 := (res.Result[i][s.Index]).(map[string]string)[s.Args]
-			s2 := (res.Result[j][s.Index]).(map[string]string)[s.Args]
+			s1 := interface2hashmap(res.Result[i][s.Index])[s.Args]
+			s2 := interface2hashmap(res.Result[j][s.Index])[s.Args]
 			if s1 == s2 {
 				continue
 			}
