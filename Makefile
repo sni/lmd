@@ -111,7 +111,7 @@ benchmark: fmt
 	cd $(LAMPDDIR) && go test -ldflags "-s -w -X main.Build=$(shell git rev-parse --short HEAD)" -v -bench=B\* -run=^$$ . -benchmem
 
 racetest: fmt
-	cd $(LAMPDDIR) && go test -race -v
+	cd $(LAMPDDIR) && go test -race -short -v
 
 covertest: fmt
 	cd $(LAMPDDIR) && go test -v -coverprofile=cover.out
