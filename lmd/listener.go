@@ -317,27 +317,10 @@ func (l *Listener) LocalListenerLivestatus(connType string, listen string) {
 
 		// background waiting for query to finish/timeout
 		go func() {
-			// process client request with a timeout
-
 			// make sure we log panics properly
 			defer logPanicExit()
 
-			ch := make(chan error, 1)
-			go func() {
-				// make sure we log panics properly
-				defer logPanicExit()
-
-				ch <- QueryServer(fd, l.LocalConfig)
-			}()
-			select {
-			case <-ch:
-			// request finishes normally
-			case <-time.After(time.Duration(l.LocalConfig.ListenTimeout) * time.Second):
-				localAddr := fd.LocalAddr().String()
-				remote := fd.RemoteAddr().String()
-				log.Warnf("client request from %s to %s timed out", remote, localAddr)
-			}
-			fd.Close()
+			handleConnection(fd, l.LocalConfig)
 		}()
 	}
 }
@@ -389,6 +372,25 @@ func (l *Listener) LocalListenerHTTP(httpType string, listen string) {
 		WriteTimeout: HTTPServerRequestTimeout,
 	}
 	server.Serve(c)
+}
+
+func handleConnection(c net.Conn, localConfig *Config) {
+	ch := make(chan error, 1)
+	go func() {
+		// make sure we log panics properly
+		defer logPanicExit()
+
+		ch <- QueryServer(c, localConfig)
+	}()
+	select {
+	case <-ch:
+	// request finishes normally
+	case <-time.After(time.Duration(localConfig.ListenTimeout) * time.Second):
+		localAddr := c.LocalAddr().String()
+		remote := c.RemoteAddr().String()
+		log.Warnf("client request from %s to %s timed out", remote, localAddr)
+	}
+	c.Close()
 }
 
 func getTLSListenerConfig(localConfig *Config) (config *tls.Config, err error) {
