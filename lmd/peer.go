@@ -2120,9 +2120,7 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) {
 		// get object to watch
 		var found = false
 		if req.WaitObject != "" {
-			p.DataLock.RLock()
-			obj, ok := store.Index[req.WaitObject]
-			p.DataLock.RUnlock()
+			obj, ok := p.getWaitObject(store, req)
 			if !ok {
 				log.Errorf("WaitObject did not match any object: %s", req.WaitObject)
 				close(c)
@@ -2959,4 +2957,16 @@ func (p *Peer) setQueryOptions(req *Request) {
 	if p.ParentID != "" && p.HasFlag(LMDSub) {
 		req.Backends = []string{p.ID}
 	}
+}
+
+func (p *Peer) getWaitObject(store *DataStore, req *Request) (*DataRow, bool) {
+	p.DataLock.RLock()
+	defer p.DataLock.RUnlock()
+	if req.Table == TableServices {
+		parts := strings.SplitN(req.WaitObject, ";", 2)
+		obj, ok := store.Index2[parts[0]][parts[1]]
+		return obj, ok
+	}
+	obj, ok := store.Index[req.WaitObject]
+	return obj, ok
 }
