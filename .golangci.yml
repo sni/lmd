@@ -51,6 +51,9 @@ issues:
     - "cyclomatic complexity .* of func `matchStringListFilter` is high"
     - "cyclomatic complexity .* of func `.*String` is high"
     - "G108: Profiling endpoint is automatically exposed"
+    - "ptrToRefParam: consider `commandsByPeer' to be of non-pointer type"
+    - "cognitive complexity .* of func `ProcessRequests` is high"
+    - "cognitive complexity .* of func `.*Request..getDistributedResponse` is high"
     - 'Magic number: 1\D '
     - 'Magic number: 2\D '
     - 'Magic number: 3\D '

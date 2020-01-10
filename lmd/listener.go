@@ -131,15 +131,11 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string, conf *Config) (
 			}
 		} else {
 			// send all pending commands so far
-			if len(commandsByPeer) > 0 {
-				code, msg := SendCommands(commandsByPeer)
-				commandsByPeer = make(map[string][]string)
-				if code != 200 {
-					_, err = c.Write([]byte(fmt.Sprintf("%d: %s\n", code, msg)))
-					return
-				}
-				log.Infof("incoming command request from %s to %s finished in %s", remote, c.LocalAddr().String(), time.Since(t1))
+			err = SendRemainingCommands(c, remote, &commandsByPeer)
+			if err != nil {
+				return
 			}
+
 			if req.WaitTrigger != "" {
 				c.SetDeadline(time.Now().Add(time.Duration(req.WaitTimeout+WaitTimeoutExtraMillis) * time.Millisecond))
 			}
@@ -177,17 +173,29 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string, conf *Config) (
 	}
 
 	// send all remaining commands
-	if len(commandsByPeer) > 0 {
-		t1 := time.Now()
-		code, msg := SendCommands(commandsByPeer)
-		if code != 200 {
-			c.Write([]byte(fmt.Sprintf("%d: %s\n", code, msg)))
-			return
-		}
-		log.Infof("incoming command request from %s to %s finished in %s", remote, c.LocalAddr().String(), time.Since(t1))
+	err = SendRemainingCommands(c, remote, &commandsByPeer)
+	if err != nil {
+		return
 	}
 
 	return reqs[len(reqs)-1].KeepAlive, nil
+}
+
+// SendRemainingCommands sends all queued commands
+func SendRemainingCommands(c net.Conn, remote string, commandsByPeer *map[string][]string) (err error) {
+	if len(*commandsByPeer) == 0 {
+		return
+	}
+	t1 := time.Now()
+	code, msg := SendCommands(*commandsByPeer)
+	// clear the commands queue
+	*commandsByPeer = make(map[string][]string)
+	if code != 200 {
+		_, err = c.Write([]byte(fmt.Sprintf("%d: %s\n", code, msg)))
+		return
+	}
+	log.Infof("incoming command request from %s to %s finished in %s", remote, c.LocalAddr().String(), time.Since(t1))
+	return
 }
 
 // SendCommands sends commands for this request to all selected remote sites.
