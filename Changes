@@ -1,5 +1,8 @@
 This file documents the revision history for the Livestatus Multitool Daemon
 
+1.8.1    Thu Jan 16 17:05:44 CET 2020
+          - fix potential dead lock when updating comments
+
 1.8.0    Fr 10. Jan 10:22:20 CET 2020
           - performance improvements
           - add new configuration options:
