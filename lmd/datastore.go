@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -86,6 +87,26 @@ func (d *DataStore) InsertData(data *ResultSet, columns *ColumnList) error {
 	}
 	// only required during initial setup
 	d.dupStringList = nil
+	return nil
+}
+
+// AppendData append a list of results and initializes the store table
+func (d *DataStore) AppendData(data *ResultSet, columns *ColumnList) error {
+	d.Peer.DataLock.Lock()
+	defer d.Peer.DataLock.Unlock()
+
+	if d.Index == nil {
+		// should not happen but might indicate a recent restart or backend issue
+		return fmt.Errorf("index not ready, cannot append data")
+	}
+	for i := range *data {
+		resRow := (*data)[i]
+		row, nErr := NewDataRow(d, &resRow, columns, 0)
+		if nErr != nil {
+			return nErr
+		}
+		d.AddItem(row)
+	}
 	return nil
 }
 

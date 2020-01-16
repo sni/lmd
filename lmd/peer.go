@@ -1262,21 +1262,11 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
 		if err != nil {
 			return
 		}
-		p.DataLock.Lock()
-		if store.Index == nil {
-			// should not happen but might indicate a recent restart or backend issue
-			p.DataLock.Unlock()
-			return
+
+		nErr := store.AppendData(res, columns)
+		if nErr != nil {
+			return nErr
 		}
-		for i := range *res {
-			resRow := (*res)[i]
-			row, nErr := NewDataRow(store, &resRow, columns, 0)
-			if nErr != nil {
-				return nErr
-			}
-			store.AddItem(row)
-		}
-		p.DataLock.Unlock()
 	}
 
 	// reset cache
