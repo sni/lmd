@@ -1117,4 +1117,44 @@ func TestComments(t *testing.T) {
 	if err = assertEq([]interface{}{interface{}(float64(2))}, (*res)[0][0]); err != nil {
 		t.Error(err)
 	}
+
+	if err = StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestServicesWithInfo(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	res, _, err := peer.QueryString("GET hosts\nColumns: services_with_info\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	value := (*res)[0][0].([]interface{})[0].([]interface{})
+
+	// service description
+	if err = assertEq("testsvc_1", value[0]); err != nil {
+		t.Error(err)
+	}
+
+	// state
+	if err = assertEq(1.0, value[1]); err != nil {
+		t.Error(err)
+	}
+
+	// has_been_checked
+	if err = assertEq(1.0, value[2]); err != nil {
+		t.Error(err)
+	}
+
+	// plugin output
+	expectedPluginOutput := "HTTP WARNING: HTTP/1.1 403 Forbidden - 5215 bytes in 0.001 second response time"
+	if err = assertEq(expectedPluginOutput, value[3]); err != nil {
+		t.Error(err)
+	}
+
+	if err = StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
 }

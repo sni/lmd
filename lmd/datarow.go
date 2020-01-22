@@ -456,7 +456,7 @@ func VirtColServicesWithInfo(d *DataRow, col *Column) interface{} {
 		}
 		serviceValue := []interface{}{(*services)[i], service.GetInt(stateCol), service.GetInt(checkedCol)}
 		if col.Name == "services_with_info" {
-			serviceValue = append(serviceValue, d.GetString(outputCol))
+			serviceValue = append(serviceValue, service.GetString(outputCol))
 		}
 		res = append(res, serviceValue)
 	}
