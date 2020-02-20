@@ -153,18 +153,22 @@ const (
 
 	// HasLastUpdate flag is set if the remote site has a last_update column for hosts and services
 	HasLastUpdateColumn
+
+	// HasLMDLastUpdate flag is set if the remote site has a lmd_last_cache_update column for hosts and services
+	HasLMDLastCacheUpdateColumn
 )
 
 var OptionalFlagsStrings = map[OptionalFlags]string{
-	LMD:                 "LMD",
-	MultiBackend:        "MultiBackend",
-	LMDSub:              "LMDSub",
-	HTTPSub:             "HTTPSub",
-	Shinken:             "Shinken",
-	Icinga2:             "Icinga2",
-	Naemon:              "Naemon",
-	HasDependencyColumn: "HasDependencyColumn",
-	HasLastUpdateColumn: "HasLastUpdateColumn",
+	LMD:                         "LMD",
+	MultiBackend:                "MultiBackend",
+	LMDSub:                      "LMDSub",
+	HTTPSub:                     "HTTPSub",
+	Shinken:                     "Shinken",
+	Icinga2:                     "Icinga2",
+	Naemon:                      "Naemon",
+	HasDependencyColumn:         "HasDependencyColumn",
+	HasLastUpdateColumn:         "HasLastUpdateColumn",
+	HasLMDLastCacheUpdateColumn: "HasLMDLastCacheUpdateColumn",
 }
 
 // String returns the string representation of used flags
