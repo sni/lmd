@@ -720,7 +720,7 @@ func (p *Peer) InitAllTables() bool {
 	}
 
 	p.DataLock.RLock()
-	if len(p.Tables[TableStatus].Data) == 0 {
+	if _, ok := p.Tables[TableStatus]; ok && len(p.Tables[TableStatus].Data) == 0 {
 		// not ready yet
 		p.DataLock.RUnlock()
 		return false
