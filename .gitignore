@@ -10,3 +10,4 @@ lmd.iml
 .benchmarks/
 lmd/*.out
 lmd/*.test
+vendor/

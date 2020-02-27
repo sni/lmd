@@ -10,27 +10,18 @@ GOVERSION:=$(shell \
 MINGOVERSION:=00010014
 MINGOVERSIONSTR:=1.14
 
-EXTERNAL_DEPS = $(shell grep -v '// indirect' go.mod | grep -vP '^(module|go|require)' | tr -d '()' | awk '{ print $$1 }' | grep -v ^$$)
-LINTER_DEPS = \
-       github.com/davecgh/go-spew/spew \
-       golang.org/x/tools/cmd/goimports \
-       github.com/jmhodges/copyfighter \
-       github.com/golangci/golangci-lint/cmd/golangci-lint \
-
-
-all: deps fmt build
+all: fmt build
 
 deps: versioncheck dump
-	set -e; for DEP in $(EXTERNAL_DEPS) $(LINTER_DEPS); do \
-		go get $$DEP; \
-	done
-	go mod tidy
+	go mod download
+	go mod vendor
 
 updatedeps: versioncheck
-	set -e; for DEP in $(EXTERNAL_DEPS) $(LINTER_DEPS); do \
-		go get -u $$DEP; \
-	done
+	go list -u -m all
 	go mod tidy
+
+vendor:
+	go mod vendor
 
 dump:
 	if [ $(shell grep -rc Dump $(LAMPDDIR)/*.go | grep -v :0 | grep -v $(LAMPDDIR)/dump.go | wc -l) -ne 0 ]; then \
@@ -46,7 +37,7 @@ build: dump
 build-linux-amd64: dump
 	cd $(LAMPDDIR) && GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.Build=$(shell git rev-parse --short HEAD)" -o lmd.linux.amd64
 
-debugbuild: deps fmt
+debugbuild: fmt
 	cd $(LAMPDDIR) && go build -race -ldflags "-X main.Build=$(shell git rev-parse --short HEAD)"
 
 test: fmt dump
@@ -59,7 +50,7 @@ longtest: fmt dump
 	cd $(LAMPDDIR) && go test -v | ../t/test_counter.sh
 	rm -f lmd/mock*.sock
 
-citest: updatedeps
+citest:
 	rm -f lmd/mock*.sock
 	#
 	# Checking gofmt errors
@@ -121,6 +112,7 @@ clean:
 	rm -f $(LAMPDDIR)/coverage.html
 	rm -f $(LAMPDDIR)/*.sock
 	rm -f lmd-*.html
+	rm -rf vendor
 
 fmt: generate
 	cd $(LAMPDDIR) && goimports -w .
@@ -128,6 +120,7 @@ fmt: generate
 	cd $(LAMPDDIR) && gofmt -w -s .
 
 generate:
+	go get -u golang.org/x/tools/cmd/stringer
 	cd $(LAMPDDIR) && go generate
 
 versioncheck:
@@ -138,12 +131,12 @@ versioncheck:
 		exit 1; \
 	}
 
-copyfighter:
+copyfighter: vendor
 	#
 	# Check if there are values better passed as pointer
 	# See https://github.com/jmhodges/copyfighter
 	#
-	cd $(LAMPDDIR) && copyfighter .
+	#cd $(LAMPDDIR) && copyfighter .
 
 golangci:
 	#
