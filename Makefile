@@ -11,18 +11,26 @@ MINGOVERSION:=00010014
 MINGOVERSIONSTR:=1.14
 
 EXTERNAL_DEPS = $(shell grep -v '// indirect' go.mod | grep -vP '^(module|go|require)' | tr -d '()' | awk '{ print $$1 }' | grep -v ^$$)
+LINTER_DEPS = \
+       github.com/davecgh/go-spew/spew \
+       golang.org/x/tools/cmd/goimports \
+       github.com/jmhodges/copyfighter \
+       github.com/golangci/golangci-lint/cmd/golangci-lint \
+
 
 all: deps fmt build
 
 deps: versioncheck dump
-	set -e; for DEP in $(EXTERNAL_DEPS); do \
+	set -e; for DEP in $(EXTERNAL_DEPS) $(LINTER_DEPS); do \
 		go get $$DEP; \
 	done
+	go mod tidy
 
 updatedeps: versioncheck
-	set -e; for DEP in $(EXTERNAL_DEPS); do \
+	set -e; for DEP in $(EXTERNAL_DEPS) $(LINTER_DEPS); do \
 		go get -u $$DEP; \
 	done
+	go mod tidy
 
 dump:
 	if [ $(shell grep -rc Dump $(LAMPDDIR)/*.go | grep -v :0 | grep -v $(LAMPDDIR)/dump.go | wc -l) -ne 0 ]; then \
