@@ -10,23 +10,7 @@ GOVERSION:=$(shell \
 MINGOVERSION:=00010010
 MINGOVERSIONSTR:=1.10
 
-EXTERNAL_DEPS = \
-	github.com/BurntSushi/toml \
-	github.com/kdar/factorlog \
-	github.com/prometheus/client_golang/prometheus \
-	github.com/prometheus/client_golang/prometheus/promhttp \
-	github.com/buger/jsonparser \
-	github.com/a8m/djson \
-	github.com/julienschmidt/httprouter \
-	github.com/davecgh/go-spew/spew \
-	golang.org/x/tools/cmd/goimports \
-	github.com/jmhodges/copyfighter \
-	github.com/golangci/golangci-lint/cmd/golangci-lint \
-	golang.org/x/tools/cmd/stringer \
-	github.com/json-iterator/go \
-	github.com/lkarlslund/stringdedup \
-	github.com/sasha-s/go-deadlock \
-
+EXTERNAL_DEPS = $(shell grep -v '// indirect' go.mod | grep -vP '^(module|go|require)' | tr -d '()' | awk '{ print $$1 }' | grep -v ^$$)
 
 all: deps fmt build
 
@@ -67,7 +51,7 @@ longtest: fmt dump
 	cd $(LAMPDDIR) && go test -v | ../t/test_counter.sh
 	rm -f lmd/mock*.sock
 
-citest: deps
+citest: updatedeps
 	rm -f lmd/mock*.sock
 	#
 	# Checking gofmt errors
@@ -106,6 +90,7 @@ citest: deps
 	#
 	# All CI tests successfull
 	#
+	go mod tidy
 
 benchmark: fmt
 	cd $(LAMPDDIR) && go test -ldflags "-s -w -X main.Build=$(shell git rev-parse --short HEAD)" -v -bench=B\* -run=^$$ . -benchmem

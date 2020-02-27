@@ -204,10 +204,10 @@ func (req *Request) String() (str string) {
 		str += fmt.Sprintf("Offset: %d\n", req.Offset)
 	}
 	if req.ColumnsHeaders {
-		str += fmt.Sprintf("ColumnHeaders: on\n")
+		str += "ColumnHeaders: on\n"
 	}
 	if req.KeepAlive {
-		str += fmt.Sprintf("KeepAlive: on\n")
+		str += "KeepAlive: on\n"
 	}
 	for i := range req.Filter {
 		str += req.Filter[i].String("")
@@ -228,7 +228,7 @@ func (req *Request) String() (str string) {
 		str += fmt.Sprintf("WaitTimeout: %d\n", req.WaitTimeout)
 	}
 	if req.WaitConditionNegate {
-		str += fmt.Sprintf("WaitConditionNegate\n")
+		str += "WaitConditionNegate\n"
 	}
 	if req.AuthUser != "" {
 		str += fmt.Sprintf("AuthUser: %s\n", req.AuthUser)

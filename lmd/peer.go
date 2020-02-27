@@ -1581,6 +1581,7 @@ func (p *Peer) GetConnection() (conn net.Conn, connType PeerConnType, err error)
 			uri, uErr := url.Parse(peerAddr)
 			if uErr != nil {
 				err = uErr
+				return
 			}
 			host := uri.Host
 			if !strings.Contains(host, ":") {
