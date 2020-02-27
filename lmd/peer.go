@@ -2723,7 +2723,6 @@ func (p *Peer) getTLSClientConfig() (*tls.Config, error) {
 		caCertPool := x509.NewCertPool()
 		caCertPool.AppendCertsFromPEM(caCert)
 		config.RootCAs = caCertPool
-		config.BuildNameToCertificate()
 	}
 
 	return config, nil

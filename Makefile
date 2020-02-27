@@ -7,8 +7,8 @@ GOVERSION:=$(shell \
     go version | \
     awk -F'go| ' '{ split($$5, a, /\./); printf ("%04d%04d", a[1], a[2]); exit; }' \
 )
-MINGOVERSION:=00010010
-MINGOVERSIONSTR:=1.10
+MINGOVERSION:=00010014
+MINGOVERSIONSTR:=1.14
 
 EXTERNAL_DEPS = $(shell grep -v '// indirect' go.mod | grep -vP '^(module|go|require)' | tr -d '()' | awk '{ print $$1 }' | grep -v ^$$)
 
