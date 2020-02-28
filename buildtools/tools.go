@@ -9,8 +9,6 @@ package tools
 
 import (
 	_ "github.com/davecgh/go-spew/spew"
-	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
-	_ "github.com/jmhodges/copyfighter"
 	_ "golang.org/x/tools/cmd/goimports"
 	_ "golang.org/x/tools/cmd/stringer"
 )

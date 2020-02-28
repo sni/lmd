@@ -10,6 +10,8 @@ GOVERSION:=$(shell \
 MINGOVERSION:=00010014
 MINGOVERSIONSTR:=1.14
 
+.PHONY: vendor
+
 all: fmt build
 
 deps: versioncheck dump
@@ -131,11 +133,12 @@ versioncheck:
 		exit 1; \
 	}
 
-copyfighter: vendor
+copyfighter:
 	#
 	# Check if there are values better passed as pointer
 	# See https://github.com/jmhodges/copyfighter
 	#
+	#go install github.com/jmhodges/copyfighter
 	#cd $(LAMPDDIR) && copyfighter .
 
 golangci:
@@ -143,11 +146,8 @@ golangci:
 	# golangci combines a few static code analyzer
 	# See https://github.com/golangci/golangci-lint
 	#
-	@if [ $$( printf '%s\n' $(GOVERSION) 00010010 | sort -n | head -n 1 ) != 00010010 ]; then \
-		echo "golangci requires at least go 1.10"; \
-	else \
-		golangci-lint run $(LAMPDDIR)/...; \
-	fi
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint
+	golangci-lint run $(LAMPDDIR)/...
 
 version:
 	OLDVERSION="$(shell grep "VERSION =" $(LAMPDDIR)/main.go | awk '{print $$3}' | tr -d '"')"; \
