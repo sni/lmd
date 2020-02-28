@@ -14,9 +14,12 @@ MINGOVERSIONSTR:=1.14
 
 all: fmt build
 
-deps: versioncheck dump
+tools: versioncheck dump
 	go mod download
-	go mod vendor
+	set -e; for DEP in $(shell grep _ buildtools/tools.go | awk '{ print $$2 }'); do \
+		go get $$DEP; \
+	done
+	go mod tidy
 
 updatedeps: versioncheck
 	go list -u -m all
@@ -116,12 +119,12 @@ clean:
 	rm -f lmd-*.html
 	rm -rf vendor
 
-fmt: generate
+fmt: generate tools
 	cd $(LAMPDDIR) && goimports -w .
 	cd $(LAMPDDIR) && go vet -all -assign -atomic -bool -composites -copylocks -nilfunc -rangeloops -unsafeptr -unreachable .
 	cd $(LAMPDDIR) && gofmt -w -s .
 
-generate:
+generate: tools
 	go get -u golang.org/x/tools/cmd/stringer
 	cd $(LAMPDDIR) && go generate
 
@@ -133,20 +136,18 @@ versioncheck:
 		exit 1; \
 	}
 
-copyfighter:
+copyfighter: tools
 	#
 	# Check if there are values better passed as pointer
 	# See https://github.com/jmhodges/copyfighter
 	#
-	#go install github.com/jmhodges/copyfighter
 	#cd $(LAMPDDIR) && copyfighter .
 
-golangci:
+golangci: tools
 	#
 	# golangci combines a few static code analyzer
 	# See https://github.com/golangci/golangci-lint
 	#
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint
 	golangci-lint run $(LAMPDDIR)/...
 
 version:
