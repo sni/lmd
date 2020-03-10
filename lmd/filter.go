@@ -250,7 +250,7 @@ func ParseFilter(value []byte, table TableName, stack *[]*Filter) (err error) {
 	if isRegex {
 		val := filter.StrValue
 		if op == RegexNoCaseMatchNot || op == RegexNoCaseMatch {
-			val = strings.ToLower(val)
+			val = "(?i)" + val
 		}
 		regex, rerr := regexp.Compile(val)
 		if rerr != nil {
@@ -579,14 +579,10 @@ func (f *Filter) MatchString(value *string) bool {
 		return strings.EqualFold(*value, f.StrValue)
 	case UnequalNocase:
 		return !strings.EqualFold(*value, f.StrValue)
-	case RegexMatch:
+	case RegexMatch, RegexNoCaseMatch:
 		return f.Regexp.MatchString(*value)
-	case RegexMatchNot:
+	case RegexMatchNot, RegexNoCaseMatchNot:
 		return !f.Regexp.MatchString(*value)
-	case RegexNoCaseMatch:
-		return f.Regexp.MatchString(strings.ToLower(*value))
-	case RegexNoCaseMatchNot:
-		return !f.Regexp.MatchString(strings.ToLower(*value))
 	case Less:
 		return *value < f.StrValue
 	case LessThan:
@@ -624,18 +620,14 @@ func (f *Filter) MatchStringList(list *[]string) bool {
 			}
 		}
 		return true
-	case RegexMatch:
-		fallthrough
-	case RegexNoCaseMatch:
+	case RegexMatch, RegexNoCaseMatch:
 		for i := range *list {
 			if f.MatchString(&(*list)[i]) {
 				return true
 			}
 		}
 		return false
-	case RegexMatchNot:
-		fallthrough
-	case RegexNoCaseMatchNot:
+	case RegexMatchNot, RegexNoCaseMatchNot:
 		for i := range *list {
 			if f.MatchString(&(*list)[i]) {
 				return false

@@ -25,3 +25,10 @@ func TestInt64ListFilter(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestRegexpListFilter(t *testing.T) {
+	value := []int64{1, 2, 3, 4, 5}
+	if err := assertEq(true, (&Filter{Operator: GreaterThan, FloatValue: 5}).MatchInt64List(value)); err != nil {
+		t.Error(err)
+	}
+}
