@@ -9,7 +9,7 @@ require (
 	github.com/buger/jsonparser v0.0.0-20191204142016-1a29609e0929
 	github.com/davecgh/go-spew v1.1.1
 	github.com/golang/protobuf v1.3.4 // indirect
-	github.com/golangci/golangci-lint v1.23.8
+	github.com/golangci/golangci-lint v1.24.0
 	github.com/jmhodges/copyfighter v0.0.0-20160722063546-be73a1066def
 	github.com/json-iterator/go v1.1.9
 	github.com/julienschmidt/httprouter v1.3.0
@@ -24,6 +24,6 @@ require (
 	github.com/sasha-s/go-deadlock v0.2.0
 	github.com/stretchr/testify v1.5.1 // indirect
 	golang.org/x/sys v0.0.0-20200223170610-d5e6a3e2c0ae // indirect
-	golang.org/x/tools v0.0.0-20200309202150-20ab64c0d93f
+	golang.org/x/tools v0.0.0-20200313205530-4303120df7d8
 	gopkg.in/yaml.v2 v2.2.8 // indirect
 )
