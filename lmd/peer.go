@@ -206,6 +206,7 @@ func NewPeer(localConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 	p.Status["LastError"] = "connecting..."
 	p.Status["LastOnline"] = int64(0)
 	p.Status["ProgramStart"] = 0
+	p.Status["LastPid"] = 0
 	p.Status["BytesSend"] = int64(0)
 	p.Status["BytesReceived"] = int64(0)
 	p.Status["Querys"] = int64(0)
@@ -726,11 +727,13 @@ func (p *Peer) InitAllTables() bool {
 		return false
 	}
 	programStart := p.Tables[TableStatus].Data[0].GetInt64ByName("program_start")
+	corePid := p.Tables[TableStatus].Data[0].GetIntByName("nagios_pid")
 	p.DataLock.RUnlock()
 
 	duration := time.Since(t1)
 	p.PeerLock.Lock()
 	p.Status["ProgramStart"] = programStart
+	p.Status["LastPid"] = corePid
 	p.Status["ReponseTime"] = duration.Seconds()
 	peerStatus := p.Status["PeerStatus"].(PeerStatus)
 	log.Infof("[%s] objects created in: %s", p.Name, duration.String())
@@ -2009,7 +2012,7 @@ func (p *Peer) UpdateFullTable(tableName TableName) (restartRequired bool, err e
 
 	if tableName == TableStatus {
 		p.checkStatusFlags()
-		if !p.HasFlag(MultiBackend) && len(data) >= 1 && p.StatusGet("ProgramStart") != data[0].GetInt64ByName("program_start") {
+		if !p.HasFlag(MultiBackend) && len(data) >= 1 && (p.StatusGet("ProgramStart") != data[0].GetInt64ByName("program_start") || p.StatusGet("LastPid") != data[0].GetIntByName("nagios_pid")) {
 			log.Infof("[%s] site has been restarted, recreating objects", p.Name)
 			restartRequired = true
 		}
