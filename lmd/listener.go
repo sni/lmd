@@ -22,7 +22,7 @@ const (
 	HTTPServerRequestTimeout = 5 * time.Second
 
 	// RequestReadTimeout sets the read timeout when listening to incoming requests
-	RequestReadTimeout = 10 * time.Second
+	RequestReadTimeout = 60 * time.Second
 
 	// KeepAliveWaitInterval sets the interval at which the listeners checks for new requests in keepalive connections
 	KeepAliveWaitInterval = 100 * time.Millisecond
