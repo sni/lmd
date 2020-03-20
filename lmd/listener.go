@@ -15,8 +15,11 @@ import (
 )
 
 const (
-	// LogRequestExtraTimeout sets the extra timeout while handling log requests
-	LogRequestExtraTimeout = 1 * time.Minute
+	// RequestTimeout sets the timeout for requests (except logs table)
+	RequestTimeout = 1 * time.Minute
+
+	// RequestTimeoutLogs sets the extra timeout while handling log requests
+	RequestTimeoutLogs = 2 * time.Minute
 
 	// HTTPServerRequestTimeout sets the read/write timeout for the HTTP Server
 	HTTPServerRequestTimeout = 5 * time.Second
@@ -26,9 +29,6 @@ const (
 
 	// KeepAliveWaitInterval sets the interval at which the listeners checks for new requests in keepalive connections
 	KeepAliveWaitInterval = 100 * time.Millisecond
-
-	// WaitTimeoutExtraMillis sets the extra number of milliseconds to add when waiting for WaitTimeout queries
-	WaitTimeoutExtraMillis = 1000
 
 	// PeerCommandTimeout sets the timeout when waiting for peers to process commands
 	PeerCommandTimeout = 9500 * time.Millisecond
@@ -136,11 +136,11 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string, conf *Config) (
 				return
 			}
 
-			if req.WaitTrigger != "" {
-				c.SetDeadline(time.Now().Add(time.Duration(req.WaitTimeout+WaitTimeoutExtraMillis) * time.Millisecond))
-			}
-			if req.Table == TableLog {
-				c.SetDeadline(time.Now().Add(LogRequestExtraTimeout))
+			switch req.Table {
+			case TableLog:
+				c.SetDeadline(time.Now().Add(RequestTimeoutLogs))
+			default:
+				c.SetDeadline(time.Now().Add(RequestTimeout))
 			}
 			var response *Response
 			response, err = req.GetResponse()
