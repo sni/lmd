@@ -24,6 +24,6 @@ require (
 	github.com/sasha-s/go-deadlock v0.2.0
 	github.com/stretchr/testify v1.5.1 // indirect
 	golang.org/x/sys v0.0.0-20200223170610-d5e6a3e2c0ae // indirect
-	golang.org/x/tools v0.0.0-20200313205530-4303120df7d8
+	golang.org/x/tools v0.0.0-20200319210407-521f4a0cd458
 	gopkg.in/yaml.v2 v2.2.8 // indirect
 )
