@@ -8,7 +8,8 @@ Listen          = ["127.0.0.1:3333", "/tmp/lmd.sock", "http://*:8080", "https://
 # A bare ip address may be provided if the port is the same on all nodes.
 #Nodes           = ["10.0.0.1", "http://10.0.0.2:8080"]
 
-# Timeout for incoming client requests on `Listen` threads
+# Timeout for incoming client requests on `Listen` threads.
+# Also the maximum request duration.
 ListenTimeout = 60
 
 # TLS certificate settings for https and tls listeners

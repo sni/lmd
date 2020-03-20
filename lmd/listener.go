@@ -15,17 +15,11 @@ import (
 )
 
 const (
-	// RequestTimeout sets the timeout for requests (except logs table)
-	RequestTimeout = 1 * time.Minute
-
-	// RequestTimeoutLogs sets the extra timeout while handling log requests
-	RequestTimeoutLogs = 2 * time.Minute
-
 	// HTTPServerRequestTimeout sets the read/write timeout for the HTTP Server
-	HTTPServerRequestTimeout = 5 * time.Second
+	HTTPServerRequestTimeout = 30 * time.Second
 
 	// RequestReadTimeout sets the read timeout when listening to incoming requests
-	RequestReadTimeout = 60 * time.Second
+	RequestReadTimeout = 2 * time.Minute
 
 	// KeepAliveWaitInterval sets the interval at which the listeners checks for new requests in keepalive connections
 	KeepAliveWaitInterval = 100 * time.Millisecond
@@ -136,12 +130,7 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string, conf *Config) (
 				return
 			}
 
-			switch req.Table {
-			case TableLog:
-				c.SetDeadline(time.Now().Add(RequestTimeoutLogs))
-			default:
-				c.SetDeadline(time.Now().Add(RequestTimeout))
-			}
+			c.SetDeadline(time.Now().Add(time.Duration(conf.ListenTimeout) * time.Second))
 			var response *Response
 			response, err = req.GetResponse()
 			if err != nil {
@@ -391,8 +380,12 @@ func handleConnection(c net.Conn, localConfig *Config) {
 		ch <- QueryServer(c, localConfig)
 	}()
 	select {
-	case <-ch:
-	// request finishes normally
+	case err := <-ch:
+		if err != nil {
+			localAddr := c.LocalAddr().String()
+			remote := c.RemoteAddr().String()
+			log.Debugf("client request from %s to %s failed with client error: %s", remote, localAddr, err.Error())
+		}
 	case <-time.After(time.Duration(localConfig.ListenTimeout) * time.Second):
 		localAddr := c.LocalAddr().String()
 		remote := c.RemoteAddr().String()
