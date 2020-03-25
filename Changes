@@ -1,5 +1,10 @@
 This file documents the revision history for the Livestatus Multitool Daemon
 
+next:
+          - improve reload detection with icinga2
+          - improve connection timeout handling
+          - improve backend error messages
+
 1.8.2    Tue Mar 10 10:11:50 CET 2020
           - improve synchronization when cascading LMDs by filtering by lmd_last_cache_update
           - improve regex matching performance
