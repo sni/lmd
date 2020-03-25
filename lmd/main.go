@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -758,17 +757,6 @@ func PeerMapRemove(peerID string) {
 		}
 	}
 	delete(PeerMap, peerID)
-}
-
-// VersionNumeric converts a string version to a float number
-func VersionNumeric(input string) (numeric float64) {
-	pow := float64(0)
-	for _, num := range strings.Split(input, ".") {
-		f, _ := strconv.ParseFloat(num, 64)
-		numeric += f * math.Pow(10, pow)
-		pow -= 3
-	}
-	return numeric
 }
 
 // completePeerHTTPAddr returns autocompleted address for peer
