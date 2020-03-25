@@ -1393,16 +1393,19 @@ func (p *Peer) getHTTPQueryResponse(req *Request, query string, peerAddr string)
 		return nil, err
 	}
 	if req.ResponseFixed16 {
-		expSize, err := p.parseResponseHeader(&res)
+		code, expSize, err := p.parseResponseHeader(&res)
 		if err != nil {
 			log.Debugf("[%s] LastQuery:", p.Name)
 			log.Debugf("[%s] %s", p.Name, req.String())
 			return nil, err
 		}
 		res = res[16:]
-		if int64(len(res)) != expSize {
-			err = fmt.Errorf("[%s] bad response size, expected %d, got %d", p.Name, expSize, len(res))
-			return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: &res}
+
+		err = p.validateResponseHeader(&res, req, code, expSize)
+		if err != nil {
+			log.Debugf("[%s] LastQuery:", p.Name)
+			log.Debugf("[%s] %s", p.Name, req.String())
+			return nil, err
 		}
 	}
 	return &res, nil
@@ -1467,7 +1470,7 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) (*[]byte
 		resBytes = bytes.TrimSpace(header.Bytes())
 		return nil, &PeerError{msg: fmt.Sprintf("%s", resBytes), kind: ConnectionError}
 	}
-	expSize, err := p.parseResponseHeader(&resBytes)
+	code, expSize, err := p.parseResponseHeader(&resBytes)
 	if err != nil {
 		log.Debugf("[%s] LastQuery:", p.Name)
 		log.Debugf("[%s] %s", p.Name, req.String())
@@ -1481,11 +1484,13 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) (*[]byte
 	if !req.KeepAlive {
 		conn.Close()
 	}
+
 	res := body.Bytes()
-	resSize := int64(len(res))
-	if expSize != resSize {
-		err = fmt.Errorf("[%s] bad response size, expected %d, got %d", p.Name, expSize, resSize)
-		return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: &res}
+	err = p.validateResponseHeader(&res, req, code, expSize)
+	if err != nil {
+		log.Debugf("[%s] LastQuery:", p.Name)
+		log.Debugf("[%s] %s", p.Name, req.String())
+		return nil, err
 	}
 	return &res, nil
 }
@@ -1515,9 +1520,9 @@ func (p *Peer) QueryString(str string) (*ResultSet, *ResultMetaData, error) {
 	return p.Query(req)
 }
 
-// parseResponseHeader verifies the return code and content length of livestatus answer.
-// It returns the body size or an error if something is wrong with the header.
-func (p *Peer) parseResponseHeader(resBytes *[]byte) (expSize int64, err error) {
+// parseResponseHeader parses the return code and content length from the first line of livestatus answer.
+// It returns the body size or an error if parsing fails.
+func (p *Peer) parseResponseHeader(resBytes *[]byte) (code int, expSize int64, err error) {
 	resSize := len(*resBytes)
 	if resSize == 0 {
 		err = fmt.Errorf("[%s] empty response, got 0 bytes", p.Name)
@@ -1536,12 +1541,37 @@ func (p *Peer) parseResponseHeader(resBytes *[]byte) (expSize int64, err error) 
 		err = fmt.Errorf("[%s] incorrect response header: '%s'", p.Name, string((*resBytes)))
 		return
 	}
-	resCode, _ := strconv.Atoi(matched[1])
-	expSize, _ = strconv.ParseInt(matched[2], 10, 64)
-
-	if resCode != 200 {
-		err = fmt.Errorf("[%s] bad response: %s", p.Name, string(*resBytes))
+	code, err = strconv.Atoi(matched[1])
+	if err != nil {
+		err = fmt.Errorf("[%s] header parse error - %s: %s", p.Name, err.Error(), string(*resBytes))
 		return
+	}
+	expSize, err = strconv.ParseInt(matched[2], 10, 64)
+	if err != nil {
+		err = fmt.Errorf("[%s] header parse error - %s: %s", p.Name, err.Error(), string(*resBytes))
+		return
+	}
+
+	return
+}
+
+// validateResponseHeader checks if the response header returned a valid size and return code
+func (p *Peer) validateResponseHeader(resBytes *[]byte, req *Request, code int, expSize int64) (err error) {
+	switch code {
+	case 200:
+		// everything fine
+	default:
+		if expSize > 0 && expSize < 200 && int64(len(*resBytes)) == expSize {
+			err = fmt.Errorf("[%s] bad response code: %d - %s", p.Name, code, string(*resBytes))
+		} else {
+			err = fmt.Errorf("[%s] bad response code: %d", p.Name, code)
+			err = &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes}
+		}
+		return
+	}
+	if int64(len(*resBytes)) != expSize {
+		err = fmt.Errorf("[%s] bad response size, expected %d, got %d", p.Name, expSize, len(*resBytes))
+		return &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes}
 	}
 	return
 }
