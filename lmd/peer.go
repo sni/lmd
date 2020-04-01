@@ -1762,6 +1762,11 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 		return
 	}
 
+	// icinga2 returns hosts and services in random order but we assume ordered results later
+	if p.HasFlag(Icinga2) {
+		res = res.SortByPrimaryKey(table, req)
+	}
+
 	now := time.Now().Unix()
 	err = store.InsertData(res, columns)
 	if err != nil {
@@ -2004,6 +2009,12 @@ func (p *Peer) UpdateFullTable(tableName TableName) (restartRequired bool, err e
 	if err != nil {
 		return
 	}
+
+	// icinga2 returns hosts and services in random order but we assume ordered results later
+	if p.HasFlag(Icinga2) {
+		res = res.SortByPrimaryKey(store.Table, req)
+	}
+
 	p.DataLock.RLock()
 	data := store.Data
 	p.DataLock.RUnlock()
