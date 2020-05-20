@@ -72,6 +72,7 @@ issues:
     - 'err113:'
     - 'Expect WriteFile permissions to be 0600 or less'
     - 'Top level comment should end in a period'
+    - 'data.Options.Sub.*_raw_query.*is deeply nested'
   exclude-rules:
     # Exclude some linters from running on tests files.
     - path: _test\.go
