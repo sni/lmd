@@ -68,6 +68,10 @@ issues:
     - 'Magic number: 400\D '
     - 'Magic number: 502\D '
     - 'Magic number: 1024\D '
+    - 'package should be `main_test` instead of `main`'
+    - 'err113:'
+    - 'Expect WriteFile permissions to be 0600 or less'
+    - 'Top level comment should end in a period'
   exclude-rules:
     # Exclude some linters from running on tests files.
     - path: _test\.go
