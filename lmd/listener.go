@@ -123,41 +123,42 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string, conf *Config) (
 			for _, pID := range req.BackendsMap {
 				commandsByPeer[pID] = append(commandsByPeer[pID], strings.TrimSpace(req.Command))
 			}
-		} else {
-			// send all pending commands so far
-			err = SendRemainingCommands(c, remote, &commandsByPeer)
-			if err != nil {
-				return
-			}
+			continue
+		}
 
-			c.SetDeadline(time.Now().Add(time.Duration(conf.ListenTimeout) * time.Second))
-			var response *Response
-			response, err = req.GetResponse()
-			if err != nil {
-				if netErr, ok := err.(net.Error); ok {
-					(&Response{Code: 502, Request: req, Error: netErr}).Send(c)
-					return
-				}
-				if peerErr, ok := err.(*PeerError); ok && peerErr.kind == ConnectionError {
-					(&Response{Code: 502, Request: req, Error: peerErr}).Send(c)
-					return
-				}
-				(&Response{Code: 400, Request: req, Error: err}).Send(c)
-				return
-			}
+		// send all pending commands so far
+		err = SendRemainingCommands(c, remote, &commandsByPeer)
+		if err != nil {
+			return
+		}
 
-			var size int64
-			size, err = response.Send(c)
-			duration := time.Since(t1)
-			log.Infof("incoming %s request from %s to %s finished in %s, response size: %s", req.Table.String(), remote, c.LocalAddr().String(), duration.String(), ByteCountBinary(size))
-			if duration > time.Duration(conf.LogSlowQueryThreshold)*time.Second {
-				log.Warnf("slow query finished after %s, response size: %s\n%s", duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
-			} else if size > int64(conf.LogHugeQueryThreshold*1024*1024) {
-				log.Warnf("huge query finished after %s, response size: %s\n%s", duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
-			}
-			if err != nil || !req.KeepAlive {
+		c.SetDeadline(time.Now().Add(time.Duration(conf.ListenTimeout) * time.Second))
+		var response *Response
+		response, err = req.GetResponse()
+		if err != nil {
+			if netErr, ok := err.(net.Error); ok {
+				(&Response{Code: 502, Request: req, Error: netErr}).Send(c)
 				return
 			}
+			if peerErr, ok := err.(*PeerError); ok && peerErr.kind == ConnectionError {
+				(&Response{Code: 502, Request: req, Error: peerErr}).Send(c)
+				return
+			}
+			(&Response{Code: 400, Request: req, Error: err}).Send(c)
+			return
+		}
+
+		var size int64
+		size, err = response.Send(c)
+		duration := time.Since(t1)
+		log.Infof("incoming %s request from %s to %s finished in %s, response size: %s", req.Table.String(), remote, c.LocalAddr().String(), duration.String(), ByteCountBinary(size))
+		if duration > time.Duration(conf.LogSlowQueryThreshold)*time.Second {
+			log.Warnf("slow query finished after %s, response size: %s\n%s", duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
+		} else if size > int64(conf.LogHugeQueryThreshold*1024*1024) {
+			log.Warnf("huge query finished after %s, response size: %s\n%s", duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
+		}
+		if err != nil || !req.KeepAlive {
+			return
 		}
 	}
 
