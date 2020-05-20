@@ -26,22 +26,23 @@ func (raw *RawResultSet) PostProcessing(res *Response) {
 	// offset outside
 	if res.Request.Offset > raw.Total {
 		raw.DataResult = make([]*DataRow, 0)
-	} else {
-		// sort our result
-		if len(res.Request.Sort) > 0 {
-			// skip sorting if there is only one backend requested and we want the default sort order
-			if len(res.Request.BackendsMap) >= 1 || !res.Request.IsDefaultSortOrder() {
-				t1 := time.Now()
-				sort.Sort(raw)
-				duration := time.Since(t1)
-				log.Debugf("sorting result took %s", duration.String())
-			}
-		}
+		return
+	}
 
-		// apply request offset
-		if res.Request.Offset > 0 {
-			raw.DataResult = raw.DataResult[res.Request.Offset:]
+	// sort our result
+	if len(res.Request.Sort) > 0 {
+		// skip sorting if there is only one backend requested and we want the default sort order
+		if len(res.Request.BackendsMap) >= 1 || !res.Request.IsDefaultSortOrder() {
+			t1 := time.Now()
+			sort.Sort(raw)
+			duration := time.Since(t1)
+			log.Debugf("sorting result took %s", duration.String())
 		}
+	}
+
+	// apply request offset
+	if res.Request.Offset > 0 {
+		raw.DataResult = raw.DataResult[res.Request.Offset:]
 	}
 
 	// apply request limit
