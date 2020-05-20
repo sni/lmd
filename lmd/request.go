@@ -887,28 +887,11 @@ func (req *Request) parseResult(resBytes *[]byte) (*ResultSet, *ResultMetaData, 
 		return nil, nil, &PeerError{msg: fmt.Sprintf("response does not look like a json result: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
 	}
 	if req.OutputFormat == OutputFormatWrappedJSON {
-		dataBytes, dataType, _, jErr := jsonparser.Get(*resBytes, "columns")
-		if jErr != nil {
-			log.Debugf("column header parse error: %s", jErr.Error())
-		} else if dataType == jsonparser.Array {
-			var columns []string
-			err = json.Unmarshal(dataBytes, &columns)
-			if err != nil {
-				return nil, nil, &PeerError{msg: fmt.Sprintf("column header parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
-			}
-			meta.Columns = columns
+		dataBytes, err := req.parseWrappedJSONMeta(resBytes, meta)
+		if err != nil {
+			return nil, nil, err
 		}
-		totalCount, jErr := jsonparser.GetInt(*resBytes, "total_count")
-		if jErr != nil {
-			return nil, nil, &PeerError{msg: fmt.Sprintf("total header parse error: %s", jErr.Error()), kind: ResponseError, req: req, resBytes: resBytes}
-		}
-		meta.Total = totalCount
-
-		dataBytes, _, _, jErr = jsonparser.Get(*resBytes, "data")
-		if jErr != nil {
-			return nil, nil, &PeerError{msg: fmt.Sprintf("data header parse error: %s", jErr.Error()), kind: ResponseError, req: req, resBytes: resBytes}
-		}
-		resBytes = &dataBytes
+		resBytes = dataBytes
 	}
 	res := make(ResultSet, 0)
 	offset, jErr := jsonparser.ArrayEach(*resBytes, func(rowBytes []byte, _ jsonparser.ValueType, _ int, aErr error) {
@@ -941,6 +924,31 @@ func (req *Request) parseResult(resBytes *[]byte) (*ResultSet, *ResultMetaData, 
 	}
 
 	return &res, meta, err
+}
+
+func (req *Request) parseWrappedJSONMeta(resBytes *[]byte, meta *ResultMetaData) (*[]byte, error) {
+	dataBytes, dataType, _, jErr := jsonparser.Get(*resBytes, "columns")
+	if jErr != nil {
+		log.Debugf("column header parse error: %s", jErr.Error())
+	} else if dataType == jsonparser.Array {
+		var columns []string
+		err := json.Unmarshal(dataBytes, &columns)
+		if err != nil {
+			return nil, &PeerError{msg: fmt.Sprintf("column header parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
+		}
+		meta.Columns = columns
+	}
+	totalCount, jErr := jsonparser.GetInt(*resBytes, "total_count")
+	if jErr != nil {
+		return nil, &PeerError{msg: fmt.Sprintf("total header parse error: %s", jErr.Error()), kind: ResponseError, req: req, resBytes: resBytes}
+	}
+	meta.Total = totalCount
+
+	dataBytes, _, _, jErr = jsonparser.Get(*resBytes, "data")
+	if jErr != nil {
+		return nil, &PeerError{msg: fmt.Sprintf("data header parse error: %s", jErr.Error()), kind: ResponseError, req: req, resBytes: resBytes}
+	}
+	return &dataBytes, nil
 }
 
 // IsDefaultSortOrder returns true if the sortfields are the default for the given table.
