@@ -470,15 +470,7 @@ func createPidFile(path string) {
 		return
 	}
 	// check existing pid
-	if dat, err := ioutil.ReadFile(path); err == nil {
-		if pid, err := strconv.Atoi(strings.TrimSpace(string(dat))); err == nil {
-			if process, err := os.FindProcess(pid); err == nil {
-				if err := process.Signal(syscall.Signal(0)); err == nil {
-					fmt.Fprintf(os.Stderr, "ERROR: lmd already running: %d\n", pid)
-					os.Exit(ExitCritical)
-				}
-			}
-		}
+	if !checkPidFile(path) {
 		fmt.Fprintf(os.Stderr, "WARNING: removing stale pidfile %s\n", path)
 	}
 	err := ioutil.WriteFile(path, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0664)
@@ -486,6 +478,25 @@ func createPidFile(path string) {
 		fmt.Fprintf(os.Stderr, "ERROR: Could not write pidfile: %s\n", err.Error())
 		os.Exit(ExitCritical)
 	}
+}
+
+// checkPidFile returns false if pidfile is stale
+func checkPidFile(path string) bool {
+	dat, err := ioutil.ReadFile(path)
+	if err != nil {
+		return true
+	}
+
+	if pid, err := strconv.Atoi(strings.TrimSpace(string(dat))); err == nil {
+		if process, err := os.FindProcess(pid); err == nil {
+			if err := process.Signal(syscall.Signal(0)); err == nil {
+				fmt.Fprintf(os.Stderr, "ERROR: lmd already running: %d\n", pid)
+				os.Exit(ExitCritical)
+			}
+		}
+	}
+
+	return false
 }
 
 func deletePidFile(f string) {
