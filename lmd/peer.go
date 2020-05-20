@@ -1915,23 +1915,32 @@ func (p *Peer) fetchConfigToolFromAddr(peerAddr string) (conf map[string]interfa
 	if err != nil {
 		return
 	}
-	if len(output) >= 3 {
-		if data, ok := output[2].(map[string]interface{}); ok {
-			for k := range data {
-				if processinfo, ok2 := data[k].(map[string]interface{}); ok2 {
-					if c, ok2 := processinfo["configtool"]; ok2 {
-						if v, ok3 := c.(map[string]interface{}); ok3 {
-							conf = v
-							return
-						}
-					}
+	conf, ok := extractConfigToolResult(output)
+	if !ok {
+		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %v", result), kind: ResponseError}
+		return
+	}
+	return
+}
+
+func extractConfigToolResult(output []interface{}) (map[string]interface{}, bool) {
+	if len(output) < 3 {
+		return nil, false
+	}
+	data, ok := output[2].(map[string]interface{})
+	if !ok {
+		return nil, false
+	}
+	for k := range data {
+		if processinfo, ok2 := data[k].(map[string]interface{}); ok2 {
+			if c, ok2 := processinfo["configtool"]; ok2 {
+				if v, ok3 := c.(map[string]interface{}); ok3 {
+					return v, true
 				}
 			}
 		}
-	} else {
-		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %v", result), kind: ResponseError}
 	}
-	return
+	return nil, false
 }
 
 func (p *Peer) fetchRemotePeers() (sites []interface{}, err error) {
