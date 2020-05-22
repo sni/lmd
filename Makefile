@@ -12,7 +12,7 @@ MINGOVERSIONSTR:=1.14
 
 .PHONY: vendor
 
-all: fmt build
+all: vendor fmt build
 
 tools: versioncheck vendor dump
 	go mod download
@@ -21,12 +21,19 @@ tools: versioncheck vendor dump
 	done
 	go mod tidy
 
-updatedeps: versioncheck clean
+updatedeps: versioncheck
+	$(MAKE) clean
 	go list -u -m all
+	go mod download
+	set -e; for DEP in $(shell grep _ buildtools/tools.go | awk '{ print $$2 }'); do \
+		go get -u $$DEP; \
+	done
 	go mod tidy
 
 vendor:
+	go mod download
 	go mod vendor
+	go mod tidy
 
 dump:
 	if [ $(shell grep -rc Dump $(LAMPDDIR)/*.go | grep -v :0 | grep -v $(LAMPDDIR)/dump.go | wc -l) -ne 0 ]; then \
@@ -125,7 +132,6 @@ fmt: generate tools
 	cd $(LAMPDDIR) && gofmt -w -s .
 
 generate: tools
-	go get -u golang.org/x/tools/cmd/stringer
 	cd $(LAMPDDIR) && go generate
 
 versioncheck:
