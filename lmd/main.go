@@ -453,6 +453,7 @@ func checkFlags() {
 			os.Exit(ExitCritical)
 		}
 		runtime.SetBlockProfileRate(BlockProfileRateInterval)
+		runtime.SetMutexProfileFraction(BlockProfileRateInterval)
 		go func() {
 			// make sure we log panics properly
 			defer logPanicExit()
