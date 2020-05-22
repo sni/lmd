@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"runtime"
 	"runtime/debug"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
@@ -181,6 +182,10 @@ var flagLogFile string
 var flagPidfile string
 var flagProfile string
 var flagDeadlock int
+var flagCPUProfile string
+var flagMemProfile string
+
+var cpuProfileHandler *os.File
 
 var once sync.Once
 var mainSignalChannel chan os.Signal
@@ -212,6 +217,8 @@ func setFlags() {
 	flag.BoolVar(&flagTraceVerbose, "vvv", false, "enable trace output")
 	flag.BoolVar(&flagVersion, "version", false, "print version and exit")
 	flag.StringVar(&flagProfile, "debug-profiler", "", "start pprof profiler on this port, ex. :6060")
+	flag.StringVar(&flagCPUProfile, "cpuprofile", "", "write cpu profile to `file`")
+	flag.StringVar(&flagMemProfile, "memprofile", "", "write memory profile to `file`")
 	flag.IntVar(&flagDeadlock, "debug-deadlock", 0, "enable deadlock detection with given timeout")
 }
 
@@ -264,6 +271,7 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 
 	osSignalUsrChannel := make(chan os.Signal, 1)
 	signal.Notify(osSignalUsrChannel, syscall.SIGUSR1)
+	signal.Notify(osSignalUsrChannel, syscall.SIGUSR2)
 
 	lastMainRestart = time.Now().Unix()
 	shutdownChannel := make(chan bool)
@@ -440,12 +448,29 @@ func checkFlags() {
 	}
 
 	if flagProfile != "" {
+		if flagCPUProfile != "" || flagMemProfile != "" {
+			fmt.Print("ERROR: either use -debug-profile or -cpu/memprofile, not both\n")
+			os.Exit(ExitCritical)
+		}
 		runtime.SetBlockProfileRate(BlockProfileRateInterval)
 		go func() {
 			// make sure we log panics properly
 			defer logPanicExit()
 			http.ListenAndServe(flagProfile, http.DefaultServeMux)
 		}()
+	}
+
+	if flagCPUProfile != "" {
+		runtime.SetBlockProfileRate(BlockProfileRateInterval)
+		cpuProfileHandler, err := os.Create(flagCPUProfile)
+		if err != nil {
+			fmt.Printf("ERROR: could not create CPU profile: %s", err.Error())
+			os.Exit(ExitCritical)
+		}
+		if err := pprof.StartCPUProfile(cpuProfileHandler); err != nil {
+			fmt.Printf("ERROR: could not start CPU profile: %s", err.Error())
+			os.Exit(ExitCritical)
+		}
 	}
 
 	if flagDeadlock <= 0 {
@@ -502,6 +527,15 @@ func checkPidFile(path string) bool {
 func deletePidFile(f string) {
 	if f != "" {
 		os.Remove(f)
+	}
+}
+
+func onExit() {
+	deletePidFile(flagPidfile)
+	if flagCPUProfile != "" {
+		pprof.StopCPUProfile()
+		cpuProfileHandler.Close()
+		log.Warnf("cpu profile written to: %s", flagCPUProfile)
 	}
 }
 
@@ -566,7 +600,7 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		}
 		waitGroupListener.Wait()
 		waitGroupPeers.Wait()
-		deletePidFile(flagPidfile)
+		onExit()
 		return (0)
 	case syscall.SIGINT:
 		fallthrough
@@ -579,7 +613,7 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		}
 		// wait one second which should be enough for the listeners
 		waitTimeout(waitGroupListener, time.Second)
-		deletePidFile(flagPidfile)
+		onExit()
 		return (1)
 	case syscall.SIGHUP:
 		log.Infof("got sighup, reloading configuration...")
@@ -590,6 +624,22 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 	case syscall.SIGUSR1:
 		log.Errorf("requested thread dump via signal %s", sig)
 		logThreaddump()
+		return (0)
+	case syscall.SIGUSR2:
+		if flagMemProfile == "" {
+			log.Errorf("requested memory profile, but flag -memprofile missing")
+			return (0)
+		}
+		f, err := os.Create(flagMemProfile)
+		if err != nil {
+			log.Errorf("could not create memory profile: %s", err.Error())
+		}
+		defer f.Close()
+		runtime.GC()
+		if err := pprof.WriteHeapProfile(f); err != nil {
+			log.Errorf("could not write memory profile: %s", err.Error())
+		}
+		log.Warnf("memory profile written to: %s", flagMemProfile)
 		return (0)
 	default:
 		log.Warnf("Signal not handled: %v", sig)
