@@ -14,14 +14,14 @@ MINGOVERSIONSTR:=1.14
 
 all: fmt build
 
-tools: versioncheck dump
+tools: versioncheck vendor dump
 	go mod download
 	set -e; for DEP in $(shell grep _ buildtools/tools.go | awk '{ print $$2 }'); do \
 		go get $$DEP; \
 	done
 	go mod tidy
 
-updatedeps: versioncheck
+updatedeps: versioncheck clean
 	go list -u -m all
 	go mod tidy
 
@@ -36,26 +36,26 @@ dump:
 	fi
 	rm -f $(LAMPDDIR)/dump.go.bak
 
-build: dump
+build: dump vendor
 	cd $(LAMPDDIR) && go build -ldflags "-s -w -X main.Build=$(shell git rev-parse --short HEAD)"
 
-build-linux-amd64: dump
+build-linux-amd64: dump vendor
 	cd $(LAMPDDIR) && GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.Build=$(shell git rev-parse --short HEAD)" -o lmd.linux.amd64
 
-debugbuild: fmt
+debugbuild: fmt vendor
 	cd $(LAMPDDIR) && go build -race -ldflags "-X main.Build=$(shell git rev-parse --short HEAD)"
 
-test: fmt dump
+test: fmt dump vendor
 	cd $(LAMPDDIR) && go test -short -v | ../t/test_counter.sh
 	rm -f lmd/mock*.sock
 	if grep -rn TODO: lmd/; then exit 1; fi
 	if grep -rn Dump lmd/*.go | grep -v dump.go; then exit 1; fi
 
-longtest: fmt dump
+longtest: fmt dump vendor
 	cd $(LAMPDDIR) && go test -v | ../t/test_counter.sh
 	rm -f lmd/mock*.sock
 
-citest:
+citest: vendor
 	rm -f lmd/mock*.sock
 	#
 	# Checking gofmt errors
