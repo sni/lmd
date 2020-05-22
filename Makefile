@@ -10,15 +10,14 @@ GOVERSION:=$(shell \
 MINGOVERSION:=00010014
 MINGOVERSIONSTR:=1.14
 
-.PHONY: vendor
-
-all: vendor fmt build
+all: build
 
 tools: versioncheck vendor dump
 	go mod download
 	set -e; for DEP in $(shell grep _ buildtools/tools.go | awk '{ print $$2 }'); do \
 		go get $$DEP; \
 	done
+	go mod vendor
 	go mod tidy
 
 updatedeps: versioncheck
@@ -43,14 +42,16 @@ dump:
 	fi
 	rm -f $(LAMPDDIR)/dump.go.bak
 
-build: dump vendor
+build: vendor
 	cd $(LAMPDDIR) && go build -ldflags "-s -w -X main.Build=$(shell git rev-parse --short HEAD)"
 
-build-linux-amd64: dump vendor
+build-linux-amd64: vendor
 	cd $(LAMPDDIR) && GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.Build=$(shell git rev-parse --short HEAD)" -o lmd.linux.amd64
 
-debugbuild: fmt vendor
+debugbuild: fmt dump vendor
 	cd $(LAMPDDIR) && go build -race -ldflags "-X main.Build=$(shell git rev-parse --short HEAD)"
+
+devbuild: debugbuild
 
 test: fmt dump vendor
 	cd $(LAMPDDIR) && go test -short -v | ../t/test_counter.sh
