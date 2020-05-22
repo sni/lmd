@@ -369,27 +369,28 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 	idling := p.updateIdleStatus()
 	now := time.Now().Unix()
 	currentMinute, _ := strconv.Atoi(time.Now().Format("4"))
+
+	// update timeperiods every full minute except when idling
+	if *ok && !idling && *lastTimeperiodUpdateMinute != currentMinute && lastStatus != PeerStatusBroken {
+		log.Debugf("[%s] updating timeperiods and host/servicegroup statistics", p.Name)
+		p.UpdateFullTable(TableTimeperiods)
+		p.UpdateFullTable(TableHostgroups)
+		p.UpdateFullTable(TableServicegroups)
+		*lastTimeperiodUpdateMinute = currentMinute
+
+		if p.HasFlag(Icinga2) {
+			*ok = p.reloadIfNumberOfObjectsChanged()
+		}
+	}
+
+	nextUpdate := int64(0)
 	if idling {
-		if now < lastUpdate+p.LocalConfig.IdleInterval {
-			return
-		}
+		nextUpdate = lastUpdate + p.LocalConfig.IdleInterval
 	} else {
-		// update timeperiods every full minute except when idling
-		if *ok && *lastTimeperiodUpdateMinute != currentMinute && lastStatus != PeerStatusBroken {
-			log.Debugf("[%s] updating timeperiods and host/servicegroup statistics", p.Name)
-			p.UpdateFullTable(TableTimeperiods)
-			p.UpdateFullTable(TableHostgroups)
-			p.UpdateFullTable(TableServicegroups)
-			*lastTimeperiodUpdateMinute = currentMinute
-
-			if p.HasFlag(Icinga2) {
-				*ok = p.reloadIfNumberOfObjectsChanged()
-			}
-		}
-
-		if now < lastUpdate+p.LocalConfig.Updateinterval {
-			return
-		}
+		nextUpdate = lastUpdate + p.LocalConfig.Updateinterval
+	}
+	if now < nextUpdate {
+		return
 	}
 
 	// set last update timestamp, otherwise we would retry the connection every 500ms instead
