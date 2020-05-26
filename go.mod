@@ -10,7 +10,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/golang/protobuf v1.3.4 // indirect
 	github.com/golangci/golangci-lint v1.27.0
-	github.com/jmhodges/copyfighter v0.0.0-20160722063546-be73a1066def
 	github.com/json-iterator/go v1.1.9
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/kdar/factorlog v0.0.0-20140929220826-d5b6afb8b4fe
@@ -21,7 +20,8 @@ require (
 	github.com/prometheus/client_golang v1.4.1
 	github.com/prometheus/procfs v0.0.10 // indirect
 	github.com/sasha-s/go-deadlock v0.2.0
+	github.com/sni/copyfighter v0.0.0-20200526203728-2c11bc793600
 	github.com/stretchr/objx v0.2.0 // indirect
 	golang.org/x/sys v0.0.0-20200223170610-d5e6a3e2c0ae // indirect
-	golang.org/x/tools v0.0.0-20200521211927-2b542361a4fc
+	golang.org/x/tools v0.0.0-20200526202639-5c6ccfdb40a2
 )

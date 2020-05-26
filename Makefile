@@ -148,7 +148,7 @@ copyfighter: tools
 	# Check if there are values better passed as pointer
 	# See https://github.com/jmhodges/copyfighter
 	#
-	#cd $(LAMPDDIR) && copyfighter .
+	cd $(LAMPDDIR) && copyfighter .
 
 golangci: tools
 	#
