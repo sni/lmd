@@ -369,6 +369,25 @@ func BenchmarkRequestParser2(b *testing.B) {
 	}
 }
 
+func BenchmarkServicesearchLimit_1k_svc_10Peer(b *testing.B) {
+	b.StopTimer()
+	peer := StartTestPeer(10, 10, 100)
+	PauseTestPeers(peer)
+
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		_, _, err := peer.QueryString(serviceSearchQuery)
+		if err != nil {
+			panic(err.Error())
+		}
+	}
+	b.StopTimer()
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
 // Test queries
 var tacPageStatsQuery = `GET services
 Stats: description !=
@@ -537,3 +556,62 @@ Columns: accept_passive_checks acknowledged action_url action_url_expanded activ
 Limit: 100
 OutputFormat: json
 ResponseHeader: fixed16`
+
+var serviceSearchQuery = `GET services
+ResponseHeader: fixed16
+OutputFormat: json
+Columns: host_has_been_checked host_name host_state host_scheduled_downtime_depth host_acknowledged has_been_checked state scheduled_downtime_depth acknowledged peer_key
+Filter: host_name !~~ abc
+Filter: host_alias !~~ abc
+Filter: host_address !~~ abc
+Filter: host_display_name !~~ abc
+And: 4
+Filter: host_groups !>= some-hostgroup
+Filter: description !~~ cde
+Filter: display_name !~~ cde
+And: 2
+Filter: description !~~ cde
+Filter: display_name !~~ cde
+And: 2
+Filter: description !~~ xyz
+Filter: display_name !~~ xyz
+And: 2
+Filter: host_name !~~ ab
+Filter: host_alias !~~ ab
+Filter: host_address !~~ ti
+Filter: host_display_name !~~ ab
+And: 4
+Filter: description != some service
+Filter: display_name != some service
+And: 2
+Filter: description != some other service
+Filter: display_name != some other service
+And: 2
+And: 8
+Filter: host_name ~~ 123
+Filter: host_alias ~~ 123
+Filter: host_address ~~ 123
+Filter: host_display_name ~~ 123
+Or: 4
+Filter: host_name ~~ 234
+Filter: host_alias ~~ 234
+Filter: host_address ~~ 234
+Filter: host_display_name ~~ 234
+Or: 4
+Filter: host_name ~~ 345
+Filter: host_alias ~~ 345
+Filter: host_address ~~ 345
+Filter: host_display_name ~~ 345
+Or: 4
+Filter: host_name ~~ 456
+Filter: host_alias ~~ 456
+Filter: host_address ~~ 456
+Filter: host_display_name ~~ 456
+Or: 4
+Filter: host_name !~~ not
+Filter: host_alias !~~ not
+Filter: host_address !~~ not
+Filter: host_display_name !~~ not
+And: 4
+Or: 6
+`
