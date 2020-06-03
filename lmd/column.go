@@ -69,6 +69,10 @@ type ServiceMember [2]string
 //go:generate stringer -type=FetchType
 type FetchType uint8
 
+// placeholder to return in GetEmptyValue, no need to create empty lists over and over
+var emptyList = make([]interface{}, 0)
+var emptyHash = make(map[string]string)
+
 const (
 	// Static is used for all columns which are updated once at start.
 	Static FetchType = iota + 1
@@ -216,17 +220,18 @@ func (f *OptionalFlags) Clear() {
 
 // Column is the definition of a single column within a DataRow.
 type Column struct {
-	noCopy      noCopy
-	Name        string              // name and primary key
-	Description string              // human description
-	DataType    DataType            // Type of this column
-	FetchType   FetchType           // flag wether this columns needs to be updated
-	StorageType StorageType         // flag how this column is stored
-	Optional    OptionalFlags       // flags if this column is used for certain backends only
-	Index       int                 // position in the DataRow data* fields
-	RefCol      *Column             // reference to column in other table, ex.: host_alias
-	Table       *Table              // reference to the table holding this column
-	VirtMap     *VirtColumnMapEntry // reference to resolver for virtual columns
+	noCopy          noCopy
+	Name            string              // name and primary key
+	Description     string              // human description
+	DataType        DataType            // Type of this column
+	FetchType       FetchType           // flag wether this columns needs to be updated
+	StorageType     StorageType         // flag how this column is stored
+	Optional        OptionalFlags       // flags if this column is used for certain backends only
+	Index           int                 // position in the DataRow data* fields
+	RefCol          *Column             // reference to column in other table, ex.: host_alias
+	RefColTableName TableName           // shortcut to Column.RefCol.Table.Name
+	Table           *Table              // reference to the table holding this column
+	VirtMap         *VirtColumnMapEntry // reference to resolver for virtual columns
 }
 
 // NewColumn adds a column object.
@@ -250,8 +255,11 @@ func NewColumn(table *Table, name string, storage StorageType, update FetchType,
 			log.Panicf("missing VirtMap for %s in %s", col.Name, table.Name)
 		}
 	}
-	if col.StorageType == RefStore && col.RefCol == nil {
-		log.Panicf("missing RefCol for %s in %s", col.Name, table.Name)
+	if col.StorageType == RefStore {
+		if col.RefCol == nil {
+			log.Panicf("missing RefCol for %s in %s", col.Name, table.Name)
+		}
+		col.RefColTableName = refCol.Table.Name
 	}
 	if table.ColumnsIndex == nil {
 		table.ColumnsIndex = make(map[string]*Column)
@@ -273,9 +281,9 @@ func (c *Column) GetEmptyValue() interface{} {
 	case IntCol, Int64Col, FloatCol:
 		return -1
 	case Int64ListCol, StringListCol, ServiceMemberListCol, InterfaceListCol:
-		return (make([]interface{}, 0))
+		return emptyList
 	case HashMapCol, CustomVarCol:
-		return (make(map[string]string))
+		return emptyHash
 	default:
 		log.Panicf("type %s not supported", c.DataType)
 	}
