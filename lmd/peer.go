@@ -1683,10 +1683,10 @@ func (p *Peer) setNextAddrFromErr(err error) {
 	promPeerFailedConnections.WithLabelValues(p.Name).Inc()
 
 	// both locks are required, because we might clear the datastore
-	p.DataLock.Lock()
-	defer p.DataLock.Unlock()
 	p.PeerLock.Lock()
 	defer p.PeerLock.Unlock()
+	p.DataLock.Lock()
+	defer p.DataLock.Unlock()
 
 	peerAddr := p.Status["PeerAddr"].(string)
 	log.Debugf("[%s] connection error %s: %s", p.Name, peerAddr, err)
@@ -1792,8 +1792,8 @@ func (p *Peer) checkStatusFlags() {
 		return
 	}
 	data := store.Data
+	p.DataLock.RUnlock()
 	if len(data) == 0 {
-		p.DataLock.RUnlock()
 		return
 	}
 	p.PeerLock.Lock()
@@ -1817,7 +1817,6 @@ func (p *Peer) checkStatusFlags() {
 			// force immediate update to fetch all sites
 			p.Status["LastUpdate"] = time.Now().Unix() - p.GlobalConfig.Updateinterval
 			p.PeerLock.Unlock()
-			p.DataLock.RUnlock()
 
 			ok := true
 			if p.HasFlag(LMD) {
@@ -1839,7 +1838,6 @@ func (p *Peer) checkStatusFlags() {
 		}
 	}
 	p.PeerLock.Unlock()
-	p.DataLock.RUnlock()
 }
 
 func (p *Peer) checkAvailableTables() (err error) {
@@ -2466,6 +2464,9 @@ func (p *Peer) BuildLocalResponseData(res *Response, store *DataStore, resultcol
 		}
 		store = s
 	}
+
+	p.PeerLock.RLock()
+	defer p.PeerLock.RUnlock()
 
 	if !store.Table.WorksUnlocked {
 		p.DataLock.RLock()

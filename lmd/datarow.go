@@ -401,7 +401,7 @@ func (d *DataRow) getVirtRowValue(col *Column) interface{} {
 			value, ok = d.getVirtSubLMDValue(col)
 		}
 		if !ok {
-			value = p.StatusGet(col.VirtMap.StatusKey)
+			value = p.Status[col.VirtMap.StatusKey]
 		}
 	} else {
 		value = col.VirtMap.ResolvFunc(d, col)
