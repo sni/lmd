@@ -38,6 +38,7 @@ for file in $MISSING; do
   hash=$(echo "$file" | cut -d "." -f 3)
   git checkout go.mod >/dev/null 2>&1
   git checkout $hash >/dev/null 2>&1 || { echo "changing to hash $hash failed"; exit 1; }
+  go mod vendor >/dev/null 2>&1
   printf "%02d/%02d creating benchmark: %s (%s)\n" $CUR $NUM $file "$(git show -s --format="%s" $hash)"
   go test -ldflags "-s -w -X main.Build=test" -v -bench=B\* -run=^$ . -benchmem > $FOLDER/$file
   CUR=$(( CUR + 1 ))
@@ -46,6 +47,7 @@ done
 cd $CURDIR
 git checkout go.mod >/dev/null 2>&1
 git checkout $CURBRANCH >/dev/null 2>&1
+go mod vendor >/dev/null 2>&1
 
 # cleanup none-existing tags
 cd $FOLDER
