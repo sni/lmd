@@ -611,11 +611,9 @@ func (d *DataRow) getVirtSubLMDValue(col *Column) (val interface{}, ok bool) {
 // MatchFilter returns true if the given filter matches the given datarow.
 func (d *DataRow) MatchFilter(filter *Filter) bool {
 	// recursive group filter
-	filterLength := len(filter.Filter)
-	if filterLength > 0 {
+	if len(filter.Filter) > 0 {
 		for i := range filter.Filter {
-			f := filter.Filter[i]
-			subresult := d.MatchFilter(f)
+			subresult := d.MatchFilter(filter.Filter[i])
 			switch filter.GroupOperator {
 			case And:
 				// if all conditions must match and we failed already, exit early

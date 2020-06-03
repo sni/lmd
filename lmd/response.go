@@ -463,7 +463,7 @@ func (res *Response) BuildLocalResponse(peers []*Peer) {
 	var waitChan chan bool
 	if len(res.Request.Stats) == 0 {
 		waitChan = make(chan bool)
-		resultcollector = make(chan *DataRow, 100)
+		resultcollector = make(chan *DataRow, 300)
 		go func() {
 			result := res.RawResults
 			for row := range resultcollector {
