@@ -58,28 +58,28 @@ const (
 // Peer is the object which handles collecting and updating data and connections.
 type Peer struct {
 	noCopy          noCopy
-	Name            string
-	ID              string
-	ParentID        string
-	Source          []string
-	PeerLock        *deadlock.RWMutex // must be used for Peer.Status access
-	DataLock        *deadlock.RWMutex // must be used for Peer.Table access
-	Tables          map[TableName]*DataStore
-	Status          map[string]interface{}
-	ErrorCount      int
-	ErrorLogged     bool
-	waitGroup       *sync.WaitGroup
-	shutdownChannel chan bool
-	stopChannel     chan bool
-	Config          *Connection
-	Flags           uint32
-	LocalConfig     *Config
-	lastRequest     *Request
-	lastResponse    *[]byte
-	HTTPClient      *http.Client
-	connectionCache chan net.Conn
-	CommentsCache   map[*DataRow][]int64
-	DowntimesCache  map[*DataRow][]int64
+	Name            string                   // Name of this peer, aka peer_name
+	ID              string                   // ID for this peer, aka peer_key
+	ParentID        string                   // ID of parent Peer
+	Source          []string                 // reference to all connection strings
+	PeerLock        *deadlock.RWMutex        // must be used for Peer.* access
+	DataLock        *deadlock.RWMutex        // must be used for Peer.Table access
+	Tables          map[TableName]*DataStore // the cached remote data tables
+	Status          map[string]interface{}   // map with all kind of status information
+	ErrorCount      int                      // count times this backend has failed
+	ErrorLogged     bool                     // flag wether last error has been logged already
+	waitGroup       *sync.WaitGroup          // wait group used to wait on shutdowns
+	shutdownChannel chan bool                // channel used to wait to finish shutdown
+	stopChannel     chan bool                // channel to stop this peer
+	Config          *Connection              // reference to the peer configuration from the config file
+	Flags           uint32                   // optional flags, like LMD, Icinga2, etc...
+	GlobalConfig    *Config                  // reference to global config object
+	lastRequest     *Request                 // reference to last query (used in error reports)
+	lastResponse    *[]byte                  // reference to last response
+	HTTPClient      *http.Client             // cached http client for http backends
+	connectionCache chan net.Conn            // tcp connection get stored here for reuse
+	CommentsCache   map[*DataRow][]int64     // caches hosts/services datarows to list of comments
+	DowntimesCache  map[*DataRow][]int64     // caches hosts/services datarows to list of downtimes
 }
 
 // PeerStatus contains the different states a peer can have
@@ -172,7 +172,7 @@ func (e *PeerCommandError) Error() string {
 
 // NewPeer creates a new peer object.
 // It returns the created peer.
-func NewPeer(localConfig *Config, config *Connection, waitGroup *sync.WaitGroup, shutdownChannel chan bool) *Peer {
+func NewPeer(globalConfig *Config, config *Connection, waitGroup *sync.WaitGroup, shutdownChannel chan bool) *Peer {
 	p := Peer{
 		Name:            config.Name,
 		ID:              config.ID,
@@ -186,7 +186,7 @@ func NewPeer(localConfig *Config, config *Connection, waitGroup *sync.WaitGroup,
 		PeerLock:        new(deadlock.RWMutex),
 		DataLock:        new(deadlock.RWMutex),
 		Config:          config,
-		LocalConfig:     localConfig,
+		GlobalConfig:    globalConfig,
 		connectionCache: make(chan net.Conn, ConnectionPoolCacheSize),
 		Flags:           uint32(NoFlags),
 	}
@@ -385,9 +385,9 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 
 	nextUpdate := int64(0)
 	if idling {
-		nextUpdate = lastUpdate + p.LocalConfig.IdleInterval
+		nextUpdate = lastUpdate + p.GlobalConfig.IdleInterval
 	} else {
-		nextUpdate = lastUpdate + p.LocalConfig.Updateinterval
+		nextUpdate = lastUpdate + p.GlobalConfig.Updateinterval
 	}
 	if now < nextUpdate {
 		return
@@ -418,7 +418,7 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 	}
 
 	// full update interval
-	if !idling && p.LocalConfig.FullUpdateInterval > 0 && now > lastFullUpdate+p.LocalConfig.FullUpdateInterval {
+	if !idling && p.GlobalConfig.FullUpdateInterval > 0 && now > lastFullUpdate+p.GlobalConfig.FullUpdateInterval {
 		*ok = p.UpdateFull()
 		return
 	}
@@ -434,7 +434,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 	p.PeerLock.RUnlock()
 
 	now := time.Now().Unix()
-	if !force && now < lastUpdate+p.LocalConfig.Updateinterval {
+	if !force && now < lastUpdate+p.GlobalConfig.Updateinterval {
 		return
 	}
 
@@ -473,7 +473,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 		} else {
 			log.Debugf("[%s] starting sub peer for %s, id: %s", p.Name, subName, subID)
 			c := Connection{ID: subID, Name: subName, Source: p.Source, RemoteName: subName}
-			subPeer = NewPeer(p.LocalConfig, &c, p.waitGroup, p.shutdownChannel)
+			subPeer = NewPeer(p.GlobalConfig, &c, p.waitGroup, p.shutdownChannel)
 			subPeer.ParentID = p.ID
 			subPeer.SetFlag(LMDSub)
 			subPeer.StatusSet("PeerParent", p.ID)
@@ -531,7 +531,7 @@ func (p *Peer) periodicUpdateMultiBackends(ok *bool, force bool) {
 	p.PeerLock.RUnlock()
 
 	now := time.Now().Unix()
-	if !force && now < lastUpdate+p.LocalConfig.Updateinterval {
+	if !force && now < lastUpdate+p.GlobalConfig.Updateinterval {
 		return
 	}
 
@@ -579,7 +579,7 @@ func (p *Peer) periodicUpdateMultiBackends(ok *bool, force bool) {
 				TLSSkipVerify:  p.Config.TLSSkipVerify,
 				Auth:           p.Config.Auth,
 			}
-			subPeer = NewPeer(p.LocalConfig, &c, p.waitGroup, p.shutdownChannel)
+			subPeer = NewPeer(p.GlobalConfig, &c, p.waitGroup, p.shutdownChannel)
 			subPeer.ParentID = p.ID
 			subPeer.SetFlag(HTTPSub)
 			subPeer.Status["PeerParent"] = p.ID
@@ -621,13 +621,13 @@ func (p *Peer) updateIdleStatus() bool {
 	lastQuery := p.Status["LastQuery"].(int64)
 	idling := p.Status["Idling"].(bool)
 	p.PeerLock.RUnlock()
-	if lastQuery == 0 && lastMainRestart < now-p.LocalConfig.IdleTimeout {
+	if lastQuery == 0 && lastMainRestart < now-p.GlobalConfig.IdleTimeout {
 		shouldIdle = true
-	} else if lastQuery > 0 && lastQuery < now-p.LocalConfig.IdleTimeout {
+	} else if lastQuery > 0 && lastQuery < now-p.GlobalConfig.IdleTimeout {
 		shouldIdle = true
 	}
 	if !idling && shouldIdle {
-		log.Infof("[%s] switched to idle interval, last query: %s (idle timeout: %d)", p.Name, timeOrNever(lastQuery), p.LocalConfig.IdleTimeout)
+		log.Infof("[%s] switched to idle interval, last query: %s (idle timeout: %d)", p.Name, timeOrNever(lastQuery), p.GlobalConfig.IdleTimeout)
 		p.StatusSet("Idling", true)
 		idling = true
 	}
@@ -653,7 +653,7 @@ func (p *Peer) StatusGet(key string) interface{} {
 // will performan an update.
 func (p *Peer) ScheduleImmediateUpdate() {
 	p.PeerLock.Lock()
-	p.Status["LastUpdate"] = time.Now().Unix() - p.LocalConfig.Updateinterval - 1
+	p.Status["LastUpdate"] = time.Now().Unix() - p.GlobalConfig.Updateinterval - 1
 	p.Status["LastFullServiceUpdate"] = time.Now().Unix() - MinFullScanInterval - 1
 	p.Status["LastFullHostUpdate"] = time.Now().Unix() - MinFullScanInterval - 1
 	p.PeerLock.Unlock()
@@ -876,7 +876,7 @@ func (p *Peer) UpdateDeltaHosts(filterStr string) (err error) {
 	}
 	if filterStr == "" {
 		filterStr = fmt.Sprintf("Filter: last_check >= %v\n", (p.StatusGet("LastUpdate").(int64) - UpdateAdditionalDelta))
-		if p.LocalConfig.SyncIsExecuting {
+		if p.GlobalConfig.SyncIsExecuting {
 			filterStr += "\nFilter: is_executing = 1\nOr: 2\n"
 		}
 		// no filter means regular delta update, so lets check if all last_check dates match
@@ -988,7 +988,7 @@ func (p *Peer) UpdateDeltaServices(filterStr string) (err error) {
 	}
 	if filterStr == "" {
 		filterStr = fmt.Sprintf("Filter: last_check >= %v\n", (p.StatusGet("LastUpdate").(int64) - UpdateAdditionalDelta))
-		if p.LocalConfig.SyncIsExecuting {
+		if p.GlobalConfig.SyncIsExecuting {
 			filterStr += "\nFilter: is_executing = 1\nOr: 2\n"
 		}
 		// no filter means regular delta update, so lets check if all last_check dates match
@@ -1321,7 +1321,7 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 	}
 
 	p.PeerLock.Lock()
-	if p.LocalConfig.SaveTempRequests {
+	if p.GlobalConfig.SaveTempRequests {
 		p.lastRequest = req
 		p.lastResponse = nil
 	}
@@ -1357,7 +1357,7 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 		log.Tracef("[%s] result: %s", p.Name, string(*resBytes))
 	}
 	p.PeerLock.Lock()
-	if p.LocalConfig.SaveTempRequests {
+	if p.GlobalConfig.SaveTempRequests {
 		p.lastResponse = resBytes
 	}
 	totalBytesReceived := p.Status["BytesReceived"].(int64) + int64(len(*resBytes))
@@ -1415,7 +1415,7 @@ func (p *Peer) getHTTPQueryResponse(req *Request, query string, peerAddr string)
 func (p *Peer) getSocketQueryResponse(req *Request, query string, conn net.Conn) (*[]byte, error) {
 	// tcp/unix connections
 	// set read timeout
-	err := conn.SetDeadline(time.Now().Add(time.Duration(p.LocalConfig.NetTimeout) * time.Second))
+	err := conn.SetDeadline(time.Now().Add(time.Duration(p.GlobalConfig.NetTimeout) * time.Second))
 	if err != nil {
 		return nil, err
 	}
@@ -1598,16 +1598,16 @@ func (p *Peer) GetConnection() (conn net.Conn, connType PeerConnType, err error)
 		}
 		switch connType {
 		case ConnTypeTCP:
-			conn, err = net.DialTimeout("tcp", peerAddr, time.Duration(p.LocalConfig.ConnectTimeout)*time.Second)
+			conn, err = net.DialTimeout("tcp", peerAddr, time.Duration(p.GlobalConfig.ConnectTimeout)*time.Second)
 		case ConnTypeUnix:
-			conn, err = net.DialTimeout("unix", peerAddr, time.Duration(p.LocalConfig.ConnectTimeout)*time.Second)
+			conn, err = net.DialTimeout("unix", peerAddr, time.Duration(p.GlobalConfig.ConnectTimeout)*time.Second)
 		case ConnTypeTLS:
 			tlsConfig, cErr := p.getTLSClientConfig()
 			if cErr != nil {
 				err = cErr
 			} else {
 				dialer := new(net.Dialer)
-				dialer.Timeout = time.Duration(p.LocalConfig.ConnectTimeout) * time.Second
+				dialer.Timeout = time.Duration(p.GlobalConfig.ConnectTimeout) * time.Second
 				conn, err = tls.DialWithDialer(dialer, "tcp", peerAddr, tlsConfig)
 			}
 		case ConnTypeHTTP:
@@ -1628,7 +1628,7 @@ func (p *Peer) GetConnection() (conn net.Conn, connType PeerConnType, err error)
 					err = &PeerError{msg: fmt.Sprintf("unknown scheme: %s", uri.Scheme), kind: ConnectionError}
 				}
 			}
-			conn, err = net.DialTimeout("tcp", host, time.Duration(p.LocalConfig.ConnectTimeout)*time.Second)
+			conn, err = net.DialTimeout("tcp", host, time.Duration(p.GlobalConfig.ConnectTimeout)*time.Second)
 			if conn != nil {
 				conn.Close()
 			}
@@ -1726,7 +1726,7 @@ cache:
 	now := time.Now().Unix()
 	lastOnline := p.Status["LastOnline"].(int64)
 	log.Debugf("[%s] last online: %s", p.Name, timeOrNever(lastOnline))
-	if lastOnline < now-int64(p.LocalConfig.StaleBackendTimeout) || (p.ErrorCount > numSources && lastOnline <= 0) {
+	if lastOnline < now-int64(p.GlobalConfig.StaleBackendTimeout) || (p.ErrorCount > numSources && lastOnline <= 0) {
 		if p.Status["PeerStatus"].(PeerStatus) != PeerStatusDown {
 			log.Infof("[%s] site went offline: %s", p.Name, err.Error())
 			// clear existing data from memory
@@ -1817,7 +1817,7 @@ func (p *Peer) checkStatusFlags() {
 				p.SetFlag(LMD)
 			}
 			// force immediate update to fetch all sites
-			p.Status["LastUpdate"] = time.Now().Unix() - p.LocalConfig.Updateinterval
+			p.Status["LastUpdate"] = time.Now().Unix() - p.GlobalConfig.Updateinterval
 			p.PeerLock.Unlock()
 			p.DataLock.RUnlock()
 
@@ -2279,7 +2279,7 @@ func (p *Peer) HTTPQuery(req *Request, peerAddr string, query string) (res []byt
 
 // HTTPPostQueryResult returns response array from thruk api
 func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url.Values, headers map[string]string) (result *HTTPResult, err error) {
-	p.HTTPClient.Timeout = time.Duration(p.LocalConfig.NetTimeout) * time.Second
+	p.HTTPClient.Timeout = time.Duration(p.GlobalConfig.NetTimeout) * time.Second
 	req, err := http.NewRequest("POST", peerAddr, strings.NewReader(postData.Encode()))
 	if err != nil {
 		return nil, err
@@ -2441,7 +2441,7 @@ func SpinUpPeers(peers []*Peer) {
 				log.Debugf("[%s] spin up update done", peer.Name)
 			} else {
 				// force new update sooner
-				peer.StatusSet("LastUpdate", time.Now().Unix()-peer.LocalConfig.Updateinterval)
+				peer.StatusSet("LastUpdate", time.Now().Unix()-peer.GlobalConfig.Updateinterval)
 			}
 		}(p, waitgroup)
 	}
@@ -2695,7 +2695,7 @@ func optimizeResultLimit(req *Request) (limit int) {
 }
 
 func (p *Peer) clearLastRequest(lock bool) {
-	if !p.LocalConfig.SaveTempRequests {
+	if !p.GlobalConfig.SaveTempRequests {
 		return
 	}
 	if lock {
@@ -2762,7 +2762,7 @@ func (p *Peer) getTLSClientConfig() (*tls.Config, error) {
 		config.Certificates = []tls.Certificate{cer}
 	}
 
-	if p.Config.TLSSkipVerify > 0 || p.LocalConfig.SkipSSLCheck > 0 {
+	if p.Config.TLSSkipVerify > 0 || p.GlobalConfig.SkipSSLCheck > 0 {
 		config.InsecureSkipVerify = true
 	}
 
@@ -3001,7 +3001,7 @@ func (p *Peer) GetSupportedColumns() (tables map[TableName]map[string]bool, err 
 // setQueryOptions sets common required query options
 func (p *Peer) setQueryOptions(req *Request) {
 	if req.Command == "" {
-		req.KeepAlive = p.LocalConfig.BackendKeepAlive
+		req.KeepAlive = p.GlobalConfig.BackendKeepAlive
 		req.ResponseFixed16 = true
 		req.OutputFormat = OutputFormatJSON
 	}

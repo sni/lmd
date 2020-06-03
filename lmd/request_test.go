@@ -651,7 +651,7 @@ func TestRequestColumnsWrappedJson(t *testing.T) {
 		t.Error(err)
 	}
 
-	peer.LocalConfig.SaveTempRequests = true
+	peer.GlobalConfig.SaveTempRequests = true
 	res, meta, err := peer.QueryString("GET hosts\nColumns: name state alias\nOutputFormat: wrapped_json\nColumnHeaders: on\nLimit: 5\n\n")
 	if err != nil {
 		t.Fatal(err)

@@ -34,7 +34,7 @@ type Listener struct {
 	ConnectionString string
 	shutdownChannel  chan bool
 	connection       net.Listener
-	LocalConfig      *Config
+	GlobalConfig     *Config
 	waitGroupDone    *sync.WaitGroup
 	waitGroupInit    *sync.WaitGroup
 }
@@ -44,7 +44,7 @@ func NewListener(localConfig *Config, listen string, waitGroupInit *sync.WaitGro
 	l := Listener{
 		ConnectionString: listen,
 		shutdownChannel:  shutdownChannel,
-		LocalConfig:      localConfig,
+		GlobalConfig:     localConfig,
 		waitGroupDone:    waitGroupDone,
 		waitGroupInit:    waitGroupInit,
 	}
@@ -273,7 +273,7 @@ func (l *Listener) LocalListenerLivestatus(connType string, listen string) {
 	var err error
 	var c net.Listener
 	if connType == "tls" {
-		tlsConfig, tErr := getTLSListenerConfig(l.LocalConfig)
+		tlsConfig, tErr := getTLSListenerConfig(l.GlobalConfig)
 		if tErr != nil {
 			log.Fatalf("failed to initialize tls %s", tErr.Error())
 		}
@@ -318,7 +318,7 @@ func (l *Listener) LocalListenerLivestatus(connType string, listen string) {
 			// make sure we log panics properly
 			defer logPanicExit()
 
-			handleConnection(fd, l.LocalConfig)
+			handleConnection(fd, l.GlobalConfig)
 		}()
 	}
 }
@@ -331,7 +331,7 @@ func (l *Listener) LocalListenerHTTP(httpType string, listen string) {
 	// Listener
 	var c net.Listener
 	if httpType == "https" {
-		tlsConfig, err := getTLSListenerConfig(l.LocalConfig)
+		tlsConfig, err := getTLSListenerConfig(l.GlobalConfig)
 		if err != nil {
 			log.Fatalf("failed to initialize https %s", err.Error())
 		}
