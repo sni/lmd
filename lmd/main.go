@@ -67,6 +67,9 @@ const (
 
 	// BlockProfileRateInterval sets the profiling interval when started with -profile
 	BlockProfileRateInterval = 10
+
+	// BlockProfileRateInterval sets the profiling interval when started with -profile
+	ResultChannelSpoolSize = 300
 )
 
 // https://github.com/golang/go/issues/8005#issuecomment-190753527
