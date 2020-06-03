@@ -7,6 +7,7 @@
 
 TAGLIMIT=${1:-3}
 COMMITLIMIT=${2:-5}
+FILTER=$3
 ./t/create_benchmarks.sh $TAGLIMIT $COMMITLIMIT
 
 CURFOLDER=$(pwd)
@@ -15,14 +16,17 @@ cd $BENCHMARKS
 LASTFILE=$(ls -1 bench.* | tail -n 1)
 FILES=$(echo $(ls -1 bench.*.*.v* | tail -n 3 ; ls -1 bench.*.* | tail -n 5) | sort)
 
-for bench in $(grep ^Benchmark $LASTFILE | awk '{print $1}'); do
+for bench in $(grep ^Benchmark $LASTFILE | grep alloc | awk '{print $1}'); do
+  if [ -n $FILTER ] && ! [[ $bench =~ $FILTER ]]; then
+    continue
+  fi
   echo ""
   echo "***********************************"
   echo "$bench:"
 
   nr=0
   ticks=$(
-  grep ^$bench $FILES | \
+  grep ^$bench $FILES | grep alloc | \
     while read line; do
       tag=$(echo $line | cut -d ':' -f 1 | cut -d '.' -f 4-7 | tr -d 'v')
       if [ "x$tag" = "x" ]; then
@@ -33,19 +37,19 @@ for bench in $(grep ^Benchmark $LASTFILE | awk '{print $1}'); do
     done
   )
 
-  grep ^$bench $FILES | \
+  grep ^$bench $FILES | grep alloc | \
     while read line; do
       ops=$(echo $line | awk '{print $3}')
       echo "$ops"
     done > ops.txt
 
-  grep ^$bench $FILES | \
+  grep ^$bench $FILES | grep alloc | \
     while read line; do
       bytes=$(echo $line | awk '{print $5}')
       echo "$bytes"
     done > bytes.txt
 
-  grep ^$bench $FILES | \
+  grep ^$bench $FILES | grep alloc | \
     while read line; do
       alloc=$(echo $line | awk '{print $7}')
       echo "$alloc"
