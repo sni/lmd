@@ -512,7 +512,7 @@ func VirtColComments(d *DataRow, col *Column) interface{} {
 	authorCol := commentsTable.GetColumn("author")
 	commentCol := commentsTable.GetColumn("comment")
 	res := make([]interface{}, 0)
-	comments, ok := d.DataStore.Peer.CommentsCache[d]
+	comments, ok := d.DataStore.Peer.cache.comments[d]
 	if !ok {
 		return res
 	}
@@ -539,7 +539,7 @@ func VirtColDowntimes(d *DataRow, col *Column) interface{} {
 	authorCol := downtimesTable.GetColumn("author")
 	commentCol := downtimesTable.GetColumn("comment")
 	res := make([]interface{}, 0)
-	downtimes, ok := d.DataStore.Peer.DowntimesCache[d]
+	downtimes, ok := d.DataStore.Peer.cache.downtimes[d]
 	if !ok {
 		return res
 	}

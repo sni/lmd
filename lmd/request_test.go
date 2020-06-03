@@ -657,7 +657,7 @@ func TestRequestColumnsWrappedJson(t *testing.T) {
 		t.Fatal(err)
 	}
 	var jsonTest interface{}
-	jErr := json.Unmarshal(*peer.lastResponse, &jsonTest)
+	jErr := json.Unmarshal(*peer.last.Response, &jsonTest)
 	if jErr != nil {
 		t.Fatal(jErr)
 	}
@@ -678,7 +678,7 @@ func TestRequestColumnsWrappedJson(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	jErr = json.Unmarshal(*peer.lastResponse, &jsonTest)
+	jErr = json.Unmarshal(*peer.last.Response, &jsonTest)
 	if jErr != nil {
 		t.Fatal(jErr)
 	}

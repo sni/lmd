@@ -61,6 +61,7 @@ type Peer struct {
 	Name            string                   // Name of this peer, aka peer_name
 	ID              string                   // ID for this peer, aka peer_key
 	ParentID        string                   // ID of parent Peer
+	Flags           uint32                   // optional flags, like LMD, Icinga2, etc...
 	Source          []string                 // reference to all connection strings
 	PeerLock        *deadlock.RWMutex        // must be used for Peer.* access
 	DataLock        *deadlock.RWMutex        // must be used for Peer.Table access
@@ -72,14 +73,17 @@ type Peer struct {
 	shutdownChannel chan bool                // channel used to wait to finish shutdown
 	stopChannel     chan bool                // channel to stop this peer
 	Config          *Connection              // reference to the peer configuration from the config file
-	Flags           uint32                   // optional flags, like LMD, Icinga2, etc...
 	GlobalConfig    *Config                  // reference to global config object
-	lastRequest     *Request                 // reference to last query (used in error reports)
-	lastResponse    *[]byte                  // reference to last response
-	HTTPClient      *http.Client             // cached http client for http backends
-	connectionCache chan net.Conn            // tcp connection get stored here for reuse
-	CommentsCache   map[*DataRow][]int64     // caches hosts/services datarows to list of comments
-	DowntimesCache  map[*DataRow][]int64     // caches hosts/services datarows to list of downtimes
+	last            struct {
+		Request  *Request // reference to last query (used in error reports)
+		Response *[]byte  // reference to last response
+	}
+	cache struct {
+		HTTPClient *http.Client         // cached http client for http backends
+		connection chan net.Conn        // tcp connection get stored here for reuse
+		comments   map[*DataRow][]int64 // caches hosts/services datarows to list of comments
+		downtimes  map[*DataRow][]int64 // caches hosts/services datarows to list of downtimes
+	}
 }
 
 // PeerStatus contains the different states a peer can have
@@ -179,7 +183,6 @@ func NewPeer(globalConfig *Config, config *Connection, waitGroup *sync.WaitGroup
 		Source:          config.Source,
 		Tables:          make(map[TableName]*DataStore),
 		Status:          make(map[string]interface{}),
-		ErrorCount:      0,
 		waitGroup:       waitGroup,
 		shutdownChannel: shutdownChannel,
 		stopChannel:     make(chan bool),
@@ -187,9 +190,9 @@ func NewPeer(globalConfig *Config, config *Connection, waitGroup *sync.WaitGroup
 		DataLock:        new(deadlock.RWMutex),
 		Config:          config,
 		GlobalConfig:    globalConfig,
-		connectionCache: make(chan net.Conn, ConnectionPoolCacheSize),
 		Flags:           uint32(NoFlags),
 	}
+	p.cache.connection = make(chan net.Conn, ConnectionPoolCacheSize)
 	if len(p.Source) == 0 {
 		log.Fatalf("[%s] peer requires at least one source", p.Name)
 	}
@@ -215,8 +218,6 @@ func NewPeer(globalConfig *Config, config *Connection, waitGroup *sync.WaitGroup
 	p.Status["Updating"] = false
 	p.Status["Section"] = config.Section
 	p.Status["PeerParent"] = ""
-	p.Status["LastColumns"] = []string{}
-	p.Status["LastTotalCount"] = int64(0)
 	p.Status["ThrukVersion"] = float64(-1)
 	p.Status["SubKey"] = []string{}
 	p.Status["SubName"] = []string{}
@@ -236,7 +237,7 @@ func NewPeer(globalConfig *Config, config *Connection, waitGroup *sync.WaitGroup
 		if err != nil {
 			log.Fatalf("failed to initialize peer: %s", err.Error())
 		}
-		p.HTTPClient = NewLMDHTTPClient(tlsConfig, config.Proxy)
+		p.cache.HTTPClient = NewLMDHTTPClient(tlsConfig, config.Proxy)
 	}
 
 	return &p
@@ -755,9 +756,8 @@ func (p *Peer) InitAllTables() bool {
 
 // resetErrors reset the error counter after the site has recovered
 func (p *Peer) resetErrors() {
-	now := time.Now().Unix()
 	p.Status["LastError"] = ""
-	p.Status["LastOnline"] = now
+	p.Status["LastOnline"] = time.Now().Unix()
 	p.ErrorCount = 0
 	p.ErrorLogged = false
 	p.Status["PeerStatus"] = PeerStatusUp
@@ -1304,7 +1304,7 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 		if req.KeepAlive && err != nil && connType != ConnTypeHTTP {
 			// give back connection
 			log.Tracef("[%s] put cached connection back", p.Name)
-			p.connectionCache <- conn
+			p.cache.connection <- conn
 		} else if conn != nil {
 			conn.Close()
 		}
@@ -1322,8 +1322,8 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 
 	p.PeerLock.Lock()
 	if p.GlobalConfig.SaveTempRequests {
-		p.lastRequest = req
-		p.lastResponse = nil
+		p.last.Request = req
+		p.last.Response = nil
 	}
 	p.Status["Querys"] = p.Status["Querys"].(int64) + 1
 	totalBytesSend := p.Status["BytesSend"].(int64) + int64(len(query))
@@ -1358,12 +1358,10 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 	}
 	p.PeerLock.Lock()
 	if p.GlobalConfig.SaveTempRequests {
-		p.lastResponse = resBytes
+		p.last.Response = resBytes
 	}
 	totalBytesReceived := p.Status["BytesReceived"].(int64) + int64(len(*resBytes))
 	p.Status["BytesReceived"] = totalBytesReceived
-	p.Status["LastColumns"] = []string{}
-	p.Status["LastTotalCount"] = int64(0)
 	p.PeerLock.Unlock()
 	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(totalBytesReceived))
 
@@ -1654,7 +1652,7 @@ func (p *Peer) GetConnection() (conn net.Conn, connType PeerConnType, err error)
 // GetCachedConnection returns the next free cached connection or nil of none found
 func (p *Peer) GetCachedConnection() (conn net.Conn) {
 	select {
-	case conn = <-p.connectionCache:
+	case conn = <-p.cache.connection:
 		log.Tracef("[%s] using cached connection", p.Name)
 		return
 	default:
@@ -1712,13 +1710,13 @@ func (p *Peer) setNextAddrFromErr(err error) {
 cache:
 	for {
 		select {
-		case conn := <-p.connectionCache:
+		case conn := <-p.cache.connection:
 			conn.Close()
 		default:
 			break cache
 		}
 	}
-	p.connectionCache = make(chan net.Conn, ConnectionPoolCacheSize)
+	p.cache.connection = make(chan net.Conn, ConnectionPoolCacheSize)
 
 	if p.Status["PeerStatus"].(PeerStatus) == PeerStatusUp || p.Status["PeerStatus"].(PeerStatus) == PeerStatusPending {
 		p.Status["PeerStatus"] = PeerStatusWarning
@@ -1882,7 +1880,7 @@ func (p *Peer) checkAvailableTables() (err error) {
 
 func (p *Peer) fetchConfigTool() (conf map[string]interface{}, err error) {
 	// no http client is a sure sign for no http connection
-	if p.HTTPClient == nil {
+	if p.cache.HTTPClient == nil {
 		return
 	}
 	// try all http connections and return first config tool config
@@ -1946,7 +1944,7 @@ func extractConfigToolResult(output []interface{}) (map[string]interface{}, bool
 
 func (p *Peer) fetchRemotePeers() (sites []interface{}, err error) {
 	// no http client is a sure sign for no http connection
-	if p.HTTPClient == nil {
+	if p.cache.HTTPClient == nil {
 		return
 	}
 	// we only fetch remote peers if not explicitly requested a single backend
@@ -2279,7 +2277,7 @@ func (p *Peer) HTTPQuery(req *Request, peerAddr string, query string) (res []byt
 
 // HTTPPostQueryResult returns response array from thruk api
 func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url.Values, headers map[string]string) (result *HTTPResult, err error) {
-	p.HTTPClient.Timeout = time.Duration(p.GlobalConfig.NetTimeout) * time.Second
+	p.cache.HTTPClient.Timeout = time.Duration(p.GlobalConfig.NetTimeout) * time.Second
 	req, err := http.NewRequest("POST", peerAddr, strings.NewReader(postData.Encode()))
 	if err != nil {
 		return nil, err
@@ -2288,7 +2286,7 @@ func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
-	response, err := p.HTTPClient.Do(req)
+	response, err := p.cache.HTTPClient.Do(req)
 	if err != nil {
 		return
 	}
@@ -2702,8 +2700,8 @@ func (p *Peer) clearLastRequest(lock bool) {
 		p.PeerLock.Lock()
 		defer p.PeerLock.Unlock()
 	}
-	p.lastRequest = nil
-	p.lastResponse = nil
+	p.last.Request = nil
+	p.last.Response = nil
 }
 
 func (p *Peer) reloadIfNumberOfObjectsChanged() bool {
@@ -2728,11 +2726,11 @@ func logPanicExitPeer(p *Peer) {
 		log.Errorf("[%s] Panic: %s", p.Name, r)
 		log.Errorf("[%s] Version: %s", p.Name, Version())
 		log.Errorf("[%s] %s", p.Name, debug.Stack())
-		if p.lastRequest != nil {
+		if p.last.Request != nil {
 			log.Errorf("[%s] LastQuery:", p.Name)
-			log.Errorf("[%s] %s", p.Name, p.lastRequest.String())
+			log.Errorf("[%s] %s", p.Name, p.last.Request.String())
 			log.Errorf("[%s] LastResponse:", p.Name)
-			log.Errorf("[%s] %s", p.Name, string(*(p.lastResponse)))
+			log.Errorf("[%s] %s", p.Name, string(*(p.last.Response)))
 		}
 		deletePidFile(flagPidfile)
 		os.Exit(1)
@@ -2884,7 +2882,7 @@ func (p *Peer) setFederationInfo(data map[string]interface{}, statuskey, datakey
 func (p *Peer) RebuildCommentsCache() {
 	cache := p.buildDowntimeCommentsCache(TableComments)
 	p.PeerLock.Lock()
-	p.CommentsCache = cache
+	p.cache.comments = cache
 	p.PeerLock.Unlock()
 	log.Debugf("comments cache rebuild")
 }
@@ -2893,7 +2891,7 @@ func (p *Peer) RebuildCommentsCache() {
 func (p *Peer) RebuildDowntimesCache() {
 	cache := p.buildDowntimeCommentsCache(TableDowntimes)
 	p.PeerLock.Lock()
-	p.DowntimesCache = cache
+	p.cache.downtimes = cache
 	p.PeerLock.Unlock()
 	log.Debugf("downtimes cache rebuild")
 }
