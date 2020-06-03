@@ -81,6 +81,12 @@ const (
 	RegexNoCaseMatch    // ~~
 	RegexNoCaseMatchNot // !~~
 
+	// String Matching
+	Contains          // internal only
+	ContainsNot       // internal only
+	ContainsNoCase    // internal only
+	ContainsNoCaseNot // internal only
+
 	// Numeric
 	Less        // <
 	LessThan    // <=
@@ -109,6 +115,14 @@ func (op *Operator) String() string {
 	case RegexNoCaseMatch:
 		return ("~~")
 	case RegexNoCaseMatchNot:
+		return ("!~~")
+	case Contains:
+		return ("~")
+	case ContainsNot:
+		return ("!~")
+	case ContainsNoCase:
+		return ("~~")
+	case ContainsNoCaseNot:
 		return ("!~~")
 	case Less:
 		return ("<")
@@ -248,19 +262,42 @@ func ParseFilter(value []byte, table TableName, stack *[]*Filter) (err error) {
 	}
 
 	if isRegex {
-		val := filter.StrValue
-		if op == RegexNoCaseMatchNot || op == RegexNoCaseMatch {
-			val = "(?i)" + val
-		}
-		regex, rerr := regexp.Compile(val)
-		if rerr != nil {
-			err = errors.New("invalid regular expression: " + rerr.Error())
+		err = filter.setRegexFilter()
+		if err != nil {
 			return
 		}
-		filter.Regexp = regex
 	}
 	*stack = append(*stack, filter)
 	return
+}
+
+// setFilterValue converts the text value into the given filters type value
+func (f *Filter) setRegexFilter() error {
+	val := f.StrValue
+	if !hasRegexpCharacters(val) {
+		switch f.Operator {
+		case RegexMatch:
+			f.Operator = Contains
+		case RegexMatchNot:
+			f.Operator = ContainsNot
+		case RegexNoCaseMatch:
+			f.Operator = ContainsNoCase
+			f.StrValue = strings.ToLower(val)
+		case RegexNoCaseMatchNot:
+			f.Operator = ContainsNoCaseNot
+			f.StrValue = strings.ToLower(val)
+		}
+	} else {
+		if f.Operator == RegexNoCaseMatchNot || f.Operator == RegexNoCaseMatch {
+			val = "(?i)" + val
+		}
+		regex, err := regexp.Compile(val)
+		if err != nil {
+			return errors.New("invalid regular expression: " + err.Error())
+		}
+		f.Regexp = regex
+	}
+	return nil
 }
 
 // setFilterValue converts the text value into the given filters type value
@@ -362,6 +399,18 @@ func parseFilterOp(in []byte) (op Operator, isRegex bool, err error) {
 		return
 	case "!>=":
 		op = GroupContainsNot
+		return
+	case "like":
+		op = Contains
+		return
+	case "unlike":
+		op = ContainsNot
+		return
+	case "ilike":
+		op = ContainsNoCase
+		return
+	case "iunlike":
+		op = ContainsNoCaseNot
 		return
 	}
 	err = fmt.Errorf("unrecognized filter operator: %s", in)
@@ -591,6 +640,14 @@ func (f *Filter) MatchString(value *string) bool {
 		return *value > f.StrValue
 	case GreaterThan:
 		return *value >= f.StrValue
+	case Contains:
+		return strings.Contains(*value, f.StrValue)
+	case ContainsNot:
+		return !strings.Contains(*value, f.StrValue)
+	case ContainsNoCase:
+		return strings.Contains(strings.ToLower(*value), f.StrValue)
+	case ContainsNoCaseNot:
+		return !strings.Contains(strings.ToLower(*value), f.StrValue)
 	}
 	log.Warnf("not implemented op: %v", f.Operator)
 	return false
@@ -699,4 +756,9 @@ func fixBrokenClientsRequestColumn(columnName *string, table TableName) bool {
 	}
 
 	return false
+}
+
+// hasRegexpCharacters returns true if string is a probably a regular expression
+func hasRegexpCharacters(val string) bool {
+	return (strings.ContainsAny(val, "|([{*+?"))
 }
