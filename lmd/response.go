@@ -429,12 +429,31 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 		// unprocessed result?
 		res.ResultTotal = res.RawResults.Total
 
+		// PeerLockModeFull means we have to lock all peers before creating the result
+		if len(res.RawResults.DataResult) > 0 && res.RawResults.DataResult[0].DataStore.PeerLockMode == PeerLockModeFull {
+			res.WriteDataResponseRowLocked(json)
+			return
+		}
+
 		for i := range res.RawResults.DataResult {
 			if i > 0 {
 				json.WriteRaw(",")
 			}
 			res.RawResults.DataResult[i].WriteJSON(json, &res.Request.RequestColumns)
 		}
+	}
+}
+
+// WriteDataResponseRowLocked appends each row but locks the peer befor doing so. We don't have to lock for each column then
+func (res *Response) WriteDataResponseRowLocked(json *jsoniter.Stream) {
+	for i := range res.RawResults.DataResult {
+		if i > 0 {
+			json.WriteRaw(",")
+		}
+		row := res.RawResults.DataResult[i]
+		row.DataStore.Peer.PeerLock.RLock()
+		row.WriteJSON(json, &res.Request.RequestColumns)
+		row.DataStore.Peer.PeerLock.RUnlock()
 	}
 }
 

@@ -19,6 +19,7 @@ type DataStore struct {
 	Index2                  map[string]map[string]*DataRow // access data rows from 2 primary keys, ex.: host and service
 	Table                   *Table                         // reference to table definition
 	dupStringList           map[[32]byte][]string          // lookup pointer to other stringlists during initialisation
+	PeerLockMode            PeerLockMode                   // flag wether datarow have to set PeerLock when accessing status
 }
 
 // NewDataStore creates a new datastore with columns based on given flags
@@ -31,6 +32,7 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 		DynamicColumnNamesCache: make([]string, 0),
 		dupStringList:           make(map[[32]byte][]string),
 		Table:                   table,
+		PeerLockMode:            table.PeerLockMode,
 	}
 
 	if peer != nil {

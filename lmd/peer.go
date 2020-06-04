@@ -2465,6 +2465,12 @@ func (p *Peer) BuildLocalResponseData(res *Response, store *DataStore, resultcol
 		store = s
 	}
 
+	// for some tables its faster to lock the table only once
+	if store.PeerLockMode == PeerLockModeFull {
+		p.PeerLock.RLock()
+		defer p.PeerLock.RUnlock()
+	}
+
 	if !store.Table.WorksUnlocked {
 		p.DataLock.RLock()
 		defer p.DataLock.RUnlock()

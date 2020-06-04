@@ -61,6 +61,14 @@ var TableNameMapping = map[TableName]string{
 }
 var TableNameLookup = map[string]TableName{}
 
+// TableName contains all table names
+type PeerLockMode int
+
+const (
+	PeerLockModeSimple PeerLockMode = iota // lock each peer.Status access separately
+	PeerLockModeFull                       // lock peer once before createing the result
+)
+
 // InitTableNames initializes the table name lookup map
 func InitTableNames() {
 	for t, s := range TableNameMapping {
@@ -96,7 +104,8 @@ type Table struct {
 	PrimaryKey      []string
 	RefTables       []*TableRef // referenced tables
 	Virtual         VirtStoreResolveFunc
-	DefaultSort     []string // columns used to sort if nothing is specified
+	DefaultSort     []string     // columns used to sort if nothing is specified
+	PeerLockMode    PeerLockMode // should the peer be locked once for the complete result or on each access
 }
 
 // GetColumn returns a column for given name or nil if not found
