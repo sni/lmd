@@ -401,7 +401,14 @@ func (d *DataRow) getVirtRowValue(col *Column) interface{} {
 			value, ok = d.getVirtSubLMDValue(col)
 		}
 		if !ok {
-			value = p.Status[col.VirtMap.StatusKey]
+			switch col.VirtMap.StatusKey {
+			case "PeerName":
+				value = d.DataStore.PeerName
+			case "PeerKey":
+				value = d.DataStore.PeerKey
+			default:
+				value = p.StatusGet(col.VirtMap.StatusKey)
+			}
 		}
 	} else {
 		value = col.VirtMap.ResolvFunc(d, col)

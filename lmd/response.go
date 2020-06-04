@@ -17,15 +17,16 @@ import (
 
 // Response contains the livestatus response data as long with some meta data
 type Response struct {
-	noCopy      noCopy
-	Lock        *deadlock.RWMutex // must be used for Result and Failed access
-	Request     *Request          // the initial request
-	Result      ResultSet         // final processed result table
-	Code        int               // 200 if the query was successful
-	Error       error             // error object if the query was not successful
-	RawResults  *RawResultSet     // collected results from peers
-	ResultTotal int
-	Failed      map[string]string
+	noCopy        noCopy
+	Lock          *deadlock.RWMutex // must be used for Result and Failed access
+	Request       *Request          // the initial request
+	Result        ResultSet         // final processed result table
+	Code          int               // 200 if the query was successful
+	Error         error             // error object if the query was not successful
+	RawResults    *RawResultSet     // collected results from peers
+	ResultTotal   int
+	Failed        map[string]string
+	SelectedPeers []*Peer
 }
 
 // NewResponse creates a new response object for a given request
@@ -44,7 +45,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 	table := Objects.Tables[req.Table]
 
 	// check if we have to spin up updates, if so, do it parallel
-	selectedPeers := make([]*Peer, 0)
+	res.SelectedPeers = make([]*Peer, 0)
 	spinUpPeers := make([]*Peer, 0)
 	// iterate over PeerMap instead of BackendsMap to retain backend order
 	PeerMapLock.RLock()
@@ -59,7 +60,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 		if p.HasFlag(MultiBackend) {
 			continue
 		}
-		selectedPeers = append(selectedPeers, p)
+		res.SelectedPeers = append(res.SelectedPeers, p)
 
 		// spin up required?
 		if p.StatusGet("Idling").(bool) && table.Virtual == nil {
@@ -71,7 +72,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 
 	// only use the first backend when requesting table or columns table
 	if table.Name == TableTables || table.Name == TableColumns {
-		selectedPeers = []*Peer{PeerMap[PeerMapOrder[0]]}
+		res.SelectedPeers = []*Peer{PeerMap[PeerMapOrder[0]]}
 	}
 
 	if !table.PassthroughOnly && len(spinUpPeers) > 0 {
@@ -86,19 +87,19 @@ func NewResponse(req *Request) (res *Response, err error) {
 	}
 
 	switch {
-	case len(selectedPeers) == 0:
+	case len(res.SelectedPeers) == 0:
 		// no backends selected, return empty result
 		res.Result = make(ResultSet, 0)
 		return
 	case table.PassthroughOnly:
 		// passthrough requests, ex.: log table
-		res.BuildPassThroughResult(selectedPeers)
+		res.BuildPassThroughResult()
 		res.PostProcessing()
 	default:
 		// normal requests
 		res.RawResults = &RawResultSet{}
 		res.RawResults.Sort = &req.Sort
-		res.BuildLocalResponse(selectedPeers)
+		res.BuildLocalResponse()
 		res.RawResults.PostProcessing(res)
 	}
 
@@ -427,6 +428,7 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 	} else {
 		// unprocessed result?
 		res.ResultTotal = res.RawResults.Total
+
 		for i := range res.RawResults.DataResult {
 			if i > 0 {
 				json.WriteRaw(",")
@@ -458,7 +460,7 @@ func (res *Response) WriteColumnsResponse(json *jsoniter.Stream) {
 }
 
 // BuildLocalResponse builds local data table result for all selected peers
-func (res *Response) BuildLocalResponse(peers []*Peer) {
+func (res *Response) BuildLocalResponse() {
 	var resultcollector chan *DataRow
 	var waitChan chan bool
 	if len(res.Request.Stats) == 0 {
@@ -477,8 +479,8 @@ func (res *Response) BuildLocalResponse(peers []*Peer) {
 	}
 
 	waitgroup := &sync.WaitGroup{}
-	for i := range peers {
-		p := peers[i]
+	for i := range res.SelectedPeers {
+		p := res.SelectedPeers[i]
 		p.StatusSet("LastQuery", time.Now().Unix())
 		store, err := p.GetDataStore(res.Request.Table)
 		if err != nil {
@@ -538,7 +540,7 @@ func (res *Response) MergeStats(stats *ResultSetStats) {
 
 // BuildPassThroughResult passes a query transparently to one or more remote sites and builds the response
 // from that.
-func (res *Response) BuildPassThroughResult(peers []*Peer) {
+func (res *Response) BuildPassThroughResult() {
 	res.Result = make(ResultSet, 0)
 
 	// build columns list
@@ -582,8 +584,8 @@ func (res *Response) BuildPassThroughResult(peers []*Peer) {
 
 	waitgroup := &sync.WaitGroup{}
 
-	for i := range peers {
-		p := peers[i]
+	for i := range res.SelectedPeers {
+		p := res.SelectedPeers[i]
 
 		if !p.isOnline() {
 			res.Lock.Lock()

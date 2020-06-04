@@ -2465,9 +2465,6 @@ func (p *Peer) BuildLocalResponseData(res *Response, store *DataStore, resultcol
 		store = s
 	}
 
-	p.PeerLock.RLock()
-	defer p.PeerLock.RUnlock()
-
 	if !store.Table.WorksUnlocked {
 		p.DataLock.RLock()
 		defer p.DataLock.RUnlock()

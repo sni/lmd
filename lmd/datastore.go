@@ -12,6 +12,8 @@ type DataStore struct {
 	DynamicColumnNamesCache []string                       // contains list of keys used to run periodic update
 	DataSizes               map[DataType]int               // contains the sizes for each data type
 	Peer                    *Peer                          // reference to our peer
+	PeerName                string                         // cached peer name
+	PeerKey                 string                         // cached peer key
 	Data                    []*DataRow                     // the actual data rows
 	Index                   map[string]*DataRow            // access data rows from primary key, ex.: hostname or comment id
 	Index2                  map[string]map[string]*DataRow // access data rows from 2 primary keys, ex.: host and service
@@ -33,6 +35,10 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 
 	if peer != nil {
 		d.Peer = peer.(*Peer)
+		d.Peer.PeerLock.RLock()
+		d.PeerName = d.Peer.Name
+		d.PeerKey = d.Peer.ID
+		d.Peer.PeerLock.RUnlock()
 	}
 
 	// create columns list
