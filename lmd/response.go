@@ -63,8 +63,8 @@ func NewResponse(req *Request) (res *Response, err error) {
 		res.SelectedPeers = append(res.SelectedPeers, p)
 
 		// spin up required?
-		if p.StatusGet("Idling").(bool) && table.Virtual == nil {
-			p.StatusSet("LastQuery", time.Now().Unix())
+		if p.StatusGet(Idling).(bool) && table.Virtual == nil {
+			p.StatusSet(LastQuery, time.Now().Unix())
 			spinUpPeers = append(spinUpPeers, p)
 		}
 	}
@@ -500,7 +500,7 @@ func (res *Response) BuildLocalResponse() {
 	waitgroup := &sync.WaitGroup{}
 	for i := range res.SelectedPeers {
 		p := res.SelectedPeers[i]
-		p.StatusSet("LastQuery", time.Now().Unix())
+		p.StatusSet(LastQuery, time.Now().Unix())
 		store, err := p.GetDataStore(res.Request.Table)
 		if err != nil {
 			res.Lock.Lock()
@@ -608,7 +608,7 @@ func (res *Response) BuildPassThroughResult() {
 
 		if !p.isOnline() {
 			res.Lock.Lock()
-			res.Failed[p.ID] = fmt.Sprintf("%v", p.StatusGet("LastError"))
+			res.Failed[p.ID] = fmt.Sprintf("%v", p.StatusGet(LastError))
 			res.Lock.Unlock()
 			continue
 		}

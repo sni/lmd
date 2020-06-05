@@ -12,7 +12,7 @@ type VirtColumnResolveFunc func(d *DataRow, col *Column) interface{}
 type VirtColumnMapEntry struct {
 	noCopy     noCopy
 	Name       string
-	StatusKey  string
+	StatusKey  PeerStatusKey
 	ResolvFunc VirtColumnResolveFunc
 }
 
@@ -20,26 +20,26 @@ type VirtColumnMapEntry struct {
 // Must have either a StatusKey or a ResolvFunc set
 var VirtColumnList = []VirtColumnMapEntry{
 	// access things from the peer status by StatusKey
-	{Name: "key", StatusKey: "PeerKey"},
-	{Name: "name", StatusKey: "PeerName"},
-	{Name: "addr", StatusKey: "PeerAddr"},
-	{Name: "status", StatusKey: "PeerStatus"},
-	{Name: "bytes_send", StatusKey: "BytesSend"},
-	{Name: "bytes_received", StatusKey: "BytesReceived"},
-	{Name: "queries", StatusKey: "Querys"},
-	{Name: "last_error", StatusKey: "LastError"},
-	{Name: "last_online", StatusKey: "LastOnline"},
-	{Name: "last_update", StatusKey: "LastUpdate"},
-	{Name: "response_time", StatusKey: "ReponseTime"},
-	{Name: "idling", StatusKey: "Idling"},
-	{Name: "last_query", StatusKey: "LastQuery"},
-	{Name: "section", StatusKey: "Section"},
-	{Name: "parent", StatusKey: "PeerParent"},
-	{Name: "configtool", StatusKey: "ConfigTool"},
-	{Name: "federation_key", StatusKey: "SubKey"},
-	{Name: "federation_name", StatusKey: "SubName"},
-	{Name: "federation_addr", StatusKey: "SubAddr"},
-	{Name: "federation_type", StatusKey: "SubType"},
+	{Name: "key", StatusKey: PeerKey},
+	{Name: "name", StatusKey: PeerName},
+	{Name: "addr", StatusKey: PeerAddr},
+	{Name: "status", StatusKey: PeerState},
+	{Name: "bytes_send", StatusKey: BytesSend},
+	{Name: "bytes_received", StatusKey: BytesReceived},
+	{Name: "queries", StatusKey: Querys},
+	{Name: "last_error", StatusKey: LastError},
+	{Name: "last_online", StatusKey: LastOnline},
+	{Name: "last_update", StatusKey: LastUpdate},
+	{Name: "response_time", StatusKey: ReponseTime},
+	{Name: "idling", StatusKey: Idling},
+	{Name: "last_query", StatusKey: LastQuery},
+	{Name: "section", StatusKey: Section},
+	{Name: "parent", StatusKey: PeerParent},
+	{Name: "configtool", StatusKey: ConfigTool},
+	{Name: "federation_key", StatusKey: SubKey},
+	{Name: "federation_name", StatusKey: SubName},
+	{Name: "federation_addr", StatusKey: SubAddr},
+	{Name: "federation_type", StatusKey: SubType},
 
 	// calculated columns by ResolvFunc
 	{Name: "lmd_last_cache_update", ResolvFunc: func(d *DataRow, _ *Column) interface{} { return d.LastUpdate }},

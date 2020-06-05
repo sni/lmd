@@ -401,7 +401,7 @@ func (d *DataRow) GetValueByColumn(col *Column) interface{} {
 // getVirtRowValue returns the actual value for a virtual column.
 func (d *DataRow) getVirtRowValue(col *Column) interface{} {
 	var value interface{}
-	if col.VirtMap.StatusKey != "" {
+	if col.VirtMap.StatusKey > 0 {
 		if d.DataStore.Peer == nil {
 			log.Panicf("requesting column '%s' from table '%s' with peer", col.Name, d.DataStore.Table.Name)
 		}
@@ -416,10 +416,10 @@ func (d *DataRow) getVirtRowValue(col *Column) interface{} {
 				value = p.Status[col.VirtMap.StatusKey]
 			case PeerLockModeSimple:
 				switch col.VirtMap.StatusKey {
-				case "PeerName":
-					return &(d.DataStore.PeerName)
-				case "PeerKey":
-					return &(d.DataStore.PeerKey)
+				case PeerName:
+					return &(p.Name)
+				case PeerKey:
+					return &(p.ID)
 				default:
 					value = p.StatusGet(col.VirtMap.StatusKey)
 				}
@@ -436,7 +436,7 @@ func VirtColLastStateChangeOrder(d *DataRow, col *Column) interface{} {
 	// return last_state_change or program_start
 	lastStateChange := d.GetIntByName("last_state_change")
 	if lastStateChange == 0 {
-		return d.DataStore.Peer.Status["ProgramStart"]
+		return d.DataStore.Peer.Status[ProgramStart]
 	}
 	return lastStateChange
 }
@@ -604,14 +604,14 @@ func VirtColTotalServices(d *DataRow, col *Column) interface{} {
 func (d *DataRow) getVirtSubLMDValue(col *Column) (val interface{}, ok bool) {
 	ok = true
 	p := d.DataStore.Peer
-	peerData := p.StatusGet("SubPeerStatus").(map[string]interface{})
+	peerData := p.StatusGet(SubPeerStatus).(map[string]interface{})
 	if peerData == nil {
 		return nil, false
 	}
 	switch col.Name {
 	case "status":
 		// return worst state of LMD and LMDSubs state
-		parentVal := p.StatusGet("PeerStatus").(PeerStatus)
+		parentVal := p.StatusGet(PeerState).(PeerStatus)
 		if parentVal != PeerStatusUp {
 			val = parentVal
 		} else {
@@ -619,7 +619,7 @@ func (d *DataRow) getVirtSubLMDValue(col *Column) (val interface{}, ok bool) {
 		}
 	case "last_error":
 		// return worst state of LMD and LMDSubs state
-		parentVal := p.StatusGet("LastError").(string)
+		parentVal := p.StatusGet(LastError).(string)
 		val, ok = peerData[col.Name]
 		if parentVal != "" && (!ok || val.(string) == "") {
 			val = parentVal

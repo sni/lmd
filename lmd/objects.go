@@ -21,11 +21,10 @@ func InitObjects() {
 	for i := range VirtColumnList {
 		dat := &(VirtColumnList[i])
 		VirtColumnMap[dat.Name] = dat
-		if dat.StatusKey != "" {
+		if dat.StatusKey > 0 {
 			VirtColumnMap["peer_"+dat.Name] = dat
 			VirtColumnMap["host_peer_"+dat.Name] = dat
-		}
-		if dat.StatusKey == "" {
+		} else {
 			VirtColumnMap["host_"+dat.Name] = dat
 		}
 	}

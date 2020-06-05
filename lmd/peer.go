@@ -58,22 +58,22 @@ const (
 // Peer is the object which handles collecting and updating data and connections.
 type Peer struct {
 	noCopy          noCopy
-	Name            string                   // Name of this peer, aka peer_name
-	ID              string                   // ID for this peer, aka peer_key
-	ParentID        string                   // ID of parent Peer
-	Flags           uint32                   // optional flags, like LMD, Icinga2, etc...
-	Source          []string                 // reference to all connection strings
-	PeerLock        *deadlock.RWMutex        // must be used for Peer.* access
-	DataLock        *deadlock.RWMutex        // must be used for Peer.Table access
-	Tables          map[TableName]*DataStore // the cached remote data tables
-	Status          map[string]interface{}   // map with all kind of status information
-	ErrorCount      int                      // count times this backend has failed
-	ErrorLogged     bool                     // flag wether last error has been logged already
-	waitGroup       *sync.WaitGroup          // wait group used to wait on shutdowns
-	shutdownChannel chan bool                // channel used to wait to finish shutdown
-	stopChannel     chan bool                // channel to stop this peer
-	Config          *Connection              // reference to the peer configuration from the config file
-	GlobalConfig    *Config                  // reference to global config object
+	Name            string                        // Name of this peer, aka peer_name
+	ID              string                        // ID for this peer, aka peer_key
+	ParentID        string                        // ID of parent Peer
+	Flags           uint32                        // optional flags, like LMD, Icinga2, etc...
+	Source          []string                      // reference to all connection strings
+	PeerLock        *deadlock.RWMutex             // must be used for Peer.* access
+	DataLock        *deadlock.RWMutex             // must be used for Peer.Table access
+	Tables          map[TableName]*DataStore      // the cached remote data tables
+	Status          map[PeerStatusKey]interface{} // map with all kind of status information
+	ErrorCount      int                           // count times this backend has failed
+	ErrorLogged     bool                          // flag wether last error has been logged already
+	waitGroup       *sync.WaitGroup               // wait group used to wait on shutdowns
+	shutdownChannel chan bool                     // channel used to wait to finish shutdown
+	stopChannel     chan bool                     // channel to stop this peer
+	Config          *Connection                   // reference to the peer configuration from the config file
+	GlobalConfig    *Config                       // reference to global config object
 	last            struct {
 		Request  *Request // reference to last query (used in error reports)
 		Response *[]byte  // reference to last response
@@ -109,6 +109,44 @@ const (
 
 	// ResponseError is used when the remote site is available but returns an unusable result.
 	ResponseError
+)
+
+// PeerStatusKey contains the different keys for the Peer.Status map
+type PeerStatusKey int32
+
+const (
+	_ PeerStatusKey = iota
+	PeerKey
+	PeerName
+	PeerState
+	PeerAddr
+	CurPeerAddrNum
+	LastUpdate
+	LastFullUpdate
+	LastFullHostUpdate
+	LastFullServiceUpdate
+	LastTimeperiodUpdateMinute
+	LastUpdateOK
+	LastQuery
+	LastError
+	LastOnline
+	LastPid
+	ProgramStart
+	BytesSend
+	BytesReceived
+	Querys
+	ReponseTime
+	Idling
+	Updating
+	Section
+	PeerParent
+	ThrukVersion
+	SubKey
+	SubName
+	SubAddr
+	SubType
+	SubPeerStatus
+	ConfigTool
 )
 
 // PeerConnType contains the different connection types
@@ -182,7 +220,7 @@ func NewPeer(globalConfig *Config, config *Connection, waitGroup *sync.WaitGroup
 		ID:              config.ID,
 		Source:          config.Source,
 		Tables:          make(map[TableName]*DataStore),
-		Status:          make(map[string]interface{}),
+		Status:          make(map[PeerStatusKey]interface{}),
 		waitGroup:       waitGroup,
 		shutdownChannel: shutdownChannel,
 		stopChannel:     make(chan bool),
@@ -196,33 +234,33 @@ func NewPeer(globalConfig *Config, config *Connection, waitGroup *sync.WaitGroup
 	if len(p.Source) == 0 {
 		log.Fatalf("[%s] peer requires at least one source", p.Name)
 	}
-	p.Status["PeerKey"] = p.ID
-	p.Status["PeerName"] = p.Name
-	p.Status["CurPeerAddrNum"] = 0
-	p.Status["PeerAddr"] = p.Source[p.Status["CurPeerAddrNum"].(int)]
-	p.Status["PeerStatus"] = PeerStatusPending
-	p.Status["LastUpdate"] = int64(0)
-	p.Status["LastFullUpdate"] = int64(0)
-	p.Status["LastFullHostUpdate"] = int64(0)
-	p.Status["LastFullServiceUpdate"] = int64(0)
-	p.Status["LastQuery"] = int64(0)
-	p.Status["LastError"] = "connecting..."
-	p.Status["LastOnline"] = int64(0)
-	p.Status["ProgramStart"] = 0
-	p.Status["LastPid"] = 0
-	p.Status["BytesSend"] = int64(0)
-	p.Status["BytesReceived"] = int64(0)
-	p.Status["Querys"] = int64(0)
-	p.Status["ReponseTime"] = float64(0)
-	p.Status["Idling"] = false
-	p.Status["Updating"] = false
-	p.Status["Section"] = config.Section
-	p.Status["PeerParent"] = ""
-	p.Status["ThrukVersion"] = float64(-1)
-	p.Status["SubKey"] = []string{}
-	p.Status["SubName"] = []string{}
-	p.Status["SubAddr"] = []string{}
-	p.Status["SubType"] = []string{}
+	p.Status[PeerKey] = p.ID
+	p.Status[PeerName] = p.Name
+	p.Status[CurPeerAddrNum] = 0
+	p.Status[PeerAddr] = p.Source[p.Status[CurPeerAddrNum].(int)]
+	p.Status[PeerState] = PeerStatusPending
+	p.Status[LastUpdate] = int64(0)
+	p.Status[LastFullUpdate] = int64(0)
+	p.Status[LastFullHostUpdate] = int64(0)
+	p.Status[LastFullServiceUpdate] = int64(0)
+	p.Status[LastQuery] = int64(0)
+	p.Status[LastError] = "connecting..."
+	p.Status[LastOnline] = int64(0)
+	p.Status[ProgramStart] = 0
+	p.Status[LastPid] = 0
+	p.Status[BytesSend] = int64(0)
+	p.Status[BytesReceived] = int64(0)
+	p.Status[Querys] = int64(0)
+	p.Status[ReponseTime] = float64(0)
+	p.Status[Idling] = false
+	p.Status[Updating] = false
+	p.Status[Section] = config.Section
+	p.Status[PeerParent] = ""
+	p.Status[ThrukVersion] = float64(-1)
+	p.Status[SubKey] = []string{}
+	p.Status[SubName] = []string{}
+	p.Status[SubAddr] = []string{}
+	p.Status[SubType] = []string{}
 
 	/* initialize http client if there are any http(s) connections */
 	hasHTTP := false
@@ -245,24 +283,24 @@ func NewPeer(globalConfig *Config, config *Connection, waitGroup *sync.WaitGroup
 
 // Start creates the initial objects and starts the update loop in a separate goroutine.
 func (p *Peer) Start() {
-	if p.StatusGet("Updating").(bool) {
+	if p.StatusGet(Updating).(bool) {
 		log.Panicf("[%s] tried to start updateLoop twice", p.Name)
 	}
 	p.waitGroup.Add(1)
-	p.StatusSet("Updating", true)
+	p.StatusSet(Updating, true)
 	log.Infof("[%s] starting connection", p.Name)
 	go func() {
 		// make sure we log panics properly
 		defer logPanicExitPeer(p)
 		p.updateLoop()
-		p.StatusSet("Updating", false)
+		p.StatusSet(Updating, false)
 		p.waitGroup.Done()
 	}()
 }
 
 // Stop stops this peer. Restart with Start.
 func (p *Peer) Stop() {
-	if p.StatusGet("Updating").(bool) {
+	if p.StatusGet(Updating).(bool) {
 		log.Infof("[%s] stopping connection", p.Name)
 		p.stopChannel <- true
 	}
@@ -311,9 +349,9 @@ func (p *Peer) updateLoop() {
 	var lastTimeperiodUpdateMinute int
 	p.PeerLock.RLock()
 	firstRun := true
-	if value, gotLastValue := p.Status["LastUpdateOK"]; gotLastValue {
+	if value, gotLastValue := p.Status[LastUpdateOK]; gotLastValue {
 		ok = value.(bool)
-		lastTimeperiodUpdateMinute = p.Status["LastTimeperiodUpdateMinute"].(int)
+		lastTimeperiodUpdateMinute = p.Status[LastTimeperiodUpdateMinute].(int)
 		firstRun = false
 	}
 	p.PeerLock.RUnlock()
@@ -323,8 +361,8 @@ func (p *Peer) updateLoop() {
 		ok = p.InitAllTables()
 		lastTimeperiodUpdateMinute, _ = strconv.Atoi(time.Now().Format("4"))
 		p.PeerLock.Lock()
-		p.Status["LastUpdateOK"] = ok
-		p.Status["LastTimeperiodUpdateMinute"] = lastTimeperiodUpdateMinute
+		p.Status[LastUpdateOK] = ok
+		p.Status[LastTimeperiodUpdateMinute] = lastTimeperiodUpdateMinute
 		p.clearLastRequest(false)
 		p.PeerLock.Unlock()
 	}
@@ -340,8 +378,8 @@ func (p *Peer) updateLoop() {
 			log.Debugf("[%s] stopping...", p.Name)
 			ticker.Stop()
 			p.PeerLock.Lock()
-			p.Status["LastUpdateOK"] = ok
-			p.Status["LastTimeperiodUpdateMinute"] = lastTimeperiodUpdateMinute
+			p.Status[LastUpdateOK] = ok
+			p.Status[LastTimeperiodUpdateMinute] = lastTimeperiodUpdateMinute
 			p.clearLastRequest(false)
 			p.PeerLock.Unlock()
 			return
@@ -362,9 +400,9 @@ func (p *Peer) updateLoop() {
 // periodicUpdate runs the periodic updates from the update loop
 func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 	p.PeerLock.RLock()
-	lastUpdate := p.Status["LastUpdate"].(int64)
-	lastFullUpdate := p.Status["LastFullUpdate"].(int64)
-	lastStatus := p.Status["PeerStatus"].(PeerStatus)
+	lastUpdate := p.Status[LastUpdate].(int64)
+	lastFullUpdate := p.Status[LastFullUpdate].(int64)
+	lastStatus := p.Status[PeerState].(PeerStatus)
 	p.PeerLock.RUnlock()
 
 	idling := p.updateIdleStatus()
@@ -396,7 +434,7 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 
 	// set last update timestamp, otherwise we would retry the connection every 500ms instead
 	// of the update interval
-	p.StatusSet("LastUpdate", now)
+	p.StatusSet(LastUpdate, now)
 
 	if lastStatus == PeerStatusBroken {
 		restartRequired, _ := p.UpdateFullTable(TableStatus)
@@ -431,7 +469,7 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 // it fetches the sites table and creates and updates LMDSub backends for them
 func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 	p.PeerLock.RLock()
-	lastUpdate := p.Status["LastUpdate"].(int64)
+	lastUpdate := p.Status[LastUpdate].(int64)
 	p.PeerLock.RUnlock()
 
 	now := time.Now().Unix()
@@ -444,7 +482,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 
 	// set last update timestamp, otherwise we would retry the connection every 500ms instead
 	// of the update interval
-	p.StatusSet("LastUpdate", time.Now().Unix())
+	p.StatusSet(LastUpdate, time.Now().Unix())
 
 	columns := []string{"key", "name", "status", "addr", "last_error", "last_update", "last_online", "last_query", "idling"}
 	req := &Request{
@@ -477,7 +515,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 			subPeer = NewPeer(p.GlobalConfig, &c, p.waitGroup, p.shutdownChannel)
 			subPeer.ParentID = p.ID
 			subPeer.SetFlag(LMDSub)
-			subPeer.StatusSet("PeerParent", p.ID)
+			subPeer.StatusSet(PeerParent, p.ID)
 			PeerMap[subID] = subPeer
 			PeerMapOrder = append(PeerMapOrder, c.ID)
 
@@ -493,7 +531,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 				section := *(interface2stringNoDedup((*res)[0][0]))
 				section = strings.TrimPrefix(section, "Default")
 				section = strings.TrimPrefix(section, "/")
-				subPeer.StatusSet("Section", section)
+				subPeer.StatusSet(Section, section)
 			}
 
 			nodeAccessor.assignedBackends = append(nodeAccessor.assignedBackends, subID)
@@ -502,7 +540,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 
 		// update flags for existing sub peers
 		subPeer.PeerLock.Lock()
-		subPeer.Status["SubPeerStatus"] = rowHash
+		subPeer.Status[SubPeerStatus] = rowHash
 		subPeer.PeerLock.Unlock()
 	}
 	PeerMapLock.Unlock()
@@ -528,7 +566,7 @@ func (p *Peer) periodicUpdateLMD(ok *bool, force bool) {
 // it fetches the all sites and creates and updates HTTPSub backends for them
 func (p *Peer) periodicUpdateMultiBackends(ok *bool, force bool) {
 	p.PeerLock.RLock()
-	lastUpdate := p.Status["LastUpdate"].(int64)
+	lastUpdate := p.Status[LastUpdate].(int64)
 	p.PeerLock.RUnlock()
 
 	now := time.Now().Unix()
@@ -548,7 +586,7 @@ func (p *Peer) periodicUpdateMultiBackends(ok *bool, force bool) {
 
 	// set last update timestamp, otherwise we would retry the connection every 500ms instead
 	// of the update interval
-	p.StatusSet("LastUpdate", time.Now().Unix())
+	p.StatusSet(LastUpdate, time.Now().Unix())
 
 	// check if we need to start/stop peers
 	log.Debugf("[%s] checking for changed remote multi backends", p.Name)
@@ -583,15 +621,15 @@ func (p *Peer) periodicUpdateMultiBackends(ok *bool, force bool) {
 			subPeer = NewPeer(p.GlobalConfig, &c, p.waitGroup, p.shutdownChannel)
 			subPeer.ParentID = p.ID
 			subPeer.SetFlag(HTTPSub)
-			subPeer.Status["PeerParent"] = p.ID
+			subPeer.Status[PeerParent] = p.ID
 			section := site["section"].(string)
 			section = strings.TrimPrefix(section, "Default")
 			section = strings.TrimPrefix(section, "/")
-			subPeer.Status["Section"] = section
-			subPeer.setFederationInfo(site, "SubKey", "key")
-			subPeer.setFederationInfo(site, "SubName", "name")
-			subPeer.setFederationInfo(site, "SubAddr", "addr")
-			subPeer.setFederationInfo(site, "SubType", "type")
+			subPeer.Status[Section] = section
+			subPeer.setFederationInfo(site, SubKey, "key")
+			subPeer.setFederationInfo(site, SubName, "name")
+			subPeer.setFederationInfo(site, SubAddr, "addr")
+			subPeer.setFederationInfo(site, SubType, "type")
 			PeerMap[subID] = subPeer
 			PeerMapOrder = append(PeerMapOrder, c.ID)
 			nodeAccessor.assignedBackends = append(nodeAccessor.assignedBackends, subID)
@@ -619,8 +657,8 @@ func (p *Peer) updateIdleStatus() bool {
 	now := time.Now().Unix()
 	shouldIdle := false
 	p.PeerLock.RLock()
-	lastQuery := p.Status["LastQuery"].(int64)
-	idling := p.Status["Idling"].(bool)
+	lastQuery := p.Status[LastQuery].(int64)
+	idling := p.Status[Idling].(bool)
 	p.PeerLock.RUnlock()
 	if lastQuery == 0 && lastMainRestart < now-p.GlobalConfig.IdleTimeout {
 		shouldIdle = true
@@ -629,21 +667,21 @@ func (p *Peer) updateIdleStatus() bool {
 	}
 	if !idling && shouldIdle {
 		log.Infof("[%s] switched to idle interval, last query: %s (idle timeout: %d)", p.Name, timeOrNever(lastQuery), p.GlobalConfig.IdleTimeout)
-		p.StatusSet("Idling", true)
+		p.StatusSet(Idling, true)
 		idling = true
 	}
 	return idling
 }
 
 // StatusSet updates a status map and takes care about the logging.
-func (p *Peer) StatusSet(key string, value interface{}) {
+func (p *Peer) StatusSet(key PeerStatusKey, value interface{}) {
 	p.PeerLock.Lock()
 	p.Status[key] = value
 	p.PeerLock.Unlock()
 }
 
 // StatusGet returns a status map entry and takes care about the logging.
-func (p *Peer) StatusGet(key string) interface{} {
+func (p *Peer) StatusGet(key PeerStatusKey) interface{} {
 	p.PeerLock.RLock()
 	value := p.Status[key]
 	p.PeerLock.RUnlock()
@@ -654,9 +692,9 @@ func (p *Peer) StatusGet(key string) interface{} {
 // will performan an update.
 func (p *Peer) ScheduleImmediateUpdate() {
 	p.PeerLock.Lock()
-	p.Status["LastUpdate"] = time.Now().Unix() - p.GlobalConfig.Updateinterval - 1
-	p.Status["LastFullServiceUpdate"] = time.Now().Unix() - MinFullScanInterval - 1
-	p.Status["LastFullHostUpdate"] = time.Now().Unix() - MinFullScanInterval - 1
+	p.Status[LastUpdate] = time.Now().Unix() - p.GlobalConfig.Updateinterval - 1
+	p.Status[LastFullServiceUpdate] = time.Now().Unix() - MinFullScanInterval - 1
+	p.Status[LastFullHostUpdate] = time.Now().Unix() - MinFullScanInterval - 1
 	p.PeerLock.Unlock()
 }
 
@@ -665,8 +703,8 @@ func (p *Peer) ScheduleImmediateUpdate() {
 func (p *Peer) InitAllTables() bool {
 	var err error
 	p.PeerLock.Lock()
-	p.Status["LastUpdate"] = time.Now().Unix()
-	p.Status["LastFullUpdate"] = time.Now().Unix()
+	p.Status[LastUpdate] = time.Now().Unix()
+	p.Status[LastFullUpdate] = time.Now().Unix()
 	p.PeerLock.Unlock()
 	t1 := time.Now()
 	for _, n := range Objects.Order {
@@ -689,8 +727,8 @@ func (p *Peer) InitAllTables() bool {
 			// this may happen if we query another lmd daemon which has no backends ready yet
 			if !hasStatus {
 				p.PeerLock.Lock()
-				p.Status["PeerStatus"] = PeerStatusDown
-				p.Status["LastError"] = "peered partner not ready yet"
+				p.Status[PeerState] = PeerStatusDown
+				p.Status[LastError] = "peered partner not ready yet"
 				p.Clear(false)
 				p.PeerLock.Unlock()
 				return false
@@ -708,11 +746,11 @@ func (p *Peer) InitAllTables() bool {
 
 			// check thruk config tool settings
 			p.PeerLock.Lock()
-			delete(p.Status, "ConfigTool")
+			delete(p.Status, ConfigTool)
 			p.PeerLock.Unlock()
 			if !p.HasFlag(MultiBackend) {
 				if configtool != nil {
-					p.StatusSet("ConfigTool", configtool)
+					p.StatusSet(ConfigTool, configtool)
 				}
 			}
 		case TableComments:
@@ -734,10 +772,10 @@ func (p *Peer) InitAllTables() bool {
 
 	duration := time.Since(t1)
 	p.PeerLock.Lock()
-	p.Status["ProgramStart"] = programStart
-	p.Status["LastPid"] = corePid
-	p.Status["ReponseTime"] = duration.Seconds()
-	peerStatus := p.Status["PeerStatus"].(PeerStatus)
+	p.Status[ProgramStart] = programStart
+	p.Status[LastPid] = corePid
+	p.Status[ReponseTime] = duration.Seconds()
+	peerStatus := p.Status[PeerState].(PeerStatus)
 	log.Infof("[%s] objects created in: %s", p.Name, duration.String())
 	if peerStatus != PeerStatusUp {
 		// Reset errors
@@ -756,11 +794,11 @@ func (p *Peer) InitAllTables() bool {
 
 // resetErrors reset the error counter after the site has recovered
 func (p *Peer) resetErrors() {
-	p.Status["LastError"] = ""
-	p.Status["LastOnline"] = time.Now().Unix()
+	p.Status[LastError] = ""
+	p.Status[LastOnline] = time.Now().Unix()
 	p.ErrorCount = 0
 	p.ErrorLogged = false
-	p.Status["PeerStatus"] = PeerStatusUp
+	p.Status[PeerState] = PeerStatusUp
 }
 
 // UpdateFull runs a full update on all dynamic values for all tables which have dynamic updated columns.
@@ -788,15 +826,15 @@ func (p *Peer) UpdateFull() bool {
 		return p.InitAllTables()
 	}
 	duration := time.Since(t1)
-	peerStatus := p.StatusGet("PeerStatus").(PeerStatus)
+	peerStatus := p.StatusGet(PeerState).(PeerStatus)
 	if peerStatus != PeerStatusUp && peerStatus != PeerStatusPending {
 		log.Infof("[%s] site soft recovered from short outage", p.Name)
 	}
 	p.PeerLock.Lock()
 	p.resetErrors()
-	p.Status["ReponseTime"] = duration.Seconds()
-	p.Status["LastUpdate"] = time.Now().Unix()
-	p.Status["LastFullUpdate"] = time.Now().Unix()
+	p.Status[ReponseTime] = duration.Seconds()
+	p.Status[LastUpdate] = time.Now().Unix()
+	p.Status[LastFullUpdate] = time.Now().Unix()
 	p.PeerLock.Unlock()
 	log.Debugf("[%s] full update complete in: %s", p.Name, duration.String())
 	promPeerUpdates.WithLabelValues(p.Name).Inc()
@@ -847,10 +885,10 @@ func (p *Peer) UpdateDelta(from, to int64) bool {
 	log.Debugf("[%s] delta update complete in: %s", p.Name, duration.String())
 
 	p.PeerLock.Lock()
-	peerStatus := p.Status["PeerStatus"].(PeerStatus)
+	peerStatus := p.Status[PeerState].(PeerStatus)
 	p.resetErrors()
-	p.Status["LastUpdate"] = to
-	p.Status["ReponseTime"] = duration.Seconds()
+	p.Status[LastUpdate] = to
+	p.Status[ReponseTime] = duration.Seconds()
 	p.PeerLock.Unlock()
 
 	if peerStatus != PeerStatusUp && peerStatus != PeerStatusPending {
@@ -875,7 +913,7 @@ func (p *Peer) UpdateDeltaHosts(filterStr string) (err error) {
 		return
 	}
 	if filterStr == "" {
-		filterStr = fmt.Sprintf("Filter: last_check >= %v\n", (p.StatusGet("LastUpdate").(int64) - UpdateAdditionalDelta))
+		filterStr = fmt.Sprintf("Filter: last_check >= %v\n", (p.StatusGet(LastUpdate).(int64) - UpdateAdditionalDelta))
 		if p.GlobalConfig.SyncIsExecuting {
 			filterStr += "\nFilter: is_executing = 1\nOr: 2\n"
 		}
@@ -987,7 +1025,7 @@ func (p *Peer) UpdateDeltaServices(filterStr string) (err error) {
 		return
 	}
 	if filterStr == "" {
-		filterStr = fmt.Sprintf("Filter: last_check >= %v\n", (p.StatusGet("LastUpdate").(int64) - UpdateAdditionalDelta))
+		filterStr = fmt.Sprintf("Filter: last_check >= %v\n", (p.StatusGet(LastUpdate).(int64) - UpdateAdditionalDelta))
 		if p.GlobalConfig.SyncIsExecuting {
 			filterStr += "\nFilter: is_executing = 1\nOr: 2\n"
 		}
@@ -1098,9 +1136,9 @@ func (p *Peer) UpdateDeltaFullScan(store *DataStore, filterStr string) (updated 
 	var lastUpdate int64
 	switch store.Table.Name {
 	case TableServices:
-		lastUpdate = p.Status["LastFullServiceUpdate"].(int64)
+		lastUpdate = p.Status[LastFullServiceUpdate].(int64)
 	case TableHosts:
-		lastUpdate = p.Status["LastFullHostUpdate"].(int64)
+		lastUpdate = p.Status[LastFullHostUpdate].(int64)
 	default:
 		log.Panicf("not implemented for: " + store.Table.Name.String())
 	}
@@ -1151,9 +1189,9 @@ func (p *Peer) UpdateDeltaFullScan(store *DataStore, filterStr string) (updated 
 	}
 
 	if store.Table.Name == TableServices {
-		p.StatusSet("LastFullServiceUpdate", time.Now().Unix())
+		p.StatusSet(LastFullServiceUpdate, time.Now().Unix())
 	} else if store.Table.Name == TableHosts {
-		p.StatusSet("LastFullHostUpdate", time.Now().Unix())
+		p.StatusSet(LastFullHostUpdate, time.Now().Unix())
 	}
 	updated = true
 	return
@@ -1325,10 +1363,10 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 		p.last.Request = req
 		p.last.Response = nil
 	}
-	p.Status["Querys"] = p.Status["Querys"].(int64) + 1
-	totalBytesSend := p.Status["BytesSend"].(int64) + int64(len(query))
-	p.Status["BytesSend"] = totalBytesSend
-	peerAddr := p.Status["PeerAddr"].(string)
+	p.Status[Querys] = p.Status[Querys].(int64) + 1
+	totalBytesSend := p.Status[BytesSend].(int64) + int64(len(query))
+	p.Status[BytesSend] = totalBytesSend
+	peerAddr := p.Status[PeerAddr].(string)
 	p.PeerLock.Unlock()
 	promPeerBytesSend.WithLabelValues(p.Name).Set(float64(totalBytesSend))
 	promPeerQueries.WithLabelValues(p.Name).Inc()
@@ -1360,8 +1398,8 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 	if p.GlobalConfig.SaveTempRequests {
 		p.last.Response = resBytes
 	}
-	totalBytesReceived := p.Status["BytesReceived"].(int64) + int64(len(*resBytes))
-	p.Status["BytesReceived"] = totalBytesReceived
+	totalBytesReceived := p.Status[BytesReceived].(int64) + int64(len(*resBytes))
+	p.Status[BytesReceived] = totalBytesReceived
 	p.PeerLock.Unlock()
 	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(totalBytesReceived))
 
@@ -1584,7 +1622,7 @@ func (p *Peer) GetConnection() (conn net.Conn, connType PeerConnType, err error)
 
 	for x := 0; x < numSources; x++ {
 		var peerAddr string
-		peerAddr, connType = extractConnType(p.StatusGet("PeerAddr").(string))
+		peerAddr, connType = extractConnType(p.StatusGet(PeerAddr).(string))
 		conn = p.GetCachedConnection()
 		if conn != nil {
 			// make sure it is still useable
@@ -1688,22 +1726,22 @@ func (p *Peer) setNextAddrFromErr(err error) {
 	p.DataLock.Lock()
 	defer p.DataLock.Unlock()
 
-	peerAddr := p.Status["PeerAddr"].(string)
+	peerAddr := p.Status[PeerAddr].(string)
 	log.Debugf("[%s] connection error %s: %s", p.Name, peerAddr, err)
-	p.Status["LastError"] = err.Error()
+	p.Status[LastError] = err.Error()
 	p.ErrorCount++
 
 	numSources := len(p.Source)
 
 	// try next node if there are multiple
-	curNum := p.Status["CurPeerAddrNum"].(int)
+	curNum := p.Status[CurPeerAddrNum].(int)
 	nextNum := curNum
 	nextNum++
 	if nextNum >= numSources {
 		nextNum = 0
 	}
-	p.Status["CurPeerAddrNum"] = nextNum
-	p.Status["PeerAddr"] = p.Source[nextNum]
+	p.Status[CurPeerAddrNum] = nextNum
+	p.Status[PeerAddr] = p.Source[nextNum]
 	peerAddr = p.Source[nextNum]
 
 	// invalidate connection cache
@@ -1718,19 +1756,19 @@ cache:
 	}
 	p.cache.connection = make(chan net.Conn, ConnectionPoolCacheSize)
 
-	if p.Status["PeerStatus"].(PeerStatus) == PeerStatusUp || p.Status["PeerStatus"].(PeerStatus) == PeerStatusPending {
-		p.Status["PeerStatus"] = PeerStatusWarning
+	if p.Status[PeerState].(PeerStatus) == PeerStatusUp || p.Status[PeerState].(PeerStatus) == PeerStatusPending {
+		p.Status[PeerState] = PeerStatusWarning
 	}
 	now := time.Now().Unix()
-	lastOnline := p.Status["LastOnline"].(int64)
+	lastOnline := p.Status[LastOnline].(int64)
 	log.Debugf("[%s] last online: %s", p.Name, timeOrNever(lastOnline))
 	if lastOnline < now-int64(p.GlobalConfig.StaleBackendTimeout) || (p.ErrorCount > numSources && lastOnline <= 0) {
-		if p.Status["PeerStatus"].(PeerStatus) != PeerStatusDown {
+		if p.Status[PeerState].(PeerStatus) != PeerStatusDown {
 			log.Infof("[%s] site went offline: %s", p.Name, err.Error())
 			// clear existing data from memory
 			p.Clear(false)
 		}
-		p.Status["PeerStatus"] = PeerStatusDown
+		p.Status[PeerState] = PeerStatusDown
 	}
 
 	if numSources > 1 {
@@ -1776,8 +1814,8 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 	p.Tables[store.Table.Name] = store
 	p.DataLock.Unlock()
 	p.PeerLock.Lock()
-	p.Status["LastUpdate"] = now
-	p.Status["LastFullUpdate"] = now
+	p.Status[LastUpdate] = now
+	p.Status[LastFullUpdate] = now
 	p.PeerLock.Unlock()
 	promObjectCount.WithLabelValues(p.Name, table.Name.String()).Set(float64(len((*res))))
 
@@ -1811,11 +1849,11 @@ func (p *Peer) checkStatusFlags() {
 			log.Infof("[%s] remote connection MultiBackend flag set, got %d sites", p.Name, len(data))
 			p.SetFlag(MultiBackend)
 			// if its no http connection, then it must be LMD
-			if !strings.HasPrefix(p.Status["PeerAddr"].(string), "http") {
+			if !strings.HasPrefix(p.Status[PeerAddr].(string), "http") {
 				p.SetFlag(LMD)
 			}
 			// force immediate update to fetch all sites
-			p.Status["LastUpdate"] = time.Now().Unix() - p.GlobalConfig.Updateinterval
+			p.Status[LastUpdate] = time.Now().Unix() - p.GlobalConfig.Updateinterval
 			p.PeerLock.Unlock()
 
 			ok := true
@@ -1949,8 +1987,8 @@ func (p *Peer) fetchRemotePeers() (sites []interface{}, err error) {
 	if p.Config.RemoteName != "" {
 		return
 	}
-	if p.StatusGet("ThrukVersion").(float64) < 2.23 {
-		log.Warnf("[%s] remote thruk version too old (%.2f < 2.23) cannot fetch all sites.", p.Name, p.StatusGet("ThrukVersion").(float64))
+	if p.StatusGet(ThrukVersion).(float64) < 2.23 {
+		log.Warnf("[%s] remote thruk version too old (%.2f < 2.23) cannot fetch all sites.", p.Name, p.StatusGet(ThrukVersion).(float64))
 		return
 	}
 	// try all http connections and use first working connection
@@ -2056,7 +2094,7 @@ func (p *Peer) UpdateFullTable(tableName TableName) (restartRequired bool, err e
 
 	if tableName == TableStatus {
 		p.checkStatusFlags()
-		if !p.HasFlag(MultiBackend) && len(data) >= 1 && (p.StatusGet("ProgramStart") != data[0].GetInt64ByName("program_start") || p.StatusGet("LastPid") != data[0].GetIntByName("nagios_pid")) {
+		if !p.HasFlag(MultiBackend) && len(data) >= 1 && (p.StatusGet(ProgramStart) != data[0].GetInt64ByName("program_start") || p.StatusGet(LastPid) != data[0].GetIntByName("nagios_pid")) {
 			log.Infof("[%s] site has been restarted, recreating objects", p.Name)
 			restartRequired = true
 		}
@@ -2155,7 +2193,7 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) {
 
 		// waiting for final update to complete
 		if lastUpdate > 0 {
-			curUpdate := p.StatusGet("LastUpdate").(int64)
+			curUpdate := p.StatusGet(LastUpdate).(int64)
 			// wait up to WaitTimeout till the update is complete
 			if curUpdate > lastUpdate {
 				close(c)
@@ -2194,7 +2232,7 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) {
 			// trigger update for all, wait conditions are run against the last object
 			// but multiple commands may have been sent
 			p.ScheduleImmediateUpdate()
-			lastUpdate = p.StatusGet("LastUpdate").(int64)
+			lastUpdate = p.StatusGet(LastUpdate).(int64)
 			continue
 		}
 
@@ -2251,7 +2289,7 @@ func (p *Peer) HTTPQuery(req *Request, peerAddr string, query string) (res []byt
 	optionStr, _ := json.Marshal(options)
 
 	headers := make(map[string]string)
-	if p.StatusGet("ThrukVersion").(float64) >= 2.23 {
+	if p.StatusGet(ThrukVersion).(float64) >= 2.23 {
 		headers["Accept"] = "application/livestatus"
 	}
 
@@ -2331,11 +2369,11 @@ func (p *Peer) HTTPPostQuery(req *Request, peerAddr string, postData url.Values,
 		return
 	}
 	if result.Version != "" {
-		currentVersion := p.StatusGet("ThrukVersion").(float64)
+		currentVersion := p.StatusGet(ThrukVersion).(float64)
 		thrukVersion, e := strconv.ParseFloat(result.Version, 64)
 		if e == nil && currentVersion != thrukVersion {
 			log.Debugf("[%s] remote site uses thruk version: %s", p.Name, result.Version)
-			p.StatusSet("ThrukVersion", thrukVersion)
+			p.StatusSet(ThrukVersion, thrukVersion)
 		}
 	}
 	if result.Raw != nil {
@@ -2428,16 +2466,16 @@ func SpinUpPeers(peers []*Peer) {
 			defer logPanicExitPeer(peer)
 			defer wg.Done()
 
-			peer.StatusSet("Idling", false)
+			peer.StatusSet(Idling, false)
 			log.Infof("[%s] switched back to normal update interval", peer.Name)
-			if peer.StatusGet("PeerStatus").(PeerStatus) == PeerStatusUp {
+			if peer.StatusGet(PeerState).(PeerStatus) == PeerStatusUp {
 				log.Debugf("[%s] spin up update", peer.Name)
 				peer.UpdateFullTable(TableTimeperiods)
-				peer.UpdateDelta(p.StatusGet("LastUpdate").(int64), time.Now().Unix())
+				peer.UpdateDelta(p.StatusGet(LastUpdate).(int64), time.Now().Unix())
 				log.Debugf("[%s] spin up update done", peer.Name)
 			} else {
 				// force new update sooner
-				peer.StatusSet("LastUpdate", time.Now().Unix()-peer.GlobalConfig.Updateinterval)
+				peer.StatusSet(LastUpdate, time.Now().Unix()-peer.GlobalConfig.Updateinterval)
 			}
 		}(p, waitgroup)
 	}
@@ -2540,9 +2578,9 @@ func (p *Peer) PassThrougQuery(res *Response, passthroughRequest *Request, virtC
 
 // isOnline returns true if this peer is online and has data
 func (p *Peer) isOnline() bool {
-	status := p.StatusGet("PeerStatus").(PeerStatus)
+	status := p.StatusGet(PeerState).(PeerStatus)
 	if p.HasFlag(LMDSub) {
-		realStatus := p.StatusGet("SubPeerStatus").(map[string]interface{})
+		realStatus := p.StatusGet(SubPeerStatus).(map[string]interface{})
 		num, ok := realStatus["status"]
 		if !ok {
 			return false
@@ -2557,13 +2595,13 @@ func (p *Peer) isOnline() bool {
 
 func (p *Peer) getError() string {
 	if p.HasFlag(LMDSub) {
-		realStatus := p.StatusGet("SubPeerStatus").(map[string]interface{})
+		realStatus := p.StatusGet(SubPeerStatus).(map[string]interface{})
 		errString, ok := realStatus["last_error"]
 		if ok && errString.(string) != "" {
 			return errString.(string)
 		}
 	}
-	return fmt.Sprintf("%v", p.StatusGet("LastError"))
+	return fmt.Sprintf("%v", p.StatusGet(LastError))
 }
 
 func (p *Peer) gatherResultRows(res *Response, store *DataStore, resultcollector chan *DataRow) {
@@ -2716,9 +2754,9 @@ func (p *Peer) reloadIfNumberOfObjectsChanged() bool {
 func (p *Peer) setBroken(details string) {
 	log.Warnf("[%s] %s", p.Name, details)
 	p.PeerLock.Lock()
-	p.Status["PeerStatus"] = PeerStatusBroken
-	p.Status["LastError"] = "broken: " + details
-	p.Status["ThrukVersion"] = float64(-1)
+	p.Status[PeerState] = PeerStatusBroken
+	p.Status[LastError] = "broken: " + details
+	p.Status[ThrukVersion] = float64(-1)
 	p.Clear(false)
 	p.PeerLock.Unlock()
 }
@@ -2782,9 +2820,9 @@ func (p *Peer) getTLSClientConfig() (*tls.Config, error) {
 // SendCommandsWithRetry sends list of commands and retries until the peer is completly down
 func (p *Peer) SendCommandsWithRetry(commands []string) (err error) {
 	p.PeerLock.Lock()
-	p.Status["LastQuery"] = time.Now().Unix()
-	if p.Status["Idling"].(bool) {
-		p.Status["Idling"] = false
+	p.Status[LastQuery] = time.Now().Unix()
+	if p.Status[Idling].(bool) {
+		p.Status[Idling] = false
 		log.Infof("[%s] switched back to normal update interval", p.Name)
 	}
 	p.PeerLock.Unlock()
@@ -2792,11 +2830,11 @@ func (p *Peer) SendCommandsWithRetry(commands []string) (err error) {
 	// check status of backend
 	retries := 0
 	for {
-		status := p.StatusGet("PeerStatus").(PeerStatus)
+		status := p.StatusGet(PeerState).(PeerStatus)
 		switch status {
 		case PeerStatusDown:
 			log.Debugf("[%s] cannot send command, peer is down", p.Name)
-			return fmt.Errorf("%s", p.StatusGet("LastError"))
+			return fmt.Errorf("%s", p.StatusGet(LastError))
 		case PeerStatusWarning, PeerStatusPending:
 			// wait till we get either a up or down
 			time.Sleep(1 * time.Second)
@@ -2826,7 +2864,7 @@ func (p *Peer) SendCommandsWithRetry(commands []string) (err error) {
 			case *PeerCommandError:
 				return err
 			}
-			return fmt.Errorf("%s", p.StatusGet("LastError"))
+			return fmt.Errorf("%s", p.StatusGet(LastError))
 		default:
 			log.Panicf("[%s] PeerStatus %v not implemented", p.Name, status)
 		}
@@ -2858,13 +2896,13 @@ func (p *Peer) SendCommands(commands []string) (err error) {
 }
 
 // setFederationInfo updates federation information for /site request
-func (p *Peer) setFederationInfo(data map[string]interface{}, statuskey, datakey string) {
+func (p *Peer) setFederationInfo(data map[string]interface{}, statuskey PeerStatusKey, datakey string) {
 	if _, ok := data["federation_"+datakey]; ok {
 		if v, ok := data["federation_"+datakey].([]interface{}); ok {
 			list := []string{}
 			for _, d := range v {
 				s := d.(string)
-				if statuskey == "SubAddr" {
+				if statuskey == SubAddr {
 					s = strings.TrimSuffix(s, "/thruk/cgi-bin/remote.cgi")
 				}
 				list = append(list, s)

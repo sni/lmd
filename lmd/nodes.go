@@ -165,7 +165,7 @@ func (n *Nodes) Initialize() {
 	if !n.IsClustered() {
 		PeerMapLock.RLock()
 		for _, peer := range PeerMap {
-			if !peer.StatusGet("Updating").(bool) {
+			if !peer.StatusGet(Updating).(bool) {
 				peer.Start()
 			}
 		}

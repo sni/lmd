@@ -772,13 +772,13 @@ func TestHTTPCommands(t *testing.T) {
 	if err2 := assertEq(400, err.(*PeerCommandError).code); err2 != nil {
 		t.Error(err2)
 	}
-	if err2 := assertEq(2.20, peer.StatusGet("ThrukVersion")); err2 != nil {
+	if err2 := assertEq(2.20, peer.StatusGet(ThrukVersion)); err2 != nil {
 		t.Errorf("version set correctly: %s", err2.Error())
 	}
 
 	// newer thruk versions return result directly
 	thrukVersion := 2.26
-	peer.StatusSet("ThrukVersion", thrukVersion)
+	peer.StatusSet(ThrukVersion, thrukVersion)
 
 	res, _, err = peer.QueryString("COMMAND [0] test_ok")
 	if err != nil {
@@ -801,7 +801,7 @@ func TestHTTPCommands(t *testing.T) {
 	if err2 := assertEq(400, err.(*PeerCommandError).code); err2 != nil {
 		t.Error(err2)
 	}
-	if err2 := assertEq(thrukVersion, peer.StatusGet("ThrukVersion")); err2 != nil {
+	if err2 := assertEq(thrukVersion, peer.StatusGet(ThrukVersion)); err2 != nil {
 		t.Errorf("version unchanged: %s", err2.Error())
 	}
 }
