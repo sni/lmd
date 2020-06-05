@@ -321,6 +321,12 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("staleness", Dynamic, FloatCol, "Staleness indicator for this host")
 	t.AddColumn("pnpgraph_present", Dynamic, IntCol, "The pnp graph presence (0/1)")
 
+	// lowercase columns are used to make case insensitive filter faster
+	t.AddExtraColumn("name_lc", LocalStore, None, StringCol, NoFlags, "Host name (lowercase)")
+	t.AddExtraColumn("alias_lc", LocalStore, None, StringCol, NoFlags, "An alias name for the host (lowercase)")
+	t.AddExtraColumn("address_lc", LocalStore, None, StringCol, NoFlags, "IP address (lowercase)")
+	t.AddExtraColumn("display_name_lc", LocalStore, None, StringCol, NoFlags, "Optional display name of the host (lowercase)")
+
 	// backend specific
 	t.AddExtraColumn("check_source", LocalStore, Dynamic, StringCol, Naemon|Icinga2, "Host check source address")
 
@@ -470,6 +476,11 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("host_name", Static, StringCol, "Host name")
 	t.AddColumn("staleness", Dynamic, FloatCol, "Staleness indicator for this host")
 	t.AddColumn("pnpgraph_present", Dynamic, IntCol, "The pnp graph presence (0/1)")
+
+	// lowercase columns are used to make case insensitive filter faster
+	t.AddExtraColumn("host_name_lc", LocalStore, None, StringCol, NoFlags, "Host name (lowercase)")
+	t.AddExtraColumn("description_lc", LocalStore, None, StringCol, NoFlags, "Description of the service (lowercase)")
+	t.AddExtraColumn("display_name_lc", LocalStore, None, StringCol, NoFlags, "An optional display name (lowercase)")
 
 	// backend specific
 	t.AddExtraColumn("check_source", LocalStore, Dynamic, StringCol, Naemon|Icinga2, "Check source address")

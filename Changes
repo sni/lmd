@@ -5,6 +5,7 @@ next:
           - sort incoming hosts and services for icinga2, since they seem to be in random order
           - improve connection timeout handling
           - improve backend error messages
+          - improve query performance
 
 1.8.2    Tue Mar 10 10:11:50 CET 2020
           - improve synchronization when cascading LMDs by filtering by lmd_last_cache_update

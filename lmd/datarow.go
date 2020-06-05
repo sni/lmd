@@ -50,7 +50,9 @@ func NewDataRow(store *DataStore, raw *[]interface{}, columns *ColumnList, times
 		return
 	}
 
-	err = d.setReferences(store)
+	d.setLowerCaseCache()
+
+	err = d.setReferences()
 	return
 }
 
@@ -108,8 +110,16 @@ func (d *DataRow) SetData(raw *[]interface{}, columns *ColumnList, timestamp int
 	return d.UpdateValues(0, raw, columns, timestamp)
 }
 
+// setLowerCaseCache sets lowercase columns
+func (d *DataRow) setLowerCaseCache() {
+	for from, to := range d.DataStore.LowerCaseColumns {
+		d.dataString[to] = strings.ToLower(d.dataString[from])
+	}
+}
+
 // setReferences creates reference entries for cross referenced objects
-func (d *DataRow) setReferences(store *DataStore) (err error) {
+func (d *DataRow) setReferences() (err error) {
+	store := d.DataStore
 	for i := range store.Table.RefTables {
 		ref := store.Table.RefTables[i]
 		tableName := ref.Table.Name

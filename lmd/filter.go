@@ -154,16 +154,19 @@ func (f *Filter) String(prefix string) (str string) {
 		strVal = " " + strVal
 	}
 
+	// trim lower case columns prefix, they are used internally only
+	colName := strings.TrimSuffix(f.Column.Name, "_lc")
+
 	switch f.StatsType {
 	case NoStats:
 		if prefix == "" {
 			prefix = "Filter"
 		}
-		str = fmt.Sprintf("%s: %s %s%s\n", prefix, f.Column.Name, f.Operator.String(), strVal)
+		str = fmt.Sprintf("%s: %s %s%s\n", prefix, colName, f.Operator.String(), strVal)
 	case Counter:
-		str = fmt.Sprintf("Stats: %s %s%s\n", f.Column.Name, f.Operator.String(), strVal)
+		str = fmt.Sprintf("Stats: %s %s%s\n", colName, f.Operator.String(), strVal)
 	default:
-		str = fmt.Sprintf("Stats: %s %s\n", f.StatsType.String(), f.Column.Name)
+		str = fmt.Sprintf("Stats: %s %s\n", f.StatsType.String(), colName)
 	}
 	if f.Negate {
 		str += fmt.Sprintf("%s\n", "Negate:")
@@ -230,7 +233,7 @@ func (f *Filter) ApplyValue(val float64, count int) {
 
 // ParseFilter parses a single line into a filter object.
 // It returns any error encountered.
-func ParseFilter(value []byte, table TableName, stack *[]*Filter) (err error) {
+func ParseFilter(value []byte, table TableName, stack *[]*Filter, options ParseOptions) (err error) {
 	tmp := bytes.SplitN(value, []byte(" "), 3)
 	if len(tmp) < 2 {
 		err = errors.New("filter header must be Filter: <field> <operator> <value>")
@@ -261,20 +264,25 @@ func ParseFilter(value []byte, table TableName, stack *[]*Filter) (err error) {
 		return
 	}
 
+	if options&ParseOptimize != 0 {
+		filter.setLowerCaseColumn()
+	}
+
 	if isRegex {
-		err = filter.setRegexFilter()
+		err = filter.setRegexFilter(options)
 		if err != nil {
 			return
 		}
 	}
+
 	*stack = append(*stack, filter)
 	return
 }
 
 // setFilterValue converts the text value into the given filters type value
-func (f *Filter) setRegexFilter() error {
+func (f *Filter) setRegexFilter(options ParseOptions) error {
 	val := f.StrValue
-	if !hasRegexpCharacters(val) {
+	if options&ParseOptimize != 0 && !hasRegexpCharacters(val) {
 		switch f.Operator {
 		case RegexMatch:
 			f.Operator = Contains
@@ -354,6 +362,37 @@ func (f *Filter) setFilterValue(strVal string) (err error) {
 	return
 }
 
+// setLowerCaseColumn tries to use the lowercase column if possible
+func (f *Filter) setLowerCaseColumn() {
+	col := f.Column
+	table := col.Table
+	// only hosts and services tables have lower case cache fields
+	if table.Name != TableHosts && table.Name != TableServices {
+		return
+	}
+	// lower case fields will only be used for case-insensitive operators
+	var op Operator
+	switch f.Operator {
+	default:
+		return
+	case ContainsNoCase:
+		op = Contains
+	case ContainsNoCaseNot:
+		op = ContainsNot
+	case RegexNoCaseMatch:
+		op = RegexMatch
+	case RegexNoCaseMatchNot:
+		op = RegexMatchNot
+	}
+	col, ok := table.ColumnsIndex[col.Name+"_lc"]
+	if !ok {
+		return
+	}
+	f.Column = col
+	f.Operator = op
+	f.StrValue = strings.ToLower(f.StrValue)
+}
+
 func parseFilterOp(in []byte) (op Operator, isRegex bool, err error) {
 	isRegex = false
 	switch string(in) {
@@ -419,7 +458,7 @@ func parseFilterOp(in []byte) (op Operator, isRegex bool, err error) {
 
 // ParseStats parses a text line into a stats object.
 // It returns any error encountered.
-func ParseStats(value []byte, table TableName, stack *[]*Filter) (err error) {
+func ParseStats(value []byte, table TableName, stack *[]*Filter, options ParseOptions) (err error) {
 	tmp := bytes.SplitN(value, []byte(" "), 2)
 	if len(tmp) < 2 {
 		err = fmt.Errorf("stats header, must be Stats: <field> <operator> <value> OR Stats: <sum|avg|min|max> <field>")
@@ -438,7 +477,7 @@ func ParseStats(value []byte, table TableName, stack *[]*Filter) (err error) {
 	case "sum":
 		op = Sum
 	default:
-		err = ParseFilter(value, table, stack)
+		err = ParseFilter(value, table, stack, options)
 		if err != nil {
 			return
 		}

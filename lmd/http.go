@@ -248,7 +248,7 @@ func parseHTTPFilterRequestData(req *Request, val interface{}, prefix string) (e
 		if filterLine == "" {
 			continue
 		}
-		if err := req.ParseRequestHeaderLine([]byte(filterLine)); err != nil {
+		if err := req.ParseRequestHeaderLine([]byte(filterLine), ParseOptimize); err != nil {
 			return err
 		}
 	}

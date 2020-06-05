@@ -402,7 +402,7 @@ func StartHTTPMockServer(t *testing.T) (*httptest.Server, func()) {
 			t.Fatalf("failed to parse request: %s", err.Error())
 		}
 		if data.Options.Sub == "_raw_query" {
-			req, _, err := NewRequest(bufio.NewReader(strings.NewReader(data.Options.Args[0])))
+			req, _, err := NewRequest(bufio.NewReader(strings.NewReader(data.Options.Args[0])), ParseDefault)
 			if err != nil {
 				t.Fatalf("failed to parse request: %s", err.Error())
 			}

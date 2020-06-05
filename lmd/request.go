@@ -60,6 +60,19 @@ const (
 	Desc
 )
 
+// ParseOptions can be used to customize the request parser
+type ParseOptions int
+
+// The only possible SortDirection are "Asc" and "Desc" for
+// sorting ascending or descending.
+const (
+	// ParseDefault parses the request as is
+	ParseDefault ParseOptions = 0
+
+	// ParseOptimize trys to use lower case columns and string matches instead of regular expressions
+	ParseOptimize = 1 << iota
+)
+
 // String converts a SortDirection back to the original string.
 func (s *SortDirection) String() string {
 	switch *s {
@@ -145,7 +158,7 @@ var reRequestCommand = regexp.MustCompile(`^COMMAND +(\[\d+\].*)$`)
 func ParseRequest(c net.Conn) (req *Request, err error) {
 	b := bufio.NewReader(c)
 	localAddr := c.LocalAddr().String()
-	req, size, err := NewRequest(b)
+	req, size, err := NewRequest(b, ParseOptimize)
 	promFrontendBytesReceived.WithLabelValues(localAddr).Add(float64(size))
 	return
 }
@@ -156,7 +169,7 @@ func ParseRequests(c net.Conn) (reqs []*Request, err error) {
 	b := bufio.NewReader(c)
 	localAddr := c.LocalAddr().String()
 	for {
-		req, size, err := NewRequest(b)
+		req, size, err := NewRequest(b, ParseOptimize)
 		promFrontendBytesReceived.WithLabelValues(localAddr).Add(float64(size))
 		if err != nil {
 			return nil, err
@@ -245,7 +258,7 @@ func (req *Request) String() (str string) {
 
 // NewRequest reads a buffer and creates a new request object.
 // It returns the request as long with the number of bytes read and any error.
-func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
+func NewRequest(b *bufio.Reader, options ParseOptions) (req *Request, size int, err error) {
 	req = &Request{ColumnsHeaders: false, KeepAlive: false}
 	firstLine, err := b.ReadString('\n')
 	// Network errors will be logged in the listener
@@ -281,7 +294,7 @@ func NewRequest(b *bufio.Reader) (req *Request, size int, err error) {
 		if log.IsV(LogVerbosityDebug) {
 			log.Debugf("request: %s", line)
 		}
-		perr := req.ParseRequestHeaderLine(line)
+		perr := req.ParseRequestHeaderLine(line, options)
 		if perr != nil {
 			err = fmt.Errorf("bad request: %s in: %s", perr.Error(), line)
 			return
@@ -628,7 +641,7 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan ResultSet, c
 
 // ParseRequestHeaderLine parses a single request line
 // It returns any error encountered.
-func (req *Request) ParseRequestHeaderLine(line []byte) (err error) {
+func (req *Request) ParseRequestHeaderLine(line []byte, options ParseOptions) (err error) {
 	matched := bytes.SplitN(line, []byte(":"), 2)
 
 	if len(matched) != 2 {
@@ -639,7 +652,7 @@ func (req *Request) ParseRequestHeaderLine(line []byte) (err error) {
 
 	switch string(bytes.ToLower(matched[0])) {
 	case "filter":
-		err = ParseFilter(args, req.Table, &req.Filter)
+		err = ParseFilter(args, req.Table, &req.Filter, options)
 		return
 	case "and":
 		err = ParseFilterOp(And, args, &req.Filter)
@@ -648,13 +661,13 @@ func (req *Request) ParseRequestHeaderLine(line []byte) (err error) {
 		err = ParseFilterOp(Or, args, &req.Filter)
 		return
 	case "stats":
-		err = ParseStats(args, req.Table, &req.Stats)
+		err = ParseStats(args, req.Table, &req.Stats, options)
 		return
 	case "statsand":
-		err = parseStatsOp(And, args, req.Table, &req.Stats)
+		err = parseStatsOp(And, args, req.Table, &req.Stats, options)
 		return
 	case "statsor":
-		err = parseStatsOp(Or, args, req.Table, &req.Stats)
+		err = parseStatsOp(Or, args, req.Table, &req.Stats, options)
 		return
 	case "sort":
 		err = parseSortHeader(&req.Sort, args)
@@ -688,13 +701,13 @@ func (req *Request) ParseRequestHeaderLine(line []byte) (err error) {
 		req.WaitObject = string(args)
 		return
 	case "waitcondition":
-		err = ParseFilter(args, req.Table, &req.WaitCondition)
+		err = ParseFilter(args, req.Table, &req.WaitCondition, options)
 		return
 	case "waitconditionand":
-		err = parseStatsOp(And, args, req.Table, &req.WaitCondition)
+		err = parseStatsOp(And, args, req.Table, &req.WaitCondition, options)
 		return
 	case "waitconditionor":
-		err = parseStatsOp(Or, args, req.Table, &req.WaitCondition)
+		err = parseStatsOp(Or, args, req.Table, &req.WaitCondition, options)
 		return
 	case "waitconditionnegate":
 		req.WaitConditionNegate = true
@@ -776,10 +789,10 @@ func parseSortHeader(field *[]*SortField, value []byte) (err error) {
 	return
 }
 
-func parseStatsOp(op GroupOperator, value []byte, table TableName, stats *[]*Filter) (err error) {
+func parseStatsOp(op GroupOperator, value []byte, table TableName, stats *[]*Filter, options ParseOptions) (err error) {
 	num, cerr := strconv.Atoi(string(value))
 	if cerr == nil && num == 0 {
-		err = ParseStats([]byte("state != 9999"), table, stats)
+		err = ParseStats([]byte("state != 9999"), table, stats, options)
 		return
 	}
 	err = ParseFilterOp(op, value, stats)

@@ -21,9 +21,9 @@ func TestRequestHeader(t *testing.T) {
 		"GET hosts\nLimit: 25\nOffset: 5\n\n",
 		"GET hosts\nSort: name asc\nSort: state desc\n\n",
 		"GET hosts\nStats: state = 1\nStats: avg latency\nStats: state = 3\nStats: state != 1\nStatsAnd: 2\n\n",
-		"GET hosts\nColumns: name\nFilter: name ~~ test\n\n",
-		"GET hosts\nColumns: name\nFilter: name !~ Test\n\n",
-		"GET hosts\nColumns: name\nFilter: name !~~ test\n\n",
+		"GET hosts\nColumns: name\nFilter: notes ~~ test\n\n",
+		"GET hosts\nColumns: name\nFilter: notes !~ Test\n\n",
+		"GET hosts\nColumns: name\nFilter: notes !~~ test\n\n",
 		"GET hosts\nColumns: name\nFilter: custom_variables ~~ TAGS test\n\n",
 		"GET hosts\nColumns: name\nFilter: custom_variables = TAGS\n\n",
 		"GET hosts\nColumns: name\nFilter: name !=\n\n",
@@ -39,7 +39,7 @@ func TestRequestHeader(t *testing.T) {
 	}
 	for _, str := range testRequestStrings {
 		buf := bufio.NewReader(bytes.NewBufferString(str))
-		req, _, err := NewRequest(buf)
+		req, _, err := NewRequest(buf, ParseDefault)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -51,7 +51,7 @@ func TestRequestHeader(t *testing.T) {
 
 func TestRequestHeaderTable(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\n"))
-	req, _, _ := NewRequest(buf)
+	req, _, _ := NewRequest(buf, ParseOptimize)
 	if err := assertEq("hosts", req.Table.String()); err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestRequestHeaderTable(t *testing.T) {
 
 func TestRequestHeaderLimit(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nLimit: 10\n"))
-	req, _, _ := NewRequest(buf)
+	req, _, _ := NewRequest(buf, ParseOptimize)
 	if err := assertEq(10, *req.Limit); err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestRequestHeaderLimit(t *testing.T) {
 
 func TestRequestHeaderOffset(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nOffset: 3\n"))
-	req, _, _ := NewRequest(buf)
+	req, _, _ := NewRequest(buf, ParseOptimize)
 	if err := assertEq(3, req.Offset); err != nil {
 		t.Fatal(err)
 	}
@@ -75,14 +75,14 @@ func TestRequestHeaderOffset(t *testing.T) {
 
 func TestRequestHeaderColumns(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name state\n"))
-	req, _, _ := NewRequest(buf)
+	req, _, _ := NewRequest(buf, ParseOptimize)
 	if err := assertEq([]string{"name", "state"}, req.Columns); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestRequestHeaderSort(t *testing.T) {
-	req, _, _ := NewRequest(bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: latency state name\nSort: name desc\nSort: state asc\n")))
+	req, _, _ := NewRequest(bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: latency state name\nSort: name desc\nSort: state asc\n")), ParseOptimize)
 	if err := assertEq(&SortField{Name: "name", Direction: Desc, Index: 0, Column: Objects.Tables[TableHosts].GetColumn("name")}, req.Sort[0]); err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestRequestHeaderSort(t *testing.T) {
 }
 
 func TestRequestHeaderSortCust(t *testing.T) {
-	req, _, _ := NewRequest(bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name custom_variables\nSort: custom_variables TEST asc\n")))
+	req, _, _ := NewRequest(bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name custom_variables\nSort: custom_variables TEST asc\n")), ParseOptimize)
 	if err := assertEq(&SortField{Name: "custom_variables", Direction: Asc, Index: 0, Args: "TEST", Column: Objects.Tables[TableHosts].GetColumn("custom_variables")}, req.Sort[0]); err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestRequestHeaderSortCust(t *testing.T) {
 
 func TestRequestHeaderFilter1(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: name != test\n"))
-	req, _, _ := NewRequest(buf)
+	req, _, _ := NewRequest(buf, ParseOptimize)
 	if err := assertEq(len(req.Filter), 1); err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestRequestHeaderFilter1(t *testing.T) {
 
 func TestRequestHeaderFilter2(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces \n"))
-	req, _, _ := NewRequest(buf)
+	req, _, _ := NewRequest(buf, ParseOptimize)
 	if err := assertEq(len(req.Filter), 2); err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestRequestHeaderFilter2(t *testing.T) {
 
 func TestRequestHeaderFilter3(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces\nOr: 2"))
-	req, _, _ := NewRequest(buf)
+	req, _, _ := NewRequest(buf, ParseOptimize)
 	if err := assertEq(len(req.Filter), 1); err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func TestRequestHeaderMultipleCommands(t *testing.T) {
 Backends: mockid0
 
 COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web2;1473627610`))
-	req, size, err := NewRequest(buf)
+	req, size, err := NewRequest(buf, ParseOptimize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web2;1473627610`))
 	if err = assertEq(req.Backends[0], "mockid0"); err != nil {
 		t.Fatal(err)
 	}
-	req, size, err = NewRequest(buf)
+	req, size, err = NewRequest(buf, ParseOptimize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1155,6 +1155,99 @@ func TestServicesWithInfo(t *testing.T) {
 	}
 
 	if err = StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestRequestLowercaseFilter(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	if err := assertEq(1, len(PeerMap)); err != nil {
+		t.Error(err)
+	}
+
+	query := `GET hosts
+Columns: name state peer_key
+Filter: name !~~ testHOST_2
+OutputFormat: wrapped_json
+ResponseHeader: fixed16
+`
+
+	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("name_lc", req.Filter[0].Column.Name); err != nil {
+		t.Error(err)
+	}
+
+	res, meta, err := peer.QueryString(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(int64(9), meta.Total); err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("testhost_10", (*res)[8][0]); err != nil {
+		t.Error(err)
+	}
+
+	query = `GET services
+	Columns: host_name host_alias description state peer_key
+	Filter: host_name ~~ testHOST_2
+	OutputFormat: wrapped_json
+	ResponseHeader: fixed16
+	`
+	req, _, err = NewRequest(bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("host_name_lc", req.Filter[0].Column.Name); err != nil {
+		t.Error(err)
+	}
+	res, meta, err = peer.QueryString(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(int64(1), meta.Total); err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("testhost_2", (*res)[0][0]); err != nil {
+		t.Error(err)
+	}
+
+	query = `GET services
+	Columns: host_name host_alias host_name_lc host_alias_lc description state peer_key
+	Filter: host_alias ~~ testHOST_2_alias
+	OutputFormat: wrapped_json
+	ResponseHeader: fixed16
+	`
+	req, _, err = NewRequest(bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("host_alias_lc", req.Filter[0].Column.Name); err != nil {
+		t.Error(err)
+	}
+	res, meta, err = peer.QueryString(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(int64(1), meta.Total); err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("testhost_2", (*res)[0][0]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq("testhost_2", (*res)[0][2]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq("testhost_2_alias", (*res)[0][3]); err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
 		panic(err.Error())
 	}
 }

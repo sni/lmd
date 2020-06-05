@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -20,6 +21,7 @@ type DataStore struct {
 	Table                   *Table                         // reference to table definition
 	dupStringList           map[[32]byte][]string          // lookup pointer to other stringlists during initialisation
 	PeerLockMode            PeerLockMode                   // flag wether datarow have to set PeerLock when accessing status
+	LowerCaseColumns        map[int]int                    // list of string column indexes with their coresponding lower case index
 }
 
 // NewDataStore creates a new datastore with columns based on given flags
@@ -33,6 +35,7 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 		dupStringList:           make(map[[32]byte][]string),
 		Table:                   table,
 		PeerLockMode:            table.PeerLockMode,
+		LowerCaseColumns:        make(map[int]int),
 	}
 
 	if peer != nil {
@@ -62,6 +65,10 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 			if col.FetchType == Dynamic {
 				d.DynamicColumnNamesCache = append(d.DynamicColumnNamesCache, col.Name)
 				d.DynamicColumnCache = append(d.DynamicColumnCache, col)
+			}
+			if strings.HasSuffix(col.Name, "_lc") {
+				refCol := table.GetColumn(strings.TrimSuffix(col.Name, "_lc"))
+				d.LowerCaseColumns[refCol.Index] = col.Index
 			}
 		}
 	}
@@ -169,6 +176,9 @@ func (d *DataStore) GetInitialColumns() ([]string, *ColumnList) {
 			continue
 		}
 		if col.StorageType != LocalStore {
+			continue
+		}
+		if col.FetchType == None {
 			continue
 		}
 		columns = append(columns, col)
