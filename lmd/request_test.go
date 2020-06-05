@@ -140,6 +140,20 @@ func TestRequestHeaderFilter3(t *testing.T) {
 	}
 }
 
+func TestRequestHeaderFilter4(t *testing.T) {
+	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces\nAnd: 2"))
+	req, _, _ := NewRequest(buf, ParseOptimize)
+	if err := assertEq(len(req.Filter), 2); err != nil {
+		t.Fatal(err)
+	}
+	if err := assertEq(len(req.Filter[0].Filter), 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := assertEq(req.Filter[0].Column.Name, "state"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRequestListFilter(t *testing.T) {
 	peer := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)

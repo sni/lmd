@@ -61,7 +61,7 @@ func TestNodeManager(t *testing.T) {
 	if err = assertEq("testhost_10", (*res)[1][0]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq("authhost", (*res)[1][1]); err != nil {
+	if err = assertEq("testhost_10_ALIAS", (*res)[1][1]); err != nil {
 		t.Error(err)
 	}
 	if err = assertEq(4.0, (*res)[1][2]); err != nil {

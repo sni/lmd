@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -142,6 +143,9 @@ func TestAllOps(t *testing.T) {
 			if col.Optional != NoFlags {
 				continue
 			}
+			if strings.HasSuffix(col.Name, "_lc") {
+				continue
+			}
 			for _, value := range values {
 				testqueryCol(t, peer, col.Table.Name, col.Name)
 				testqueryFilter(t, peer, col.Table.Name, col.Name, op, value)
@@ -168,7 +172,7 @@ func testqueryCol(t *testing.T, peer *Peer, table TableName, column string) {
 		}
 	}()
 	buf := bufio.NewReader(bytes.NewBufferString(query))
-	req, _, err := NewRequest(buf, ParseOptimize)
+	req, _, err := NewRequest(buf, ParseDefault)
 	if err == nil {
 		if err = assertEq(query, req.String()); err != nil {
 			t.Fatal(err)
@@ -195,7 +199,7 @@ func testqueryFilter(t *testing.T, peer *Peer, table TableName, column, op, valu
 		}
 	}()
 	buf := bufio.NewReader(bytes.NewBufferString(query))
-	req, _, err := NewRequest(buf, ParseOptimize)
+	req, _, err := NewRequest(buf, ParseDefault)
 	if err == nil {
 		if err = assertEq(query, req.String()); err != nil {
 			t.Fatal(err)
@@ -219,7 +223,7 @@ func testqueryGroup(t *testing.T, peer *Peer, table TableName, column, op, value
 		}
 	}()
 	buf := bufio.NewReader(bytes.NewBufferString(query))
-	req, _, err := NewRequest(buf, ParseOptimize)
+	req, _, err := NewRequest(buf, ParseDefault)
 	if err == nil {
 		if err = assertEq(query, req.String()); err != nil {
 			t.Fatal(err)
