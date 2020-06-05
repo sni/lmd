@@ -60,6 +60,9 @@ type Filter struct {
 	Stats      float64
 	StatsCount int
 	StatsType  StatsType
+
+	// copy of Column.Optional
+	ColumnOptional OptionalFlags
 }
 
 // Operator defines a filter operator.
@@ -274,6 +277,8 @@ func ParseFilter(value []byte, table TableName, stack *[]*Filter, options ParseO
 			return
 		}
 	}
+
+	filter.ColumnOptional = col.Optional
 
 	*stack = append(*stack, filter)
 	return
@@ -544,8 +549,7 @@ func ParseFilterNegate(stack *[]*Filter) (err error) {
 
 // Match returns true if the given filter matches the given value.
 func (f *Filter) Match(row *DataRow) bool {
-	colType := f.Column.DataType
-	switch colType {
+	switch f.Column.DataType {
 	case StringCol, StringLargeCol:
 		return f.MatchString(row.GetString(f.Column))
 	case StringListCol:
@@ -575,7 +579,7 @@ func (f *Filter) Match(row *DataRow) bool {
 		// not implemented
 		return false
 	}
-	log.Panicf("not implemented filter type: %v", colType)
+	log.Panicf("not implemented filter type: %v", f.Column.DataType)
 	return false
 }
 

@@ -304,6 +304,22 @@ func NewRequest(b *bufio.Reader, options ParseOptions) (req *Request, size int, 
 		}
 	}
 
+	// remove unnecessary filter indentation
+	for {
+		if len(req.Filter) == 1 && len(req.Filter[0].Filter) > 0 {
+			req.Filter = req.Filter[0].Filter
+		} else {
+			break
+		}
+	}
+	for {
+		if len(req.Stats) == 1 && len(req.Stats[0].Filter) > 0 {
+			req.Stats = req.Stats[0].Filter
+		} else {
+			break
+		}
+	}
+
 	req.SetRequestColumns()
 	err = req.SetSortColumns()
 	return
