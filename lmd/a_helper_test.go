@@ -211,6 +211,7 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 	count := 0
 	if name == TableHosts {
 		nameIndex := GetTestColumnIndex(table, "name")
+		aliasIndex := GetTestColumnIndex(table, "alias")
 		servicesIndex := GetTestColumnIndex(table, "services")
 		for x := range hosts {
 			host := hosts[x]
@@ -224,6 +225,7 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 				copy(newObj, raw[count-1])
 			}
 			newObj[nameIndex] = host.hostname
+			newObj[aliasIndex] = host.hostname + "_ALIAS"
 			newObj[servicesIndex] = host.services
 			newData = append(newData, newObj)
 		}

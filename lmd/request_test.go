@@ -354,7 +354,7 @@ func TestRequestStatsGroupBy(t *testing.T) {
 	if err = assertEq("testhost_1", (*res)[0][0]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq("authhost", (*res)[1][1]); err != nil {
+	if err = assertEq("testhost_1_ALIAS", (*res)[0][1]); err != nil {
 		t.Error(err)
 	}
 	if err = assertEq(0.083658002317, (*res)[1][2]); err != nil {
@@ -443,7 +443,7 @@ func TestRequestBrokenColumns(t *testing.T) {
 	if err = assertEq("testhost_1", (*res)[0][0]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq("localhost", (*res)[0][1]); err != nil {
+	if err = assertEq("testhost_1_ALIAS", (*res)[0][1]); err != nil {
 		t.Error(err)
 	}
 
