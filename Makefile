@@ -105,7 +105,7 @@ citest: vendor
 	go mod tidy
 
 benchmark: fmt
-	cd $(LAMPDDIR) && go test -ldflags "-s -w -X main.Build=$(shell git rev-parse --short HEAD)" -v -bench=B\* -run=^$$ . -benchmem
+	cd $(LAMPDDIR) && go test -ldflags "-s -w -X main.Build=$(shell git rev-parse --short HEAD)" -v -bench=B\* -benchtime 10s -run=^$$ . -benchmem
 
 racetest: fmt
 	cd $(LAMPDDIR) && go test -race -short -v
