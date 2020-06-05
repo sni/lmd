@@ -635,15 +635,15 @@ func (d *DataRow) MatchFilter(filter *Filter) bool {
 	// recursive group filter
 	switch filter.GroupOperator {
 	case And:
-		for i := range filter.Filter {
-			if !d.MatchFilter(filter.Filter[i]) {
+		for _, f := range filter.Filter {
+			if !d.MatchFilter(f) {
 				return false
 			}
 		}
 		return true
 	case Or:
-		for i := range filter.Filter {
-			if d.MatchFilter(filter.Filter[i]) {
+		for _, f := range filter.Filter {
+			if d.MatchFilter(f) {
 				return true
 			}
 		}

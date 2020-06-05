@@ -2581,11 +2581,10 @@ func (p *Peer) gatherResultRows(res *Response, store *DataStore, resultcollector
 	breakOnLimit := res.Request.OutputFormat != OutputFormatWrappedJSON
 
 Rows:
-	for j := range store.Data {
-		row := store.Data[j]
+	for _, row := range store.Data {
 		// does our filter match?
-		for i := range req.Filter {
-			if !row.MatchFilter(req.Filter[i]) {
+		for _, f := range req.Filter {
+			if !row.MatchFilter(f) {
 				continue Rows
 			}
 		}
@@ -2615,11 +2614,10 @@ func (p *Peer) gatherStatsResult(res *Response, store *DataStore) *ResultSetStat
 	req := res.Request
 
 Rows:
-	for j := range store.Data {
-		row := store.Data[j]
+	for _, row := range store.Data {
 		// does our filter match?
-		for i := range req.Filter {
-			if !row.MatchFilter(req.Filter[i]) {
+		for _, f := range req.Filter {
+			if !row.MatchFilter(f) {
 				continue Rows
 			}
 		}
