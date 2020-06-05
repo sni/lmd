@@ -633,25 +633,21 @@ func (d *DataRow) getVirtSubLMDValue(col *Column) (val interface{}, ok bool) {
 // MatchFilter returns true if the given filter matches the given datarow.
 func (d *DataRow) MatchFilter(filter *Filter) bool {
 	// recursive group filter
-	if len(filter.Filter) > 0 {
+	switch filter.GroupOperator {
+	case And:
 		for i := range filter.Filter {
-			subresult := d.MatchFilter(filter.Filter[i])
-			switch filter.GroupOperator {
-			case And:
-				// if all conditions must match and we failed already, exit early
-				if !subresult {
-					return false
-				}
-			case Or:
-				// if only one condition must match and we got that already, exit early
-				if subresult {
-					return true
-				}
+			if !d.MatchFilter(filter.Filter[i]) {
+				return false
 			}
 		}
-		// if this is an AND filter and we did not return yet, this means all have matched.
-		// else its an OR filter and none has matched so far.
-		return filter.GroupOperator == And
+		return true
+	case Or:
+		for i := range filter.Filter {
+			if d.MatchFilter(filter.Filter[i]) {
+				return true
+			}
+		}
+		return false
 	}
 
 	// if this is a optional column and we do not meet the requirements, match against an empty default column
