@@ -338,7 +338,7 @@ func (res *Response) Send(c net.Conn) (size int64, err error) {
 		if log.IsV(LogVerbosityTrace) {
 			log.Tracef("write: %s", fmt.Sprintf("%d %11d", res.Code, size))
 		}
-		_, err = c.Write([]byte(fmt.Sprintf("%d %11d\n", res.Code, size)))
+		_, err = fmt.Fprintf(c, "%d %11d\n", res.Code, size)
 		if err != nil {
 			log.Warnf("write error: %s", err.Error())
 			return
