@@ -29,6 +29,12 @@ type Response struct {
 	SelectedPeers []*Peer
 }
 
+// PeerResponse is the sub result from a peer before merged into the end result
+type PeerResponse struct {
+	Rows  []*DataRow // set of datarows
+	Total int        // total number of matched rows regardless of any limits or offsets
+}
+
 // NewResponse creates a new response object for a given request
 // It returns the Response object and any error encountered.
 func NewResponse(req *Request) (res *Response, err error) {
@@ -480,18 +486,16 @@ func (res *Response) WriteColumnsResponse(json *jsoniter.Stream) {
 
 // BuildLocalResponse builds local data table result for all selected peers
 func (res *Response) BuildLocalResponse() {
-	var resultcollector chan *DataRow
+	var resultcollector chan *PeerResponse
 	var waitChan chan bool
 	if len(res.Request.Stats) == 0 {
 		waitChan = make(chan bool)
-		resultcollector = make(chan *DataRow, ResultChannelSpoolSize)
+		resultcollector = make(chan *PeerResponse, len(res.SelectedPeers))
 		go func() {
 			result := res.RawResults
-			for row := range resultcollector {
-				result.Total++
-				if row != nil {
-					result.DataResult = append(result.DataResult, row)
-				}
+			for subRes := range resultcollector {
+				result.Total += subRes.Total
+				result.DataResult = append(result.DataResult, subRes.Rows...)
 			}
 			waitChan <- true
 		}()

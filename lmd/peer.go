@@ -2484,7 +2484,7 @@ func SpinUpPeers(peers []*Peer) {
 }
 
 // BuildLocalResponseData returns the result data for a given request
-func (p *Peer) BuildLocalResponseData(res *Response, store *DataStore, resultcollector chan *DataRow) {
+func (p *Peer) BuildLocalResponseData(res *Response, store *DataStore, resultcollector chan *PeerResponse) {
 	req := res.Request
 	log.Tracef("BuildLocalResponseData: %s", p.Name)
 
@@ -2604,8 +2604,11 @@ func (p *Peer) getError() string {
 	return fmt.Sprintf("%v", p.StatusGet(LastError))
 }
 
-func (p *Peer) gatherResultRows(res *Response, store *DataStore, resultcollector chan *DataRow) {
-	found := 0
+func (p *Peer) gatherResultRows(res *Response, store *DataStore, resultcollector chan *PeerResponse) {
+	result := &PeerResponse{}
+	defer func() {
+		resultcollector <- result
+	}()
 	req := res.Request
 
 	// if there is no sort header or sort by name only,
@@ -2631,19 +2634,17 @@ Rows:
 			continue Rows
 		}
 
-		found++
+		result.Total++
 
 		// check if we have enough result rows already
 		// we still need to count how many result we would have...
-		if found > limit {
+		if result.Total > limit {
 			if breakOnLimit {
 				return
 			}
-			resultcollector <- nil
 			continue Rows
 		}
-
-		resultcollector <- row
+		result.Rows = append(result.Rows, row)
 	}
 }
 
