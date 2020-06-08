@@ -1271,7 +1271,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
 	resIndex := make(map[string]bool)
 	for i := range *res {
 		resRow := &(*res)[i]
-		id := fmt.Sprintf("%v", (*resRow)[0])
+		id := fmt.Sprintf("%d", interface2int64((*resRow)[0]))
 		_, ok := idIndex[id]
 		if !ok {
 			log.Debugf("adding %s with id %s", name.String(), id)
