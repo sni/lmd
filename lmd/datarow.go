@@ -527,20 +527,26 @@ func VirtColMembersWithState(d *DataRow, col *Column) interface{} {
 	return res
 }
 
-// VirtColComments returns list of comment IDs (with optional additional information)
+// VirtColComments returns list of comment IDs
 func VirtColComments(d *DataRow, col *Column) interface{} {
+	comments, ok := d.DataStore.Peer.cache.comments[d]
+	if ok {
+		return comments
+	}
+	return emptyInt64List
+}
+
+// VirtColCommentsWithInfo returns list of comment IDs with additional information
+func VirtColCommentsWithInfo(d *DataRow, col *Column) interface{} {
 	commentsStore := d.DataStore.Peer.Tables[TableComments]
 	commentsTable := commentsStore.Table
 	authorCol := commentsTable.GetColumn("author")
 	commentCol := commentsTable.GetColumn("comment")
-	res := make([]interface{}, 0)
 	comments, ok := d.DataStore.Peer.cache.comments[d]
 	if !ok {
-		return res
+		return emptyInterfaceList
 	}
-	if col.Name == "comments" {
-		return comments
-	}
+	res := make([]interface{}, 0)
 	for i := range comments {
 		commentID := fmt.Sprintf("%d", comments[i])
 		comment, ok := commentsStore.Index[commentID]
@@ -556,18 +562,24 @@ func VirtColComments(d *DataRow, col *Column) interface{} {
 
 // VirtColDowntimes returns list of downtimes IDs
 func VirtColDowntimes(d *DataRow, col *Column) interface{} {
+	downtimes, ok := d.DataStore.Peer.cache.downtimes[d]
+	if ok {
+		return downtimes
+	}
+	return emptyInt64List
+}
+
+// VirtColDowntimesWithInfo returns list of downtimes IDs with additional information
+func VirtColDowntimesWithInfo(d *DataRow, col *Column) interface{} {
 	downtimesStore := d.DataStore.Peer.Tables[TableDowntimes]
 	downtimesTable := downtimesStore.Table
 	authorCol := downtimesTable.GetColumn("author")
 	commentCol := downtimesTable.GetColumn("comment")
-	res := make([]interface{}, 0)
 	downtimes, ok := d.DataStore.Peer.cache.downtimes[d]
 	if !ok {
-		return res
+		return emptyInterfaceList
 	}
-	if col.Name == "downtimes" {
-		return downtimes
-	}
+	res := make([]interface{}, 0)
 	for i := range downtimes {
 		downtimeID := fmt.Sprintf("%d", downtimes[i])
 		downtime, ok := downtimesStore.Index[downtimeID]
@@ -925,8 +937,7 @@ func interface2int64list(in interface{}) []int64 {
 		return (list)
 	}
 	if in == nil {
-		val := make([]int64, 0)
-		return val
+		return emptyInt64List
 	}
 	if list, ok := in.([]int); ok {
 		val := make([]int64, 0, len(list))

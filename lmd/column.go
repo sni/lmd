@@ -50,9 +50,9 @@ var VirtColumnList = []VirtColumnMapEntry{
 	{Name: "services_with_state", ResolvFunc: VirtColServicesWithInfo},
 	{Name: "services_with_info", ResolvFunc: VirtColServicesWithInfo},
 	{Name: "comments", ResolvFunc: VirtColComments},
-	{Name: "comments_with_info", ResolvFunc: VirtColComments},
+	{Name: "comments_with_info", ResolvFunc: VirtColCommentsWithInfo},
 	{Name: "downtimes", ResolvFunc: VirtColDowntimes},
-	{Name: "downtimes_with_info", ResolvFunc: VirtColDowntimes},
+	{Name: "downtimes_with_info", ResolvFunc: VirtColDowntimesWithInfo},
 	{Name: "members_with_state", ResolvFunc: VirtColMembersWithState},
 	{Name: "custom_variables", ResolvFunc: VirtColCustomVariables},
 	{Name: "total_services", ResolvFunc: VirtColTotalServices},
@@ -70,8 +70,9 @@ type ServiceMember [2]string
 type FetchType uint8
 
 // placeholder to return in GetEmptyValue, no need to create empty lists over and over
-var emptyList = make([]interface{}, 0)
-var emptyHash = make(map[string]string)
+var emptyInterfaceList = make([]interface{}, 0)
+var emptyStringMap = make(map[string]string)
+var emptyInt64List = []int64{}
 
 const (
 	// Static is used for all columns which are updated once at start.
@@ -280,10 +281,12 @@ func (c *Column) GetEmptyValue() interface{} {
 		return ""
 	case IntCol, Int64Col, FloatCol:
 		return -1
-	case Int64ListCol, StringListCol, ServiceMemberListCol, InterfaceListCol:
-		return emptyList
+	case Int64ListCol:
+		return emptyInt64List
+	case StringListCol, ServiceMemberListCol, InterfaceListCol:
+		return emptyInterfaceList
 	case HashMapCol, CustomVarCol:
-		return emptyHash
+		return emptyStringMap
 	default:
 		log.Panicf("type %s not supported", c.DataType)
 	}
