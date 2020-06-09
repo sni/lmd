@@ -40,7 +40,7 @@ type Request struct {
 	BackendErrors       map[string]string
 	ColumnsHeaders      bool
 	SendStatsData       bool
-	WaitTimeout         int
+	WaitTimeout         int // milliseconds
 	WaitTrigger         string
 	WaitCondition       []*Filter
 	WaitObject          string

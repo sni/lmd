@@ -152,7 +152,7 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string, conf *Config) (
 		size, err = response.Send(c)
 		duration := time.Since(t1)
 		log.Infof("incoming %s request from %s to %s finished in %s, response size: %s", req.Table.String(), remote, c.LocalAddr().String(), duration.String(), ByteCountBinary(size))
-		if duration > time.Duration(conf.LogSlowQueryThreshold)*time.Second {
+		if duration-time.Duration(req.WaitTimeout)*time.Millisecond > time.Duration(conf.LogSlowQueryThreshold)*time.Second {
 			log.Warnf("slow query finished after %s, response size: %s\n%s", duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
 		} else if size > int64(conf.LogHugeQueryThreshold*1024*1024) {
 			log.Warnf("huge query finished after %s, response size: %s\n%s", duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
