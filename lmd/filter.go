@@ -286,7 +286,9 @@ func ParseFilter(value []byte, table TableName, stack *[]*Filter, options ParseO
 
 // setFilterValue converts the text value into the given filters type value
 func (f *Filter) setRegexFilter(options ParseOptions) error {
-	val := f.StrValue
+	val := strings.TrimPrefix(f.StrValue, ".*")
+	val = strings.TrimSuffix(val, ".*")
+
 	if options&ParseOptimize != 0 && !hasRegexpCharacters(val) {
 		switch f.Operator {
 		case RegexMatch:
