@@ -23,5 +23,5 @@ require (
 	github.com/sni/copyfighter v0.0.0-20200526203728-2c11bc793600
 	github.com/stretchr/objx v0.2.0 // indirect
 	golang.org/x/sys v0.0.0-20200223170610-d5e6a3e2c0ae // indirect
-	golang.org/x/tools v0.0.0-20200606014950-c42cb6316fb6
+	golang.org/x/tools v0.0.0-20200609124132-5359b67ffbdf
 )
