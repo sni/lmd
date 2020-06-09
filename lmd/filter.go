@@ -579,7 +579,7 @@ func (f *Filter) Match(row *DataRow) bool {
 		// not implemented
 		return false
 	}
-	log.Panicf("not implemented filter type: %v", f.Column.DataType)
+	log.Panicf("not implemented filter match type: %s", f.Column.DataType.String())
 	return false
 }
 
@@ -599,7 +599,7 @@ func (f *Filter) MatchInt(value int) bool {
 	case GreaterThan:
 		return value >= intVal
 	}
-	log.Warnf("not implemented op: %v", f.Operator)
+	log.Warnf("not implemented Int op: %s", f.Operator.String())
 	return false
 }
 
@@ -619,7 +619,7 @@ func (f *Filter) MatchInt64(value int64) bool {
 	case GreaterThan:
 		return value >= intVal
 	}
-	log.Warnf("not implemented op: %v", f.Operator)
+	log.Warnf("not implemented Int64 op: %s", f.Operator.String())
 	return false
 }
 
@@ -638,7 +638,7 @@ func (f *Filter) MatchFloat(value float64) bool {
 	case GreaterThan:
 		return value >= f.FloatValue
 	}
-	log.Warnf("not implemented op: %v", f.Operator)
+	log.Warnf("not implemented float op: %s", f.Operator.String())
 	return false
 }
 
@@ -657,7 +657,7 @@ func matchEmptyFilter(op Operator) bool {
 	case GreaterThan:
 		return true
 	}
-	log.Warnf("not implemented op: %v", op)
+	log.Warnf("not implemented empty op: %s", op.String())
 	return false
 }
 
@@ -692,7 +692,7 @@ func (f *Filter) MatchString(value *string) bool {
 	case ContainsNoCaseNot:
 		return !strings.Contains(strings.ToLower(*value), f.StrValue)
 	}
-	log.Warnf("not implemented op: %v", f.Operator)
+	log.Warnf("not implemented string op: %s", f.Operator.String())
 	return false
 }
 
@@ -735,7 +735,7 @@ func (f *Filter) MatchStringList(list *[]string) bool {
 		}
 		return true
 	}
-	log.Warnf("not implemented op: %v", f.Operator)
+	log.Warnf("not implemented stringlist op: %s", f.Operator.String())
 	return false
 }
 
@@ -762,7 +762,7 @@ func (f *Filter) MatchInt64List(list []int64) bool {
 		}
 		return true
 	}
-	log.Warnf("not implemented op: %v", f.Operator)
+	log.Warnf("not implemented Int64list op: %s", f.Operator.String())
 	return false
 }
 
