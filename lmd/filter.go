@@ -720,14 +720,14 @@ func (f *Filter) MatchStringList(list *[]string) bool {
 			}
 		}
 		return true
-	case RegexMatch, RegexNoCaseMatch:
+	case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase:
 		for i := range *list {
 			if f.MatchString(&(*list)[i]) {
 				return true
 			}
 		}
 		return false
-	case RegexMatchNot, RegexNoCaseMatchNot:
+	case RegexMatchNot, RegexNoCaseMatchNot, ContainsNot, ContainsNoCaseNot:
 		for i := range *list {
 			if f.MatchString(&(*list)[i]) {
 				return false
