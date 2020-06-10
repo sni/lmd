@@ -9,6 +9,7 @@ GOVERSION:=$(shell \
 )
 MINGOVERSION:=00010014
 MINGOVERSIONSTR:=1.14
+BUILD:=$(shell git rev-parse --short HEAD)
 
 all: build
 
@@ -43,13 +44,13 @@ dump:
 	rm -f $(LAMPDDIR)/dump.go.bak
 
 build: vendor
-	cd $(LAMPDDIR) && go build -ldflags "-s -w -X main.Build=$(shell git rev-parse --short HEAD)"
+	cd $(LAMPDDIR) && go build -ldflags "-s -w -X main.Build=$(BUILD)"
 
 build-linux-amd64: vendor
-	cd $(LAMPDDIR) && GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.Build=$(shell git rev-parse --short HEAD)" -o lmd.linux.amd64
+	cd $(LAMPDDIR) && GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.Build=$(BUILD)" -o lmd.linux.amd64
 
 debugbuild: fmt dump vendor
-	cd $(LAMPDDIR) && go build -race -ldflags "-X main.Build=$(shell git rev-parse --short HEAD)"
+	cd $(LAMPDDIR) && go build -race -ldflags "-X main.Build=$(BUILD)"
 
 devbuild: debugbuild
 
@@ -105,7 +106,7 @@ citest: vendor
 	go mod tidy
 
 benchmark: fmt
-	cd $(LAMPDDIR) && go test -ldflags "-s -w -X main.Build=$(shell git rev-parse --short HEAD)" -v -bench=B\* -benchtime 10s -run=^$$ . -benchmem
+	cd $(LAMPDDIR) && go test -ldflags "-s -w -X main.Build=$(BUILD)" -v -bench=B\* -benchtime 10s -run=^$$ . -benchmem
 
 racetest: fmt
 	cd $(LAMPDDIR) && go test -race -short -v
