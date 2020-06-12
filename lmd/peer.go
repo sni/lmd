@@ -437,14 +437,18 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 	p.StatusSet(LastUpdate, now)
 
 	if lastStatus == PeerStatusBroken {
-		restartRequired, _ := p.UpdateFullTable(TableStatus)
-		if restartRequired {
-			log.Debugf("[%s] broken peer has reloaded, trying again.", p.Name)
-			*ok = p.InitAllTables()
-			*lastTimeperiodUpdateMinute = currentMinute
-		} else {
-			log.Debugf("[%s] waiting for reload", p.Name)
+		res, _, err := p.QueryString("GET status\nOutputFormat: json\nColumns: program_start nagios_pid\n\n")
+		if err == nil && len(*res) > 0 && len((*res)[0]) == 2 {
+			programStart := interface2int64((*res)[0][0])
+			corePid := interface2int((*res)[0][1])
+			if p.StatusGet(ProgramStart) != programStart || p.StatusGet(LastPid) != corePid {
+				log.Debugf("[%s] broken peer has reloaded, trying again.", p.Name)
+				*ok = p.InitAllTables()
+				*lastTimeperiodUpdateMinute = currentMinute
+				return
+			}
 		}
+		log.Debugf("[%s] waiting for reload", p.Name)
 		return
 	}
 
