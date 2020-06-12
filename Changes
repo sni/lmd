@@ -1,5 +1,11 @@
 This file documents the revision history for the Livestatus Multitool Daemon
 
+next:
+          - improve comments/downtimes synchronization
+          - improve slow query log when using wait conditions
+          - improve query performance when using regular expressions
+          - fix recovering broken peers
+
 1.8.3    Mon Jun  8 11:06:13 CEST 2020
           - improve reload detection with icinga2
           - sort incoming hosts and services for icinga2, since they seem to be in random order
