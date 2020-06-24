@@ -293,8 +293,10 @@ func (f *Filter) setRegexFilter(options ParseOptions) error {
 		switch f.Operator {
 		case RegexMatch:
 			f.Operator = Contains
+			f.StrValue = val
 		case RegexMatchNot:
 			f.Operator = ContainsNot
+			f.StrValue = val
 		case RegexNoCaseMatch:
 			f.Operator = ContainsNoCase
 			f.StrValue = strings.ToLower(val)
