@@ -807,5 +807,5 @@ func fixBrokenClientsRequestColumn(columnName *string, table TableName) bool {
 
 // hasRegexpCharacters returns true if string is a probably a regular expression
 func hasRegexpCharacters(val string) bool {
-	return (strings.ContainsAny(val, "|([{*+?"))
+	return (strings.ContainsAny(val, "|([{*+?^"))
 }
