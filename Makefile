@@ -18,8 +18,8 @@ tools: versioncheck vendor dump
 	set -e; for DEP in $(shell grep _ buildtools/tools.go | awk '{ print $$2 }'); do \
 		go get $$DEP; \
 	done
-	go mod vendor
 	go mod tidy
+	go mod vendor
 
 updatedeps: versioncheck
 	$(MAKE) clean
@@ -32,8 +32,8 @@ updatedeps: versioncheck
 
 vendor:
 	go mod download
-	go mod vendor
 	go mod tidy
+	go mod vendor
 
 dump:
 	if [ $(shell grep -rc Dump $(LAMPDDIR)/*.go | grep -v :0 | grep -v $(LAMPDDIR)/dump.go | wc -l) -ne 0 ]; then \
