@@ -15,9 +15,6 @@ all: build
 
 tools: versioncheck vendor dump
 	go mod download
-	set -e; for DEP in $(shell grep _ buildtools/tools.go | awk '{ print $$2 }'); do \
-		go get $$DEP; \
-	done
 	go mod tidy
 	go mod vendor
 

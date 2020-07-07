@@ -12,5 +12,4 @@ script:
   -  make clean
   -  make debugbuild
   -  make clean
-#  -  make updatedeps # breaks golangci right now
   -  make citest
