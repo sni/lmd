@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/json"
@@ -458,7 +459,10 @@ func (n *Nodes) SendQuery(node *NodeAddress, name string, parameters map[string]
 		log.Fatalf("uninitialized node address provided to SendQuery %s", node.id)
 	}
 	url := node.url + "query"
-	res, err := n.HTTPClient.Post(url, contentType, bytes.NewBuffer(rawRequest))
+	ctx := context.Background()
+	req, _ := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(rawRequest))
+	req.Header.Set("Content-Type", contentType)
+	res, err := n.HTTPClient.Do(req)
 	if err != nil {
 		log.Debugf("error sending query (%s) to node (%s): %s", name, node, err.Error())
 		return err
