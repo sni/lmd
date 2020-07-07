@@ -168,11 +168,16 @@ func ParseRequest(c net.Conn) (req *Request, err error) {
 func ParseRequests(c net.Conn) (reqs []*Request, err error) {
 	b := bufio.NewReader(c)
 	localAddr := c.LocalAddr().String()
+	eof := false
 	for {
 		req, size, err := NewRequest(b, ParseOptimize)
 		promFrontendBytesReceived.WithLabelValues(localAddr).Add(float64(size))
 		if err != nil {
-			return nil, err
+			if err == io.EOF {
+				eof = true
+			} else {
+				return nil, err
+			}
 		}
 		if req == nil {
 			break
@@ -186,6 +191,12 @@ func ParseRequests(c net.Conn) (reqs []*Request, err error) {
 		if req.Command == "" {
 			break
 		}
+	}
+	if eof {
+		if len(reqs) == 0 {
+			return nil, io.EOF
+		}
+		reqs[len(reqs)-1].KeepAlive = false
 	}
 	return
 }
@@ -260,6 +271,13 @@ func (req *Request) String() (str string) {
 // It returns the request as long with the number of bytes read and any error.
 func NewRequest(b *bufio.Reader, options ParseOptions) (req *Request, size int, err error) {
 	firstLine, err := b.ReadString('\n')
+	if err == io.EOF {
+		if firstLine == "" {
+			return
+		}
+		// ignore eof error, continue with this request
+		err = nil
+	}
 	// Network errors will be logged in the listener
 	if _, ok := err.(net.Error); ok {
 		return
@@ -267,7 +285,7 @@ func NewRequest(b *bufio.Reader, options ParseOptions) (req *Request, size int, 
 	size += len(firstLine)
 	firstLine = strings.TrimSpace(firstLine)
 	// probably a open connection without new data from a keepalive request
-	if log.IsV(LogVerbosityDebug) && firstLine != "" {
+	if firstLine != "" {
 		log.Debugf("request: %s", firstLine)
 	}
 
@@ -290,9 +308,7 @@ func NewRequest(b *bufio.Reader, options ParseOptions) (req *Request, size int, 
 			break
 		}
 
-		if log.IsV(LogVerbosityDebug) {
-			log.Debugf("request: %s", line)
-		}
+		log.Debugf("request: %s", line)
 		perr := req.ParseRequestHeaderLine(line, options)
 		if perr != nil {
 			err = fmt.Errorf("bad request: %s in: %s", perr.Error(), line)

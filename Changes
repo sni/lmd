@@ -4,6 +4,8 @@ next:
           - improve comments/downtimes synchronization
           - improve slow query log when using wait conditions
           - improve query performance when using regular expressions
+          - improve keepalive handling
+          - add open connections prometheus metric
           - fix recovering broken peers
 
 1.8.3    Mon Jun  8 11:06:13 CEST 2020

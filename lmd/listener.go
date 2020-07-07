@@ -5,12 +5,14 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -37,6 +39,7 @@ type Listener struct {
 	GlobalConfig     *Config
 	waitGroupDone    *sync.WaitGroup
 	waitGroupInit    *sync.WaitGroup
+	openConnections  int64
 }
 
 // NewListener creates a new Listener object
@@ -75,16 +78,7 @@ func QueryServer(c net.Conn, conf *Config) error {
 
 		reqs, err := ParseRequests(c)
 		if err != nil {
-			if err, ok := err.(net.Error); ok {
-				if keepAlive {
-					log.Debugf("closing keepalive connection from %s", remote)
-				} else {
-					log.Debugf("network error from %s: %s", remote, err.Error())
-				}
-				return err
-			}
-			(&Response{Code: 400, Request: &Request{}, Error: err}).Send(c)
-			return err
+			return sendErrorResponse(c, keepAlive, remote, err)
 		}
 		switch {
 		case len(reqs) > 0:
@@ -109,6 +103,23 @@ func QueryServer(c net.Conn, conf *Config) error {
 
 		return err
 	}
+}
+
+// ProcessRequests creates response for all given requests
+func sendErrorResponse(c net.Conn, keepAlive bool, remote string, err error) error {
+	if err, ok := err.(net.Error); ok {
+		if keepAlive {
+			log.Debugf("closing keepalive connection from %s", remote)
+		} else {
+			log.Debugf("network error from %s: %s", remote, err.Error())
+		}
+		return err
+	}
+	if err == io.EOF {
+		return nil
+	}
+	(&Response{Code: 400, Request: &Request{}, Error: err}).Send(c)
+	return err
 }
 
 // ProcessRequests creates response for all given requests
@@ -318,7 +329,11 @@ func (l *Listener) LocalListenerLivestatus(connType string, listen string) {
 			// make sure we log panics properly
 			defer logPanicExit()
 
+			atomic.AddInt64(&l.openConnections, 1)
+			promFrontendOpenConnections.WithLabelValues(l.ConnectionString).Set(float64(l.openConnections))
 			handleConnection(fd, l.GlobalConfig)
+			atomic.AddInt64(&l.openConnections, -1)
+			promFrontendOpenConnections.WithLabelValues(l.ConnectionString).Set(float64(l.openConnections))
 		}()
 	}
 }

@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"net"
 	"testing"
 	"time"
 )
@@ -1258,6 +1260,141 @@ ResponseHeader: fixed16
 		t.Error(err)
 	}
 	if err = assertEq("testhost_2_alias", (*res)[0][3]); err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestRequestKeepalive(t *testing.T) {
+	extraConfig := `
+        ListenPrometheus = "127.0.0.1:50999"
+	`
+	peer := StartTestPeerExtra(1, 10, 10, extraConfig)
+	PauseTestPeers(peer)
+
+	getOpenListeners := func() int64 {
+		return (Listeners["test.sock"].openConnections)
+	}
+
+	// open connections should be zero
+	if err := assertEq(int64(0), getOpenListeners()); err != nil {
+		t.Error(err)
+	}
+
+	// open first connection
+	conn, err := net.DialTimeout("unix", "test.sock", 60*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req, _, _ := NewRequest(bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name\n")), ParseOptimize)
+	req.ResponseFixed16 = true
+
+	// send request without keepalive
+	_, err = fmt.Fprintf(conn, "%s", req.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = peer.parseResponseFixedSize(req, conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// open connections should be zero, we are done
+	if err := assertEq(int64(0), getOpenListeners()); err != nil {
+		t.Error(err)
+	}
+
+	// send seconds request without keepalive, should fail
+	_, err = fmt.Fprintf(conn, "%s", req.String())
+	if err == nil {
+		t.Fatal(fmt.Errorf("request should fail because connection is closed on server side"))
+	}
+	conn.Close()
+
+	// open connections should be zero, we are done
+	time.Sleep(KeepAliveWaitInterval)
+	if err := assertEq(int64(0), getOpenListeners()); err != nil {
+		t.Error(err)
+	}
+
+	// open connection again
+	conn, err = net.DialTimeout("unix", "test.sock", 60*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req.KeepAlive = true
+	_, err = fmt.Fprintf(conn, "%s", req.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = peer.parseResponseFixedSize(req, conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// open connections should be one
+	if err := assertEq(int64(1), getOpenListeners()); err != nil {
+		t.Error(err)
+	}
+
+	// second request should pass as well
+	_, err = fmt.Fprintf(conn, "%s", req.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = peer.parseResponseFixedSize(req, conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// open connections should be one
+	if err := assertEq(int64(1), getOpenListeners()); err != nil {
+		t.Error(err)
+	}
+	conn.Close()
+
+	// open connections should be zero, we are done
+	time.Sleep(KeepAliveWaitInterval)
+	if err := assertEq(int64(0), getOpenListeners()); err != nil {
+		t.Error(err)
+	}
+
+	// open connection again
+	conn, err = net.DialTimeout("unix", "test.sock", 60*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req.KeepAlive = true
+	_, err = fmt.Fprintf(conn, "%s", req.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn.(*net.UnixConn).CloseWrite()
+
+	// open connections should be one
+	time.Sleep(KeepAliveWaitInterval)
+	if err := assertEq(int64(0), getOpenListeners()); err != nil {
+		t.Error(err)
+	}
+
+	_, err = peer.parseResponseFixedSize(req, conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// check if connection is really closed
+	conn.Close()
+
+	// open connections should zero again
+	time.Sleep(KeepAliveWaitInterval)
+	if err := assertEq(int64(0), getOpenListeners()); err != nil {
 		t.Error(err)
 	}
 

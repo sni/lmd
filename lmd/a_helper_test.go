@@ -23,13 +23,14 @@ import (
 )
 
 var testLogLevel = "Error"
+var testLogTarget = "stderr"
 
 // GlobalTestConfig contains the global configuration (after config files have been parsed)
 var GlobalTestConfig Config
 
 func init() {
 	setDefaults(&GlobalTestConfig)
-	InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
+	InitLogging(&Config{LogLevel: testLogLevel, LogFile: testLogTarget})
 	flagDeadlock = 15
 
 	TestPeerWaitGroup = &sync.WaitGroup{}
@@ -270,7 +271,8 @@ var TestPeerWaitGroup *sync.WaitGroup
 
 func StartMockMainLoop(sockets []string, extraConfig string) {
 	var testConfig = `
-Loglevel = "` + testLogLevel + `"
+Loglevel       = "` + testLogLevel + `"
+LogFile        = "` + testLogTarget + `"
 LogLockTimeout = 10
 
 `

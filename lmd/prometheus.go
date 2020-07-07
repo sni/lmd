@@ -95,6 +95,15 @@ var (
 		},
 		[]string{"listen"},
 	)
+	promFrontendOpenConnections = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: NAME,
+			Subsystem: "frontend",
+			Name:      "open_connections",
+			Help:      "Open listener connections",
+		},
+		[]string{"listen"},
+	)
 
 	promPeerUpdateInterval = prometheus.NewGauge(
 		prometheus.GaugeOpts{
@@ -245,6 +254,7 @@ func initPrometheus(localConfig *Config) (prometheusListener io.Closer) {
 	prometheus.Register(promFrontendQueries)
 	prometheus.Register(promFrontendBytesSend)
 	prometheus.Register(promFrontendBytesReceived)
+	prometheus.Register(promFrontendOpenConnections)
 	prometheus.Register(promPeerUpdateInterval)
 	prometheus.Register(promPeerFullUpdateInterval)
 	prometheus.Register(promPeerConnections)
