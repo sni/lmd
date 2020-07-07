@@ -23,7 +23,7 @@ updatedeps: versioncheck
 	go list -u -m all
 	go mod download
 	set -e; for DEP in $(shell grep _ buildtools/tools.go | awk '{ print $$2 }'); do \
-		go get -u $$DEP; \
+		go get $$DEP; \
 	done
 	go mod tidy
 
