@@ -37,6 +37,8 @@ linters:
     - goconst
     - interfacer
     - wsl
+    - exhaustive
+    - gofumpt
   fast: false
 issues:
   max-same-issues: 0
