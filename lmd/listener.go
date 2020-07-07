@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -12,7 +13,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"io"
 )
 
 const (

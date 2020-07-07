@@ -262,7 +262,7 @@ func NewRequest(b *bufio.Reader, options ParseOptions) (req *Request, size int, 
 	req = &Request{ColumnsHeaders: false, KeepAlive: false}
 	firstLine, err := b.ReadString('\n')
 	// Return if we get an EOF from the first line
-	if err == io.EOF{
+	if err == io.EOF {
 		return
 	}
 	// Network errors will be logged in the listener
