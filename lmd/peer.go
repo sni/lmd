@@ -29,7 +29,7 @@ var reResponseHeader = regexp.MustCompile(`^(\d+)\s+(\d+)$`)
 var reHTTPTooOld = regexp.MustCompile(`Can.t locate object method`)
 var reHTTPOMDError = regexp.MustCompile(`<h1>(OMD:.*?)</h1>`)
 var reShinkenVersion = regexp.MustCompile(`\-shinken$`)
-var reIcinga2Version = regexp.MustCompile(`^(r[\d\.-]+|.*\-icinga2)$`)
+var reIcinga2Version = regexp.MustCompile(`^(r[\d.-]+|.*\-icinga2)$`)
 var reNaemonVersion = regexp.MustCompile(`\-naemon$`)
 
 const (
