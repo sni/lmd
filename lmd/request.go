@@ -259,15 +259,9 @@ func (req *Request) String() (str string) {
 // NewRequest reads a buffer and creates a new request object.
 // It returns the request as long with the number of bytes read and any error.
 func NewRequest(b *bufio.Reader, options ParseOptions) (req *Request, size int, err error) {
-	req = &Request{ColumnsHeaders: false, KeepAlive: false}
 	firstLine, err := b.ReadString('\n')
-	// Return if we get an EOF from the first line
-	if err == io.EOF {
-		return
-	}
 	// Network errors will be logged in the listener
 	if _, ok := err.(net.Error); ok {
-		req = nil
 		return
 	}
 	size += len(firstLine)
@@ -277,6 +271,7 @@ func NewRequest(b *bufio.Reader, options ParseOptions) (req *Request, size int, 
 		log.Debugf("request: %s", firstLine)
 	}
 
+	req = &Request{ColumnsHeaders: false, KeepAlive: false}
 	ok, err := req.ParseRequestAction(&firstLine)
 	if err != nil || !ok {
 		req = nil
@@ -304,6 +299,7 @@ func NewRequest(b *bufio.Reader, options ParseOptions) (req *Request, size int, 
 			return
 		}
 		if berr == io.EOF {
+			req.KeepAlive = false
 			break
 		}
 	}

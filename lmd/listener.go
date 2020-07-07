@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -76,10 +75,6 @@ func QueryServer(c net.Conn, conf *Config) error {
 
 		reqs, err := ParseRequests(c)
 		if err != nil {
-			// EOF is OK, we just terminate the connection
-			if err == io.EOF {
-				return nil
-			}
 			if err, ok := err.(net.Error); ok {
 				if keepAlive {
 					log.Debugf("closing keepalive connection from %s", remote)
