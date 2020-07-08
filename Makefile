@@ -10,11 +10,19 @@ GOVERSION:=$(shell \
 MINGOVERSION:=00010014
 MINGOVERSIONSTR:=1.14
 BUILD:=$(shell git rev-parse --short HEAD)
+# see https://github.com/go-modules-by-example/index/blob/master/010_tools/README.md
+# and https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module
+TOOLSFOLDER=$(shell pwd)/tools
+export GOBIN := $(TOOLSFOLDER)
+export PATH := $(GOBIN):$(PATH)
 
 all: build
 
 tools: versioncheck vendor dump
 	go mod download
+	set -e; for DEP in $(shell grep "_ " buildtools/tools.go | awk '{ print $$2 }'); do \
+		go install $$DEP; \
+	done
 	go mod tidy
 	go mod vendor
 
@@ -22,7 +30,7 @@ updatedeps: versioncheck
 	$(MAKE) clean
 	go list -u -m all
 	go mod download
-	set -e; for DEP in $(shell grep _ buildtools/tools.go | awk '{ print $$2 }'); do \
+	set -e; for DEP in $(shell grep "_ " buildtools/tools.go | awk '{ print $$2 }'); do \
 		go get $$DEP; \
 	done
 	go mod tidy
@@ -124,6 +132,7 @@ clean:
 	rm -f $(LAMPDDIR)/*.sock
 	rm -f lmd-*.html
 	rm -rf vendor
+	rm -rf $(TOOLSFOLDER)
 
 fmt: generate tools
 	cd $(LAMPDDIR) && goimports -w .
