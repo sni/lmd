@@ -1277,6 +1277,7 @@ func TestRequestKeepalive(t *testing.T) {
 	PauseTestPeers(peer)
 
 	getOpenListeners := func() int64 {
+		time.Sleep(KeepAliveWaitInterval)
 		return (atomic.LoadInt64(&(Listeners["test.sock"].openConnections)))
 	}
 
@@ -1306,7 +1307,6 @@ func TestRequestKeepalive(t *testing.T) {
 	}
 
 	// open connections should be zero, we are done
-	time.Sleep(KeepAliveWaitInterval)
 	if err := assertEq(int64(0), getOpenListeners()); err != nil {
 		t.Error(err)
 	}
