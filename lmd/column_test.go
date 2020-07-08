@@ -34,7 +34,7 @@ func TestColumnFlag(t *testing.T) {
 		t.Error(err)
 	}
 
-	peer.ClearFlags()
+	peer.ResetFlags()
 	if err := assertEq(false, peer.HasFlag(Naemon)); err != nil {
 		t.Error(err)
 	}

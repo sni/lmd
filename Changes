@@ -6,6 +6,7 @@ next:
           - improve query performance when using regular expressions
           - improve keepalive handling
           - add open connections prometheus metric
+          - add optional connection flags, ex. to set a connection to type icinga2
           - fix recovering broken peers
 
 1.8.3    Mon Jun  8 11:06:13 CEST 2020

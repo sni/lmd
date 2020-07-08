@@ -279,6 +279,8 @@ func NewPeer(globalConfig *Config, config *Connection, waitGroup *sync.WaitGroup
 		p.cache.HTTPClient = NewLMDHTTPClient(tlsConfig, config.Proxy)
 	}
 
+	p.ResetFlags()
+
 	return &p
 }
 
@@ -1680,7 +1682,7 @@ func (p *Peer) GetConnection() (conn net.Conn, connType PeerConnType, err error)
 			promPeerConnections.WithLabelValues(p.Name).Inc()
 			if x > 0 {
 				log.Infof("[%s] active source changed to %s", p.Name, peerAddr)
-				p.ClearFlags()
+				p.ResetFlags()
 			}
 			return
 		}
@@ -2988,9 +2990,20 @@ func (p *Peer) SetFlag(flag OptionalFlags) {
 	atomic.StoreUint32(&p.Flags, uint32(f))
 }
 
-// ClearFlags removes all flags
-func (p *Peer) ClearFlags() {
+// ResetFlags removes all flags and sets the initial flags from config
+func (p *Peer) ResetFlags() {
 	atomic.StoreUint32(&p.Flags, uint32(NoFlags))
+
+	// add default flags
+	for _, flag := range p.Config.Flags {
+		switch strings.ToLower(flag) {
+		case "icinga2":
+			log.Debugf("[%s] remote connection Icinga2 flag set", p.Name)
+			p.SetFlag(Icinga2)
+		default:
+			log.Warnf("[%s] unknown flag: %s", p.Name, flag)
+		}
+	}
 }
 
 // GetDataStore returns store for given name or error if peer is offline
@@ -3022,8 +3035,11 @@ func (p *Peer) GetSupportedColumns() (tables map[TableName]map[string]bool, err 
 		Columns: []string{"table", "name"},
 	}
 	p.setQueryOptions(req)
-	res, _, err := p.Query(req)
+	res, _, err := p.query(req) // skip default error handling here
 	if err != nil {
+		if strings.Contains(err.Error(), "Table 'columns' does not exist") {
+			return tables, nil
+		}
 		return nil, err
 	}
 	tables = make(map[TableName]map[string]bool)

@@ -119,6 +119,13 @@ name   = "Monitoring Site A IPv6"
 id     = "id3"
 source = ["[::1]:6557"]
 
+# tcp connection to icinga2 with explicit flag set in case of autodetection fails
+[[Connections]]
+name   = "Icinga2 Backend"
+id     = "icinga2"
+source = ["[::1]:6557"]
+flags  = ["icinga2"]
+
 # connect to thruk http(s) api
 [[Connections]]
 name   = "Thruk HTTP"
