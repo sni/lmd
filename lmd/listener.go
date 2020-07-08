@@ -330,10 +330,10 @@ func (l *Listener) LocalListenerLivestatus(connType string, listen string) {
 			defer logPanicExit()
 
 			atomic.AddInt64(&l.openConnections, 1)
-			promFrontendOpenConnections.WithLabelValues(l.ConnectionString).Set(float64(l.openConnections))
+			promFrontendOpenConnections.WithLabelValues(l.ConnectionString).Set(float64(atomic.LoadInt64(&l.openConnections)))
 			handleConnection(fd, l.GlobalConfig)
 			atomic.AddInt64(&l.openConnections, -1)
-			promFrontendOpenConnections.WithLabelValues(l.ConnectionString).Set(float64(l.openConnections))
+			promFrontendOpenConnections.WithLabelValues(l.ConnectionString).Set(float64(atomic.LoadInt64(&l.openConnections)))
 		}()
 	}
 }
