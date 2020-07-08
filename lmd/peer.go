@@ -1553,10 +1553,10 @@ func (p *Peer) Query(req *Request) (result *ResultSet, meta *ResultMetaData, err
 func (p *Peer) QueryString(str string) (*ResultSet, *ResultMetaData, error) {
 	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString(str)), ParseDefault)
 	if err != nil {
-		return nil, nil, err
-	}
-	if req == nil {
-		err = errors.New("bad request: empty request")
+		if err == io.EOF {
+			err = errors.New("bad request: empty request")
+			return nil, nil, err
+		}
 		return nil, nil, err
 	}
 	return p.Query(req)
