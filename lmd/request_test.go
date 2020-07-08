@@ -1306,6 +1306,7 @@ func TestRequestKeepalive(t *testing.T) {
 	}
 
 	// open connections should be zero, we are done
+	time.Sleep(KeepAliveWaitInterval)
 	if err := assertEq(int64(0), getOpenListeners()); err != nil {
 		t.Error(err)
 	}
