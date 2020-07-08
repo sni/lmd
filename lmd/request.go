@@ -1005,6 +1005,8 @@ func (req *Request) IsDefaultSortOrder() bool {
 		if len(req.Sort) == 1 && req.Sort[0].Name == "name" && req.Sort[0].Direction == Asc {
 			return true
 		}
+	default:
+		return false
 	}
 	return false
 }

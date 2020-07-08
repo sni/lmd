@@ -34,8 +34,9 @@ func (op *StatsType) String() string {
 		return "min"
 	case Max:
 		return "Max"
+	default:
+		log.Panicf("not implemented")
 	}
-	log.Panicf("not implemented")
 	return ""
 }
 

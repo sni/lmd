@@ -177,16 +177,19 @@ func (d *DataRow) GetString(col *Column) *string {
 		case Int64ListCol:
 			val := strings.Join(strings.Fields(fmt.Sprint(d.dataInt64List[col.Index])), ListSepChar1)
 			return &val
+		default:
+			log.Panicf("unsupported type: %s", col.DataType)
 		}
-		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
 		ref := d.Refs[col.RefColTableName]
 		if ref == nil {
 			return interface2stringNoDedup(col.GetEmptyValue())
 		}
 		return ref.GetString(col.RefCol)
+	case VirtStore:
+		return interface2stringNoDedup(d.getVirtRowValue(col))
 	}
-	return interface2stringNoDedup(d.getVirtRowValue(col))
+	panic(fmt.Sprintf("unsupported type: %s", col.DataType))
 }
 
 // GetStringByName returns the string value for given column name
@@ -208,8 +211,10 @@ func (d *DataRow) GetStringList(col *Column) *[]string {
 			return interface2stringlist(col.GetEmptyValue())
 		}
 		return ref.GetStringList(col.RefCol)
+	case VirtStore:
+		return interface2stringlist(d.getVirtRowValue(col))
 	}
-	return interface2stringlist(d.getVirtRowValue(col))
+	panic(fmt.Sprintf("unsupported type: %s", col.DataType))
 }
 
 // GetStringListByName returns the string list for given column name
@@ -228,16 +233,19 @@ func (d *DataRow) GetFloat(col *Column) float64 {
 			return float64(d.dataInt[col.Index])
 		case Int64Col:
 			return float64(d.dataInt64[col.Index])
+		default:
+			log.Panicf("unsupported type: %s", col.DataType)
 		}
-		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
 		ref := d.Refs[col.RefColTableName]
 		if ref == nil {
 			return interface2float64(col.GetEmptyValue())
 		}
 		return ref.GetFloat(col.RefCol)
+	case VirtStore:
+		return interface2float64(d.getVirtRowValue(col))
 	}
-	return interface2float64(d.getVirtRowValue(col))
+	panic(fmt.Sprintf("unsupported type: %s", col.DataType))
 }
 
 // GetInt returns the int value for given column
@@ -249,16 +257,19 @@ func (d *DataRow) GetInt(col *Column) int {
 			return d.dataInt[col.Index]
 		case FloatCol:
 			return int(d.dataFloat[col.Index])
+		default:
+			log.Panicf("unsupported type: %s", col.DataType)
 		}
-		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
 		ref := d.Refs[col.RefColTableName]
 		if ref == nil {
 			return interface2int(col.GetEmptyValue())
 		}
 		return ref.GetInt(col.RefCol)
+	case VirtStore:
+		return interface2int(d.getVirtRowValue(col))
 	}
-	return interface2int(d.getVirtRowValue(col))
+	panic(fmt.Sprintf("unsupported type: %s", col.StorageType))
 }
 
 // GetInt returns the int64 value for given column
@@ -272,16 +283,19 @@ func (d *DataRow) GetInt64(col *Column) int64 {
 			return int64(d.dataInt[col.Index])
 		case FloatCol:
 			return int64(d.dataFloat[col.Index])
+		default:
+			log.Panicf("unsupported type: %s", col.DataType)
 		}
-		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
 		ref := d.Refs[col.RefColTableName]
 		if ref == nil {
 			return interface2int64(col.GetEmptyValue())
 		}
 		return ref.GetInt64(col.RefCol)
+	case VirtStore:
+		return interface2int64(d.getVirtRowValue(col))
 	}
-	return interface2int64(d.getVirtRowValue(col))
+	panic(fmt.Sprintf("unsupported type: %s", col.StorageType))
 }
 
 // GetIntByName returns the int value for given column name
@@ -308,8 +322,10 @@ func (d *DataRow) GetInt64List(col *Column) []int64 {
 			return interface2int64list(col.GetEmptyValue())
 		}
 		return ref.GetInt64List(col.RefCol)
+	case VirtStore:
+		return interface2int64list(d.getVirtRowValue(col))
 	}
-	return interface2int64list(d.getVirtRowValue(col))
+	panic(fmt.Sprintf("unsupported type: %s", col.StorageType))
 }
 
 // GetHashMap returns the hashmap for given column
@@ -323,8 +339,10 @@ func (d *DataRow) GetHashMap(col *Column) map[string]string {
 			return interface2hashmap(col.GetEmptyValue())
 		}
 		return ref.GetHashMap(col.RefCol)
+	case VirtStore:
+		return interface2hashmap(d.getVirtRowValue(col))
 	}
-	return interface2hashmap(d.getVirtRowValue(col))
+	panic(fmt.Sprintf("unsupported type: %s", col.StorageType))
 }
 
 // GetServiceMemberList returns the a list of service members
@@ -341,8 +359,10 @@ func (d *DataRow) GetServiceMemberList(col *Column) *[]ServiceMember {
 			return interface2servicememberlist(col.GetEmptyValue())
 		}
 		return ref.GetServiceMemberList(col.RefCol)
+	case VirtStore:
+		return interface2servicememberlist(d.getVirtRowValue(col))
 	}
-	return interface2servicememberlist(d.getVirtRowValue(col))
+	panic(fmt.Sprintf("unsupported type: %s", col.StorageType))
 }
 
 // GetInterfaceList returns the a list of interfaces
@@ -359,8 +379,10 @@ func (d *DataRow) GetInterfaceList(col *Column) []interface{} {
 			return interface2interfacelist(col.GetEmptyValue())
 		}
 		return ref.GetInterfaceList(col.RefCol)
+	case VirtStore:
+		return interface2interfacelist(d.getVirtRowValue(col))
 	}
-	return interface2interfacelist(d.getVirtRowValue(col))
+	panic(fmt.Sprintf("unsupported type: %s", col.StorageType))
 }
 
 // GetValueByColumn returns the raw value for given column
@@ -394,10 +416,8 @@ func (d *DataRow) GetValueByColumn(col *Column) interface{} {
 		return d.Refs[col.RefColTableName].GetValueByColumn(col.RefCol)
 	case VirtStore:
 		return d.getVirtRowValue(col)
-	default:
-		log.Panicf("unsupported column %s (type %d) in table %s", col.Name, col.DataType, d.DataStore.Table.Name)
 	}
-	return ""
+	panic(fmt.Sprintf("unsupported type: %s", col.StorageType))
 }
 
 // getVirtRowValue returns the actual value for a virtual column.
