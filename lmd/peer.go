@@ -1241,7 +1241,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
 
 	// get number of entrys and max id
 	req := &Request{
-		Table:     store.Table.Name,
+		Table:     name,
 		FilterStr: "Stats: id != -1\nStats: max id\n",
 	}
 	p.setQueryOptions(req)
@@ -1264,7 +1264,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
 
 	// fetch all ids to see which ones are missing or to be removed
 	req = &Request{
-		Table:   store.Table.Name,
+		Table:   name,
 		Columns: []string{"id"},
 	}
 	p.setQueryOptions(req)
@@ -1302,7 +1302,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
 	if len(missingIds) > 0 {
 		keys, columns := store.GetInitialColumns()
 		req := &Request{
-			Table:     store.Table.Name,
+			Table:     name,
 			Columns:   keys,
 			FilterStr: "",
 		}
@@ -1323,7 +1323,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
 	}
 
 	// reset cache
-	switch store.Table.Name {
+	switch name {
 	case TableComments:
 		p.RebuildCommentsCache()
 	case TableDowntimes:
