@@ -157,7 +157,7 @@ const (
 	Querys
 	ReponseTime
 	Idling
-	Updating
+	Paused
 	Section
 	PeerParent
 	ThrukVersion
@@ -273,7 +273,7 @@ func NewPeer(globalConfig *Config, config *Connection, waitGroup *sync.WaitGroup
 	p.Status[Querys] = int64(0)
 	p.Status[ReponseTime] = float64(0)
 	p.Status[Idling] = false
-	p.Status[Updating] = false
+	p.Status[Paused] = true
 	p.Status[Section] = config.Section
 	p.Status[PeerParent] = ""
 	p.Status[ThrukVersion] = float64(-1)
@@ -305,24 +305,24 @@ func NewPeer(globalConfig *Config, config *Connection, waitGroup *sync.WaitGroup
 
 // Start creates the initial objects and starts the update loop in a separate goroutine.
 func (p *Peer) Start() {
-	if p.StatusGet(Updating).(bool) {
+	if !p.StatusGet(Paused).(bool) {
 		log.Panicf("[%s] tried to start updateLoop twice", p.Name)
 	}
 	p.waitGroup.Add(1)
-	p.StatusSet(Updating, true)
+	p.StatusSet(Paused, false)
 	log.Infof("[%s] starting connection", p.Name)
 	go func() {
 		// make sure we log panics properly
 		defer logPanicExitPeer(p)
 		p.updateLoop()
-		p.StatusSet(Updating, false)
+		p.StatusSet(Paused, true)
 		p.waitGroup.Done()
 	}()
 }
 
 // Stop stops this peer. Restart with Start.
 func (p *Peer) Stop() {
-	if p.StatusGet(Updating).(bool) {
+	if !p.StatusGet(Paused).(bool) {
 		log.Infof("[%s] stopping connection", p.Name)
 		p.stopChannel <- true
 	}
@@ -2803,7 +2803,7 @@ func logPanicExitPeer(p *Peer) {
 	log.Errorf("[%s] LMD Version:           %s", name, Version())
 	log.Errorf("[%s] PeerAddr:              %v", name, p.Status[PeerAddr])
 	log.Errorf("[%s] Idling:                %v", name, p.Status[Idling])
-	log.Errorf("[%s] Updating:              %v", name, p.Status[Updating])
+	log.Errorf("[%s] Paused:                %v", name, p.Status[Paused])
 	log.Errorf("[%s] ResponseTime:          %vs", name, p.Status[ReponseTime])
 	log.Errorf("[%s] LastUpdate:            %v", name, p.Status[LastUpdate])
 	log.Errorf("[%s] LastFullUpdate:        %v", name, p.Status[LastFullUpdate])
