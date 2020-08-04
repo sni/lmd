@@ -101,6 +101,25 @@ const (
 	PeerStatusPending
 )
 
+// String converts a PeerStatus into a string
+func (ps *PeerStatus) String() string {
+	switch *ps {
+	case PeerStatusUp:
+		return "up"
+	case PeerStatusWarning:
+		return "warning"
+	case PeerStatusDown:
+		return "down"
+	case PeerStatusBroken:
+		return "broken"
+	case PeerStatusPending:
+		return "pending"
+	default:
+		log.Panicf("not implemented")
+	}
+	return ""
+}
+
 // PeerErrorType is used to distinguish between connection and response errors.
 type PeerErrorType uint8
 
@@ -2771,19 +2790,42 @@ func (p *Peer) setBroken(details string) {
 }
 
 func logPanicExitPeer(p *Peer) {
-	if r := recover(); r != nil {
-		log.Errorf("[%s] Panic: %s", p.Name, r)
-		log.Errorf("[%s] Version: %s", p.Name, Version())
-		log.Errorf("[%s] %s", p.Name, debug.Stack())
-		if p.last.Request != nil {
-			log.Errorf("[%s] LastQuery:", p.Name)
-			log.Errorf("[%s] %s", p.Name, p.last.Request.String())
-			log.Errorf("[%s] LastResponse:", p.Name)
-			log.Errorf("[%s] %s", p.Name, string(*(p.last.Response)))
-		}
-		deletePidFile(flagPidfile)
-		os.Exit(1)
+	r := recover()
+	if r == nil {
+		return
 	}
+
+	name := p.Name
+	status := p.Status[PeerState].(PeerStatus)
+	lastError := p.Status[LastError].(string)
+	log.Errorf("[%s] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>", name)
+	log.Errorf("[%s] Panic:                 %s", name, r)
+	log.Errorf("[%s] LMD Version:           %s", name, Version())
+	log.Errorf("[%s] PeerAddr:              %v", name, p.Status[PeerAddr])
+	log.Errorf("[%s] Idling:                %v", name, p.Status[Idling])
+	log.Errorf("[%s] Updating:              %v", name, p.Status[Updating])
+	log.Errorf("[%s] ResponseTime:          %vs", name, p.Status[ReponseTime])
+	log.Errorf("[%s] LastUpdate:            %v", name, p.Status[LastUpdate])
+	log.Errorf("[%s] LastFullUpdate:        %v", name, p.Status[LastFullUpdate])
+	log.Errorf("[%s] LastFullHostUpdate:    %v", name, p.Status[LastFullHostUpdate])
+	log.Errorf("[%s] LastFullServiceUpdate: %v", name, p.Status[LastFullServiceUpdate])
+	log.Errorf("[%s] LastUpdateOK:          %v", name, p.Status[LastUpdateOK])
+	log.Errorf("[%s] LastQuery:             %v", name, p.Status[LastQuery])
+	log.Errorf("[%s] Peerstatus:            %s", name, status.String())
+	if lastError != "" {
+		log.Errorf("[%s] LastError:             %s", name, lastError)
+	}
+	log.Errorf("[%s] Stacktrace:\n%s", name, debug.Stack())
+	if p.last.Request != nil {
+		log.Errorf("[%s] LastQuery:", name)
+		log.Errorf("[%s] %s", name, p.last.Request.String())
+		log.Errorf("[%s] LastResponse:", name)
+		log.Errorf("[%s] %s", name, string(*(p.last.Response)))
+	}
+	logThreaddump()
+	deletePidFile(flagPidfile)
+	log.Errorf("[%s] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<", name)
+	os.Exit(1)
 }
 
 // Result2Hash converts list result into hashes
