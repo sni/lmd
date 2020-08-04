@@ -368,12 +368,10 @@ func (p *Peer) Clear(lock bool) {
 // It does not return till triggered by the shutdownChannel or by the internal stopChannel.
 func (p *Peer) updateLoop() {
 	var ok bool
-	var lastTimeperiodUpdateMinute int
 	p.PeerLock.RLock()
 	firstRun := true
 	if value, gotLastValue := p.Status[LastUpdateOK]; gotLastValue {
 		ok = value.(bool)
-		lastTimeperiodUpdateMinute = p.Status[LastTimeperiodUpdateMinute].(int)
 		firstRun = false
 	}
 	p.PeerLock.RUnlock()
@@ -381,10 +379,8 @@ func (p *Peer) updateLoop() {
 	// First run, initialize tables
 	if firstRun {
 		ok = p.InitAllTables()
-		lastTimeperiodUpdateMinute, _ = strconv.Atoi(time.Now().Format("4"))
 		p.PeerLock.Lock()
 		p.Status[LastUpdateOK] = ok
-		p.Status[LastTimeperiodUpdateMinute] = lastTimeperiodUpdateMinute
 		p.clearLastRequest(false)
 		p.PeerLock.Unlock()
 	}
@@ -401,7 +397,6 @@ func (p *Peer) updateLoop() {
 			ticker.Stop()
 			p.PeerLock.Lock()
 			p.Status[LastUpdateOK] = ok
-			p.Status[LastTimeperiodUpdateMinute] = lastTimeperiodUpdateMinute
 			p.clearLastRequest(false)
 			p.PeerLock.Unlock()
 			return
@@ -412,7 +407,7 @@ func (p *Peer) updateLoop() {
 			case p.HasFlag(MultiBackend):
 				p.periodicUpdateMultiBackends(&ok, false)
 			default:
-				p.periodicUpdate(&ok, &lastTimeperiodUpdateMinute)
+				p.periodicUpdate(&ok)
 			}
 			p.clearLastRequest(true)
 		}
@@ -420,9 +415,10 @@ func (p *Peer) updateLoop() {
 }
 
 // periodicUpdate runs the periodic updates from the update loop
-func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
+func (p *Peer) periodicUpdate(ok *bool) {
 	p.PeerLock.RLock()
 	lastUpdate := p.Status[LastUpdate].(int64)
+	lastTimeperiodUpdateMinute := p.Status[LastTimeperiodUpdateMinute].(int)
 	lastFullUpdate := p.Status[LastFullUpdate].(int64)
 	lastStatus := p.Status[PeerState].(PeerStatus)
 	p.PeerLock.RUnlock()
@@ -432,12 +428,11 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 	currentMinute, _ := strconv.Atoi(time.Now().Format("4"))
 
 	// update timeperiods every full minute except when idling
-	if *ok && !idling && *lastTimeperiodUpdateMinute != currentMinute && lastStatus != PeerStatusBroken {
+	if *ok && !idling && lastTimeperiodUpdateMinute != currentMinute && lastStatus != PeerStatusBroken {
 		log.Debugf("[%s] updating timeperiods and host/servicegroup statistics", p.Name)
 		p.UpdateFullTable(TableTimeperiods)
 		p.UpdateFullTable(TableHostgroups)
 		p.UpdateFullTable(TableServicegroups)
-		*lastTimeperiodUpdateMinute = currentMinute
 
 		if p.HasFlag(Icinga2) {
 			*ok = p.reloadIfNumberOfObjectsChanged()
@@ -466,7 +461,6 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 			if p.StatusGet(ProgramStart) != programStart || p.StatusGet(LastPid) != corePid {
 				log.Debugf("[%s] broken peer has reloaded, trying again.", p.Name)
 				*ok = p.InitAllTables()
-				*lastTimeperiodUpdateMinute = currentMinute
 				return
 			}
 		}
@@ -478,7 +472,6 @@ func (p *Peer) periodicUpdate(ok *bool, lastTimeperiodUpdateMinute *int) {
 	// run update if it was just a short outage
 	if !*ok && lastStatus != PeerStatusWarning {
 		*ok = p.InitAllTables()
-		*lastTimeperiodUpdateMinute = currentMinute
 		return
 	}
 
@@ -783,6 +776,9 @@ func (p *Peer) InitAllTables() bool {
 			p.RebuildCommentsCache()
 		case TableDowntimes:
 			p.RebuildDowntimesCache()
+		case TableTimeperiods:
+			lastTimeperiodUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
+			p.Status[LastTimeperiodUpdateMinute] = lastTimeperiodUpdateMinute
 		}
 	}
 
@@ -2100,6 +2096,8 @@ func (p *Peer) UpdateFullTable(tableName TableName) (restartRequired bool, err e
 	case TableTimeperiods:
 		// check for changed timeperiods, because we have to update the linked hosts and services as well
 		err = p.updateTimeperiodsData(store, res, &store.DynamicColumnCache)
+		lastTimeperiodUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
+		p.Status[LastTimeperiodUpdateMinute] = lastTimeperiodUpdateMinute
 	case TableHosts:
 		err = p.insertDeltaHostResult(0, res, store)
 	case TableServices:
