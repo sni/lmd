@@ -146,7 +146,6 @@ const (
 	LastFullHostUpdate
 	LastFullServiceUpdate
 	LastTimeperiodUpdateMinute
-	LastUpdateOK
 	LastQuery
 	LastError
 	LastOnline
@@ -367,23 +366,8 @@ func (p *Peer) Clear(lock bool) {
 // updateLoop is the main loop updating this peer.
 // It does not return till triggered by the shutdownChannel or by the internal stopChannel.
 func (p *Peer) updateLoop() {
-	var ok bool
-	p.PeerLock.RLock()
-	firstRun := true
-	if value, gotLastValue := p.Status[LastUpdateOK]; gotLastValue {
-		ok = value.(bool)
-		firstRun = false
-	}
-	p.PeerLock.RUnlock()
-
-	// First run, initialize tables
-	if firstRun {
-		ok = p.InitAllTables()
-		p.PeerLock.Lock()
-		p.Status[LastUpdateOK] = ok
-		p.clearLastRequest(false)
-		p.PeerLock.Unlock()
-	}
+	ok := p.InitAllTables()
+	p.clearLastRequest(true)
 
 	ticker := time.NewTicker(UpdateLoopTickerInterval)
 	for {
@@ -396,7 +380,6 @@ func (p *Peer) updateLoop() {
 			log.Debugf("[%s] stopping...", p.Name)
 			ticker.Stop()
 			p.PeerLock.Lock()
-			p.Status[LastUpdateOK] = ok
 			p.clearLastRequest(false)
 			p.PeerLock.Unlock()
 			return
@@ -2807,7 +2790,6 @@ func logPanicExitPeer(p *Peer) {
 	log.Errorf("[%s] LastFullUpdate:        %v", name, p.Status[LastFullUpdate])
 	log.Errorf("[%s] LastFullHostUpdate:    %v", name, p.Status[LastFullHostUpdate])
 	log.Errorf("[%s] LastFullServiceUpdate: %v", name, p.Status[LastFullServiceUpdate])
-	log.Errorf("[%s] LastUpdateOK:          %v", name, p.Status[LastUpdateOK])
 	log.Errorf("[%s] LastQuery:             %v", name, p.Status[LastQuery])
 	log.Errorf("[%s] Peerstatus:            %s", name, status.String())
 	if lastError != "" {
