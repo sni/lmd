@@ -2800,7 +2800,7 @@ func Result2Hash(data *ResultSet, columns []string) []map[string]interface{} {
 }
 
 func (p *Peer) getTLSClientConfig() (*tls.Config, error) {
-	config := &tls.Config{}
+	config := getMinimalTLSConfig()
 	if p.Config.TLSCertificate != "" && p.Config.TLSKey != "" {
 		cer, err := tls.LoadX509KeyPair(p.Config.TLSCertificate, p.Config.TLSKey)
 		if err != nil {

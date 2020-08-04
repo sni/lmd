@@ -852,3 +852,10 @@ func updateStatistics() {
 	promStringDedupBytes.Set(float64(stringdedup.ByteCount()))
 	promStringDedupIndexBytes.Set(float64(32 * size))
 }
+
+func getMinimalTLSConfig() *tls.Config {
+	config := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+	}
+	return (config)
+}

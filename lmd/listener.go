@@ -418,7 +418,8 @@ func getTLSListenerConfig(localConfig *Config) (config *tls.Config, err error) {
 	if err != nil {
 		return nil, err
 	}
-	config = &tls.Config{Certificates: []tls.Certificate{cer}}
+	config = getMinimalTLSConfig()
+	config.Certificates = []tls.Certificate{cer}
 	if len(localConfig.TLSClientPems) > 0 {
 		caCertPool := x509.NewCertPool()
 		for _, file := range localConfig.TLSClientPems {
