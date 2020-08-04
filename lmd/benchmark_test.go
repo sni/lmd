@@ -105,8 +105,8 @@ func BenchmarkPeerUpdate(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		res := peer.UpdateFull()
-		if !res {
+		err := peer.UpdateFull()
+		if err != nil {
 			panic("Update failed")
 		}
 	}

@@ -75,6 +75,16 @@ func InitLogging(conf *Config) {
 	}
 }
 
+// can be used as error handler
+func logDebugError(err error) {
+	log.Debugf("got error: %e", err)
+}
+
+// can be used as error handler
+func logDebugError2(_ interface{}, err error) {
+	log.Debugf("got error: %e", err)
+}
+
 // LogWriter implements the io.Writer interface and simply logs everything with given level
 type LogWriter struct {
 	level string

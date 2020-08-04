@@ -32,7 +32,6 @@ linters:
     - maligned
     - nakedret
     - gochecknoglobals
-    - errcheck
     - lll
     - gochecknoinits
     - dupl

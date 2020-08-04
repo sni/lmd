@@ -73,7 +73,7 @@ func QueryServer(c net.Conn, conf *Config) error {
 		if !keepAlive {
 			promFrontendConnections.WithLabelValues(localAddr).Inc()
 			log.Debugf("incoming request from: %s to %s", remote, localAddr)
-			c.SetDeadline(time.Now().Add(RequestReadTimeout))
+			logDebugError(c.SetDeadline(time.Now().Add(RequestReadTimeout)))
 		}
 
 		reqs, err := ParseRequests(c)
@@ -88,7 +88,7 @@ func QueryServer(c net.Conn, conf *Config) error {
 			// keep open keepalive request until either the client closes the connection or the deadline timeout is hit
 			if keepAlive {
 				log.Debugf("keepalive connection from %s, waiting for more requests", remote)
-				c.SetDeadline(time.Now().Add(RequestReadTimeout))
+				logDebugError(c.SetDeadline(time.Now().Add(RequestReadTimeout)))
 				continue
 			}
 		case keepAlive:
@@ -97,7 +97,7 @@ func QueryServer(c net.Conn, conf *Config) error {
 			continue
 		default:
 			err = errors.New("bad request: empty request")
-			(&Response{Code: 400, Request: &Request{}, Error: err}).Send(c)
+			logDebugError2((&Response{Code: 400, Request: &Request{}, Error: err}).Send(c))
 			return err
 		}
 
@@ -118,7 +118,7 @@ func sendErrorResponse(c net.Conn, keepAlive bool, remote string, err error) err
 	if err == io.EOF {
 		return nil
 	}
-	(&Response{Code: 400, Request: &Request{}, Error: err}).Send(c)
+	logDebugError2((&Response{Code: 400, Request: &Request{}, Error: err}).Send(c))
 	return err
 }
 
@@ -143,19 +143,19 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string, conf *Config) (
 			return
 		}
 
-		c.SetDeadline(time.Now().Add(time.Duration(conf.ListenTimeout) * time.Second))
+		logDebugError(c.SetDeadline(time.Now().Add(time.Duration(conf.ListenTimeout) * time.Second)))
 		var response *Response
 		response, err = req.GetResponse()
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok {
-				(&Response{Code: 502, Request: req, Error: netErr}).Send(c)
+				logDebugError2((&Response{Code: 502, Request: req, Error: netErr}).Send(c))
 				return
 			}
 			if peerErr, ok := err.(*PeerError); ok && peerErr.kind == ConnectionError {
-				(&Response{Code: 502, Request: req, Error: peerErr}).Send(c)
+				logDebugError2((&Response{Code: 502, Request: req, Error: peerErr}).Send(c))
 				return
 			}
-			(&Response{Code: 400, Request: req, Error: err}).Send(c)
+			logDebugError2((&Response{Code: 400, Request: req, Error: err}).Send(c))
 			return
 		}
 
@@ -384,7 +384,10 @@ func (l *Listener) LocalListenerHTTP(httpType string, listen string) {
 		ReadTimeout:  HTTPServerRequestTimeout,
 		WriteTimeout: HTTPServerRequestTimeout,
 	}
-	server.Serve(c)
+	err := server.Serve(c)
+	if err != nil {
+		log.Debugf("http listener finished with: %e", err)
+	}
 }
 
 func handleConnection(c net.Conn, localConfig *Config) {

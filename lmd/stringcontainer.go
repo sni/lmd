@@ -39,8 +39,20 @@ func (s *StringContainer) Set(data *string) {
 	s.StringData = ""
 	var b bytes.Buffer
 	gz, _ := gzip.NewWriterLevel(&b, CompressionLevel)
-	gz.Write([]byte(*data))
-	gz.Close()
+	_, err := gz.Write([]byte(*data))
+	if err != nil {
+		log.Errorf("gzip error: %s", err.Error())
+		s.StringData = *data
+		s.CompressedData = nil
+		return
+	}
+	err = gz.Close()
+	if err != nil {
+		log.Errorf("gzip error: %s", err.Error())
+		s.StringData = *data
+		s.CompressedData = nil
+		return
+	}
 	by := b.Bytes()
 	s.CompressedData = &by
 	if log.IsV(LogVerbosityTrace) {

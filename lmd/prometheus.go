@@ -10,6 +10,8 @@ import (
 )
 
 var (
+	prometheusRegistered = false
+
 	promInfoCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: NAME,
@@ -230,6 +232,9 @@ var (
 func initPrometheus(localConfig *Config) (prometheusListener io.Closer) {
 	if localConfig.ListenPrometheus != "" {
 		l, err := net.Listen("tcp", localConfig.ListenPrometheus)
+		if err != nil {
+			log.Errorf("prometheus failed to listen: %s", err.Error())
+		}
 		prometheusListener = l
 		go func() {
 			// make sure we log panics properly
@@ -240,35 +245,43 @@ func initPrometheus(localConfig *Config) (prometheusListener io.Closer) {
 			}
 			mux := http.NewServeMux()
 			mux.Handle("/metrics", promhttp.Handler())
-			http.Serve(l, mux)
+			err := http.Serve(l, mux)
+			if err != nil {
+				log.Debugf("prometheus listener serve finished: %e", err)
+			}
 		}()
 		log.Infof("serving prometheus metrics at %s/metrics", localConfig.ListenPrometheus)
 	}
-	prometheus.Register(promInfoCount)
-	prometheus.Register(promCompressionLevel)
-	prometheus.Register(promCompressionMinimumSize)
-	prometheus.Register(promSyncIsExecuting)
-	prometheus.Register(promSaveTempRequests)
-	prometheus.Register(promBackendKeepAlive)
-	prometheus.Register(promFrontendConnections)
-	prometheus.Register(promFrontendQueries)
-	prometheus.Register(promFrontendBytesSend)
-	prometheus.Register(promFrontendBytesReceived)
-	prometheus.Register(promFrontendOpenConnections)
-	prometheus.Register(promPeerUpdateInterval)
-	prometheus.Register(promPeerFullUpdateInterval)
-	prometheus.Register(promPeerConnections)
-	prometheus.Register(promPeerFailedConnections)
-	prometheus.Register(promPeerQueries)
-	prometheus.Register(promPeerBytesSend)
-	prometheus.Register(promPeerBytesReceived)
-	prometheus.Register(promPeerUpdates)
-	prometheus.Register(promPeerUpdateDuration)
-	prometheus.Register(promObjectUpdate)
-	prometheus.Register(promObjectCount)
-	prometheus.Register(promStringDedupCount)
-	prometheus.Register(promStringDedupBytes)
-	prometheus.Register(promStringDedupIndexBytes)
+	if prometheusRegistered {
+		return prometheusListener
+	}
+	prometheusRegistered = true
+
+	prometheus.MustRegister(promInfoCount)
+	prometheus.MustRegister(promCompressionLevel)
+	prometheus.MustRegister(promCompressionMinimumSize)
+	prometheus.MustRegister(promSyncIsExecuting)
+	prometheus.MustRegister(promSaveTempRequests)
+	prometheus.MustRegister(promBackendKeepAlive)
+	prometheus.MustRegister(promFrontendConnections)
+	prometheus.MustRegister(promFrontendQueries)
+	prometheus.MustRegister(promFrontendBytesSend)
+	prometheus.MustRegister(promFrontendBytesReceived)
+	prometheus.MustRegister(promFrontendOpenConnections)
+	prometheus.MustRegister(promPeerUpdateInterval)
+	prometheus.MustRegister(promPeerFullUpdateInterval)
+	prometheus.MustRegister(promPeerConnections)
+	prometheus.MustRegister(promPeerFailedConnections)
+	prometheus.MustRegister(promPeerQueries)
+	prometheus.MustRegister(promPeerBytesSend)
+	prometheus.MustRegister(promPeerBytesReceived)
+	prometheus.MustRegister(promPeerUpdates)
+	prometheus.MustRegister(promPeerUpdateDuration)
+	prometheus.MustRegister(promObjectUpdate)
+	prometheus.MustRegister(promObjectCount)
+	prometheus.MustRegister(promStringDedupCount)
+	prometheus.MustRegister(promStringDedupBytes)
+	prometheus.MustRegister(promStringDedupIndexBytes)
 
 	promInfoCount.WithLabelValues(VERSION).Set(1)
 

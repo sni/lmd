@@ -18,7 +18,10 @@ func (c *HTTPServerController) errorOutput(err error, w http.ResponseWriter) {
 	j["error"] = err.Error()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadRequest)
-	json.NewEncoder(w).Encode(j)
+	err = json.NewEncoder(w).Encode(j)
+	if err != nil {
+		log.Debugf("encoder failed: %e", err)
+	}
 }
 
 func (c *HTTPServerController) index(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
@@ -44,7 +47,11 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 	}
 
 	// Fetch backend data
-	req.ExpandRequestedBackends()
+	err = req.ExpandRequestedBackends()
+	if err != nil {
+		c.errorOutput(err, w)
+		return
+	}
 
 	var res *Response
 	if d, exists := requestData["distributed"]; exists && d.(bool) {
@@ -65,7 +72,10 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 		c.errorOutput(err, w)
 		return
 	}
-	buf.WriteTo(w)
+	_, err = buf.WriteTo(w)
+	if err != nil {
+		log.Debugf("writeto failed: %e", err)
+	}
 }
 
 func (c *HTTPServerController) table(w http.ResponseWriter, request *http.Request, ps httprouter.Params) {
@@ -109,7 +119,10 @@ func (c *HTTPServerController) queryPing(w http.ResponseWriter, _ map[string]int
 	j["version"] = Version()
 
 	// Send data
-	json.NewEncoder(w).Encode(j)
+	err := json.NewEncoder(w).Encode(j)
+	if err != nil {
+		log.Debugf("sending ping result failed: %e", err)
+	}
 }
 
 func (c *HTTPServerController) query(w http.ResponseWriter, request *http.Request, _ httprouter.Params) {

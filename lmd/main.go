@@ -459,7 +459,10 @@ func checkFlags() {
 		go func() {
 			// make sure we log panics properly
 			defer logPanicExit()
-			http.ListenAndServe(flagProfile, http.DefaultServeMux)
+			err := http.ListenAndServe(flagProfile, http.DefaultServeMux)
+			if err != nil {
+				log.Debugf("http.ListenAndServe finished with: %e", err)
+			}
 		}()
 	}
 

@@ -205,7 +205,10 @@ func testqueryFilter(t *testing.T, peer *Peer, table TableName, column, op, valu
 			t.Fatal(err)
 		}
 	}
-	peer.QueryString(query)
+	_, _, err = peer.QueryString(query)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func testqueryGroup(t *testing.T, peer *Peer, table TableName, column, op, value string) {
@@ -229,7 +232,10 @@ func testqueryGroup(t *testing.T, peer *Peer, table TableName, column, op, value
 			t.Fatal(err)
 		}
 	}
-	peer.QueryString(query)
+	_, _, err = peer.QueryString(query)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestAllTables(t *testing.T) {
@@ -268,9 +274,18 @@ func TestMainConfig(t *testing.T) {
 		"Listen = [\"test2.sock\"]\nSkipSSLCheck = 0",
 	}
 
-	ioutil.WriteFile("test1.ini", []byte(testConfig[0]), 0644)
-	ioutil.WriteFile("test2.ini", []byte(testConfig[1]), 0644)
-	ioutil.WriteFile("test3.ini", []byte(testConfig[2]), 0644)
+	err := ioutil.WriteFile("test1.ini", []byte(testConfig[0]), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = ioutil.WriteFile("test2.ini", []byte(testConfig[1]), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = ioutil.WriteFile("test3.ini", []byte(testConfig[2]), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	conf := ReadConfig([]string{"test1.ini"})
 	if err := assertEq(len(conf.Listen), 0); err != nil {

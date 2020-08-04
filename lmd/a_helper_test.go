@@ -98,13 +98,13 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 			if req.Command != "" {
 				switch req.Command {
 				case "COMMAND [0] MOCK_EXIT":
-					conn.Close()
+					_checkErr(conn.Close())
 					return
 				case "COMMAND [0] test_ok":
 				case "COMMAND [0] test_broken":
-					conn.Write([]byte("400: command broken\n"))
+					_checkErr2(conn.Write([]byte("400: command broken\n")))
 				}
-				conn.Close()
+				_checkErr(conn.Close())
 				continue
 			}
 
@@ -115,15 +115,15 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 					{"hosts", "depends_exec"},
 					{"services", "description"},
 				})
-				conn.Write([]byte(fmt.Sprintf("200 %11d\n", len(b)+1)))
-				conn.Write(b)
-				conn.Write([]byte("\n"))
-				conn.Close()
+				_checkErr2(conn.Write([]byte(fmt.Sprintf("200 %11d\n", len(b)+1))))
+				_checkErr2(conn.Write(b))
+				_checkErr2(conn.Write([]byte("\n")))
+				_checkErr(conn.Close())
 				continue
 			}
 			if len(req.Filter) > 0 || len(req.Stats) > 0 {
-				conn.Write([]byte("200           3\n[]\n"))
-				conn.Close()
+				_checkErr2(conn.Write([]byte("200           3\n[]\n")))
+				_checkErr(conn.Close())
 				continue
 			}
 
@@ -131,9 +131,9 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 			if err != nil {
 				panic("could not read file: " + err.Error())
 			}
-			conn.Write([]byte(fmt.Sprintf("%d %11d\n", 200, len(dat))))
-			conn.Write(dat)
-			conn.Close()
+			_checkErr2(conn.Write([]byte(fmt.Sprintf("%d %11d\n", 200, len(dat)))))
+			_checkErr2(conn.Write(dat))
+			_checkErr(conn.Close())
 		}
 	}()
 	<-startedChannel
@@ -162,13 +162,13 @@ func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (t
 		}
 		switch {
 		case numServices == 0 && name != TableStatus:
-			io.WriteString(file, "[]\n")
+			_checkErr2(io.WriteString(file, "[]\n"))
 			err = file.Close()
 		case name == TableHosts || name == TableServices:
 			err = file.Close()
 			prepareTmpDataHostService(dataFolder, tempFolder, table, numHosts, numServices)
 		default:
-			io.Copy(file, template)
+			_checkErr2(io.Copy(file, template))
 			err = file.Close()
 		}
 		if err != nil {
@@ -255,16 +255,16 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 	}
 
 	buf := new(bytes.Buffer)
-	buf.Write([]byte("["))
+	_checkErr2(buf.Write([]byte("[")))
 	for i, row := range newData {
 		enc, _ := json.Marshal(row)
-		buf.Write(enc)
+		_checkErr2(buf.Write(enc))
 		if i < len(newData)-1 {
-			buf.Write([]byte(",\n"))
+			_checkErr2(buf.Write([]byte(",\n")))
 		}
 	}
-	buf.Write([]byte("]\n"))
-	ioutil.WriteFile(fmt.Sprintf("%s/%s.json", tempFolder, name.String()), buf.Bytes(), 0644)
+	_checkErr2(buf.Write([]byte("]\n")))
+	_checkErr(ioutil.WriteFile(fmt.Sprintf("%s/%s.json", tempFolder, name.String()), buf.Bytes(), 0644))
 }
 
 var TestPeerWaitGroup *sync.WaitGroup
@@ -291,7 +291,7 @@ LogLockTimeout = 10
 		panic(err.Error())
 	}
 
-	toml.DecodeFile("test.ini", &GlobalTestConfig)
+	_checkErr2(toml.DecodeFile("test.ini", &GlobalTestConfig))
 	mainSignalChannel = make(chan os.Signal)
 	startedChannel := make(chan bool)
 
@@ -348,14 +348,19 @@ func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig
 	}
 
 	// fill tables
-	peer.InitAllTables()
+	_checkErr(peer.InitAllTables())
 
 	return
 }
 
 func StopTestPeer(peer *Peer) (err error) {
 	// stop the mock servers
-	peer.QueryString("COMMAND [0] MOCK_EXIT")
+	_, _, err = peer.QueryString("COMMAND [0] MOCK_EXIT")
+	if err != nil {
+		// may fail if already stopped
+		log.Debugf("send query failed: %e", err)
+		err = nil
+	}
 	// stop the mainloop
 	mainSignalChannel <- syscall.SIGTERM
 	// stop the test peer
@@ -470,4 +475,16 @@ func GetTestColumnIndex(table *Table, name string) int {
 		}
 	}
 	panic(name + " not found")
+}
+
+func _checkErr(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+func _checkErr2(_ interface{}, err error) {
+	if err != nil {
+		panic(err)
+	}
 }

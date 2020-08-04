@@ -82,7 +82,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 	}
 
 	if !table.PassthroughOnly && len(spinUpPeers) > 0 {
-		SpinUpPeers(spinUpPeers)
+		logDebugError(SpinUpPeers(spinUpPeers))
 	}
 
 	// if all backends are down, send an error instead of an empty result

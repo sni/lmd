@@ -813,8 +813,8 @@ func TestHTTPPeer(t *testing.T) {
 	peer, cleanup := GetHTTPMockServerPeer(t)
 	defer cleanup()
 
-	ok := peer.InitAllTables()
-	if err := assertEq(ok, true); err != nil {
+	err := peer.InitAllTables()
+	if err != nil {
 		t.Error(err)
 	}
 }
@@ -1378,7 +1378,10 @@ func TestRequestKeepalive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	conn.(*net.UnixConn).CloseWrite()
+	err = conn.(*net.UnixConn).CloseWrite()
+	if err != nil {
+		t.Error(err)
+	}
 
 	// open connections should be one
 	time.Sleep(KeepAliveWaitInterval)
