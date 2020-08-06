@@ -207,7 +207,7 @@ func testqueryFilter(t *testing.T, peer *Peer, table TableName, column, op, valu
 	}
 	_, _, err = peer.QueryString(query)
 	if err != nil {
-		t.Fatal(err)
+		logDebugError(err)
 	}
 }
 
@@ -234,7 +234,7 @@ func testqueryGroup(t *testing.T, peer *Peer, table TableName, column, op, value
 	}
 	_, _, err = peer.QueryString(query)
 	if err != nil {
-		t.Fatal(err)
+		logDebugError(err)
 	}
 }
 
