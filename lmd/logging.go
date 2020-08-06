@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime/debug"
 	"strings"
 
 	"github.com/kdar/factorlog"
@@ -77,12 +78,20 @@ func InitLogging(conf *Config) {
 
 // can be used as error handler
 func logDebugError(err error) {
+	if err == nil {
+		return
+	}
 	log.Debugf("got error: %e", err)
+	log.Debugf("Stacktrace:\n%s", debug.Stack())
 }
 
 // can be used as error handler
 func logDebugError2(_ interface{}, err error) {
+	if err == nil {
+		return
+	}
 	log.Debugf("got error: %e", err)
+	log.Debugf("Stacktrace:\n%s", debug.Stack())
 }
 
 // LogWriter implements the io.Writer interface and simply logs everything with given level
