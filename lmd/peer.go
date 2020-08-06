@@ -265,6 +265,7 @@ func NewPeer(globalConfig *Config, config *Connection, waitGroup *sync.WaitGroup
 	p.Status[LastQuery] = int64(0)
 	p.Status[LastError] = "connecting..."
 	p.Status[LastOnline] = int64(0)
+	p.Status[LastTimeperiodUpdateMinute] = 0
 	p.Status[ProgramStart] = 0
 	p.Status[LastPid] = 0
 	p.Status[BytesSend] = int64(0)
