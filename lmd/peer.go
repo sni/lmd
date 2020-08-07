@@ -426,6 +426,7 @@ func (p *Peer) periodicUpdate() (err error) {
 	// update timeperiods every full minute except when idling
 	if !idling && lastTimeperiodUpdateMinute != currentMinute && lastStatus != PeerStatusBroken {
 		log.Debugf("[%s] updating timeperiods and host/servicegroup statistics", p.Name)
+		p.StatusSet(LastTimeperiodUpdateMinute, currentMinute)
 		err = p.UpdateFullTablesList([]TableName{TableTimeperiods, TableHostgroups, TableServicegroups})
 		if err != nil {
 			return
