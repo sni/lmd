@@ -447,7 +447,8 @@ func (p *Peer) periodicUpdate() (err error) {
 	// of the update interval
 	p.StatusSet(LastUpdate, now)
 
-	if lastStatus == PeerStatusBroken {
+	switch lastStatus {
+	case PeerStatusBroken:
 		var res *ResultSet
 		res, _, err = p.QueryString("GET status\nOutputFormat: json\nColumns: program_start nagios_pid\n\n")
 		if err != nil {
@@ -463,10 +464,10 @@ func (p *Peer) periodicUpdate() (err error) {
 			}
 		}
 		return fmt.Errorf("unknown result while waiting for peer to recover: %v", res)
-	}
-
-	// run update if it was just a short outage
-	if lastStatus == PeerStatusWarning {
+	case PeerStatusWarning:
+		// run update if it was just a short outage
+		return p.UpdateFull()
+	case PeerStatusDown:
 		return p.InitAllTables()
 	}
 
@@ -2063,7 +2064,7 @@ func (p *Peer) fetchRemotePeersFromAddr(peerAddr string) (sites []interface{}, e
 func (p *Peer) UpdateFullTable(tableName TableName) (restartRequired bool, err error) {
 	store := p.Tables[tableName]
 	if p.skipTableUpdate(store) {
-		return
+		return false, fmt.Errorf("skipped table %s update", tableName.String())
 	}
 
 	columns := store.DynamicColumnNamesCache
