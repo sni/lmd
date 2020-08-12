@@ -11,7 +11,7 @@ import (
 	"github.com/lkarlslund/stringdedup"
 )
 
-const ListSepChar1 = string(0)
+const ListSepChar1 = "\x00"
 
 // DataRow represents a single entry in a DataTable
 type DataRow struct {
