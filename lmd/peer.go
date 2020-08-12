@@ -2822,36 +2822,37 @@ func logPanicExitPeer(p *Peer) {
 		return
 	}
 
-	name := p.Name
-	status := p.Status[PeerState].(PeerStatus)
-	lastError := p.Status[LastError].(string)
-	log.Errorf("[%s] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>", name)
-	log.Errorf("[%s] Panic:                 %s", name, r)
-	log.Errorf("[%s] LMD Version:           %s", name, Version())
-	log.Errorf("[%s] PeerAddr:              %v", name, p.Status[PeerAddr])
-	log.Errorf("[%s] Idling:                %v", name, p.Status[Idling])
-	log.Errorf("[%s] Paused:                %v", name, p.Status[Paused])
-	log.Errorf("[%s] ResponseTime:          %vs", name, p.Status[ReponseTime])
-	log.Errorf("[%s] LastUpdate:            %v", name, p.Status[LastUpdate])
-	log.Errorf("[%s] LastFullUpdate:        %v", name, p.Status[LastFullUpdate])
-	log.Errorf("[%s] LastFullHostUpdate:    %v", name, p.Status[LastFullHostUpdate])
-	log.Errorf("[%s] LastFullServiceUpdate: %v", name, p.Status[LastFullServiceUpdate])
-	log.Errorf("[%s] LastQuery:             %v", name, p.Status[LastQuery])
-	log.Errorf("[%s] Peerstatus:            %s", name, status.String())
-	if lastError != "" {
-		log.Errorf("[%s] LastError:             %s", name, lastError)
-	}
-	log.Errorf("[%s] Stacktrace:\n%s", name, debug.Stack())
+	log.Errorf("[%s] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>", p.Name)
+	log.Errorf("[%s] Panic:                 %s", p.Name, r)
+	log.Errorf("[%s] LMD Version:           %s", p.Name, Version())
+	p.logPeerStatus(log.Errorf)
+	log.Errorf("[%s] Stacktrace:\n%s", p.Name, debug.Stack())
 	if p.last.Request != nil {
-		log.Errorf("[%s] LastQuery:", name)
-		log.Errorf("[%s] %s", name, p.last.Request.String())
-		log.Errorf("[%s] LastResponse:", name)
-		log.Errorf("[%s] %s", name, string(*(p.last.Response)))
+		log.Errorf("[%s] LastQuery:", p.Name)
+		log.Errorf("[%s] %s", p.Name, p.last.Request.String())
+		log.Errorf("[%s] LastResponse:", p.Name)
+		log.Errorf("[%s] %s", p.Name, string(*(p.last.Response)))
 	}
 	logThreaddump()
 	deletePidFile(flagPidfile)
-	log.Errorf("[%s] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<", name)
+	log.Errorf("[%s] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<", p.Name)
 	os.Exit(1)
+}
+
+func (p *Peer) logPeerStatus(logger func(string, ...interface{})) {
+	name := p.Name
+	status := p.Status[PeerState].(PeerStatus)
+	logger("[%s] PeerAddr:              %v", name, p.Status[PeerAddr])
+	logger("[%s] Idling:                %v", name, p.Status[Idling])
+	logger("[%s] Paused:                %v", name, p.Status[Paused])
+	logger("[%s] ResponseTime:          %vs", name, p.Status[ReponseTime])
+	logger("[%s] LastUpdate:            %v", name, p.Status[LastUpdate])
+	logger("[%s] LastFullUpdate:        %v", name, p.Status[LastFullUpdate])
+	logger("[%s] LastFullHostUpdate:    %v", name, p.Status[LastFullHostUpdate])
+	logger("[%s] LastFullServiceUpdate: %v", name, p.Status[LastFullServiceUpdate])
+	logger("[%s] LastQuery:             %v", name, p.Status[LastQuery])
+	logger("[%s] Peerstatus:            %s", name, status.String())
+	logger("[%s] LastError:             %s", name, p.Status[LastError].(string))
 }
 
 // Result2Hash converts list result into hashes
