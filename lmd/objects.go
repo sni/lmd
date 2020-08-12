@@ -2,9 +2,10 @@ package main
 
 // ObjectsType is a map of tables with a given order.
 type ObjectsType struct {
-	noCopy noCopy
-	Tables map[TableName]*Table
-	Order  []TableName
+	noCopy       noCopy
+	Tables       map[TableName]*Table
+	Order        []TableName
+	UpdateTables []TableName // list of tables which need to be regularly updated
 }
 
 // Objects contains the static definition of all available tables and columns
@@ -67,6 +68,9 @@ func (o *ObjectsType) AddTable(name TableName, table *Table) {
 	table.SetColumnIndex()
 	o.Tables[name] = table
 	o.Order = append(o.Order, name)
+	if !table.PassthroughOnly && table.Virtual == nil {
+		o.UpdateTables = append(o.UpdateTables, name)
+	}
 }
 
 // NewBackendsTable returns a new backends table

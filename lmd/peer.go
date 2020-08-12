@@ -730,7 +730,7 @@ func (p *Peer) InitAllTables() (err error) {
 	p.Status[LastFullUpdate] = time.Now().Unix()
 	p.PeerLock.Unlock()
 	t1 := time.Now()
-	for _, n := range Objects.Order {
+	for _, n := range Objects.UpdateTables {
 		t := Objects.Tables[n]
 		if p.HasFlag(MultiBackend) && t.Name != TableStatus {
 			// just create empty data pools
@@ -827,7 +827,7 @@ func (p *Peer) resetErrors() {
 // It returns any error occurred or nil if the update was successful.
 func (p *Peer) UpdateFull() (err error) {
 	t1 := time.Now()
-	err = p.UpdateFullTablesList(Objects.Order)
+	err = p.UpdateFullTablesList(Objects.UpdateTables)
 	if err != nil {
 		return
 	}
@@ -2063,8 +2063,9 @@ func (p *Peer) fetchRemotePeersFromAddr(peerAddr string) (sites []interface{}, e
 // It returns a boolean flag whether the remote site has been restarted and any error encountered.
 func (p *Peer) UpdateFullTable(tableName TableName) (restartRequired bool, err error) {
 	store := p.Tables[tableName]
-	if p.skipTableUpdate(store) {
-		return false, fmt.Errorf("skipped table %s update", tableName.String())
+	skip, err := p.skipTableUpdate(store, tableName)
+	if skip || err != nil {
+		return
 	}
 
 	columns := store.DynamicColumnNamesCache
@@ -2135,24 +2136,24 @@ func (p *Peer) UpdateFullTable(tableName TableName) (restartRequired bool, err e
 	return
 }
 
-func (p *Peer) skipTableUpdate(store *DataStore) bool {
+func (p *Peer) skipTableUpdate(store *DataStore, table TableName) (bool, error) {
 	if store == nil {
-		return true
+		return true, fmt.Errorf("skipped table %s update, store not initialized", table.String())
 	}
 	if store.Table.Virtual != nil {
-		return true
+		return true, nil
 	}
 	// no updates for passthrough tables, ex.: log
 	if store.Table.PassthroughOnly {
-		return true
+		return true, nil
 	}
 	if p.HasFlag(MultiBackend) && store.Table.Name != TableStatus {
-		return true
+		return true, nil
 	}
 	if len(store.DynamicColumnNamesCache) == 0 {
-		return true
+		return true, nil
 	}
-	return false
+	return false, nil
 }
 
 func (p *Peer) updateTimeperiodsData(store *DataStore, res *ResultSet, columns *ColumnList) (err error) {
