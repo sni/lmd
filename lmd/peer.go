@@ -745,7 +745,8 @@ func (p *Peer) InitAllTables() (err error) {
 		switch t.Name {
 		case TableStatus:
 			p.DataLock.RLock()
-			hasStatus := len(p.Tables[TableStatus].Data) > 0
+			statusData := p.Tables[TableStatus].Data
+			hasStatus := len(statusData) > 0
 			p.DataLock.RUnlock()
 			// this may happen if we query another lmd daemon which has no backends ready yet
 			if !hasStatus {
@@ -767,9 +768,14 @@ func (p *Peer) InitAllTables() (err error) {
 				return
 			}
 
+			programStart := statusData[0].GetInt64ByName("program_start")
+			corePid := statusData[0].GetIntByName("nagios_pid")
+
 			// check thruk config tool settings
 			p.PeerLock.Lock()
 			delete(p.Status, ConfigTool)
+			p.Status[ProgramStart] = programStart
+			p.Status[LastPid] = corePid
 			p.PeerLock.Unlock()
 			if !p.HasFlag(MultiBackend) {
 				if configtool != nil {
@@ -786,15 +792,8 @@ func (p *Peer) InitAllTables() (err error) {
 		}
 	}
 
-	p.DataLock.RLock()
-	programStart := p.Tables[TableStatus].Data[0].GetInt64ByName("program_start")
-	corePid := p.Tables[TableStatus].Data[0].GetIntByName("nagios_pid")
-	p.DataLock.RUnlock()
-
 	duration := time.Since(t1)
 	p.PeerLock.Lock()
-	p.Status[ProgramStart] = programStart
-	p.Status[LastPid] = corePid
 	p.Status[ReponseTime] = duration.Seconds()
 	peerStatus := p.Status[PeerState].(PeerStatus)
 	log.Infof("[%s] objects created in: %s", p.Name, duration.String())
