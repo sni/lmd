@@ -2126,9 +2126,13 @@ func (p *Peer) UpdateFullTable(tableName TableName) (restartRequired bool, err e
 
 	if tableName == TableStatus {
 		logDebugError(p.checkStatusFlags())
-		if !p.HasFlag(MultiBackend) && len(data) >= 1 && (p.StatusGet(ProgramStart) != data[0].GetInt64ByName("program_start") || p.StatusGet(LastPid) != data[0].GetIntByName("nagios_pid")) {
-			log.Infof("[%s] site has been restarted, recreating objects", p.Name)
-			restartRequired = true
+		if !p.HasFlag(MultiBackend) && len(data) >= 1 {
+			programStart := data[0].GetInt64ByName("program_start")
+			corePid := data[0].GetIntByName("nagios_pid")
+			if p.StatusGet(ProgramStart) != programStart || p.StatusGet(LastPid) != corePid {
+				log.Infof("[%s] site has been restarted, recreating objects (program_start: %d, pid: %d)", p.Name, programStart, corePid)
+				restartRequired = true
+			}
 		}
 	}
 
