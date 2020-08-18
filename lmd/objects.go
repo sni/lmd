@@ -6,6 +6,7 @@ type ObjectsType struct {
 	Tables       map[TableName]*Table
 	Order        []TableName
 	UpdateTables []TableName // list of tables which need to be regularly updated
+	StatusTables []TableName
 }
 
 // Objects contains the static definition of all available tables and columns
@@ -16,7 +17,9 @@ func InitObjects() {
 	if Objects != nil {
 		return
 	}
-	Objects = &ObjectsType{}
+	Objects = &ObjectsType{
+		StatusTables: []TableName{TableStatus},
+	}
 
 	// generate virtual keys with peer and host_peer prefix
 	for i := range VirtColumnList {

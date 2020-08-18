@@ -183,7 +183,7 @@ func TestPeerUpdate(t *testing.T) {
 	peer := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	err := peer.UpdateFull()
+	err := peer.UpdateFull(Objects.UpdateTables)
 	if err != nil {
 		t.Error(err)
 	}

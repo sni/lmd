@@ -466,14 +466,14 @@ func (p *Peer) periodicUpdate() (err error) {
 		return fmt.Errorf("unknown result while waiting for peer to recover: %v", res)
 	case PeerStatusWarning:
 		// run update if it was just a short outage
-		return p.UpdateFull()
+		return p.UpdateFull(Objects.UpdateTables)
 	case PeerStatusDown:
 		return p.InitAllTables()
 	}
 
 	// full update interval
 	if !idling && p.GlobalConfig.FullUpdateInterval > 0 && now > lastFullUpdate+p.GlobalConfig.FullUpdateInterval {
-		return p.UpdateFull()
+		return p.UpdateFull(Objects.UpdateTables)
 	}
 
 	return p.UpdateDelta(lastUpdate, now)
@@ -492,7 +492,7 @@ func (p *Peer) periodicUpdateLMD(force bool) (err error) {
 	}
 
 	// check main connection and update status table
-	err = p.UpdateFull()
+	err = p.UpdateFull(Objects.StatusTables)
 	if err != nil {
 		return
 	}
@@ -595,7 +595,7 @@ func (p *Peer) periodicUpdateMultiBackends(force bool) (err error) {
 	}
 
 	// check main connection and update status table
-	err = p.UpdateFull()
+	err = p.UpdateFull(Objects.StatusTables)
 	if err != nil {
 		return
 	}
@@ -824,9 +824,9 @@ func (p *Peer) resetErrors() {
 
 // UpdateFull runs a full update on all dynamic values for all tables which have dynamic updated columns.
 // It returns any error occurred or nil if the update was successful.
-func (p *Peer) UpdateFull() (err error) {
+func (p *Peer) UpdateFull(tables []TableName) (err error) {
 	t1 := time.Now()
-	err = p.UpdateFullTablesList(Objects.UpdateTables)
+	err = p.UpdateFullTablesList(tables)
 	if err != nil {
 		return
 	}
@@ -872,7 +872,7 @@ func (p *Peer) UpdateFullTablesList(tables []TableName) (err error) {
 func (p *Peer) UpdateDelta(from, to int64) (err error) {
 	t1 := time.Now()
 
-	err = p.UpdateFullTablesList([]TableName{TableStatus})
+	err = p.UpdateFullTablesList(Objects.StatusTables)
 	if err != nil {
 		return
 	}
