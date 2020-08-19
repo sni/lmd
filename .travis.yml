@@ -12,5 +12,5 @@ script:
   -  make clean
   -  make debugbuild
   -  make clean
-  -  '[ $TRAVIS_EVENT_TYPE != "pull_request" ] && make updatedeps'
+  -  'if [ $TRAVIS_EVENT_TYPE != "pull_request" ]; then make updatedeps; fi'
   -  make citest
