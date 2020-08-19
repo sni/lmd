@@ -8,6 +8,7 @@ next:
           - add open connections prometheus metric
           - add optional connection flags, ex. to set a connection to type icinga2
           - fix recovering broken peers
+          - add custom variables support for contacts
 
 1.8.3    Mon Jun  8 11:06:13 CEST 2020
           - improve reload detection with icinga2

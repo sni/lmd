@@ -203,6 +203,8 @@ func NewContactsTable() (t *Table) {
 	t = &Table{DefaultSort: []string{"name"}}
 	t.AddColumn("alias", Static, StringCol, "The full name of the contact")
 	t.AddColumn("can_submit_commands", Static, IntCol, "Wether the contact is allowed to submit commands (0/1)")
+	t.AddColumn("custom_variable_names", Static, StringListCol, "A list of all custom variables of the contact")
+	t.AddColumn("custom_variable_values", Dynamic, StringListCol, "A list of the values of all custom variables of the contact")
 	t.AddColumn("email", Static, StringCol, "The email address of the contact")
 	t.AddColumn("host_notification_period", Static, StringCol, "The time period in which the contact will be notified about host problems")
 	t.AddColumn("host_notifications_enabled", Static, IntCol, "Wether the contact will be notified about host problems in general (0/1)")
@@ -210,6 +212,8 @@ func NewContactsTable() (t *Table) {
 	t.AddColumn("pager", Static, StringCol, "The pager address of the contact")
 	t.AddColumn("service_notification_period", Static, StringCol, "The time period in which the contact will be notified about service problems")
 	t.AddColumn("service_notifications_enabled", Static, IntCol, "Wether the contact will be notified about service problems in general (0/1)")
+
+	t.AddExtraColumn("custom_variables", VirtStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
 
 	t.AddPeerInfoColumn("lmd_last_cache_update", Int64Col, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
