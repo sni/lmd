@@ -38,11 +38,11 @@ func TestInt64ListFilter(t *testing.T) {
 
 func TestRegexpStringFilter(t *testing.T) {
 	value := "1"
-	regex, _ := regexp.Compile("1|2")
+	regex := regexp.MustCompile("[12]")
 	if err := assertEq(true, (&Filter{Operator: RegexMatch, Regexp: regex}).MatchString(&value)); err != nil {
 		t.Error(err)
 	}
-	regex, _ = regexp.Compile("0|2")
+	regex = regexp.MustCompile("[02]")
 	if err := assertEq(false, (&Filter{Operator: RegexMatch, Regexp: regex}).MatchString(&value)); err != nil {
 		t.Error(err)
 	}

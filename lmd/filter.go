@@ -192,9 +192,9 @@ func (f *Filter) strValue() string {
 	case Int64ListCol:
 		fallthrough
 	case IntCol, Int64Col:
-		value = fmt.Sprintf("%d", int(f.FloatValue))
+		fallthrough
 	case FloatCol:
-		value = fmt.Sprintf("%v", f.FloatValue)
+		fallthrough
 	case StringListCol:
 		fallthrough
 	case ServiceMemberListCol:
@@ -280,7 +280,6 @@ func ParseFilter(value []byte, table TableName, stack *[]*Filter, options ParseO
 	}
 
 	filter.ColumnOptional = col.Optional
-
 	*stack = append(*stack, filter)
 	return
 }
@@ -324,24 +323,23 @@ func (f *Filter) setFilterValue(strVal string) (err error) {
 	if strVal == "" {
 		f.IsEmpty = true
 	}
+	f.StrValue = strVal
 	switch colType {
 	case Int64ListCol:
 		fallthrough
-	case IntCol, Int64Col:
-		filtervalue, cerr := strconv.ParseInt(strVal, 10, 64)
-		if cerr != nil && !f.IsEmpty {
-			err = fmt.Errorf("could not convert %s to integer from filter", strVal)
-			return
+	case IntCol, Int64Col, FloatCol:
+		switch f.Operator {
+		case Equal, Unequal, Greater, GreaterThan, Less, LessThan:
+			if !f.IsEmpty {
+				filtervalue, cerr := strconv.ParseFloat(strVal, 64)
+				if cerr != nil {
+					err = fmt.Errorf("could not convert %s to number in filter: %s", strVal, f.String(""))
+					return
+				}
+				f.FloatValue = filtervalue
+			}
+		default:
 		}
-		f.FloatValue = float64(filtervalue)
-		return
-	case FloatCol:
-		filtervalue, cerr := strconv.ParseFloat(strVal, 64)
-		if cerr != nil && !f.IsEmpty {
-			err = fmt.Errorf("could not convert %s to float from filter", strVal)
-			return
-		}
-		f.FloatValue = filtervalue
 		return
 	case HashMapCol:
 		fallthrough
@@ -359,13 +357,12 @@ func (f *Filter) setFilterValue(strVal string) (err error) {
 		f.CustomTag = vars[0]
 		return
 	case InterfaceListCol:
-		fallthrough
+		return
 	case StringListCol:
-		fallthrough
+		return
 	case ServiceMemberListCol:
-		fallthrough
+		return
 	case StringCol, StringLargeCol:
-		f.StrValue = strVal
 		return
 	}
 	log.Panicf("not implemented column type: %v", colType)
@@ -604,8 +601,8 @@ func (f *Filter) MatchInt(value int) bool {
 	case GreaterThan:
 		return value >= intVal
 	}
-	log.Warnf("not implemented Int op: %s", f.Operator.String())
-	return false
+	strVal := fmt.Sprintf("%v", value)
+	return f.MatchString(&strVal)
 }
 
 func (f *Filter) MatchInt64(value int64) bool {
@@ -624,8 +621,8 @@ func (f *Filter) MatchInt64(value int64) bool {
 	case GreaterThan:
 		return value >= intVal
 	}
-	log.Warnf("not implemented Int64 op: %s", f.Operator.String())
-	return false
+	strVal := fmt.Sprintf("%v", value)
+	return f.MatchString(&strVal)
 }
 
 func (f *Filter) MatchFloat(value float64) bool {
@@ -643,8 +640,8 @@ func (f *Filter) MatchFloat(value float64) bool {
 	case GreaterThan:
 		return value >= f.FloatValue
 	}
-	log.Warnf("not implemented float op: %s", f.Operator.String())
-	return false
+	strVal := fmt.Sprintf("%v", value)
+	return f.MatchString(&strVal)
 }
 
 func matchEmptyFilter(op Operator) bool {

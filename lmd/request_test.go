@@ -39,6 +39,7 @@ func TestRequestHeader(t *testing.T) {
 		"GET hosts\nColumns: name\nFilter: last_check =\n\n",
 		"GET hosts\nAuthUser: testUser\n\n",
 		"GET hosts\nColumns: name\nFilter: contact_groups >= test\nNegate:\n\n",
+		"GET hosts\nColumns: name\nFilter: state ~~ 0|1|2\n\n",
 	}
 	for _, str := range testRequestStrings {
 		buf := bufio.NewReader(bytes.NewBufferString(str))
@@ -166,6 +167,31 @@ func TestRequestListFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := assertEq("testhost_1", (*res)[0][0]); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestRequestRegexIntFilter(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	res, _, err := peer.QueryString("GET hosts\nColumns: name state\nFilter: state ~~ 0|1|2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := assertEq(10, len(*res)); err != nil {
+		t.Fatal(err)
+	}
+
+	res, _, err = peer.QueryString("GET hosts\nColumns: name state\nFilter: state ~~ 8|9")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := assertEq(0, len(*res)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -645,6 +671,14 @@ func TestRequestUnknownOptionalRefsColumns(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err = assertEq(0, len(*res)); err != nil {
+		t.Fatal(err)
+	}
+
+	res, _, err = peer.QueryString("GET services\nColumns: host_name\nFilter: host_is_impact = -1\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(10, len(*res)); err != nil {
 		t.Fatal(err)
 	}
 

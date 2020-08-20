@@ -696,6 +696,7 @@ func (d *DataRow) MatchFilter(filter *Filter) bool {
 			CustomTag: filter.CustomTag,
 			Negate:    filter.Negate,
 		}
+		f.Column.DataType = filter.Column.DataType
 		if f.Negate {
 			return !f.Match(d)
 		}
