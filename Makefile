@@ -7,6 +7,7 @@ GOVERSION:=$(shell \
     go version | \
     awk -F'go| ' '{ split($$5, a, /\./); printf ("%04d%04d", a[1], a[2]); exit; }' \
 )
+# also update README.md when changing minumum version
 MINGOVERSION:=00010014
 MINGOVERSIONSTR:=1.14
 BUILD:=$(shell git rev-parse --short HEAD)
