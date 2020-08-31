@@ -179,9 +179,9 @@ var OptionalFlagsStrings = map[OptionalFlags]string{
 // String returns the string representation of used flags
 func (f *OptionalFlags) String() string {
 	if *f == NoFlags {
-		return "<none>"
+		return "[<none>]"
 	}
-	return (strings.Join(f.List(), ", "))
+	return ("[" + strings.Join(f.List(), ", ") + "]")
 }
 
 // List returns a string list of used flags
