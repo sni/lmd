@@ -2634,8 +2634,13 @@ func (p *Peer) PassThrougQuery(res *Response, passthroughRequest *Request, virtC
 	res.Lock.Unlock()
 }
 
-// isOnline returns true if this peer is online and has data
+// isOnline returns true if this peer is online
 func (p *Peer) isOnline() bool {
+	return (p.hasPeerState([]PeerStatus{PeerStatusUp, PeerStatusWarning}))
+}
+
+// hasPeerState returns true if this peer has given state
+func (p *Peer) hasPeerState(states []PeerStatus) bool {
 	status := p.StatusGet(PeerState).(PeerStatus)
 	if p.HasFlag(LMDSub) {
 		realStatus := p.StatusGet(SubPeerStatus).(map[string]interface{})
@@ -2645,8 +2650,10 @@ func (p *Peer) isOnline() bool {
 		}
 		status = PeerStatus(num.(float64))
 	}
-	if status == PeerStatusUp || status == PeerStatusWarning {
-		return true
+	for _, s := range states {
+		if status == s {
+			return true
+		}
 	}
 	return false
 }
@@ -3093,7 +3100,7 @@ func (p *Peer) GetDataStore(tableName TableName) (store *DataStore, err error) {
 	p.DataLock.RLock()
 	store = p.Tables[tableName]
 	p.DataLock.RUnlock()
-	if store == nil || !p.isOnline() {
+	if store == nil || p.hasPeerState([]PeerStatus{PeerStatusDown}) {
 		store = nil
 		err = fmt.Errorf("%s", p.getError())
 		return
