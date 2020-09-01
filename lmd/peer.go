@@ -2165,6 +2165,7 @@ func (p *Peer) updateTimeperiodsData(store *DataStore, res *ResultSet, columns *
 	data := store.Data
 	now := time.Now().Unix()
 	nameCol := store.GetColumn("name")
+	p.DataLock.Unlock()
 	for i := range *res {
 		row := (*res)[i]
 		if data[i].CheckChangedIntValues(&row, columns) {
@@ -2175,7 +2176,6 @@ func (p *Peer) updateTimeperiodsData(store *DataStore, res *ResultSet, columns *
 			return
 		}
 	}
-	p.DataLock.Unlock()
 	// Update hosts and services with those changed timeperiods
 	for name, state := range changedTimeperiods {
 		log.Debugf("[%s] timeperiod %s has changed to %v, need to update affected hosts/services", p.Name, name, state)
