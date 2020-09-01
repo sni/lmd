@@ -3150,7 +3150,7 @@ func (p *Peer) GetDataStore(tableName TableName) (store *DataStore, err error) {
 	p.DataLock.RUnlock()
 	if store == nil || p.hasPeerState([]PeerStatus{PeerStatusDown}) {
 		store = nil
-		err = fmt.Errorf("%s", p.getError())
+		err = fmt.Errorf("peer is down: %s", p.getError())
 		return
 	}
 	return
