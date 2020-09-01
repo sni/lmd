@@ -1859,11 +1859,11 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 
 func (p *Peer) checkStatusFlags() (err error) {
 	// set backend specific flags
-	p.DataLock.RLock()
-	store := p.Tables[TableStatus]
-	if store == nil {
-		return
+	store, err := p.GetDataStore(TableStatus)
+	if err != nil {
+		return nil
 	}
+	p.DataLock.RLock()
 	data := store.Data
 	p.DataLock.RUnlock()
 	if len(data) == 0 {
@@ -2868,6 +2868,7 @@ func logPanicExitPeer(p *Peer) {
 func (p *Peer) logPeerStatus(logger func(string, ...interface{})) {
 	name := p.Name
 	status := p.Status[PeerState].(PeerStatus)
+	peerflags := OptionalFlags(atomic.LoadUint32(&p.Flags))
 	logger("[%s] PeerAddr:              %v", name, p.Status[PeerAddr])
 	logger("[%s] Idling:                %v", name, p.Status[Idling])
 	logger("[%s] Paused:                %v", name, p.Status[Paused])
@@ -2878,6 +2879,7 @@ func (p *Peer) logPeerStatus(logger func(string, ...interface{})) {
 	logger("[%s] LastFullServiceUpdate: %v", name, p.Status[LastFullServiceUpdate])
 	logger("[%s] LastQuery:             %v", name, p.Status[LastQuery])
 	logger("[%s] Peerstatus:            %s", name, status.String())
+	logger("[%s] Flags:                 %s", name, peerflags.String())
 	logger("[%s] LastError:             %s", name, p.Status[LastError].(string))
 }
 
