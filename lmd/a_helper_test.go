@@ -270,6 +270,7 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 var TestPeerWaitGroup *sync.WaitGroup
 
 func StartMockMainLoop(sockets []string, extraConfig string) {
+	nodeAccessor = nil
 	var testConfig = `
 Loglevel       = "` + testLogLevel + `"
 LogFile        = "` + testLogTarget + `"

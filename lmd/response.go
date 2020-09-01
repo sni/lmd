@@ -60,7 +60,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 		if _, ok := req.BackendsMap[p.ID]; !ok {
 			continue
 		}
-		if !nodeAccessor.IsOurBackend(p.ID) {
+		if nodeAccessor == nil || !nodeAccessor.IsOurBackend(p.ID) {
 			continue
 		}
 		if p.HasFlag(MultiBackend) {
