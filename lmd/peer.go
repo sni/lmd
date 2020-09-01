@@ -783,9 +783,15 @@ func (p *Peer) InitAllTables() (err error) {
 				}
 			}
 		case TableComments:
-			p.RebuildCommentsCache()
+			err = p.RebuildCommentsCache()
+			if err != nil {
+				return
+			}
 		case TableDowntimes:
-			p.RebuildDowntimesCache()
+			err = p.RebuildDowntimesCache()
+			if err != nil {
+				return
+			}
 		case TableTimeperiods:
 			lastTimeperiodUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
 			p.StatusSet(LastTimeperiodUpdateMinute, lastTimeperiodUpdateMinute)
@@ -1249,9 +1255,6 @@ func (p *Peer) getMissingTimestamps(store *DataStore, res *ResultSet, columns *C
 // which have to be removed.
 // It returns any error encountered.
 func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
-	// add new comments / downtimes
-	store := p.Tables[name]
-
 	// get number of entrys and max id
 	req := &Request{
 		Table:     name,
@@ -1262,6 +1265,12 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
 	if err != nil {
 		return
 	}
+
+	store, err := p.GetDataStore(name)
+	if err != nil {
+		return
+	}
+
 	var maxID int64
 	p.DataLock.RLock()
 	entries := len(store.Data)
@@ -1338,9 +1347,15 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
 	// reset cache
 	switch name {
 	case TableComments:
-		p.RebuildCommentsCache()
+		err = p.RebuildCommentsCache()
+		if err != nil {
+			return
+		}
 	case TableDowntimes:
-		p.RebuildDowntimesCache()
+		err = p.RebuildDowntimesCache()
+		if err != nil {
+			return
+		}
 	}
 
 	log.Debugf("[%s] updated %s", p.Name, name.String())
@@ -3008,28 +3023,42 @@ func (p *Peer) setFederationInfo(data map[string]interface{}, statuskey PeerStat
 }
 
 // RebuildCommentsCache updates the comment cache
-func (p *Peer) RebuildCommentsCache() {
-	cache := p.buildDowntimeCommentsCache(TableComments)
+func (p *Peer) RebuildCommentsCache() (err error) {
+	cache, err := p.buildDowntimeCommentsCache(TableComments)
+	if err != nil {
+		return
+	}
 	p.PeerLock.Lock()
 	p.cache.comments = cache
 	p.PeerLock.Unlock()
 	log.Debugf("comments cache rebuild")
+	return
 }
 
 // RebuildDowntimesCache updates the comment cache
-func (p *Peer) RebuildDowntimesCache() {
-	cache := p.buildDowntimeCommentsCache(TableDowntimes)
+func (p *Peer) RebuildDowntimesCache() (err error) {
+	cache, err := p.buildDowntimeCommentsCache(TableDowntimes)
+	if err != nil {
+		return
+	}
 	p.PeerLock.Lock()
 	p.cache.downtimes = cache
 	p.PeerLock.Unlock()
 	log.Debugf("downtimes cache rebuild")
+	return
 }
 
 // buildDowntimesCache returns the downtimes/comments cache
-func (p *Peer) buildDowntimeCommentsCache(name TableName) map[*DataRow][]int64 {
-	p.DataLock.RLock()
-	cache := make(map[*DataRow][]int64)
+func (p *Peer) buildDowntimeCommentsCache(name TableName) (cache map[*DataRow][]int64, err error) {
 	store := p.Tables[name]
+	if store == nil {
+		return nil, fmt.Errorf("cannot build cache, peer is down: %s", p.getError())
+	}
+
+	p.DataLock.RLock()
+	defer p.DataLock.RUnlock()
+
+	cache = make(map[*DataRow][]int64)
 	idIndex := store.Table.GetColumn("id").Index
 	hostNameIndex := store.Table.GetColumn("host_name").Index
 	serviceDescIndex := store.Table.GetColumn("service_description").Index
@@ -3048,10 +3077,9 @@ func (p *Peer) buildDowntimeCommentsCache(name TableName) map[*DataRow][]int64 {
 		id := row.dataInt64[idIndex]
 		cache[obj] = append(cache[obj], id)
 	}
-	p.DataLock.RUnlock()
 	promObjectCount.WithLabelValues(p.Name, name.String()).Set(float64(len(store.Data)))
 
-	return cache
+	return cache, nil
 }
 
 // HasFlag returns true if flags are present
