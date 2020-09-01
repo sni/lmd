@@ -1255,10 +1255,15 @@ func (p *Peer) getMissingTimestamps(store *DataStore, res *ResultSet, columns *C
 // which have to be removed.
 // It returns any error encountered.
 func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
-	// get number of entrys and max id
+	changed, err := p.maxIDOrSizeChanged(name)
+	if !changed || err != nil {
+		return
+	}
+
+	// fetch all ids to see which ones are missing or to be removed
 	req := &Request{
-		Table:     name,
-		FilterStr: "Stats: id != -1\nStats: max id\n",
+		Table:   name,
+		Columns: []string{"id"},
 	}
 	p.setQueryOptions(req)
 	res, _, err := p.Query(req)
@@ -1267,30 +1272,6 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
 	}
 
 	store, err := p.GetDataStore(name)
-	if err != nil {
-		return
-	}
-
-	var maxID int64
-	p.DataLock.RLock()
-	entries := len(store.Data)
-	if entries > 0 {
-		maxID = store.Data[entries-1].GetInt64ByName("id")
-	}
-	p.DataLock.RUnlock()
-
-	if len(*res) == 0 || float64(entries) == interface2float64((*res)[0][0]) && (entries == 0 || interface2float64((*res)[0][1]) == float64(maxID)) {
-		log.Debugf("[%s] %s did not change", p.Name, name.String())
-		return
-	}
-
-	// fetch all ids to see which ones are missing or to be removed
-	req = &Request{
-		Table:   name,
-		Columns: []string{"id"},
-	}
-	p.setQueryOptions(req)
-	res, _, err = p.Query(req)
 	if err != nil {
 		return
 	}
@@ -1359,6 +1340,40 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
 	}
 
 	log.Debugf("[%s] updated %s", p.Name, name.String())
+	return
+}
+
+// maxIDOrSizeChanged returns true if table data changed in size or max id
+func (p *Peer) maxIDOrSizeChanged(name TableName) (changed bool, err error) {
+	// get number of entrys and max id
+	req := &Request{
+		Table:     name,
+		FilterStr: "Stats: id != -1\nStats: max id\n",
+	}
+	p.setQueryOptions(req)
+	res, _, err := p.Query(req)
+	if err != nil {
+		return
+	}
+
+	store, err := p.GetDataStore(name)
+	if err != nil {
+		return
+	}
+
+	var maxID int64
+	p.DataLock.RLock()
+	entries := len(store.Data)
+	if entries > 0 {
+		maxID = store.Data[entries-1].GetInt64ByName("id")
+	}
+	p.DataLock.RUnlock()
+
+	if len(*res) == 0 || float64(entries) == interface2float64((*res)[0][0]) && (entries == 0 || interface2float64((*res)[0][1]) == float64(maxID)) {
+		log.Debugf("[%s] %s did not change", p.Name, name.String())
+		return
+	}
+	changed = true
 	return
 }
 
