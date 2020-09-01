@@ -1272,7 +1272,7 @@ func (p *Peer) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
 	}
 
 	store, err := p.GetDataStore(name)
-	if err != nil {
+	if store == nil {
 		return
 	}
 	p.DataLock.Lock()
@@ -1875,7 +1875,7 @@ func (p *Peer) CreateObjectByType(table *Table) (err error) {
 func (p *Peer) checkStatusFlags() (err error) {
 	// set backend specific flags
 	store, err := p.GetDataStore(TableStatus)
-	if err != nil {
+	if store == nil {
 		return nil
 	}
 	p.DataLock.RLock()
@@ -3148,8 +3148,7 @@ func (p *Peer) GetDataStore(tableName TableName) (store *DataStore, err error) {
 	p.DataLock.RLock()
 	store = p.Tables[tableName]
 	p.DataLock.RUnlock()
-	if store == nil || p.hasPeerState([]PeerStatus{PeerStatusDown}) {
-		store = nil
+	if store == nil || !p.isOnline() {
 		err = fmt.Errorf("peer is down: %s", p.getError())
 		return
 	}
