@@ -2077,6 +2077,9 @@ func (p *Peer) fetchRemotePeersFromAddr(peerAddr string) (sites []interface{}, e
 // It returns a boolean flag whether the remote site has been restarted and any error encountered.
 func (p *Peer) UpdateFullTable(tableName TableName) (restartRequired bool, err error) {
 	store := p.Tables[tableName]
+	if store == nil {
+		return false, fmt.Errorf("cannot update table %s, peer is down: %s", tableName.String(), p.getError())
+	}
 	skip, err := p.skipTableUpdate(store, tableName)
 	if skip || err != nil {
 		return
