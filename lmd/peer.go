@@ -1877,8 +1877,9 @@ func (p *Peer) checkStatusFlags() (err error) {
 	// set backend specific flags
 	store, err := p.GetDataStore(TableStatus)
 	if store == nil {
-		return nil
+		return err
 	}
+	err = nil
 	p.DataLock.RLock()
 	data := store.Data
 	p.DataLock.RUnlock()
