@@ -308,16 +308,17 @@ func (p *Peer) Start() {
 	if !p.StatusGet(Paused).(bool) {
 		log.Panicf("[%s] tried to start updateLoop twice", p.Name)
 	}
-	p.waitGroup.Add(1)
+	waitgroup := p.waitGroup
+	waitgroup.Add(1)
 	p.StatusSet(Paused, false)
 	log.Infof("[%s] starting connection", p.Name)
-	go func() {
+	go func(peer *Peer, wg *sync.WaitGroup) {
 		// make sure we log panics properly
-		defer logPanicExitPeer(p)
-		p.updateLoop()
-		p.StatusSet(Paused, true)
-		p.waitGroup.Done()
-	}()
+		defer logPanicExitPeer(peer)
+		peer.updateLoop()
+		peer.StatusSet(Paused, true)
+		wg.Done()
+	}(p, waitgroup)
 }
 
 // Stop stops this peer. Restart with Start.
