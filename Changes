@@ -1,6 +1,6 @@
 This file documents the revision history for the Livestatus Multitool Daemon
 
-next:
+1.9.0    Tue Sep  8 10:32:12 CEST 2020
           - add support for regex filter for number typed columns
           - improve comments/downtimes synchronization
           - improve slow query log when using wait conditions
