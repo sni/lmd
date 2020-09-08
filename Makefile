@@ -171,3 +171,11 @@ version:
 		NEWVERSION=$$(echo $$NEWVERSION | sed "s/^v//g"); \
 		if [ "v$$OLDVERSION" = "v$$NEWVERSION" -o "x$$NEWVERSION" = "x" ]; then echo "no changes"; exit 1; fi; \
 		sed -i -e 's/VERSION =.*/VERSION = "'$$NEWVERSION'"/g' $(LAMPDDIR)/main.go
+
+zip: build
+	rm -f lmd-$$VERSION-$(BUILD).gz
+	VERSION="$(shell grep "VERSION =" $(LAMPDDIR)/main.go | awk '{print $$3}' | tr -d '"')"; \
+		mv lmd/lmd lmd-$$VERSION-$(BUILD); \
+		gzip -9 lmd-$$VERSION-$(BUILD); \
+		ls -la lmd-$$VERSION-$(BUILD).gz; \
+		echo "lmd-$$VERSION-$(BUILD).gz created";
