@@ -233,7 +233,7 @@ func main() {
 	defer logPanicExit()
 
 	for {
-		exitCode := mainLoop(mainSignalChannel)
+		exitCode := mainLoop(mainSignalChannel, nil)
 		defer log.Debugf("lmd shutdown complete")
 		if exitCode > 0 {
 			os.Exit(exitCode)
@@ -245,7 +245,7 @@ func main() {
 	}
 }
 
-func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
+func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode int) {
 	localConfig := *(ReadConfig(flagConfigFile))
 	setDefaults(&localConfig)
 	setVerboseFlags(&localConfig)
@@ -303,6 +303,10 @@ func mainLoop(mainSignalChannel chan os.Signal) (exitCode int) {
 	initializePeers(&localConfig, waitGroupPeers, waitGroupInit, shutdownChannel)
 
 	once.Do(PrintVersion)
+
+	if initChannel != nil {
+		initChannel <- true
+	}
 
 	// just wait till someone hits ctrl+c or we have to reload
 	statsTimer := time.NewTicker(StatsTimerInterval)

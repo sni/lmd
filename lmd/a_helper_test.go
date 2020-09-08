@@ -299,8 +299,7 @@ LogLockTimeout = 10
 	go func() {
 		flagConfigFile = configFiles{"test.ini"}
 		TestPeerWaitGroup.Add(1)
-		startedChannel <- true
-		mainLoop(mainSignalChannel)
+		mainLoop(mainSignalChannel, startedChannel)
 		TestPeerWaitGroup.Done()
 		os.Remove("test.ini")
 	}()
