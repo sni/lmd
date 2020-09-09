@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/lkarlslund/stringdedup"
 	"github.com/sasha-s/go-deadlock"
 )
@@ -293,6 +294,9 @@ func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode
 		log.Warnf("pprof profiler listening at %s", flagProfile)
 	}
 
+	once.Do(PrintVersion)
+	logConfig(&localConfig)
+
 	// initialize prometheus
 	prometheusListener := initPrometheus(&localConfig)
 
@@ -301,8 +305,6 @@ func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode
 
 	// start remote connections
 	initializePeers(&localConfig, waitGroupPeers, waitGroupInit, shutdownChannel)
-
-	once.Do(PrintVersion)
 
 	if initChannel != nil {
 		initChannel <- true
@@ -800,6 +802,24 @@ func ReadConfig(files []string) *Config {
 	}
 
 	return conf
+}
+
+func logConfig(conf *Config) {
+	// print command line arguments
+	arg, _ := jsoniter.MarshalIndent(os.Args, "", "  ")
+	cfg, _ := jsoniter.MarshalIndent(*conf, "", "  ")
+
+	log.Debug("command line arguments:")
+	for _, s := range strings.Split(string(arg), "\n") {
+		log.Debugf("args: %s", s)
+	}
+
+	replaceAuth := regexp.MustCompile(`"Auth": ".*",`)
+	log.Debug("active configuration:")
+	for _, s := range strings.Split(string(cfg), "\n") {
+		s = replaceAuth.ReplaceAllString(s, `"Auth": "***",`)
+		log.Debugf("conf: %s", s)
+	}
 }
 
 func logPanicExit() {
