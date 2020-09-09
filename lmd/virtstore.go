@@ -6,6 +6,7 @@ type VirtStoreResolveFunc func(table *Table, peer *Peer) *DataStore
 func GetTableBackendsStore(table *Table, peer *Peer) *DataStore {
 	// simply return a new DataStore with a single row, since all columns are virtual anyway
 	store := NewDataStore(table, peer)
+	store.DataSet = peer.data
 	rows := make(ResultSet, 1)
 	_, columns := store.GetInitialColumns()
 	err := store.InsertData(&rows, columns)
@@ -64,14 +65,16 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 		return nil
 	}
 	store := NewDataStore(table, peer)
+	store.DataSet = peer.data
 	data := make(ResultSet, 0)
-	peer.DataLock.RLock()
-	defer peer.DataLock.RUnlock()
+	ds := store.DataSet
+	ds.Lock.RLock()
+	defer ds.Lock.RUnlock()
 	switch store.Table.Name {
 	case TableHostsbygroup:
-		nameCol := peer.Tables[TableHosts].GetColumn("name")
-		groupCol := peer.Tables[TableHosts].GetColumn("groups")
-		for _, row := range peer.Tables[TableHosts].Data {
+		nameCol := ds.tables[TableHosts].GetColumn("name")
+		groupCol := ds.tables[TableHosts].GetColumn("groups")
+		for _, row := range ds.tables[TableHosts].Data {
 			name := row.GetString(nameCol)
 			groups := row.GetStringList(groupCol)
 			for i := range *groups {
@@ -79,10 +82,10 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 			}
 		}
 	case TableServicesbygroup:
-		hostNameCol := peer.Tables[TableServices].GetColumn("host_name")
-		descCol := peer.Tables[TableServices].GetColumn("description")
-		groupCol := peer.Tables[TableServices].GetColumn("groups")
-		for _, row := range peer.Tables[TableServices].Data {
+		hostNameCol := ds.tables[TableServices].GetColumn("host_name")
+		descCol := ds.tables[TableServices].GetColumn("description")
+		groupCol := ds.tables[TableServices].GetColumn("groups")
+		for _, row := range ds.tables[TableServices].Data {
 			hostName := row.GetString(hostNameCol)
 			description := row.GetString(descCol)
 			groups := row.GetStringList(groupCol)
@@ -91,10 +94,10 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 			}
 		}
 	case TableServicesbyhostgroup:
-		hostNameCol := peer.Tables[TableServices].GetColumn("host_name")
-		descCol := peer.Tables[TableServices].GetColumn("description")
-		hostGroupsCol := peer.Tables[TableServices].GetColumn("host_groups")
-		for _, row := range peer.Tables[TableServices].Data {
+		hostNameCol := ds.tables[TableServices].GetColumn("host_name")
+		descCol := ds.tables[TableServices].GetColumn("description")
+		hostGroupsCol := ds.tables[TableServices].GetColumn("host_groups")
+		for _, row := range ds.tables[TableServices].Data {
 			hostName := row.GetString(hostNameCol)
 			description := row.GetString(descCol)
 			groups := row.GetStringList(hostGroupsCol)

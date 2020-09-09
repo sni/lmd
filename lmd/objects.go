@@ -213,7 +213,7 @@ func NewContactsTable() (t *Table) {
 	t.AddColumn("service_notification_period", Static, StringCol, "The time period in which the contact will be notified about service problems")
 	t.AddColumn("service_notifications_enabled", Static, IntCol, "Wether the contact will be notified about service problems in general (0/1)")
 
-	t.AddExtraColumn("custom_variables", VirtStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
+	t.AddExtraColumn("custom_variables", VirtualStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
 
 	t.AddPeerInfoColumn("lmd_last_cache_update", Int64Col, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
@@ -362,19 +362,19 @@ func NewHostsTable() (t *Table) {
 	// icinga2 specific
 	t.AddExtraColumn("address6", LocalStore, Static, StringCol, Icinga2, "IPv6 address")
 
-	t.AddExtraColumn("custom_variables", VirtStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
-	t.AddExtraColumn("services_with_info", VirtStore, None, InterfaceListCol, NoFlags, "The services, including info, that is associated with the host")
-	t.AddExtraColumn("services_with_state", VirtStore, None, InterfaceListCol, NoFlags, "The services, including state info, that is associated with the host")
-	t.AddExtraColumn("comments", VirtStore, None, Int64ListCol, NoFlags, "A list of the ids of all comments of this host")
-	t.AddExtraColumn("comments_with_info", VirtStore, None, InterfaceListCol, NoFlags, "A list of all comments of the host with id, author and comment")
-	t.AddExtraColumn("downtimes", VirtStore, None, Int64ListCol, NoFlags, "A list of the ids of all scheduled downtimes of this host")
-	t.AddExtraColumn("downtimes_with_info", VirtStore, None, InterfaceListCol, NoFlags, "A list of all downtimes of the host with id, author and comment")
+	t.AddExtraColumn("custom_variables", VirtualStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
+	t.AddExtraColumn("services_with_info", VirtualStore, None, InterfaceListCol, NoFlags, "The services, including info, that is associated with the host")
+	t.AddExtraColumn("services_with_state", VirtualStore, None, InterfaceListCol, NoFlags, "The services, including state info, that is associated with the host")
+	t.AddExtraColumn("comments", VirtualStore, None, Int64ListCol, NoFlags, "A list of the ids of all comments of this host")
+	t.AddExtraColumn("comments_with_info", VirtualStore, None, InterfaceListCol, NoFlags, "A list of all comments of the host with id, author and comment")
+	t.AddExtraColumn("downtimes", VirtualStore, None, Int64ListCol, NoFlags, "A list of the ids of all scheduled downtimes of this host")
+	t.AddExtraColumn("downtimes_with_info", VirtualStore, None, InterfaceListCol, NoFlags, "A list of all downtimes of the host with id, author and comment")
 	t.AddPeerInfoColumn("lmd_last_cache_update", Int64Col, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
-	t.AddExtraColumn("last_state_change_order", VirtStore, None, IntCol, NoFlags, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked")
-	t.AddExtraColumn("has_long_plugin_output", VirtStore, None, IntCol, NoFlags, "Flag wether this host has long_plugin_output or not")
-	t.AddExtraColumn("total_services", VirtStore, None, IntCol, NoFlags, "The total number of services of the host")
+	t.AddExtraColumn("last_state_change_order", VirtualStore, None, IntCol, NoFlags, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked")
+	t.AddExtraColumn("has_long_plugin_output", VirtualStore, None, IntCol, NoFlags, "Flag wether this host has long_plugin_output or not")
+	t.AddExtraColumn("total_services", VirtualStore, None, IntCol, NoFlags, "The total number of services of the host")
 	return
 }
 
@@ -405,7 +405,7 @@ func NewHostgroupsTable() (t *Table) {
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
 
-	t.AddExtraColumn("members_with_state", VirtStore, None, InterfaceListCol, NoFlags, "A list of all host names that are members of the hostgroup together with state and has_been_checked")
+	t.AddExtraColumn("members_with_state", VirtualStore, None, InterfaceListCol, NoFlags, "A list of all host names that are members of the hostgroup together with state and has_been_checked")
 	return
 }
 
@@ -517,17 +517,17 @@ func NewServicesTable() (t *Table) {
 
 	t.AddRefColumns(TableHosts, "host", []string{"host_name"})
 
-	t.AddExtraColumn("custom_variables", VirtStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
-	t.AddExtraColumn("comments", VirtStore, None, Int64ListCol, NoFlags, "A list of all comment ids of the service")
-	t.AddExtraColumn("comments_with_info", VirtStore, None, InterfaceListCol, NoFlags, "A list of all comments of the host with id, author and comment")
-	t.AddExtraColumn("downtimes", VirtStore, None, Int64ListCol, NoFlags, "A list of all downtime ids of the service")
-	t.AddExtraColumn("downtimes_with_info", VirtStore, None, InterfaceListCol, NoFlags, "A list of all downtimes of the service with id, author and comment")
+	t.AddExtraColumn("custom_variables", VirtualStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
+	t.AddExtraColumn("comments", VirtualStore, None, Int64ListCol, NoFlags, "A list of all comment ids of the service")
+	t.AddExtraColumn("comments_with_info", VirtualStore, None, InterfaceListCol, NoFlags, "A list of all comments of the host with id, author and comment")
+	t.AddExtraColumn("downtimes", VirtualStore, None, Int64ListCol, NoFlags, "A list of all downtime ids of the service")
+	t.AddExtraColumn("downtimes_with_info", VirtualStore, None, InterfaceListCol, NoFlags, "A list of all downtimes of the service with id, author and comment")
 	t.AddPeerInfoColumn("lmd_last_cache_update", Int64Col, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
-	t.AddExtraColumn("last_state_change_order", VirtStore, None, IntCol, NoFlags, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked")
-	t.AddExtraColumn("state_order", VirtStore, None, IntCol, NoFlags, "The service state suitable for sorting. Unknown and Critical state are switched")
-	t.AddExtraColumn("has_long_plugin_output", VirtStore, None, IntCol, NoFlags, "Flag wether this service has long_plugin_output or not")
+	t.AddExtraColumn("last_state_change_order", VirtualStore, None, IntCol, NoFlags, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked")
+	t.AddExtraColumn("state_order", VirtualStore, None, IntCol, NoFlags, "The service state suitable for sorting. Unknown and Critical state are switched")
+	t.AddExtraColumn("has_long_plugin_output", VirtualStore, None, IntCol, NoFlags, "Flag wether this service has long_plugin_output or not")
 	return
 }
 
@@ -552,7 +552,7 @@ func NewServicegroupsTable() (t *Table) {
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
 
-	t.AddExtraColumn("members_with_state", VirtStore, None, InterfaceListCol, NoFlags, "A list of all members of the service group with state and has_been_checked")
+	t.AddExtraColumn("members_with_state", VirtualStore, None, InterfaceListCol, NoFlags, "A list of all members of the service group with state and has_been_checked")
 	return
 }
 

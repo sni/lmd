@@ -10,12 +10,12 @@ func _() {
 	var x [1]struct{}
 	_ = x[LocalStore-1]
 	_ = x[RefStore-2]
-	_ = x[VirtStore-3]
+	_ = x[VirtualStore-3]
 }
 
-const _StorageType_name = "LocalStoreRefStoreVirtStore"
+const _StorageType_name = "LocalStoreRefStoreVirtualStore"
 
-var _StorageType_index = [...]uint8{0, 10, 18, 27}
+var _StorageType_index = [...]uint8{0, 10, 18, 30}
 
 func (i StorageType) String() string {
 	i -= 1

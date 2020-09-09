@@ -26,11 +26,11 @@ var VirtColumnList = []VirtColumnMapEntry{
 	{Name: "status", StatusKey: PeerState},
 	{Name: "bytes_send", StatusKey: BytesSend},
 	{Name: "bytes_received", StatusKey: BytesReceived},
-	{Name: "queries", StatusKey: Querys},
+	{Name: "queries", StatusKey: Queries},
 	{Name: "last_error", StatusKey: LastError},
 	{Name: "last_online", StatusKey: LastOnline},
 	{Name: "last_update", StatusKey: LastUpdate},
-	{Name: "response_time", StatusKey: ReponseTime},
+	{Name: "response_time", StatusKey: ResponseTime},
 	{Name: "idling", StatusKey: Idling},
 	{Name: "last_query", StatusKey: LastQuery},
 	{Name: "section", StatusKey: Section},
@@ -121,8 +121,8 @@ const (
 	LocalStore StorageType = iota + 1
 	// RefStore are referenced columns
 	RefStore
-	// VirtStore are calculated on the fly
-	VirtStore
+	// VirtualStore is calculated on the fly
+	VirtualStore
 )
 
 // OptionalFlags is used to set flags for optionial columns.
@@ -250,7 +250,7 @@ func NewColumn(table *Table, name string, storage StorageType, update FetchType,
 	if col.Table == nil {
 		log.Panicf("missing table for %s", col.Name)
 	}
-	if col.StorageType == VirtStore {
+	if col.StorageType == VirtualStore {
 		col.VirtMap = VirtColumnMap[name]
 		if col.VirtMap == nil {
 			log.Panicf("missing VirtMap for %s in %s", col.Name, table.Name)

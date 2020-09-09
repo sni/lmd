@@ -183,7 +183,7 @@ func TestPeerUpdate(t *testing.T) {
 	peer := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	err := peer.UpdateFull(Objects.UpdateTables)
+	err := peer.data.UpdateFull(Objects.UpdateTables)
 	if err != nil {
 		t.Error(err)
 	}
@@ -197,7 +197,7 @@ func TestPeerDeltaUpdate(t *testing.T) {
 	peer := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	err := peer.UpdateDelta(0, 0)
+	err := peer.data.UpdateDelta(0, 0)
 	if err != nil {
 		t.Error(err)
 	}

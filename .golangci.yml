@@ -59,6 +59,7 @@ issues:
     - "ptrToRefParam: consider `commandsByPeer' to be of non-pointer type"
     - "cognitive complexity .* of func `ProcessRequests` is high"
     - "cognitive complexity .* of func `.*Request..getDistributedResponse` is high"
+    - "cognitive complexity .* of func `.*Peer..waitcondition` is high"
     - 'Magic number: 1\D '
     - 'Magic number: 2\D '
     - 'Magic number: 3\D '

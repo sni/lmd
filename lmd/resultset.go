@@ -42,6 +42,19 @@ func (res *ResultSet) SortByPrimaryKey(table *Table, req *Request) *ResultSet {
 	return sorted.Data
 }
 
+// Result2Hash converts list result into hashes
+func (res *ResultSet) Result2Hash(columns []string) []map[string]interface{} {
+	hash := make([]map[string]interface{}, 0)
+	for _, row := range *res {
+		rowHash := make(map[string]interface{})
+		for x, key := range columns {
+			rowHash[key] = row[x]
+		}
+		hash = append(hash, rowHash)
+	}
+	return hash
+}
+
 // ResultSetSorted is a sorted list of result rows
 type ResultSetSorted struct {
 	Data  *ResultSet

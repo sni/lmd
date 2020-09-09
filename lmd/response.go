@@ -15,6 +15,11 @@ import (
 	"github.com/sasha-s/go-deadlock"
 )
 
+const (
+	// SpinUpPeersTimeout sets timeout to wait for peers after spin up
+	SpinUpPeersTimeout = 5 * time.Second
+)
+
 // Response contains the livestatus response data as long with some meta data
 type Response struct {
 	noCopy        noCopy
@@ -82,7 +87,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 	}
 
 	if !table.PassthroughOnly && len(spinUpPeers) > 0 {
-		logDebugError(SpinUpPeers(spinUpPeers))
+		SpinUpPeers(spinUpPeers)
 	}
 
 	// if all backends are down, send an error instead of an empty result
@@ -450,16 +455,16 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 	}
 }
 
-// WriteDataResponseRowLocked appends each row but locks the peer befor doing so. We don't have to lock for each column then
+// WriteDataResponseRowLocked appends each row but locks the peer before doing so. We don't have to lock for each column then
 func (res *Response) WriteDataResponseRowLocked(json *jsoniter.Stream) {
 	for i := range res.RawResults.DataResult {
 		if i > 0 {
 			json.WriteRaw(",")
 		}
 		row := res.RawResults.DataResult[i]
-		row.DataStore.Peer.PeerLock.RLock()
+		row.DataStore.Peer.Lock.RLock()
 		row.WriteJSON(json, &res.Request.RequestColumns)
-		row.DataStore.Peer.PeerLock.RUnlock()
+		row.DataStore.Peer.Lock.RUnlock()
 	}
 }
 
@@ -505,6 +510,7 @@ func (res *Response) BuildLocalResponse() {
 	for i := range res.SelectedPeers {
 		p := res.SelectedPeers[i]
 		p.StatusSet(LastQuery, time.Now().Unix())
+
 		store, err := p.GetDataStore(res.Request.Table)
 		if err != nil {
 			res.Lock.Lock()
@@ -515,8 +521,23 @@ func (res *Response) BuildLocalResponse() {
 
 		// process virtual tables serially without go routines to maintain the correct order, ex.: from the sites table
 		if store.Table.Virtual != nil {
-			p.BuildLocalResponseData(res, store, resultcollector)
+			res.BuildLocalResponseData(store, resultcollector)
 			continue
+		}
+
+		// if a WaitTrigger is supplied, wait max ms till the condition is true
+		if res.Request.WaitTrigger != "" {
+			p.WaitCondition(res.Request)
+
+			// peer might have gone down meanwhile, ex. after waiting for a waittrigger, so check again
+			s, err := p.GetDataStore(res.Request.Table)
+			if err != nil {
+				res.Lock.Lock()
+				res.Failed[p.ID] = err.Error()
+				res.Lock.Unlock()
+				return
+			}
+			store = s
 		}
 
 		waitgroup.Add(1)
@@ -527,7 +548,7 @@ func (res *Response) BuildLocalResponse() {
 			log.Tracef("[%s] starting local data computation", peer.Name)
 			defer wg.Done()
 
-			peer.BuildLocalResponseData(res, store, resultcollector)
+			res.BuildLocalResponseData(store, resultcollector)
 		}(p, waitgroup)
 	}
 	log.Tracef("waiting...")
@@ -548,7 +569,7 @@ func (res *Response) MergeStats(stats *ResultSetStats) {
 	if res.Request.StatsResult == nil {
 		res.Request.StatsResult = make(ResultSetStats)
 	}
-	// apply stats querys
+	// apply stats queries
 	for key, stats := range *stats {
 		if _, ok := res.Request.StatsResult[key]; !ok {
 			res.Request.StatsResult[key] = stats
@@ -568,12 +589,12 @@ func (res *Response) BuildPassThroughResult() {
 
 	// build columns list
 	backendColumns := []string{}
-	virtColumns := []*Column{}
+	virtualColumns := []*Column{}
 	columnsIndex := make(map[*Column]int)
 	for i := range res.Request.RequestColumns {
 		col := res.Request.RequestColumns[i]
-		if col.StorageType == VirtStore {
-			virtColumns = append(virtColumns, col)
+		if col.StorageType == VirtualStore {
+			virtualColumns = append(virtualColumns, col)
 		} else {
 			backendColumns = append(backendColumns, col.Name)
 		}
@@ -585,9 +606,9 @@ func (res *Response) BuildPassThroughResult() {
 			// sort column does exist in the request columns
 			s.Index = j
 		} else {
-			s.Index = len(backendColumns) + len(virtColumns)
-			if s.Column.StorageType == VirtStore {
-				virtColumns = append(virtColumns, s.Column)
+			s.Index = len(backendColumns) + len(virtualColumns)
+			if s.Column.StorageType == VirtualStore {
+				virtualColumns = append(virtualColumns, s.Column)
 			} else {
 				backendColumns = append(backendColumns, s.Column.Name)
 			}
@@ -625,7 +646,7 @@ func (res *Response) BuildPassThroughResult() {
 			log.Debugf("[%s] starting passthrough request", peer.Name)
 			defer wg.Done()
 
-			peer.PassThrougQuery(res, passthroughRequest, virtColumns, columnsIndex)
+			peer.PassThroughQuery(res, passthroughRequest, virtualColumns, columnsIndex)
 		}(p, waitgroup)
 	}
 	log.Tracef("waiting...")
@@ -656,4 +677,137 @@ func (res *Response) SetResultData() {
 		}
 		res.Result = append(res.Result, row)
 	}
+}
+
+// SpinUpPeers starts an immediate parallel delta update for all supplied peer ids.
+func SpinUpPeers(peers []*Peer) {
+	waitgroup := &sync.WaitGroup{}
+	for i := range peers {
+		p := peers[i]
+		waitgroup.Add(1)
+		go func(peer *Peer, wg *sync.WaitGroup) {
+			// make sure we log panics properly
+			defer logPanicExitPeer(peer)
+			defer wg.Done()
+			logDebugError(peer.ResumeFromIdle())
+		}(p, waitgroup)
+	}
+	waitTimeout(waitgroup, SpinUpPeersTimeout)
+	log.Debugf("spin up completed")
+}
+
+// BuildLocalResponseData returns the result data for a given request
+func (res *Response) BuildLocalResponseData(store *DataStore, resultcollector chan *PeerResponse) {
+	ds := store.DataSet
+	log.Tracef("BuildLocalResponseData: %s", store.PeerName)
+
+	// for some tables its faster to lock the table only once
+	if store.PeerLockMode == PeerLockModeFull && ds != nil {
+		ds.Lock.RLock()
+		defer ds.Lock.RUnlock()
+	}
+
+	if !store.Table.WorksUnlocked {
+		ds.Lock.RLock()
+		defer ds.Lock.RUnlock()
+	}
+
+	if len(store.Data) == 0 {
+		return
+	}
+
+	if len(res.Request.Stats) > 0 {
+		// stats queries
+		res.MergeStats(res.gatherStatsResult(store))
+	} else {
+		// data queries
+		res.gatherResultRows(store, resultcollector)
+	}
+}
+
+func (res *Response) gatherResultRows(store *DataStore, resultcollector chan *PeerResponse) {
+	result := &PeerResponse{}
+	defer func() {
+		resultcollector <- result
+	}()
+	req := res.Request
+
+	// if there is no sort header or sort by name only,
+	// we can drastically reduce the result set by applying the limit here already
+	limit := req.optimizeResultLimit()
+	if limit <= 0 {
+		limit = len(store.Data) + 1
+	}
+
+	// no need to count all the way to the end unless the total number is required in wrapped_json output
+	breakOnLimit := res.Request.OutputFormat != OutputFormatWrappedJSON
+
+Rows:
+	for _, row := range store.Data {
+		// does our filter match?
+		for _, f := range req.Filter {
+			if !row.MatchFilter(f) {
+				continue Rows
+			}
+		}
+
+		if !row.checkAuth(req.AuthUser) {
+			continue Rows
+		}
+
+		result.Total++
+
+		// check if we have enough result rows already
+		// we still need to count how many result we would have...
+		if result.Total > limit {
+			if breakOnLimit {
+				return
+			}
+			continue Rows
+		}
+		result.Rows = append(result.Rows, row)
+	}
+}
+
+func (res *Response) gatherStatsResult(store *DataStore) *ResultSetStats {
+	localStats := make(ResultSetStats)
+	req := res.Request
+
+Rows:
+	for _, row := range store.Data {
+		// does our filter match?
+		for _, f := range req.Filter {
+			if !row.MatchFilter(f) {
+				continue Rows
+			}
+		}
+
+		if !row.checkAuth(req.AuthUser) {
+			continue Rows
+		}
+
+		key := row.getStatsKey(res)
+		stat := localStats[key]
+		if stat == nil {
+			stat = createLocalStatsCopy(&req.Stats)
+			localStats[key] = stat
+		}
+
+		// count stats
+		for i := range req.Stats {
+			s := req.Stats[i]
+			// avg/sum/min/max are passed through, they don't have filter
+			// counter must match their filter
+			if s.StatsType == Counter {
+				if row.MatchFilter(s) {
+					stat[i].Stats++
+					stat[i].StatsCount++
+				}
+			} else {
+				stat[i].ApplyValue(row.GetFloat(s.Column), 1)
+			}
+		}
+	}
+
+	return &localStats
 }

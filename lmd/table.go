@@ -141,7 +141,7 @@ func (t *Table) GetEmptyColumn() *Column {
 		Description: "placeholder for unknown columns",
 		Table:       t,
 		DataType:    StringCol,
-		StorageType: VirtStore,
+		StorageType: VirtualStore,
 		FetchType:   None,
 		VirtMap:     VirtColumnMap["empty"],
 	}
@@ -159,7 +159,7 @@ func (t *Table) AddExtraColumn(name string, storage StorageType, update FetchTyp
 
 // AddPeerStatusColumns adds a new column related to peer information
 func (t *Table) AddPeerInfoColumn(name string, datatype DataType, description string) {
-	NewColumn(t, name, VirtStore, None, datatype, NoFlags, nil, description)
+	NewColumn(t, name, VirtualStore, None, datatype, NoFlags, nil, description)
 }
 
 // AddRefColumns adds a reference column.

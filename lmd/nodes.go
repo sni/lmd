@@ -389,7 +389,7 @@ func (n *Nodes) updateBackends(ourBackends []string) {
 	for _, oldBackend := range rmvBackends {
 		peer := PeerMap[oldBackend]
 		peer.Stop()
-		peer.Clear(true)
+		peer.ClearData(true)
 	}
 	for _, newBackend := range addBackends {
 		peer := PeerMap[newBackend]

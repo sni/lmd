@@ -387,8 +387,9 @@ func initializePeers(localConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 			}
 		}
 		if !found {
-			PeerMap[id].Stop()
-			PeerMap[id].Clear(true)
+			p := PeerMap[id]
+			p.Stop()
+			p.ClearData(true)
 			PeerMapRemove(id)
 		}
 	}
@@ -406,11 +407,11 @@ func initializePeers(localConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 		if v, ok := PeerMap[c.ID]; ok {
 			if c.Equals(v.Config) {
 				p = v
-				p.PeerLock.Lock()
+				p.Lock.Lock()
 				p.waitGroup = waitGroupPeers
 				p.shutdownChannel = shutdownChannel
 				p.GlobalConfig = localConfig
-				p.PeerLock.Unlock()
+				p.Lock.Unlock()
 			}
 		}
 		PeerMapLock.RUnlock()

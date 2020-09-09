@@ -15,6 +15,7 @@ type DataStore struct {
 	Peer                    *Peer                          // reference to our peer
 	PeerName                string                         // cached peer name
 	PeerKey                 string                         // cached peer key
+	DataSet                 *DataStoreSet                  // reference to parent DataSet
 	Data                    []*DataRow                     // the actual data rows
 	Index                   map[string]*DataRow            // access data rows from primary key, ex.: hostname or comment id
 	Index2                  map[string]map[string]*DataRow // access data rows from 2 primary keys, ex.: host and service
@@ -40,10 +41,10 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 
 	if peer != nil {
 		d.Peer = peer.(*Peer)
-		d.Peer.PeerLock.RLock()
+		d.Peer.Lock.RLock()
 		d.PeerName = d.Peer.Name
 		d.PeerKey = d.Peer.ID
-		d.Peer.PeerLock.RUnlock()
+		d.Peer.Lock.RUnlock()
 	}
 
 	// create columns list
@@ -107,8 +108,8 @@ func (d *DataStore) InsertData(data *ResultSet, columns *ColumnList) error {
 
 // AppendData append a list of results and initializes the store table
 func (d *DataStore) AppendData(data *ResultSet, columns *ColumnList) error {
-	d.Peer.DataLock.Lock()
-	defer d.Peer.DataLock.Unlock()
+	d.DataSet.Lock.Lock()
+	defer d.DataSet.Lock.Unlock()
 
 	if d.Index == nil {
 		// should not happen but might indicate a recent restart or backend issue
@@ -185,4 +186,14 @@ func (d *DataStore) GetInitialColumns() ([]string, *ColumnList) {
 		keys = append(keys, col.Name)
 	}
 	return keys, &columns
+}
+
+func (d *DataStore) GetWaitObject(req *Request) (*DataRow, bool) {
+	if req.Table == TableServices {
+		parts := strings.SplitN(req.WaitObject, ";", 2)
+		obj, ok := d.Index2[parts[0]][parts[1]]
+		return obj, ok
+	}
+	obj, ok := d.Index[req.WaitObject]
+	return obj, ok
 }

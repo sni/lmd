@@ -1010,3 +1010,15 @@ func (req *Request) IsDefaultSortOrder() bool {
 	}
 	return false
 }
+
+func (req *Request) optimizeResultLimit() (limit int) {
+	if req.Limit != nil && req.IsDefaultSortOrder() {
+		limit = *req.Limit
+		if req.Offset > 0 {
+			limit += req.Offset
+		}
+	} else {
+		limit = -1
+	}
+	return
+}
