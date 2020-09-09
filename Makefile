@@ -173,9 +173,12 @@ version:
 		sed -i -e 's/VERSION =.*/VERSION = "'$$NEWVERSION'"/g' $(LAMPDDIR)/main.go
 
 zip: build
-	rm -f lmd-$$VERSION-$(BUILD).gz
 	VERSION="$(shell grep "VERSION =" $(LAMPDDIR)/main.go | awk '{print $$3}' | tr -d '"')"; \
-		mv lmd/lmd lmd-$$VERSION-$(BUILD); \
-		gzip -9 lmd-$$VERSION-$(BUILD); \
-		ls -la lmd-$$VERSION-$(BUILD).gz; \
-		echo "lmd-$$VERSION-$(BUILD).gz created";
+		COMMITS="$(shell git rev-list $$(git describe --tags --abbrev=0)..HEAD --count)"; \
+		DATE="$(shell LC_TIME=C date +%Y-%m-%d)"; \
+		FILE="$$(printf "%s+git~%03d~%s_%s" $${VERSION} $${COMMITS} $(BUILD) $${DATE})"; \
+		rm -f lmd-$$FILE.gz; \
+		mv lmd/lmd lmd-$$FILE; \
+		gzip -9 lmd-$$FILE; \
+		ls -la lmd-$$FILE.gz; \
+		echo "lmd-$$FILE.gz created";
