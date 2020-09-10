@@ -313,6 +313,33 @@ func TestMainConfig(t *testing.T) {
 	os.Remove("test3.ini")
 }
 
+func TestMainArgs(t *testing.T) {
+	cfg := &Config{IdleTimeout: 10, SaveTempRequests: true}
+	args := arrayFlags{list: []string{
+		"idletimeout=300",
+		"SaveTempRequests=false",
+		"ListenPrometheus=/dev/null",
+		"SkipSSLCheck=1",
+	}}
+	applyArgFlags(args, cfg)
+
+	if err := assertEq(cfg.IdleTimeout, int64(300)); err != nil {
+		t.Error(err)
+	}
+
+	if err := assertEq(cfg.SaveTempRequests, false); err != nil {
+		t.Error(err)
+	}
+
+	if err := assertEq(cfg.ListenPrometheus, "/dev/null"); err != nil {
+		t.Error(err)
+	}
+
+	if err := assertEq(cfg.SkipSSLCheck, int(1)); err != nil {
+		t.Error(err)
+	}
+}
+
 func TestMainWaitTimeout(t *testing.T) {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)

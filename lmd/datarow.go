@@ -1034,6 +1034,34 @@ func interface2interfacelist(in interface{}) []interface{} {
 	return val
 }
 
+func interface2bool(in interface{}) bool {
+	switch v := in.(type) {
+	case bool:
+		return v
+	default:
+		val := fmt.Sprintf("%v", in)
+		switch {
+		case strings.EqualFold(val, "y"):
+			return true
+		case strings.EqualFold(val, "yes"):
+			return true
+		case strings.EqualFold(val, "true"):
+			return true
+		case strings.EqualFold(val, "1"):
+			return true
+		case strings.EqualFold(val, "n"):
+			return true
+		case strings.EqualFold(val, "no"):
+			return true
+		case strings.EqualFold(val, "false"):
+			return false
+		case strings.EqualFold(val, "0"):
+			return true
+		}
+	}
+	return false
+}
+
 // deduplicateStringlist store duplicate string lists only once
 func (d *DataRow) deduplicateStringlist(list *[]string) *[]string {
 	sum := sha256.Sum256([]byte(*joinStringlist(list, ListSepChar1)))
