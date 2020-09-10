@@ -34,9 +34,6 @@ linters:
     - gochecknoglobals
     - lll
     - gochecknoinits
-    - dupl
-    - goconst
-    - interfacer
     - wsl
     - exhaustive
     - gofumpt
@@ -82,6 +79,8 @@ issues:
     - 'missing cases in switch of type SortDirection: _'
     - 'missing cases in switch of type GroupOperator: _'
     - 'missing cases in switch of type Operator: _'
+    - 'lines are duplicate of.*_test.go:'
+    - 'lines are duplicate of.*objects.go:'
   exclude-rules:
     # Exclude some linters from running on tests files.
     - path: _test\.go

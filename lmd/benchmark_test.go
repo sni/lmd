@@ -137,7 +137,7 @@ func BenchmarkPeerUpdateServiceInsert(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		res := peer.data.insertDeltaServiceResult(2, res, table)
+		res := peer.data.insertDeltaDataResult(2, res, table)
 		if res != nil {
 			panic("Update failed")
 		}
