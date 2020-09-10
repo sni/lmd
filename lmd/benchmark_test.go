@@ -130,14 +130,14 @@ func BenchmarkPeerUpdateServiceInsert(b *testing.B) {
 		OutputFormat:    OutputFormatJSON,
 		FilterStr:       "Filter: host_name !=\n",
 	}
-	res, _, err := peer.Query(req)
+	res, meta, err := peer.Query(req)
 	if err != nil {
 		return
 	}
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		res := peer.data.insertDeltaDataResult(2, res, table)
+		res := peer.data.insertDeltaDataResult(2, res, meta, table)
 		if res != nil {
 			panic("Update failed")
 		}

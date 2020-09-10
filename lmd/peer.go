@@ -397,9 +397,11 @@ func (p *Peer) periodicUpdate() (err error) {
 
 	// update timeperiods every full minute except when idling
 	if !idling && lastTimeperiodUpdateMinute != currentMinute && data != nil {
-		log.Debugf("[%s] updating timeperiods and host/servicegroup statistics", p.Name)
+		t1 := time.Now()
 		p.StatusSet(LastTimeperiodUpdateMinute, currentMinute)
 		err = data.UpdateFullTablesList([]TableName{TableTimeperiods, TableHostgroups, TableServicegroups})
+		duration := time.Since(t1).Truncate(time.Millisecond)
+		log.Debugf("[%s] updating timeperiods and host/servicegroup statistics completed (%s)", p.Name, duration)
 		if err != nil {
 			return
 		}
@@ -890,6 +892,8 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(totalBytesReceived))
 
 	data, meta, err := req.parseResult(resBytes)
+	meta.Duration = duration
+	meta.Size = len(*resBytes)
 
 	if err != nil {
 		log.Debugf("[%s] fetched table %20s time: %s, size: %d kB", p.Name, req.Table.String(), duration, len(*resBytes)/1024)
@@ -898,7 +902,7 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 		return nil, nil, &PeerError{msg: err.Error(), kind: ResponseError}
 	}
 
-	log.Debugf("[%s] fetched table: %15s - time: %8s - count: %8d - size: %8d kB", p.Name, req.Table.String(), duration, len(*data), len(*resBytes)/1024)
+	log.Tracef("[%s] fetched table: %15s - time: %8s - count: %8d - size: %8d kB", p.Name, req.Table.String(), duration, len(*data), len(*resBytes)/1024)
 	return data, meta, nil
 }
 

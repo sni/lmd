@@ -62,11 +62,13 @@ func (ds *DataStoreSet) CreateObjectByType(table *Table) (store *DataStore, err 
 		Columns: keys,
 	}
 	p.setQueryOptions(req)
-	res, _, err := p.Query(req)
+	res, resMeta, err := p.Query(req)
 
 	if err != nil {
 		return
 	}
+
+	t1 := time.Now()
 
 	// icinga2 returns hosts and services in random order but we assume ordered results later
 	if p.HasFlag(Icinga2) {
@@ -83,8 +85,11 @@ func (ds *DataStoreSet) CreateObjectByType(table *Table) (store *DataStore, err 
 	p.Status[LastUpdate] = now
 	p.Status[LastFullUpdate] = now
 	p.Lock.Unlock()
-	promObjectCount.WithLabelValues(p.Name, table.Name.String()).Set(float64(len((*res))))
+	tableName := table.Name.String()
+	promObjectCount.WithLabelValues(p.Name, tableName).Set(float64(len((*res))))
 
+	duration := time.Since(t1).Truncate(time.Millisecond)
+	log.Debugf("[%s] updated table: %15s - fetch: %8s - insert: %8s - count: %8d - size: %8d kB", p.Name, tableName, resMeta.Duration, duration, len(*res), resMeta.Size/1024)
 	return
 }
 
@@ -235,12 +240,12 @@ func (ds *DataStoreSet) UpdateDeltaHosts(filterStr string) (err error) {
 		FilterStr: filterStr,
 	}
 	p.setQueryOptions(req)
-	res, _, err := p.Query(req)
+	res, meta, err := p.Query(req)
 	if err != nil {
 		return
 	}
 	hostDataOffset := 1
-	return ds.insertDeltaDataResult(hostDataOffset, res, store)
+	return ds.insertDeltaDataResult(hostDataOffset, res, meta, store)
 }
 
 // UpdateDeltaServices update services by fetching all dynamic data with a last_check filter on the timestamp since
@@ -271,15 +276,16 @@ func (ds *DataStoreSet) UpdateDeltaServices(filterStr string) (err error) {
 		FilterStr: filterStr,
 	}
 	p.setQueryOptions(req)
-	res, _, err := p.Query(req)
+	res, meta, err := p.Query(req)
 	if err != nil {
 		return
 	}
 	serviceDataOffset := 2
-	return ds.insertDeltaDataResult(serviceDataOffset, res, table)
+	return ds.insertDeltaDataResult(serviceDataOffset, res, meta, table)
 }
 
-func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res *ResultSet, table *DataStore) (err error) {
+func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res *ResultSet, resMeta *ResultMetaData, table *DataStore) (err error) {
+	t1 := time.Now()
 	updateSet, err := ds.prepareDataUpdateSet(dataOffset, res, table)
 	if err != nil {
 		return
@@ -300,10 +306,12 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res *ResultSet, ta
 		}
 	}
 
+	duration := time.Since(t1).Truncate(time.Millisecond)
+
 	p := ds.peer
 	tableName := table.Table.Name.String()
 	promObjectUpdate.WithLabelValues(p.Name, tableName).Add(float64(len(*res)))
-	log.Debugf("[%s] updated %d %s", p.Name, len(*res), tableName)
+	log.Debugf("[%s] updated table: %15s - fetch: %8s - insert: %8s - count: %8d - size: %8d kB", p.Name, tableName, resMeta.Duration, duration, len(updateSet), resMeta.Size/1024)
 
 	return
 }
@@ -592,7 +600,7 @@ func (ds *DataStoreSet) maxIDOrSizeChanged(name TableName) (changed bool, err er
 	ds.Lock.RUnlock()
 
 	if len(*res) == 0 || float64(entries) == interface2float64((*res)[0][0]) && (entries == 0 || interface2float64((*res)[0][1]) == float64(maxID)) {
-		log.Debugf("[%s] %s did not change", p.Name, name.String())
+		log.Tracef("[%s] %s did not change", p.Name, name.String())
 		return
 	}
 	changed = true
@@ -625,7 +633,7 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (restartRequired bo
 		Columns: columns,
 	}
 	p.setQueryOptions(req)
-	res, _, err := p.Query(req)
+	res, resMeta, err := p.Query(req)
 	if err != nil {
 		return
 	}
@@ -645,7 +653,7 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (restartRequired bo
 	}
 
 	promObjectUpdate.WithLabelValues(p.Name, tableName.String()).Add(float64(len(*res)))
-	log.Debugf("[%s] updated %d %s", p.Name, len(*res), tableName.String())
+	t1 := time.Now()
 
 	switch tableName {
 	case TableTimeperiods:
@@ -654,7 +662,7 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (restartRequired bo
 		lastTimeperiodUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
 		p.StatusSet(LastTimeperiodUpdateMinute, lastTimeperiodUpdateMinute)
 	case TableHosts, TableServices:
-		err = ds.insertDeltaDataResult(0, res, store)
+		err = ds.insertDeltaDataResult(0, res, resMeta, store)
 	default:
 		ds.Lock.Lock()
 		now := time.Now().Unix()
@@ -681,6 +689,8 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (restartRequired bo
 		}
 	}
 
+	duration := time.Since(t1).Truncate(time.Millisecond)
+	log.Debugf("[%s] updated table: %15s - fetch: %8s - insert: %8s - count: %8d - size: %8d kB", p.Name, tableName.String(), resMeta.Duration, duration, len(*res), resMeta.Size/1024)
 	return
 }
 
@@ -738,6 +748,7 @@ func (ds *DataStoreSet) updateTimeperiodsData(store *DataStore, res *ResultSet, 
 
 // RebuildCommentsCache updates the comment cache
 func (ds *DataStoreSet) RebuildCommentsCache() (err error) {
+	t1 := time.Now()
 	cache, err := ds.buildDowntimeCommentsCache(TableComments)
 	if err != nil {
 		return
@@ -745,12 +756,14 @@ func (ds *DataStoreSet) RebuildCommentsCache() (err error) {
 	ds.Lock.Lock()
 	ds.cache.comments = cache
 	ds.Lock.Unlock()
-	log.Debugf("comments cache rebuild")
+	duration := time.Since(t1).Truncate(time.Millisecond)
+	log.Debugf("comments cache rebuild (%s)", duration)
 	return
 }
 
 // RebuildDowntimesCache updates the comment cache
 func (ds *DataStoreSet) RebuildDowntimesCache() (err error) {
+	t1 := time.Now()
 	cache, err := ds.buildDowntimeCommentsCache(TableDowntimes)
 	if err != nil {
 		return
@@ -758,7 +771,8 @@ func (ds *DataStoreSet) RebuildDowntimesCache() (err error) {
 	ds.Lock.Lock()
 	ds.cache.downtimes = cache
 	ds.Lock.Unlock()
-	log.Debugf("downtimes cache rebuild")
+	duration := time.Since(t1).Truncate(time.Millisecond)
+	log.Debugf("downtimes cache rebuild (%s)", duration)
 	return
 }
 
