@@ -49,7 +49,7 @@ next:
           - fix negate header in filter groups (#82)
 
 1.6.1    Thu Jul  4 13:58:48 CEST 2019
-          - remove unparsable characters from json inpurt
+          - remove not parsable characters from json input
           - add support for the negate header (#79)
           - add new columns (#81)
           - improve memory usage

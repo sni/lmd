@@ -100,10 +100,10 @@ type Table struct {
 	Columns         ColumnList
 	ColumnsIndex    map[string]*Column // access columns by name
 	PassthroughOnly bool               // flag wether table will be cached or simply passed through to remote sites
-	WorksUnlocked   bool               // flag wether locking the peer.DataLock can be skipped to anwer the query
+	WorksUnlocked   bool               // flag wether locking the peer.DataLock can be skipped to answer the query
 	PrimaryKey      []string
 	RefTables       []*TableRef // referenced tables
-	Virtual         VirtStoreResolveFunc
+	Virtual         VirtualStoreResolveFunc
 	DefaultSort     []string     // columns used to sort if nothing is specified
 	PeerLockMode    PeerLockMode // should the peer be locked once for the complete result or on each access
 }
@@ -143,7 +143,7 @@ func (t *Table) GetEmptyColumn() *Column {
 		DataType:    StringCol,
 		StorageType: VirtualStore,
 		FetchType:   None,
-		VirtMap:     VirtColumnMap["empty"],
+		VirtualMap:  VirtualColumnMap["empty"],
 	}
 }
 
@@ -214,7 +214,7 @@ func (t *Table) SetColumnIndex() {
 				}
 				if col.Index != indexes[col.DataType] && col.Index > 0 {
 					// overlapping indexes would break data storage, make sure that columns for flags that include
-					// other flags come last, ex.: first set columns for flag Naemon, then add colums for Naemon1_10
+					// other flags come last, ex.: first set columns for flag Naemon, then add columns for Naemon1_10
 					log.Panicf("index overlap with flags in column %s of table %s: %v / %d != %d", col.Name, t.Name, flags.String(), col.Index, indexes[col.DataType])
 				}
 				col.Index = indexes[col.DataType]

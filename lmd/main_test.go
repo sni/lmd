@@ -56,7 +56,7 @@ func TestMainFunc(t *testing.T) {
 		}
 	}
 
-	// sort querys
+	// sort queries
 	res, _, err = peer.QueryString("GET backends\nColumns: peer_key bytes_send bytes_received\nSort: bytes_send asc\nSort: bytes_received desc\n\n")
 	if err != nil {
 		t.Fatal(err)
@@ -65,7 +65,7 @@ func TestMainFunc(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// stats querys
+	// stats queries
 	res, _, err = peer.QueryString("GET backends\nStats: bytes_send > 0\nStats: avg bytes_send\nStats: sum bytes_send\nStats: min bytes_send\nStats: max bytes_send\n\n")
 	if err != nil {
 		t.Fatal(err)

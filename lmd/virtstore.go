@@ -1,6 +1,6 @@
 package main
 
-type VirtStoreResolveFunc func(table *Table, peer *Peer) *DataStore
+type VirtualStoreResolveFunc func(table *Table, peer *Peer) *DataStore
 
 // GetTableBackendsStore returns the virtual data used for the backends livestatus table.
 func GetTableBackendsStore(table *Table, peer *Peer) *DataStore {

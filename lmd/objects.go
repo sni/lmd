@@ -22,14 +22,14 @@ func InitObjects() {
 	}
 
 	// generate virtual keys with peer and host_peer prefix
-	for i := range VirtColumnList {
-		dat := &(VirtColumnList[i])
-		VirtColumnMap[dat.Name] = dat
+	for i := range VirtualColumnList {
+		dat := &(VirtualColumnList[i])
+		VirtualColumnMap[dat.Name] = dat
 		if dat.StatusKey > 0 {
-			VirtColumnMap["peer_"+dat.Name] = dat
-			VirtColumnMap["host_peer_"+dat.Name] = dat
+			VirtualColumnMap["peer_"+dat.Name] = dat
+			VirtualColumnMap["host_peer_"+dat.Name] = dat
 		} else {
-			VirtColumnMap["host_"+dat.Name] = dat
+			VirtualColumnMap["host_"+dat.Name] = dat
 		}
 	}
 
@@ -414,7 +414,7 @@ func NewServicesTable() (t *Table) {
 	t = &Table{PrimaryKey: []string{"host_name", "description"}, DefaultSort: []string{"host_name", "description"}}
 	t.AddColumn("accept_passive_checks", Dynamic, IntCol, "Whether the service accepts passive checks (0/1)")
 	t.AddColumn("acknowledged", Dynamic, IntCol, "Whether the current service problem has been acknowledged (0/1)")
-	t.AddColumn("acknowledgement_type", Dynamic, IntCol, "The type of the acknownledgement (0: none, 1: normal, 2: sticky)")
+	t.AddColumn("acknowledgement_type", Dynamic, IntCol, "The type of the acknowledgement (0: none, 1: normal, 2: sticky)")
 	t.AddColumn("action_url", Static, StringCol, "An optional URL for actions or custom information about the service")
 	t.AddColumn("action_url_expanded", Static, StringCol, "An optional URL for actions or custom information about the service")
 	t.AddColumn("active_checks_enabled", Dynamic, IntCol, "Whether active checks are enabled for the service (0/1)")

@@ -5,20 +5,20 @@ import (
 	"strings"
 )
 
-// VirtColumnMapEntry is used to define the virtual key mapping in the VirtColumnMap
-type VirtColumnResolveFunc func(d *DataRow, col *Column) interface{}
+// VirtualColumnResolveFunc is used to define the virtual key mapping in the VirtualColumnMap
+type VirtualColumnResolveFunc func(d *DataRow, col *Column) interface{}
 
-// VirtColumnMapEntry is used to define the virtual key mapping in the VirtColumnMap
-type VirtColumnMapEntry struct {
-	noCopy     noCopy
-	Name       string
-	StatusKey  PeerStatusKey
-	ResolvFunc VirtColumnResolveFunc
+// VirtualColumnMapEntry is used to define the virtual key mapping in the VirtualColumnMap
+type VirtualColumnMapEntry struct {
+	noCopy      noCopy
+	Name        string
+	StatusKey   PeerStatusKey
+	ResolveFunc VirtualColumnResolveFunc
 }
 
-// VirtColumnList maps the virtual columns with the peer status map entry.
-// Must have either a StatusKey or a ResolvFunc set
-var VirtColumnList = []VirtColumnMapEntry{
+// VirtualColumnList maps the virtual columns with the peer status map entry.
+// Must have either a StatusKey or a ResolveFunc set
+var VirtualColumnList = []VirtualColumnMapEntry{
 	// access things from the peer status by StatusKey
 	{Name: "key", StatusKey: PeerKey},
 	{Name: "name", StatusKey: PeerName},
@@ -41,26 +41,26 @@ var VirtColumnList = []VirtColumnMapEntry{
 	{Name: "federation_addr", StatusKey: SubAddr},
 	{Name: "federation_type", StatusKey: SubType},
 
-	// calculated columns by ResolvFunc
-	{Name: "lmd_last_cache_update", ResolvFunc: func(d *DataRow, _ *Column) interface{} { return d.LastUpdate }},
-	{Name: "lmd_version", ResolvFunc: func(_ *DataRow, _ *Column) interface{} { return fmt.Sprintf("%s-%s", NAME, Version()) }},
-	{Name: "state_order", ResolvFunc: VirtColStateOrder},
-	{Name: "last_state_change_order", ResolvFunc: VirtColLastStateChangeOrder},
-	{Name: "has_long_plugin_output", ResolvFunc: VirtColHasLongPluginOutput},
-	{Name: "services_with_state", ResolvFunc: VirtColServicesWithInfo},
-	{Name: "services_with_info", ResolvFunc: VirtColServicesWithInfo},
-	{Name: "comments", ResolvFunc: VirtColComments},
-	{Name: "comments_with_info", ResolvFunc: VirtColCommentsWithInfo},
-	{Name: "downtimes", ResolvFunc: VirtColDowntimes},
-	{Name: "downtimes_with_info", ResolvFunc: VirtColDowntimesWithInfo},
-	{Name: "members_with_state", ResolvFunc: VirtColMembersWithState},
-	{Name: "custom_variables", ResolvFunc: VirtColCustomVariables},
-	{Name: "total_services", ResolvFunc: VirtColTotalServices},
-	{Name: "empty", ResolvFunc: func(_ *DataRow, _ *Column) interface{} { return "" }}, // return empty string as placeholder for nonexisting columns
+	// calculated columns by ResolveFunc
+	{Name: "lmd_last_cache_update", ResolveFunc: func(d *DataRow, _ *Column) interface{} { return d.LastUpdate }},
+	{Name: "lmd_version", ResolveFunc: func(_ *DataRow, _ *Column) interface{} { return fmt.Sprintf("%s-%s", NAME, Version()) }},
+	{Name: "state_order", ResolveFunc: VirtualColStateOrder},
+	{Name: "last_state_change_order", ResolveFunc: VirtualColLastStateChangeOrder},
+	{Name: "has_long_plugin_output", ResolveFunc: VirtualColHasLongPluginOutput},
+	{Name: "services_with_state", ResolveFunc: VirtualColServicesWithInfo},
+	{Name: "services_with_info", ResolveFunc: VirtualColServicesWithInfo},
+	{Name: "comments", ResolveFunc: VirtualColComments},
+	{Name: "comments_with_info", ResolveFunc: VirtualColCommentsWithInfo},
+	{Name: "downtimes", ResolveFunc: VirtualColDowntimes},
+	{Name: "downtimes_with_info", ResolveFunc: VirtualColDowntimesWithInfo},
+	{Name: "members_with_state", ResolveFunc: VirtualColMembersWithState},
+	{Name: "custom_variables", ResolveFunc: VirtualColCustomVariables},
+	{Name: "total_services", ResolveFunc: VirtualColTotalServices},
+	{Name: "empty", ResolveFunc: func(_ *DataRow, _ *Column) interface{} { return "" }}, // return empty string as placeholder for nonexisting columns
 }
 
-// VirtColumnMap maps is the lookup map for the VirtColumnList
-var VirtColumnMap = map[string]*VirtColumnMapEntry{}
+// VirtualColumnMap maps is the lookup map for the VirtualColumnList
+var VirtualColumnMap = map[string]*VirtualColumnMapEntry{}
 
 // ServiceMember is a host_name / description pair
 type ServiceMember [2]string
@@ -125,7 +125,7 @@ const (
 	VirtualStore
 )
 
-// OptionalFlags is used to set flags for optionial columns.
+// OptionalFlags is used to set flags for optional columns.
 type OptionalFlags uint32
 
 const (
@@ -222,17 +222,17 @@ func (f *OptionalFlags) Clear() {
 // Column is the definition of a single column within a DataRow.
 type Column struct {
 	noCopy          noCopy
-	Name            string              // name and primary key
-	Description     string              // human description
-	DataType        DataType            // Type of this column
-	FetchType       FetchType           // flag wether this columns needs to be updated
-	StorageType     StorageType         // flag how this column is stored
-	Optional        OptionalFlags       // flags if this column is used for certain backends only
-	Index           int                 // position in the DataRow data* fields
-	RefCol          *Column             // reference to column in other table, ex.: host_alias
-	RefColTableName TableName           // shortcut to Column.RefCol.Table.Name
-	Table           *Table              // reference to the table holding this column
-	VirtMap         *VirtColumnMapEntry // reference to resolver for virtual columns
+	Name            string                 // name and primary key
+	Description     string                 // human description
+	DataType        DataType               // Type of this column
+	FetchType       FetchType              // flag wether this columns needs to be updated
+	StorageType     StorageType            // flag how this column is stored
+	Optional        OptionalFlags          // flags if this column is used for certain backends only
+	Index           int                    // position in the DataRow data* fields
+	RefCol          *Column                // reference to column in other table, ex.: host_alias
+	RefColTableName TableName              // shortcut to Column.RefCol.Table.Name
+	Table           *Table                 // reference to the table holding this column
+	VirtualMap      *VirtualColumnMapEntry // reference to resolver for virtual columns
 }
 
 // NewColumn adds a column object.
@@ -251,9 +251,9 @@ func NewColumn(table *Table, name string, storage StorageType, update FetchType,
 		log.Panicf("missing table for %s", col.Name)
 	}
 	if col.StorageType == VirtualStore {
-		col.VirtMap = VirtColumnMap[name]
-		if col.VirtMap == nil {
-			log.Panicf("missing VirtMap for %s in %s", col.Name, table.Name)
+		col.VirtualMap = VirtualColumnMap[name]
+		if col.VirtualMap == nil {
+			log.Panicf("missing VirtualMap for %s in %s", col.Name, table.Name)
 		}
 	}
 	if col.StorageType == RefStore {
