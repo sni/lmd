@@ -1,6 +1,6 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
-next:
+1.9.1    Sat Sep 26 21:39:50 CEST 2020
           - add generic -o option to set arbitrary parameters
 
 1.9.0    Tue Sep  8 10:32:12 CEST 2020
