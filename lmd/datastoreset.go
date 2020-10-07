@@ -139,20 +139,13 @@ func (ds *DataStoreSet) UpdateFull(tables []TableName) (err error) {
 
 // UpdateFullTablesList updates list of tables and returns any error
 func (ds *DataStoreSet) UpdateFullTablesList(tables []TableName) (err error) {
-	restartRequired := false
 	for i := range tables {
 		name := tables[i]
-		restartRequired, err = ds.UpdateFullTable(name)
+		err = ds.UpdateFullTable(name)
 		if err != nil {
 			log.Debugf("[%s] update failed: %s", ds.peer.Name, err.Error())
 			return
 		}
-		if restartRequired {
-			break
-		}
-	}
-	if restartRequired {
-		return ds.peer.InitAllTables()
 	}
 	return
 }
@@ -610,11 +603,11 @@ func (ds *DataStoreSet) maxIDOrSizeChanged(name TableName) (changed bool, err er
 // UpdateFullTable updates a given table by requesting all dynamic columns from the remote peer.
 // Assuming we get the objects always in the same order, we can just iterate over the index and update the fields.
 // It returns a boolean flag whether the remote site has been restarted and any error encountered.
-func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (restartRequired bool, err error) {
+func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 	p := ds.peer
 	store := ds.Get(tableName)
 	if store == nil {
-		return false, fmt.Errorf("cannot update table %s, peer is down: %s", tableName.String(), p.getError())
+		return fmt.Errorf("cannot update table %s, peer is down: %s", tableName.String(), p.getError())
 	}
 	skip, err := ds.skipTableUpdate(store, tableName)
 	if skip || err != nil {
@@ -647,9 +640,9 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (restartRequired bo
 	data := store.Data
 	ds.Lock.RUnlock()
 	if len(*res) != len(data) {
-		log.Debugf("[%s] site returned different number of objects, assuming backend has been restarted, table: %s, expected: %d, received: %d", p.Name, store.Table.Name, len(data), len(*res))
-		restartRequired = true
-		return
+		err = fmt.Errorf("site returned different number of objects, assuming backend has been restarted, table: %s, expected: %d, received: %d", store.Table.Name.String(), len(data), len(*res))
+		log.Debugf("[%s] %s", err.Error())
+		return &PeerError{msg: err.Error(), kind: RestartRequiredError}
 	}
 
 	promObjectUpdate.WithLabelValues(p.Name, tableName.String()).Add(float64(len(*res)))
@@ -683,8 +676,9 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (restartRequired bo
 			programStart := data[0].GetInt64ByName("program_start")
 			corePid := data[0].GetIntByName("nagios_pid")
 			if p.StatusGet(ProgramStart) != programStart || p.StatusGet(LastPid) != corePid {
-				log.Infof("[%s] site has been restarted, recreating objects (program_start: %d, pid: %d)", p.Name, programStart, corePid)
-				restartRequired = true
+				err = fmt.Errorf("site has been restarted, recreating objects (program_start: %d, pid: %d)", programStart, corePid)
+				log.Infof("[%s] %s", p.Name, err.Error())
+				return &PeerError{msg: err.Error(), kind: RestartRequiredError}
 			}
 		}
 	}

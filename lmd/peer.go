@@ -125,6 +125,9 @@ const (
 
 	// ResponseError is used when the remote site is available but returns an unusable result.
 	ResponseError
+
+	// RestartRequiredError is used when the remote site needs to be reinitialized
+	RestartRequiredError
 )
 
 // PeerStatusKey contains the different keys for the Peer.Status map
@@ -367,6 +370,7 @@ func (p *Peer) updateLoop() {
 			}
 		}
 		duration := time.Since(t1)
+		err = p.checkRestartRequired(err)
 		if err != nil {
 			if !p.ErrorLogged {
 				log.Infof("[%s] updating objects failed after: %s: %s", p.Name, duration.String(), err.Error())
@@ -448,7 +452,6 @@ func (p *Peer) periodicUpdate() (err error) {
 		if !idling && p.GlobalConfig.FullUpdateInterval > 0 && now > lastFullUpdate+p.GlobalConfig.FullUpdateInterval {
 			return data.UpdateFull(Objects.UpdateTables)
 		}
-
 		return data.UpdateDelta(lastUpdate, now)
 	case PeerStatusPending:
 		// since we called InitAllTables before, status should not be pending
@@ -680,6 +683,18 @@ func (p *Peer) updateIdleStatus(idling bool, lastQuery int64) bool {
 		idling = true
 	}
 	return idling
+}
+
+func (p *Peer) checkRestartRequired(err error) error {
+	if err == nil {
+		return nil
+	}
+	if e, ok := err.(*PeerError); ok {
+		if e.kind == RestartRequiredError {
+			return p.InitAllTables()
+		}
+	}
+	return err
 }
 
 // StatusSet updates a status map and takes care about the logging.
@@ -1576,7 +1591,7 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
 			}
 			err = data.UpdateDeltaServices(fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", tmp[0], tmp[1]))
 		default:
-			_, err = data.UpdateFullTable(req.Table)
+			err = data.UpdateFullTable(req.Table)
 		}
 		if err != nil {
 			return err
