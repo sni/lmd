@@ -1,5 +1,8 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
+next:
+          - add hard service count columns (num_services_hard_X)
+
 1.9.1    Sat Sep 26 21:39:50 CEST 2020
           - add generic -o option to set arbitrary parameters
 

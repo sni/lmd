@@ -21,7 +21,7 @@ linters-settings:
         sizeThreshold: 32
   funlen:
     lines: 150
-    statements: 120
+    statements: 100
   gocognit:
     min-complexity: 35
   exhaustive:
@@ -81,6 +81,8 @@ issues:
     - 'missing cases in switch of type Operator: _'
     - 'lines are duplicate of.*_test.go:'
     - 'lines are duplicate of.*objects.go:'
+    - "Function 'NewHostsTable' has too many statements"
+    - "Function 'NewServicesTable' has too many statements"
   exclude-rules:
     # Exclude some linters from running on tests files.
     - path: _test\.go
