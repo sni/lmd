@@ -310,6 +310,10 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("num_services_pending", Dynamic, IntCol, "The number of the host's services which have not been checked yet (pending)")
 	t.AddColumn("num_services_unknown", Dynamic, IntCol, "The number of the host's services with the soft state UNKNOWN")
 	t.AddColumn("num_services_warn", Dynamic, IntCol, "The number of the host's services with the soft state WARN")
+	t.AddColumn("num_services_hard_crit", Dynamic, IntCol, "The number of the host's services with the hard state CRIT")
+	t.AddColumn("num_services_hard_ok", Dynamic, IntCol, "The number of the host's services with the hard state OK")
+	t.AddColumn("num_services_hard_unknown", Dynamic, IntCol, "The number of the host's services with the hard state UNKNOWN")
+	t.AddColumn("num_services_hard_warn", Dynamic, IntCol, "The number of the host's services with the hard state WARN")
 	t.AddColumn("notes", Static, StringCol, "Optional notes for this host")
 	t.AddColumn("notes_expanded", Static, StringCol, "Optional notes for this host")
 	t.AddColumn("notes_url", Static, StringCol, "Optional notes for this host")
@@ -330,6 +334,8 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("state_type", Dynamic, IntCol, "The current state of the host (0: up, 1: down, 2: unreachable)")
 	t.AddColumn("staleness", Dynamic, FloatCol, "Staleness indicator for this host")
 	t.AddColumn("pnpgraph_present", Dynamic, IntCol, "The pnp graph presence (0/1)")
+	t.AddColumn("worst_service_hard_state", Dynamic, IntCol, "The worst hard state of all of the host's services (OK <= WARN <= UNKNOWN <= CRIT)")
+	t.AddColumn("worst_service_state", Dynamic, IntCol, "The worst soft state of all of the host's services (OK <= WARN <= UNKNOWN <= CRIT)")
 
 	// lowercase columns are used to make case insensitive filter faster
 	t.AddExtraColumn("name_lc", LocalStore, None, StringCol, NoFlags, "Host name (lowercase)")
@@ -398,7 +404,12 @@ func NewHostgroupsTable() (t *Table) {
 	t.AddColumn("num_services_crit", Dynamic, IntCol, "The total number of critical services of the hostgroup")
 	t.AddColumn("num_services_unknown", Dynamic, IntCol, "The total number of unknown services of the hostgroup")
 	t.AddColumn("num_services_pending", Dynamic, IntCol, "The total number of pending services of the hostgroup")
+	t.AddColumn("num_services_hard_crit", Dynamic, IntCol, "The total number of services with the state CRIT of hosts in this group")
+	t.AddColumn("num_services_hard_ok", Dynamic, IntCol, "The total number of services with the state OK of hosts in this group")
+	t.AddColumn("num_services_hard_unknown", Dynamic, IntCol, "The total number of services with the state UNKNOWN of hosts in this group")
+	t.AddColumn("num_services_hard_warn", Dynamic, IntCol, "The total number of services with the state WARN of hosts in this group")
 	t.AddColumn("worst_host_state", Dynamic, IntCol, "The worst host state of the hostgroup")
+	t.AddColumn("worst_service_hard_state", Dynamic, IntCol, "The worst state of all services that belong to a host of this group (OK <= WARN <= UNKNOWN <= CRIT)")
 	t.AddColumn("worst_service_state", Dynamic, IntCol, "The worst service state of the hostgroup")
 
 	t.AddPeerInfoColumn("lmd_last_cache_update", Int64Col, "Timestamp of the last LMD update of this object")
@@ -546,6 +557,10 @@ func NewServicegroupsTable() (t *Table) {
 	t.AddColumn("num_services_crit", Dynamic, IntCol, "The total number of critical services of the service group")
 	t.AddColumn("num_services_unknown", Dynamic, IntCol, "The total number of unknown services of the service group")
 	t.AddColumn("num_services_pending", Dynamic, IntCol, "The total number of pending services of the service group")
+	t.AddColumn("num_services_hard_crit", Dynamic, IntCol, "The number of services in the group that are CRIT")
+	t.AddColumn("num_services_hard_ok", Dynamic, IntCol, "The number of services in the group that are OK")
+	t.AddColumn("num_services_hard_unknown", Dynamic, IntCol, "The number of services in the group that are UNKNOWN")
+	t.AddColumn("num_services_hard_warn", Dynamic, IntCol, "The number of services in the group that are WARN")
 	t.AddColumn("worst_service_state", Dynamic, IntCol, "The worst service state of the service group")
 
 	t.AddPeerInfoColumn("lmd_last_cache_update", Int64Col, "Timestamp of the last LMD update of this object")

@@ -1098,6 +1098,81 @@ func TestCustomVarColContacts(t *testing.T) {
 	}
 }
 
+func TestServiceHardStateColumns(t *testing.T) {
+	peer := StartTestPeer(1, 2, 9)
+	PauseTestPeers(peer)
+
+	if err := assertEq(1, len(PeerMap)); err != nil {
+		t.Error(err)
+	}
+
+	testQueries := []struct {
+		query    string
+		expected int
+	}{
+		{"GET hostgroups\nColumns: num_services_hard_crit\n\n", 1},
+		{"GET hostgroups\nColumns: num_services_hard_ok\n\n", 5},
+		{"GET hostgroups\nColumns: num_services_hard_unknown\n\n", 0},
+		{"GET hostgroups\nColumns: num_services_hard_warn\n\n", 2},
+		{"GET hostgroups\nColumns: worst_service_hard_state\n\n", 2},
+		{"GET hosts\nColumns: num_services_hard_crit\n\n", 1},
+		{"GET hosts\nColumns: num_services_hard_ok\n\n", 5},
+		{"GET hosts\nColumns: num_services_hard_unknown\n\n", 0},
+		{"GET hosts\nColumns: num_services_hard_warn\n\n", 2},
+		{"GET hosts\nColumns: worst_service_hard_state\n\n", 1},
+		{"GET servicegroups\nColumns: num_services_hard_crit\n\n", 0},
+		{"GET servicegroups\nColumns: num_services_hard_ok\n\n", 0},
+		{"GET servicegroups\nColumns: num_services_hard_unknown\n\n", 0},
+		{"GET servicegroups\nColumns: num_services_hard_warn\n\n", 0},
+	}
+
+	for _, req := range testQueries {
+		res, _, err := peer.QueryString(req.query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = assertEq(float64(req.expected), (*res)[0][0]); err != nil {
+			t.Errorf("Query failed: %q\n%s", req.query, err)
+		}
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestWorstServiceState(t *testing.T) {
+	peer := StartTestPeer(1, 2, 9)
+	PauseTestPeers(peer)
+
+	if err := assertEq(1, len(PeerMap)); err != nil {
+		t.Error(err)
+	}
+
+	testQueries := []struct {
+		query    string
+		expected int
+	}{
+		{"GET hostgroups\nColumns: worst_service_state\n\n", 2},
+		{"GET hosts\nColumns: worst_service_state\n\n", 2},
+		{"GET servicegroups\nColumns: worst_service_state\n\n", 1},
+	}
+
+	for _, req := range testQueries {
+		res, _, err := peer.QueryString(req.query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = assertEq(float64(req.expected), (*res)[0][0]); err != nil {
+			t.Errorf("Query failed: %q\n%s", req.query, err)
+		}
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
 func TestShouldBeScheduled(t *testing.T) {
 	peer := StartTestPeer(1, 2, 9)
 	PauseTestPeers(peer)
