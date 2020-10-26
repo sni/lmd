@@ -998,11 +998,9 @@ func interface2hashmap(in interface{}) map[string]string {
 		for _, tupleInterface := range list {
 			if tuple, ok := tupleInterface.([]interface{}); ok {
 				if len(tuple) == 2 {
-					if s, ok := tuple[1].(string); ok {
-						val[tuple[0].(string)] = s
-					} else {
-						val[tuple[0].(string)] = fmt.Sprintf("%v", tuple[1])
-					}
+					k := interface2stringNoDedup(tuple[0])
+					s := interface2stringNoDedup(tuple[1])
+					val[*k] = *s
 				}
 			}
 		}
@@ -1013,7 +1011,8 @@ func interface2hashmap(in interface{}) map[string]string {
 			if s, ok := v.(string); ok {
 				val[k] = s
 			} else {
-				val[k] = ""
+				s := interface2stringNoDedup(v)
+				val[k] = *s
 			}
 		}
 		return val
