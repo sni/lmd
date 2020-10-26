@@ -958,11 +958,11 @@ func (p *Peer) getSocketQueryResponse(req *Request, query string, conn net.Conn)
 	// set read timeout
 	err := conn.SetDeadline(time.Now().Add(time.Duration(p.GlobalConfig.NetTimeout) * time.Second))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("conn.SetDeadline: %w", err)
 	}
 	_, err = fmt.Fprintf(conn, "%s", query)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("conn write failed: %w", err)
 	}
 
 	// close write part of connection
@@ -990,8 +990,8 @@ func (p *Peer) parseResponseUndefinedSize(conn io.Reader) (*[]byte, error) {
 	for {
 		_, err := io.CopyN(body, conn, 65536)
 		if err != nil {
-			if err != io.EOF {
-				return nil, err
+			if !errors.Is(err, io.EOF) {
+				return nil, fmt.Errorf("io.CopyN: %w", err)
 			}
 			break
 		}
@@ -1020,8 +1020,8 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) (*[]byte
 	}
 	body := new(bytes.Buffer)
 	_, err = io.CopyN(body, conn, expSize)
-	if err != nil && err != io.EOF {
-		return nil, err
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("io.CopyN: %w", err)
 	}
 	if !req.KeepAlive {
 		conn.Close()
@@ -1053,7 +1053,7 @@ func (p *Peer) Query(req *Request) (result *ResultSet, meta *ResultMetaData, err
 func (p *Peer) QueryString(str string) (*ResultSet, *ResultMetaData, error) {
 	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString(str)), ParseDefault)
 	if err != nil {
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			err = errors.New("bad request: empty request")
 			return nil, nil, err
 		}
@@ -1661,7 +1661,7 @@ func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url
 	ctx := context.Background()
 	req, err := http.NewRequestWithContext(ctx, "POST", peerAddr, strings.NewReader(postData.Encode()))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("http request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for k, v := range headers {
@@ -1986,7 +1986,7 @@ func (p *Peer) getTLSClientConfig() (*tls.Config, error) {
 	if p.Config.TLSCertificate != "" && p.Config.TLSKey != "" {
 		cer, err := tls.LoadX509KeyPair(p.Config.TLSCertificate, p.Config.TLSKey)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("tls.LoadX509KeyPair %s / %s: %w", p.Config.TLSCertificate, p.Config.TLSKey, err)
 		}
 		config.Certificates = []tls.Certificate{cer}
 	}
@@ -1998,7 +1998,7 @@ func (p *Peer) getTLSClientConfig() (*tls.Config, error) {
 	if p.Config.TLSCA != "" {
 		caCert, err := ioutil.ReadFile(p.Config.TLSCA)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("readfile %s: %w", p.Config.TLSCA, err)
 		}
 		caCertPool := x509.NewCertPool()
 		caCertPool.AppendCertsFromPEM(caCert)

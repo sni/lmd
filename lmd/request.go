@@ -175,7 +175,7 @@ func ParseRequests(c net.Conn) (reqs []*Request, err error) {
 		req, size, err := NewRequest(b, ParseOptimize)
 		promFrontendBytesReceived.WithLabelValues(localAddr).Add(float64(size))
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				eof = true
 			} else {
 				return nil, err
@@ -316,7 +316,7 @@ func NewRequest(b *bufio.Reader, options ParseOptions) (req *Request, size int, 
 			err = fmt.Errorf("bad request: %s in: %s", perr.Error(), line)
 			return
 		}
-		if berr == io.EOF {
+		if errors.Is(berr, io.EOF) {
 			req.KeepAlive = false
 			break
 		}
@@ -931,7 +931,7 @@ func (req *Request) parseResult(resBytes *[]byte) (*ResultSet, *ResultMetaData, 
 	if req.OutputFormat == OutputFormatWrappedJSON {
 		dataBytes, err := req.parseWrappedJSONMeta(resBytes, meta)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("parserResult: %w", err)
 		}
 		resBytes = dataBytes
 	}
@@ -959,7 +959,7 @@ func (req *Request) parseResult(resBytes *[]byte) (*ResultSet, *ResultMetaData, 
 	})
 	// trailing comma error will be ignored
 	if jErr != nil && offset < len(*resBytes)-3 {
-		return nil, nil, jErr
+		return nil, nil, fmt.Errorf("parserResult jsonparse: %w", jErr)
 	}
 	if err != nil {
 		return nil, nil, err

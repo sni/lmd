@@ -38,6 +38,8 @@ linters:
     - exhaustive
     - gofumpt
     - nlreturn
+    - exhaustivestruct
+    - errorlint
   fast: false
 issues:
   max-same-issues: 0

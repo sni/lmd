@@ -115,7 +115,7 @@ func sendErrorResponse(c net.Conn, keepAlive bool, remote string, err error) err
 		}
 		return err
 	}
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return nil
 	}
 	logDebugError2((&Response{Code: 400, Request: &Request{}, Error: err}).Send(c))
@@ -419,7 +419,7 @@ func getTLSListenerConfig(localConfig *Config) (config *tls.Config, err error) {
 	}
 	cer, err := tls.LoadX509KeyPair(localConfig.TLSCertificate, localConfig.TLSKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("tls.LoadX509KeyPair: %s / %s: %w", localConfig.TLSCertificate, localConfig.TLSKey, err)
 	}
 	config = getMinimalTLSConfig()
 	config.Certificates = []tls.Certificate{cer}
@@ -428,7 +428,7 @@ func getTLSListenerConfig(localConfig *Config) (config *tls.Config, err error) {
 		for _, file := range localConfig.TLSClientPems {
 			caCert, err := ioutil.ReadFile(file)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("ioutil.ReadFile: %w", err)
 			}
 			caCertPool.AppendCertsFromPEM(caCert)
 		}

@@ -451,7 +451,7 @@ func (n *Nodes) SendQuery(node *NodeAddress, name string, parameters map[string]
 	contentType := "application/json"
 	rawRequest, err := json.Marshal(requestData)
 	if err != nil {
-		return err
+		return fmt.Errorf("json: %w", err)
 	}
 
 	// Send node request
@@ -465,7 +465,7 @@ func (n *Nodes) SendQuery(node *NodeAddress, name string, parameters map[string]
 	res, err := n.HTTPClient.Do(req)
 	if err != nil {
 		log.Debugf("error sending query (%s) to node (%s): %s", name, node, err.Error())
-		return err
+		return fmt.Errorf("httpclient: %w", err)
 	}
 
 	// Read response data
@@ -475,7 +475,7 @@ func (n *Nodes) SendQuery(node *NodeAddress, name string, parameters map[string]
 	if err := decoder.Decode(&responseData); err != nil {
 		// Parsing response failed
 		log.Tracef("%s", err.Error())
-		return err
+		return fmt.Errorf("decoder.Decode: %w", err)
 	}
 
 	// Abort on error

@@ -402,7 +402,10 @@ func (res *Response) JSON(buf io.Writer) error {
 
 	json.WriteRaw("]")
 	err := json.Flush()
-	return err
+	if err != nil {
+		return fmt.Errorf("JSON: %w", err)
+	}
+	return nil
 }
 
 // WrappedJSON converts the response into a wrapped json structure
@@ -423,7 +426,10 @@ func (res *Response) WrappedJSON(buf io.Writer) error {
 
 	json.WriteRaw(fmt.Sprintf("\n,\"total_count\":%d}", res.ResultTotal))
 	err := json.Flush()
-	return err
+	if err != nil {
+		return fmt.Errorf("WrappedJSON: %w", err)
+	}
+	return nil
 }
 
 // WriteDataResponse writes the data part of the result
