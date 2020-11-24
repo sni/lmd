@@ -40,6 +40,8 @@ linters:
     - nlreturn
     - exhaustivestruct
     - errorlint
+    - paralleltest
+    - godot
   fast: false
 issues:
   max-same-issues: 0
