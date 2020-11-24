@@ -8,7 +8,7 @@ require (
 	github.com/a8m/djson v0.0.0-20170509170705-c02c5aef757f
 	github.com/buger/jsonparser v0.0.0-20191204142016-1a29609e0929
 	github.com/davecgh/go-spew v1.1.1
-	github.com/golangci/golangci-lint v1.32.0
+	github.com/golangci/golangci-lint v1.33.0
 	github.com/json-iterator/go v1.1.9
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/kdar/factorlog v0.0.0-20140929220826-d5b6afb8b4fe
@@ -20,5 +20,5 @@ require (
 	github.com/sasha-s/go-deadlock v0.2.0
 	github.com/sni/copyfighter v0.0.0-20200526203728-2c11bc793600
 	github.com/stretchr/objx v0.2.0 // indirect
-	golang.org/x/tools v0.0.0-20201023174141-c8cfbd0f21e6
+	golang.org/x/tools v0.0.0-20201124123621-a9663296b157
 )
