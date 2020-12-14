@@ -20,5 +20,5 @@ require (
 	github.com/sasha-s/go-deadlock v0.2.0
 	github.com/sni/copyfighter v0.0.0-20200526203728-2c11bc793600
 	github.com/stretchr/objx v0.2.0 // indirect
-	golang.org/x/tools v0.0.0-20201124123621-a9663296b157
+	golang.org/x/tools v0.0.0-20201211185031-d93e913c1a58
 )
