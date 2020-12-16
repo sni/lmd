@@ -57,3 +57,29 @@ func TestRegexpListFilter(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestRegexpDetection(t *testing.T) {
+	tests := map[string]bool{
+		"":           false,
+		"test":       false,
+		"test.local": false,
+		"test..de":   true,
+		"test5.de":   false,
+		"test.5de":   true, // domains/hostnames do not start with a number
+		"srv..01":    true,
+		"srv.{2}01":  true,
+		"BAR .":      true,
+		"t.t":        true,
+		"test.":      true,
+		"[a-z]":      true,
+		".*":         true,
+		`\d`:         true,
+		"[0-9]+":     true,
+	}
+	for str, exp := range tests {
+		res := hasRegexpCharacters(str)
+		if err := assertEq(exp, res); err != nil {
+			t.Errorf("regex detection failed for test string '%s'\n%s", str, err)
+		}
+	}
+}

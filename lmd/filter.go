@@ -23,6 +23,10 @@ const (
 	Max     // max
 )
 
+const RegexDotMinSize = 4
+
+var reRegexDotReplace = regexp.MustCompile(`[a-zA-Z0-9]\.[a-zA-Z]`)
+
 // String converts a StatsType back to the original string.
 func (op *StatsType) String() string {
 	switch *op {
@@ -805,5 +809,20 @@ func fixBrokenClientsRequestColumn(columnName *string, table TableName) bool {
 
 // hasRegexpCharacters returns true if string is a probably a regular expression
 func hasRegexpCharacters(val string) bool {
-	return (strings.ContainsAny(val, "|([{*+?^"))
+	if strings.ContainsAny(val, `|([{*+?^\`) {
+		return true
+	}
+	// dots are part of regular expressions but also common in host names
+	// try to distinguish between them
+	if strings.Contains(val, ".") {
+		if len(val) < RegexDotMinSize {
+			return true
+		}
+		test := reRegexDotReplace.ReplaceAllString(val, "")
+		// still contans dots?
+		if strings.Contains(test, ".") {
+			return true
+		}
+	}
+	return false
 }
