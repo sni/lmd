@@ -1,2 +1,2 @@
-[["example",1,["FOO"],[12345],"nobody@localhost","24x7",0,"example","","24x7",0],
-["authuser",1,[],[],"nobody@localhost","24x7",0,"authuser","","24x7",0]]
+[["example",1,"nobody@localhost","24x7",0,"example","","24x7",0,["FOO"],[12345]],
+["authuser",1,"nobody@localhost","24x7",0,"authuser","","24x7",0,[],[]]]
