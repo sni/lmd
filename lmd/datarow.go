@@ -927,6 +927,12 @@ func interface2stringlist(in interface{}) *[]string {
 			val = append(val, *(interface2string(in)))
 		}
 		return &val
+	case string, *string:
+		val := make([]string, 0, 1)
+		if in != "" {
+			val = append(val, *(interface2string(in)))
+		}
+		return &val
 	case []interface{}:
 		val := make([]string, 0, len(list))
 		for i := range list {
