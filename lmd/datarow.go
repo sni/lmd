@@ -934,7 +934,7 @@ func interface2stringlist(in interface{}) *[]string {
 		}
 		return &val
 	}
-	log.Warnf("unsupported string list type: %v", in)
+	log.Warnf("unsupported stringlist type: %#v (%T)", in, in)
 	val := make([]string, 0)
 	return &val
 }
@@ -957,7 +957,7 @@ func interface2servicememberlist(in interface{}) *[]ServiceMember {
 		}
 		return &val
 	}
-	log.Warnf("unsupported service list type: %v", in)
+	log.Warnf("unsupported servicelist type: %#v (%T)", in, in)
 	val := make([]ServiceMember, 0)
 	return &val
 }
@@ -983,7 +983,7 @@ func interface2int64list(in interface{}) []int64 {
 		}
 		return val
 	}
-	log.Warnf("unsupported int list type: %v", in)
+	log.Warnf("unsupported int64list type: %#v (%T)", in, in)
 	val := make([]int64, 0)
 	return val
 }
@@ -1022,7 +1022,7 @@ func interface2hashmap(in interface{}) map[string]string {
 		}
 		return val
 	default:
-		log.Warnf("unsupported hashmap list type: %v", in)
+		log.Warnf("unsupported hashmap type: %#v (%T)", in, in)
 		val := make(map[string]string)
 		return val
 	}
@@ -1033,7 +1033,7 @@ func interface2interfacelist(in interface{}) []interface{} {
 	if list, ok := in.([]interface{}); ok {
 		return (list)
 	}
-	log.Warnf("unsupported interface list type: %v", in)
+	log.Warnf("unsupported interface list type: %#v (%T)", in, in)
 	val := make([]interface{}, 0)
 	return val
 }
