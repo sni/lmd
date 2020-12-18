@@ -162,6 +162,9 @@ const (
 
 	// HasLMDLastUpdate flag is set if the remote site has a lmd_last_cache_update column for hosts and services
 	HasLMDLastCacheUpdateColumn
+
+	// HasLocaltimeColumn flag is set if the remote site has a localtime column
+	HasLocaltimeColumn
 )
 
 var OptionalFlagsStrings = map[OptionalFlags]string{
@@ -175,6 +178,7 @@ var OptionalFlagsStrings = map[OptionalFlags]string{
 	HasDependencyColumn:         "HasDependencyColumn",
 	HasLastUpdateColumn:         "HasLastUpdateColumn",
 	HasLMDLastCacheUpdateColumn: "HasLMDLastCacheUpdateColumn",
+	HasLocaltimeColumn:          "HasLocaltimeColumn",
 }
 
 // String returns the string representation of used flags

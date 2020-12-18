@@ -457,7 +457,7 @@ func (d *DataRow) getVirtualRowValue(col *Column) interface{} {
 
 // VirtualColLocaltime returns current unix timestamp
 func VirtualColLocaltime(d *DataRow, col *Column) interface{} {
-	return time.Now().Unix()
+	return float64(time.Now().UnixNano()) / float64(time.Second)
 }
 
 // VirtualColLastStateChangeOrder returns sortable state

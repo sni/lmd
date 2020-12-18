@@ -2,6 +2,7 @@ This file documents the revision history for the Livestatus Multitool Daemon (LM
 
 next:
           - fix icinga2 crash because it has no custom_variable_names column for contacts
+          - add support to check remote clock
           - add localtime column to return the local unix timestamp
 
 1.9.2    Mon Dec 14 11:02:02 CET 2020
