@@ -610,7 +610,7 @@ func TestRequestNoColumns(t *testing.T) {
 	if err = assertEq(2, len(*res)); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(49, len((*res)[0])); err != nil {
+	if err = assertEq(50, len((*res)[0])); err != nil {
 		t.Error(err)
 	}
 	if err = assertEq("program_start", (*res)[0][0]); err != nil {

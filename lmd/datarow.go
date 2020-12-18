@@ -455,6 +455,11 @@ func (d *DataRow) getVirtualRowValue(col *Column) interface{} {
 	return cast2Type(value, col)
 }
 
+// VirtualColLocaltime returns current unix timestamp
+func VirtualColLocaltime(d *DataRow, col *Column) interface{} {
+	return time.Now().Unix()
+}
+
 // VirtualColLastStateChangeOrder returns sortable state
 func VirtualColLastStateChangeOrder(d *DataRow, col *Column) interface{} {
 	// return last_state_change or program_start

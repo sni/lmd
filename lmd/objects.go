@@ -102,6 +102,7 @@ func NewBackendsTable() (t *Table) {
 	t.AddPeerInfoColumn("federation_name", StringListCol, "original names when using nested federation")
 	t.AddPeerInfoColumn("federation_addr", StringListCol, "original addresses when using nested federation")
 	t.AddPeerInfoColumn("federation_type", StringListCol, "original types when using nested federation")
+	t.AddExtraColumn("localtime", VirtualStore, None, IntCol, NoFlags, "The unix timestamp of the local lmd host.")
 	return
 }
 
@@ -172,6 +173,8 @@ func NewStatusTable() (t *Table) {
 	t.AddPeerInfoColumn("peer_last_online", Int64Col, "Timestamp when peer was last online")
 	t.AddPeerInfoColumn("peer_response_time", FloatCol, "Duration of last update in seconds")
 	t.AddPeerInfoColumn("configtool", HashMapCol, "Thruks config tool configuration if available")
+
+	t.AddExtraColumn("localtime", VirtualStore, None, IntCol, NoFlags, "The unix timestamp of the local lmd host.")
 	return
 }
 
@@ -378,7 +381,7 @@ func NewHostsTable() (t *Table) {
 	t.AddPeerInfoColumn("lmd_last_cache_update", Int64Col, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
-	t.AddExtraColumn("last_state_change_order", VirtualStore, None, IntCol, NoFlags, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked")
+	t.AddExtraColumn("last_state_change_order", VirtualStore, None, Int64Col, NoFlags, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked")
 	t.AddExtraColumn("has_long_plugin_output", VirtualStore, None, IntCol, NoFlags, "Flag wether this host has long_plugin_output or not")
 	t.AddExtraColumn("total_services", VirtualStore, None, IntCol, NoFlags, "The total number of services of the host")
 	return
@@ -536,7 +539,7 @@ func NewServicesTable() (t *Table) {
 	t.AddPeerInfoColumn("lmd_last_cache_update", Int64Col, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
-	t.AddExtraColumn("last_state_change_order", VirtualStore, None, IntCol, NoFlags, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked")
+	t.AddExtraColumn("last_state_change_order", VirtualStore, None, Int64Col, NoFlags, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked")
 	t.AddExtraColumn("state_order", VirtualStore, None, IntCol, NoFlags, "The service state suitable for sorting. Unknown and Critical state are switched")
 	t.AddExtraColumn("has_long_plugin_output", VirtualStore, None, IntCol, NoFlags, "Flag wether this service has long_plugin_output or not")
 	return

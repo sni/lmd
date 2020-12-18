@@ -56,6 +56,7 @@ var VirtualColumnList = []VirtualColumnMapEntry{
 	{Name: "members_with_state", ResolveFunc: VirtualColMembersWithState},
 	{Name: "custom_variables", ResolveFunc: VirtualColCustomVariables},
 	{Name: "total_services", ResolveFunc: VirtualColTotalServices},
+	{Name: "localtime", ResolveFunc: VirtualColLocaltime},
 	{Name: "empty", ResolveFunc: func(_ *DataRow, _ *Column) interface{} { return "" }}, // return empty string as placeholder for nonexisting columns
 }
 
