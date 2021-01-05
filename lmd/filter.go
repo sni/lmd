@@ -809,7 +809,7 @@ func fixBrokenClientsRequestColumn(columnName *string, table TableName) bool {
 
 // hasRegexpCharacters returns true if string is a probably a regular expression
 func hasRegexpCharacters(val string) bool {
-	if strings.ContainsAny(val, `|([{*+?^\`) {
+	if strings.ContainsAny(val, `|([{*+?^\$`) {
 		return true
 	}
 	// dots are part of regular expressions but also common in host names

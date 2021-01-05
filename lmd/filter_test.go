@@ -75,6 +75,7 @@ func TestRegexpDetection(t *testing.T) {
 		".*":         true,
 		`\d`:         true,
 		"[0-9]+":     true,
+		"test$":      true,
 	}
 	for str, exp := range tests {
 		res := hasRegexpCharacters(str)
