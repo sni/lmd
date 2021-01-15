@@ -160,12 +160,14 @@ func (ds *DataStoreSet) UpdateDelta(from, to int64) (err error) {
 		return
 	}
 
+	updateOffset := ds.peer.GlobalConfig.UpdateOffset
+
 	filterStr := ""
 	if from > 0 {
 		if ds.peer.HasFlag(HasLMDLastCacheUpdateColumn) {
-			filterStr = fmt.Sprintf("Filter: lmd_last_cache_update >= %v\nFilter: lmd_last_cache_update < %v\nAnd: 2\n", from-UpdateAdditionalDelta, to-UpdateAdditionalDelta)
+			filterStr = fmt.Sprintf("Filter: lmd_last_cache_update >= %v\nFilter: lmd_last_cache_update < %v\nAnd: 2\n", from-updateOffset, to-updateOffset)
 		} else if ds.peer.HasFlag(HasLastUpdateColumn) {
-			filterStr = fmt.Sprintf("Filter: last_update >= %v\nFilter: last_update < %v\nAnd: 2\n", from-UpdateAdditionalDelta, to-UpdateAdditionalDelta)
+			filterStr = fmt.Sprintf("Filter: last_update >= %v\nFilter: last_update < %v\nAnd: 2\n", from-updateOffset, to-updateOffset)
 		}
 	}
 	err = ds.UpdateDeltaHosts(filterStr)
@@ -206,7 +208,7 @@ func (ds *DataStoreSet) UpdateDelta(from, to int64) (err error) {
 }
 
 // UpdateDeltaHosts update hosts by fetching all dynamic data with a last_check filter on the timestamp since
-// the previous update with additional UpdateAdditionalDelta seconds.
+// the previous update with additional updateOffset seconds.
 // It returns any error encountered.
 func (ds *DataStoreSet) UpdateDeltaHosts(filterStr string) (err error) {
 	// update changed hosts
@@ -216,8 +218,10 @@ func (ds *DataStoreSet) UpdateDeltaHosts(filterStr string) (err error) {
 		return
 	}
 	p := ds.peer
+	updateOffset := p.GlobalConfig.UpdateOffset
+
 	if filterStr == "" {
-		filterStr = fmt.Sprintf("Filter: last_check >= %v\n", (p.StatusGet(LastUpdate).(int64) - UpdateAdditionalDelta))
+		filterStr = fmt.Sprintf("Filter: last_check >= %v\n", (p.StatusGet(LastUpdate).(int64) - updateOffset))
 		if p.GlobalConfig.SyncIsExecuting {
 			filterStr += "\nFilter: is_executing = 1\nOr: 2\n"
 		}
@@ -242,7 +246,7 @@ func (ds *DataStoreSet) UpdateDeltaHosts(filterStr string) (err error) {
 }
 
 // UpdateDeltaServices update services by fetching all dynamic data with a last_check filter on the timestamp since
-// the previous update with additional UpdateAdditionalDelta seconds.
+// the previous update with additional updateOffset seconds.
 // It returns any error encountered.
 func (ds *DataStoreSet) UpdateDeltaServices(filterStr string) (err error) {
 	// update changed services
@@ -252,8 +256,10 @@ func (ds *DataStoreSet) UpdateDeltaServices(filterStr string) (err error) {
 		return
 	}
 	p := ds.peer
+	updateOffset := p.GlobalConfig.UpdateOffset
+
 	if filterStr == "" {
-		filterStr = fmt.Sprintf("Filter: last_check >= %v\n", (p.StatusGet(LastUpdate).(int64) - UpdateAdditionalDelta))
+		filterStr = fmt.Sprintf("Filter: last_check >= %v\n", (p.StatusGet(LastUpdate).(int64) - updateOffset))
 		if p.GlobalConfig.SyncIsExecuting {
 			filterStr += "\nFilter: is_executing = 1\nOr: 2\n"
 		}

@@ -139,6 +139,7 @@ type Config struct {
 	CompressionMinimumSize int
 	CompressionLevel       int
 	MaxClockDelta          float64
+	UpdateOffset           int64
 }
 
 // PeerMap contains a map of available remote peers.
@@ -785,6 +786,9 @@ func setDefaults(conf *Config) {
 	}
 	if conf.MaxClockDelta < 0 {
 		conf.MaxClockDelta = 10
+	}
+	if conf.UpdateOffset <= 0 {
+		conf.UpdateOffset = 3
 	}
 }
 

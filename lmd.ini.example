@@ -50,6 +50,9 @@ StaleBackendTimeout = 30
 # and once every `FullUpdateInterval` everything gets updated.
 UpdateInterval = 7
 
+# Offset used to filter by timestamp during synchronization
+UpdateOffset = 3
+
 # Run a full update on all objects every x seconds. Set to zero to turn off
 # completely. This is usually not required and only needed if for uncommon
 # reasons some updates slip through the normal delta updates.

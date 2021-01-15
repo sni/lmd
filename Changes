@@ -5,6 +5,7 @@ next:
           - fix icinga2 crash because it has no custom_variable_names column for contacts
           - add support to check remote clock
           - add localtime column to return the local unix timestamp
+          - add UpdateOffset option
 
 1.9.2    Mon Dec 14 11:02:02 CET 2020
           - add hard service count columns (num_services_hard_X)

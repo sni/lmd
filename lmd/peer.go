@@ -35,9 +35,6 @@ var reIcinga2Version = regexp.MustCompile(`^(r[\d.-]+|.*\-icinga2)$`)
 var reNaemonVersion = regexp.MustCompile(`\-naemon$`)
 
 const (
-	// UpdateAdditionalDelta is the number of seconds to add to the last_check filter on delta updates
-	UpdateAdditionalDelta = 3
-
 	// MinFullScanInterval is the minimum interval between two full scans
 	MinFullScanInterval = 30
 
