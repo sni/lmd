@@ -163,9 +163,9 @@ func (ds *DataStoreSet) UpdateDelta(from, to int64) (err error) {
 	filterStr := ""
 	if from > 0 {
 		if ds.peer.HasFlag(HasLMDLastCacheUpdateColumn) {
-			filterStr = fmt.Sprintf("Filter: lmd_last_cache_update >= %v\nFilter: lmd_last_cache_update < %v\nAnd: 2\n", from, to)
+			filterStr = fmt.Sprintf("Filter: lmd_last_cache_update >= %v\nFilter: lmd_last_cache_update < %v\nAnd: 2\n", from-UpdateAdditionalDelta, to-UpdateAdditionalDelta)
 		} else if ds.peer.HasFlag(HasLastUpdateColumn) {
-			filterStr = fmt.Sprintf("Filter: last_update >= %v\nFilter: last_update < %v\nAnd: 2\n", from, to)
+			filterStr = fmt.Sprintf("Filter: last_update >= %v\nFilter: last_update < %v\nAnd: 2\n", from-UpdateAdditionalDelta, to-UpdateAdditionalDelta)
 		}
 	}
 	err = ds.UpdateDeltaHosts(filterStr)
