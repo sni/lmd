@@ -783,8 +783,8 @@ func setDefaults(conf *Config) {
 	if conf.CompressionMinimumSize <= 0 {
 		conf.CompressionMinimumSize = 500
 	}
-	if conf.MaxClockDelta <= 0 {
-		conf.MaxClockDelta = 30
+	if conf.MaxClockDelta < 0 {
+		conf.MaxClockDelta = 10
 	}
 }
 

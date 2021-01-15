@@ -2329,7 +2329,7 @@ func (p *Peer) CheckLocaltime(unix float64) (err error) {
 	ts := time.Unix(int64(unix), nanoseconds)
 	diff := time.Since(ts)
 	log.Debugf("[%s] clock difference: %s", p.Name, diff.Truncate(time.Millisecond).String())
-	if math.Abs(diff.Seconds()) > p.GlobalConfig.MaxClockDelta {
+	if p.GlobalConfig.MaxClockDelta > 0 && math.Abs(diff.Seconds()) > p.GlobalConfig.MaxClockDelta {
 		return fmt.Errorf("clock error, peer is off by %s (threshold: %vs)", diff.Truncate(time.Millisecond).String(), p.GlobalConfig.MaxClockDelta)
 	}
 	return
