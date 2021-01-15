@@ -160,6 +160,7 @@ func TestAllOps(t *testing.T) {
 }
 
 func testqueryCol(t *testing.T, peer *Peer, table TableName, column string) {
+	t.Helper()
 	query := fmt.Sprintf("GET %s\nColumns: %s\nSort: %s asc\n\n",
 		table.String(),
 		column,
@@ -185,6 +186,7 @@ func testqueryCol(t *testing.T, peer *Peer, table TableName, column string) {
 }
 
 func testqueryFilter(t *testing.T, peer *Peer, table TableName, column, op, value string) {
+	t.Helper()
 	query := fmt.Sprintf("GET %s\nColumns: %s\nFilter: %s %s%s\n\n",
 		table.String(),
 		column,
@@ -212,6 +214,7 @@ func testqueryFilter(t *testing.T, peer *Peer, table TableName, column, op, valu
 }
 
 func testqueryGroup(t *testing.T, peer *Peer, table TableName, column, op, value string) {
+	t.Helper()
 	query := fmt.Sprintf("GET %s\nColumns: %s\nStats: %s %s%s\n\n",
 		table.String(),
 		column,

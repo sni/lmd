@@ -418,7 +418,7 @@ func initializePeers(localConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 	// Create/set Peer objects
 	PeerMapNew := make(map[string]*Peer)
 	PeerMapOrderNew := make([]string, 0)
-	backends := make([]string, len(localConfig.Connections))
+	backends := make([]string, 0, len(localConfig.Connections))
 	for i := range localConfig.Connections {
 		c := localConfig.Connections[i]
 		// Keep peer if connection settings unchanged

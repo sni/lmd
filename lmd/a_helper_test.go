@@ -377,6 +377,7 @@ func PauseTestPeers(peer *Peer) {
 }
 
 func CheckOpenFilesLimit(b *testing.B, minimum uint64) {
+	b.Helper()
 	var rLimit syscall.Rlimit
 	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
 	if err != nil {
@@ -388,6 +389,7 @@ func CheckOpenFilesLimit(b *testing.B, minimum uint64) {
 }
 
 func StartHTTPMockServer(t *testing.T) (*httptest.Server, func()) {
+	t.Helper()
 	var data struct {
 		// Credential string  // unused
 		Options struct {
@@ -459,6 +461,7 @@ func StartHTTPMockServer(t *testing.T) (*httptest.Server, func()) {
 }
 
 func GetHTTPMockServerPeer(t *testing.T) (peer *Peer, cleanup func()) {
+	t.Helper()
 	ts, cleanup := StartHTTPMockServer(t)
 	testPeerShutdownChannel := make(chan bool)
 	peer = NewPeer(&GlobalTestConfig, &Connection{Source: []string{ts.URL}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
