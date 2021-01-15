@@ -760,7 +760,7 @@ func setDefaults(conf *Config) {
 		conf.ListenTimeout = 60
 	}
 	if conf.Updateinterval <= 0 {
-		conf.Updateinterval = 5
+		conf.Updateinterval = 7
 	}
 	if conf.FullUpdateInterval <= 0 {
 		conf.FullUpdateInterval = 0

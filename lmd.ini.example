@@ -48,7 +48,7 @@ StaleBackendTimeout = 30
 # Refresh remote sites every x seconds.
 # Fast updates are ok, only changed hosts and services get fetched
 # and once every `FullUpdateInterval` everything gets updated.
-UpdateInterval = 5
+UpdateInterval = 7
 
 # Run a full update on all objects every x seconds. Set to zero to turn off
 # completely. This is usually not required and only needed if for uncommon
