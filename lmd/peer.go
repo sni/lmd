@@ -484,7 +484,7 @@ func (p *Peer) periodicUpdateLMD(force bool) (err error) {
 
 	// set last update timestamp, otherwise we would retry the connection every 500ms instead
 	// of the update interval
-	p.StatusSet(LastUpdate, time.Now().Unix())
+	p.StatusSet(LastUpdate, now)
 
 	columns := []string{"key", "name", "status", "addr", "last_error", "last_update", "last_online", "last_query", "idling"}
 	req := &Request{
