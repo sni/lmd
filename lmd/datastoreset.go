@@ -211,46 +211,22 @@ func (ds *DataStoreSet) UpdateDelta(from, to int64) (err error) {
 // the previous update with additional updateOffset seconds.
 // It returns any error encountered.
 func (ds *DataStoreSet) UpdateDeltaHosts(filterStr string) (err error) {
-	// update changed hosts
-	store := ds.Get(TableHosts)
-	if store == nil {
-		err = fmt.Errorf("peer not ready, either not initialized or went offline recently")
-		return
-	}
-	p := ds.peer
-	updateOffset := p.GlobalConfig.UpdateOffset
-
-	if filterStr == "" {
-		filterStr = fmt.Sprintf("Filter: last_check >= %v\n", (p.StatusGet(LastUpdate).(int64) - updateOffset))
-		if p.GlobalConfig.SyncIsExecuting {
-			filterStr += "\nFilter: is_executing = 1\nOr: 2\n"
-		}
-		// no filter means regular delta update, so lets check if all last_check dates match
-		ok, uErr := ds.UpdateDeltaFullScan(store, filterStr)
-		if ok || uErr != nil {
-			return uErr
-		}
-	}
-	req := &Request{
-		Table:     store.Table.Name,
-		Columns:   store.DynamicColumnNamesCache,
-		FilterStr: filterStr,
-	}
-	p.setQueryOptions(req)
-	res, meta, err := p.Query(req)
-	if err != nil {
-		return
-	}
-	hostDataOffset := 1
-	return ds.insertDeltaDataResult(hostDataOffset, res, meta, store)
+	return ds.updateDeltaHostsServices(TableHosts, filterStr)
 }
 
 // UpdateDeltaServices update services by fetching all dynamic data with a last_check filter on the timestamp since
 // the previous update with additional updateOffset seconds.
 // It returns any error encountered.
 func (ds *DataStoreSet) UpdateDeltaServices(filterStr string) (err error) {
+	return ds.updateDeltaHostsServices(TableServices, filterStr)
+}
+
+// updateDeltaHostsServices update hosts / services by fetching all dynamic data with a last_check filter on the timestamp since
+// the previous update with additional updateOffset seconds.
+// It returns any error encountered.
+func (ds *DataStoreSet) updateDeltaHostsServices(tableName TableName, filterStr string) (err error) {
 	// update changed services
-	table := ds.Get(TableServices)
+	table := ds.Get(tableName)
 	if table == nil {
 		err = fmt.Errorf("peer not ready, either not initialized or went offline recently")
 		return
@@ -270,7 +246,7 @@ func (ds *DataStoreSet) UpdateDeltaServices(filterStr string) (err error) {
 		}
 	}
 	req := &Request{
-		Table:     table.Table.Name,
+		Table:     tableName,
 		Columns:   table.DynamicColumnNamesCache,
 		FilterStr: filterStr,
 	}
@@ -279,8 +255,17 @@ func (ds *DataStoreSet) UpdateDeltaServices(filterStr string) (err error) {
 	if err != nil {
 		return
 	}
-	serviceDataOffset := 2
-	return ds.insertDeltaDataResult(serviceDataOffset, res, meta, table)
+	switch tableName {
+	case TableHosts:
+		hostDataOffset := 1
+		return ds.insertDeltaDataResult(hostDataOffset, res, meta, table)
+	case TableServices:
+		serviceDataOffset := 2
+		return ds.insertDeltaDataResult(serviceDataOffset, res, meta, table)
+	default:
+		log.Panicf("not implemented for: " + tableName.String())
+	}
+	return
 }
 
 func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res *ResultSet, resMeta *ResultMetaData, table *DataStore) (err error) {
