@@ -56,7 +56,7 @@ func NewDataRow(store *DataStore, raw *[]interface{}, columns *ColumnList, times
 	return
 }
 
-// GetID calculates and the ID value
+// GetID calculates and returns the ID value (nul byte concatenated primary key values)
 func (d *DataRow) GetID() string {
 	if len(d.DataStore.Table.PrimaryKey) == 0 {
 		return ""
@@ -83,7 +83,7 @@ func (d *DataRow) GetID() string {
 	return id
 }
 
-// GetID2 calculates and the ID value
+// GetID2 returns the 2 strings for tables with 2 primary keys
 func (d *DataRow) GetID2() (string, string) {
 	id1 := d.GetStringByName(d.DataStore.Table.PrimaryKey[0])
 	if *id1 == "" {
@@ -797,8 +797,16 @@ func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data *[]interface{}, co
 // CheckChangedIntValues returns true if the given data results in an update
 func (d *DataRow) CheckChangedIntValues(data *[]interface{}, columns *ColumnList) bool {
 	for j := range *columns {
-		if interface2int((*data)[j]) != d.dataInt[(*columns)[j].Index] {
-			return true
+		col := (*columns)[j]
+		switch col.DataType {
+		case IntCol:
+			if interface2int((*data)[j]) != d.dataInt[(*columns)[j].Index] {
+				return true
+			}
+		case Int64Col:
+			if interface2int64((*data)[j]) != d.dataInt64[(*columns)[j].Index] {
+				return true
+			}
 		}
 	}
 	return false

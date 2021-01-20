@@ -743,6 +743,8 @@ func (p *Peer) InitAllTables() (err error) {
 	p.Lock.Lock()
 	p.Status[LastUpdate] = time.Now().Unix()
 	p.Status[LastFullUpdate] = time.Now().Unix()
+	p.Status[LastFullServiceUpdate] = time.Now().Unix()
+	p.Status[LastFullHostUpdate] = time.Now().Unix()
 	p.Lock.Unlock()
 	data := NewDataStoreSet(p)
 	t1 := time.Now()
@@ -1620,7 +1622,7 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
 		time.Sleep(WaitTimeoutCheckInterval)
 		switch req.Table {
 		case TableHosts:
-			err = data.UpdateDeltaHosts(fmt.Sprintf("Filter: name = %s\n", req.WaitObject))
+			err = data.UpdateDeltaHosts(fmt.Sprintf("Filter: name = %s\n", req.WaitObject), false)
 		case TableServices:
 			tmp := strings.SplitN(req.WaitObject, ";", 2)
 			if len(tmp) < 2 {
@@ -1628,7 +1630,7 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
 				close(c)
 				return nil
 			}
-			err = data.UpdateDeltaServices(fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", tmp[0], tmp[1]))
+			err = data.UpdateDeltaServices(fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", tmp[0], tmp[1]), false)
 		default:
 			err = data.UpdateFullTable(req.Table)
 		}
