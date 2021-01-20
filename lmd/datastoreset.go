@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -421,22 +422,19 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, filterStr string) 
 		return
 	}
 
-	switch {
-	case len(missing) > 100:
-		log.Warnf("[%s] %s delta scan resulted in %d timestamps, something seems wrong", ds.peer.Name, store.Table.Name.String(), len(missing))
-	case len(missing) > 0:
+	if len(missing) > 0 {
 		log.Debugf("[%s] %s delta scan going to update %d timestamps", ds.peer.Name, store.Table.Name.String(), len(missing))
 		filter := []string{filterStr}
-		for lastCheck := range missing {
-			filter = append(filter, fmt.Sprintf("Filter: last_check = %d\n", lastCheck))
-		}
-		filter = append(filter, fmt.Sprintf("Or: %d\n", len(filter)))
-		if store.Table.Name == TableServices {
+		filter = append(filter, composeTimestampFilter(missing, "last_check")...)
+		switch {
+		case len(filter) > 100:
+			log.Warnf("[%s] %s delta scan timestamp filter too complex: %d", ds.peer.Name, store.Table.Name.String(), len(missing))
+		case store.Table.Name == TableServices:
 			err = ds.UpdateDeltaServices(strings.Join(filter, ""), false)
-		} else if store.Table.Name == TableHosts {
+		case store.Table.Name == TableHosts:
 			err = ds.UpdateDeltaHosts(strings.Join(filter, ""), false)
 		}
-	default:
+	} else {
 		log.Debugf("[%s] %s delta scan did not find any timestamps", ds.peer.Name, store.Table.Name.String())
 	}
 
@@ -450,8 +448,7 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, filterStr string) 
 }
 
 // getMissingTimestamps returns list of last_check dates which can be used to delta update
-func (ds *DataStoreSet) getMissingTimestamps(store *DataStore, res *ResultSet, columns *ColumnList) (missing map[int64]bool, err error) {
-	missing = make(map[int64]bool)
+func (ds *DataStoreSet) getMissingTimestamps(store *DataStore, res *ResultSet, columns *ColumnList) (missing []int64, err error) {
 	ds.Lock.RLock()
 	p := ds.peer
 	data := store.Data
@@ -467,17 +464,28 @@ func (ds *DataStoreSet) getMissingTimestamps(store *DataStore, res *ResultSet, c
 		return
 	}
 
+	missedUnique := make(map[int64]bool)
 	updateThreshold := time.Now().Unix() - ds.peer.GlobalConfig.UpdateOffset
 	for i := range *res {
 		row := (*res)[i]
 		if data[i].CheckChangedIntValues(&row, columns) {
 			ts := interface2int64(row[0])
 			if ts < updateThreshold {
-				missing[ts] = true
+				missedUnique[ts] = true
 			}
 		}
 	}
 	ds.Lock.RUnlock()
+
+	// return uniq sorted keys
+	missing = make([]int64, len(missedUnique))
+	i := 0
+	for lastCheck := range missedUnique {
+		missing[i] = lastCheck
+		i++
+	}
+	sort.Slice(missing, func(i, j int) bool { return missing[i] < missing[j] })
+
 	return
 }
 
@@ -815,4 +823,42 @@ func (ds *DataStoreSet) buildDowntimeCommentsCache(name TableName) (cache map[*D
 	promObjectCount.WithLabelValues(ds.peer.Name, name.String()).Set(float64(len(store.Data)))
 
 	return cache, nil
+}
+
+func composeTimestampFilter(timestamps []int64, attribute string) []string {
+	filter := []string{}
+	block := struct {
+		start int64
+		end   int64
+	}{-1, -1}
+	for _, ts := range timestamps {
+		if block.start == -1 {
+			block.start = ts
+			block.end = ts
+			continue
+		}
+		if block.end == ts-1 {
+			block.end = ts
+			continue
+		}
+
+		if block.start != -1 {
+			if block.start == block.end {
+				filter = append(filter, fmt.Sprintf("Filter: %s = %d\n", attribute, block.start))
+			} else {
+				filter = append(filter, fmt.Sprintf("Filter: %s >= %d\nFilter: %s <= %d\nAnd: 2\n", attribute, block.start, attribute, block.end))
+			}
+		}
+
+		block.start = ts
+		block.end = ts
+	}
+	if block.start != -1 {
+		if block.start == block.end {
+			filter = append(filter, fmt.Sprintf("Filter: %s = %d\n", attribute, block.start))
+		} else {
+			filter = append(filter, fmt.Sprintf("Filter: %s >= %d\nFilter: %s <= %d\nAnd: 2\n", attribute, block.start, attribute, block.end))
+		}
+	}
+	return filter
 }
