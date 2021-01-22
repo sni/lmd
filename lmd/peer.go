@@ -47,7 +47,8 @@ const (
 	// WaitTimeoutDefault sets the default timeout if nothing specified (1 minute in milliseconds)
 	WaitTimeoutDefault = 60000
 
-	WaitTimeoutCheckInterval = 200 + time.Millisecond
+	// Interval in which wait condition is checked
+	WaitTimeoutCheckInterval = 200 * time.Millisecond
 
 	// ErrorContentPreviewSize sets the number of bytes from the response to include in the error message
 	ErrorContentPreviewSize = 50
