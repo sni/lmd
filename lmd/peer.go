@@ -36,7 +36,7 @@ var reNaemonVersion = regexp.MustCompile(`\-naemon$`)
 
 const (
 	// MinFullScanInterval is the minimum interval between two full scans
-	MinFullScanInterval = 30
+	MinFullScanInterval = 60
 
 	// ConnectionPoolCacheSize sets the number of cached connections per peer
 	ConnectionPoolCacheSize = 5
