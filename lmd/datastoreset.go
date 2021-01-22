@@ -438,9 +438,10 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, filterStr string) 
 		log.Debugf("[%s] %s delta scan did not find any timestamps", ds.peer.Name, store.Table.Name.String())
 	}
 
-	if store.Table.Name == TableServices {
+	switch store.Table.Name {
+	case TableServices:
 		p.StatusSet(LastFullServiceUpdate, time.Now().Unix())
-	} else if store.Table.Name == TableHosts {
+	case TableHosts:
 		p.StatusSet(LastFullHostUpdate, time.Now().Unix())
 	}
 	updated = true
