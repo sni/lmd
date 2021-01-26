@@ -75,7 +75,7 @@ func (raw *RawResultSet) Less(i, j int) bool {
 				return valueA < valueB
 			}
 			return valueA > valueB
-		case StringCol, StringLargeCol, StringListCol, ServiceMemberListCol, InterfaceListCol, HashMapCol, CustomVarCol:
+		case StringCol, StringLargeCol, StringListCol, ServiceMemberListCol, InterfaceListCol, JSONCol, CustomVarCol:
 			s1 := raw.DataResult[i].GetString(s.Column)
 			s2 := raw.DataResult[j].GetString(s.Column)
 			if *s1 == *s2 {

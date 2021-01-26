@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -1080,6 +1081,23 @@ func interface2bool(in interface{}) bool {
 	return false
 }
 
+func interface2jsonstring(in interface{}) string {
+	if in == nil {
+		return "{}"
+	}
+	switch in := in.(type) {
+	case string:
+		return in
+	default:
+		str, err := json.Marshal(in)
+		if err != nil {
+			log.Warnf("cannot parse json structure to string: %w", err)
+			return ""
+		}
+		return (string(str))
+	}
+}
+
 // deduplicateStringlist store duplicate string lists only once
 func (d *DataRow) deduplicateStringlist(list *[]string) *[]string {
 	sum := sha256.Sum256([]byte(*joinStringlist(list, ListSepChar1)))
@@ -1115,55 +1133,57 @@ func cast2Type(val interface{}, col *Column) interface{} {
 		return (interface2int64list(val))
 	case FloatCol:
 		return (interface2float64(val))
-	case HashMapCol, CustomVarCol:
+	case CustomVarCol:
 		return (interface2hashmap(val))
 	case ServiceMemberListCol:
 		return (interface2servicememberlist(val))
 	case InterfaceListCol:
 		return val
+	case JSONCol:
+		return (interface2jsonstring(val))
 	}
 	log.Panicf("unsupported type: %s", col.DataType)
 	return nil
 }
 
 // WriteJSON store duplicate string lists only once
-func (d *DataRow) WriteJSON(json *jsoniter.Stream, columns *[]*Column) {
-	json.WriteRaw("[")
+func (d *DataRow) WriteJSON(jsonwriter *jsoniter.Stream, columns *[]*Column) {
+	jsonwriter.WriteRaw("[")
 	for i := range *columns {
 		col := (*columns)[i]
 		if i > 0 {
-			json.WriteRaw(",")
+			jsonwriter.WriteRaw(",")
 		}
 		if col.Optional != NoFlags && !d.DataStore.Peer.HasFlag(col.Optional) {
-			json.WriteVal(col.GetEmptyValue())
+			jsonwriter.WriteVal(col.GetEmptyValue())
 			continue
 		}
 		switch col.DataType {
 		case StringCol, StringLargeCol:
-			json.WriteString(*(d.GetString(col)))
+			jsonwriter.WriteString(*(d.GetString(col)))
 		case StringListCol:
-			json.WriteVal(d.GetStringList(col))
+			jsonwriter.WriteVal(d.GetStringList(col))
 		case IntCol:
-			json.WriteInt(d.GetInt(col))
+			jsonwriter.WriteInt(d.GetInt(col))
 		case Int64Col:
-			json.WriteInt64(d.GetInt64(col))
+			jsonwriter.WriteInt64(d.GetInt64(col))
 		case FloatCol:
-			json.WriteFloat64(d.GetFloat(col))
+			jsonwriter.WriteFloat64(d.GetFloat(col))
 		case Int64ListCol:
-			json.WriteVal(d.GetInt64List(col))
+			jsonwriter.WriteVal(d.GetInt64List(col))
 		case ServiceMemberListCol:
-			json.WriteVal(d.GetServiceMemberList(col))
+			jsonwriter.WriteVal(d.GetServiceMemberList(col))
 		case InterfaceListCol:
-			json.WriteVal(d.GetInterfaceList(col))
+			jsonwriter.WriteVal(d.GetInterfaceList(col))
 		case CustomVarCol:
-			fallthrough
-		case HashMapCol:
-			json.WriteVal(d.GetHashMap(col))
+			jsonwriter.WriteVal(d.GetHashMap(col))
+		case JSONCol:
+			jsonwriter.WriteRaw(*(d.GetString(col)))
 		default:
 			log.Panicf("unsupported type: %s", col.DataType)
 		}
 	}
-	json.WriteRaw("]\n")
+	jsonwriter.WriteRaw("]\n")
 }
 
 func (d *DataRow) isAuthorizedFor(authUser string, host string, service string) (canView bool) {

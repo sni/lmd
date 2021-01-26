@@ -189,8 +189,6 @@ func (f *Filter) strValue() string {
 	}
 	var value string
 	switch colType {
-	case HashMapCol:
-		fallthrough
 	case CustomVarCol:
 		value = f.CustomTag + " " + f.StrValue
 	case Int64ListCol:
@@ -205,7 +203,11 @@ func (f *Filter) strValue() string {
 		fallthrough
 	case InterfaceListCol:
 		fallthrough
-	case StringCol, StringLargeCol:
+	case JSONCol:
+		fallthrough
+	case StringLargeCol:
+		fallthrough
+	case StringCol:
 		value = f.StrValue
 	default:
 		log.Panicf("not implemented column type: %v", f.Column.DataType)
@@ -345,8 +347,6 @@ func (f *Filter) setFilterValue(strVal string) (err error) {
 		default:
 		}
 		return
-	case HashMapCol:
-		fallthrough
 	case CustomVarCol:
 		vars := strings.SplitN(strVal, " ", 2)
 		if vars[0] == "" {
@@ -366,7 +366,11 @@ func (f *Filter) setFilterValue(strVal string) (err error) {
 		return
 	case ServiceMemberListCol:
 		return
-	case StringCol, StringLargeCol:
+	case JSONCol:
+		return
+	case StringLargeCol:
+		return
+	case StringCol:
 		return
 	}
 	log.Panicf("not implemented column type: %v", colType)
@@ -556,7 +560,7 @@ func ParseFilterNegate(stack *[]*Filter) (err error) {
 // Match returns true if the given filter matches the given value.
 func (f *Filter) Match(row *DataRow) bool {
 	switch f.Column.DataType {
-	case StringCol, StringLargeCol:
+	case StringCol, StringLargeCol, JSONCol:
 		return f.MatchString(row.GetString(f.Column))
 	case StringListCol:
 		return f.MatchStringList(row.GetStringList(f.Column))
@@ -577,8 +581,6 @@ func (f *Filter) Match(row *DataRow) bool {
 		return f.MatchFloat(row.GetFloat(f.Column))
 	case Int64ListCol:
 		return f.MatchInt64List(row.GetInt64List(f.Column))
-	case HashMapCol:
-		fallthrough
 	case CustomVarCol:
 		return f.MatchCustomVar(row.GetHashMap(f.Column))
 	case InterfaceListCol, ServiceMemberListCol:

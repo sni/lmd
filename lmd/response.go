@@ -148,6 +148,8 @@ func (res *Response) Less(i, j int) bool {
 				return valueA < valueB
 			}
 			return valueA > valueB
+		case JSONCol:
+			fallthrough
 		case StringCol:
 			index := s.Index
 			if s.Group {
@@ -168,16 +170,6 @@ func (res *Response) Less(i, j int) bool {
 		case Int64ListCol:
 			// not implemented
 			return s.Direction == Asc
-		case HashMapCol:
-			s1 := interface2hashmap(res.Result[i][s.Index])[s.Args]
-			s2 := interface2hashmap(res.Result[j][s.Index])[s.Args]
-			if s1 == s2 {
-				continue
-			}
-			if s.Direction == Asc {
-				return s1 < s2
-			}
-			return s1 > s2
 		}
 		panic(fmt.Sprintf("sorting not implemented for type %s", sortType))
 	}

@@ -101,8 +101,8 @@ const (
 	Int64ListCol
 	// FloatCol is used for float columns.
 	FloatCol
-	// HashMapCol is used for generic hash map columns.
-	HashMapCol
+	// JSONCol is used for generic json data columns (handled as string).
+	JSONCol
 	// CustomVarCol is a list of custom variables
 	CustomVarCol
 	// ServiceMemberListCol is a list of host_name/servicename pairs
@@ -290,8 +290,10 @@ func (c *Column) GetEmptyValue() interface{} {
 		return emptyInt64List
 	case StringListCol, ServiceMemberListCol, InterfaceListCol:
 		return emptyInterfaceList
-	case HashMapCol, CustomVarCol:
+	case CustomVarCol:
 		return emptyStringMap
+	case JSONCol:
+		return "{}"
 	default:
 		log.Panicf("type %s not supported", c.DataType)
 	}

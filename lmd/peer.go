@@ -802,7 +802,8 @@ func (p *Peer) InitAllTables() (err error) {
 			p.Lock.Unlock()
 			if !p.HasFlag(MultiBackend) {
 				if configtool != nil {
-					p.StatusSet(ConfigTool, configtool)
+					// store as string, we simply passthrough it anyway
+					p.StatusSet(ConfigTool, interface2jsonstring(configtool))
 				}
 			}
 		case TableComments:
