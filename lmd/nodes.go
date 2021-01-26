@@ -503,8 +503,7 @@ func (n *Nodes) SendQuery(node *NodeAddress, name string, parameters map[string]
 
 func generateUUID() (uuid string) {
 	b := make([]byte, 16)
-	_, err := rand.Read(b)
-	if err != nil {
+	if _, err := rand.Read(b); err != nil {
 		fmt.Println("Error: ", err)
 		return
 	}

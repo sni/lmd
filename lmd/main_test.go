@@ -349,8 +349,7 @@ func TestMainWaitTimeout(t *testing.T) {
 	t1 := time.Now()
 	timeout := 50 * time.Millisecond
 	waitTimeout(wg, timeout)
-	duration := time.Since(t1)
-	if duration < timeout {
+	if duration := time.Since(t1); duration < timeout {
 		t.Errorf("timeout too small: %s", duration)
 	}
 }

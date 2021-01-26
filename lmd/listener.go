@@ -384,8 +384,7 @@ func (l *Listener) LocalListenerHTTP(httpType string, listen string) {
 		ReadTimeout:  HTTPServerRequestTimeout,
 		WriteTimeout: HTTPServerRequestTimeout,
 	}
-	err := server.Serve(c)
-	if err != nil {
+	if err := server.Serve(c); err != nil {
 		log.Debugf("http listener finished with: %e", err)
 	}
 }

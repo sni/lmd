@@ -689,13 +689,11 @@ func (p *Peer) periodicTimeperiodsUpdate(data *DataStoreSet) (err error) {
 	if err != nil {
 		return
 	}
-	err = p.requestLocaltime()
-	if err != nil {
+	if err = p.requestLocaltime(); err != nil {
 		return
 	}
-	_, cerr := p.fetchConfigTool() // this also sets the thruk version and checks the clock, so it should be called first
-	if cerr != nil {
-		err = cerr
+	// this also sets the thruk version and checks the clock, so it should be called first
+	if _, err = p.fetchConfigTool(); err != nil {
 		return
 	}
 	return

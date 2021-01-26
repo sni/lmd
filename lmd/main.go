@@ -722,8 +722,7 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 func logThreaddump() {
 	log.Errorf("*** full thread dump:")
 	buf := make([]byte, 1<<16)
-	n := runtime.Stack(buf, true)
-	if n < len(buf) {
+	if n := runtime.Stack(buf, true); n < len(buf) {
 		buf = buf[:n]
 	}
 	log.Errorf("%s", buf)

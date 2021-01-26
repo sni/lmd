@@ -43,6 +43,7 @@ linters:
     - paralleltest
     - godot
     - forbidigo
+    - ifshort
   fast: false
 issues:
   max-same-issues: 0

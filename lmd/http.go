@@ -89,8 +89,7 @@ func (c *HTTPServerController) table(w http.ResponseWriter, request *http.Reques
 	}
 
 	// Use table name defined in rest request
-	tableName := ps.ByName("name")
-	if tableName != "" {
+	if tableName := ps.ByName("name"); tableName != "" {
 		requestData["table"] = tableName
 	}
 

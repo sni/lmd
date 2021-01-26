@@ -847,8 +847,7 @@ func TestHTTPPeer(t *testing.T) {
 	peer, cleanup := GetHTTPMockServerPeer(t)
 	defer cleanup()
 
-	err := peer.InitAllTables()
-	if err != nil {
+	if err := peer.InitAllTables(); err != nil {
 		t.Error(err)
 	}
 }
