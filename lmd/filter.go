@@ -737,7 +737,9 @@ func (f *Filter) MatchStringList(list *[]string) bool {
 		return false
 	case RegexMatchNot, RegexNoCaseMatchNot, ContainsNot, ContainsNoCaseNot:
 		for i := range *list {
-			if f.MatchString(&(*list)[i]) {
+			// MatchString takes operator into account, so negate the result
+			// so if it returns false it means the value has been found
+			if !f.MatchString(&(*list)[i]) {
 				return false
 			}
 		}
