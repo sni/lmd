@@ -26,6 +26,24 @@ func TestStringListFilter(t *testing.T) {
 	}
 }
 
+func TestStringListNegatedFilter(t *testing.T) {
+	value := []string{"abc", "def"}
+	if err := assertEq(false, (&Filter{Operator: ContainsNot, StrValue: "def"}).MatchStringList(&value)); err != nil {
+		t.Error(err)
+	}
+	if err := assertEq(true, (&Filter{Operator: GroupContainsNot, StrValue: "xyz"}).MatchStringList(&value)); err != nil {
+		t.Error(err)
+	}
+
+	value = []string{}
+	if err := assertEq(true, (&Filter{Operator: ContainsNot, StrValue: "def"}).MatchStringList(&value)); err != nil {
+		t.Error(err)
+	}
+	if err := assertEq(true, (&Filter{Operator: GroupContainsNot, StrValue: "xyz"}).MatchStringList(&value)); err != nil {
+		t.Error(err)
+	}
+}
+
 func TestInt64ListFilter(t *testing.T) {
 	value := []int64{1, 2, 3, 4, 5}
 	if err := assertEq(true, (&Filter{Operator: GreaterThan, FloatValue: 5}).MatchInt64List(value)); err != nil {
