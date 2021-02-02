@@ -1,5 +1,8 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
+next:
+          - add config option TLSMinVersion
+
 1.9.5    Mon Feb  1 18:46:43 CET 2021
           - fix negated group filters, ex host_groups !~~ ...
           - fix accessing thruks configtool

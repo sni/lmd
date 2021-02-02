@@ -17,6 +17,8 @@ ListenTimeout = 60
 #TLSCertificate = "server.pem"
 # set CA file to enforce client certificates
 #TLSClientPems  = ["client.pem"]
+# set minimum allowed tls version, leave empty to allow all version or specify one of: tls1.0, tls1.1, tls1.2, tls1.3
+TLSMinVersion = "tls1.1"
 
 # daemon will log to stdout if no logfile is set
 #LogFile         = "lmd.log"

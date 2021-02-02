@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -76,7 +75,7 @@ func NewNodes(localConfig *Config, addresses []string, listen string, waitGroupI
 		stopChannel:     make(chan bool),
 		nodeBackends:    make(map[string][]string),
 	}
-	tlsConfig := &tls.Config{InsecureSkipVerify: localConfig.SkipSSLCheck > 0}
+	tlsConfig := getMinimalTLSConfig(localConfig)
 	n.HTTPClient = NewLMDHTTPClient(tlsConfig, "")
 	for i := range localConfig.Connections {
 		n.backends = append(n.backends, localConfig.Connections[i].ID)

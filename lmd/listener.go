@@ -420,7 +420,7 @@ func getTLSListenerConfig(localConfig *Config) (config *tls.Config, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("tls.LoadX509KeyPair: %s / %s: %w", localConfig.TLSCertificate, localConfig.TLSKey, err)
 	}
-	config = getMinimalTLSConfig()
+	config = getMinimalTLSConfig(localConfig)
 	config.Certificates = []tls.Certificate{cer}
 	if len(localConfig.TLSClientPems) > 0 {
 		caCertPool := x509.NewCertPool()

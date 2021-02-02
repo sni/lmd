@@ -140,6 +140,7 @@ type Config struct {
 	CompressionLevel       int
 	MaxClockDelta          float64
 	UpdateOffset           int64
+	TLSMinVersion          string
 }
 
 // PeerMap contains a map of available remote peers.
@@ -789,6 +790,10 @@ func setDefaults(conf *Config) {
 	if conf.UpdateOffset <= 0 {
 		conf.UpdateOffset = 3
 	}
+	_, err := parseTLSMinVersion(conf.TLSMinVersion)
+	if err != nil {
+		log.Warnf("%s", err)
+	}
 }
 
 func setServiceAuthorization(conf *Config) {
@@ -832,6 +837,7 @@ func ReadConfig(files []string) *Config {
 		SaveTempRequests:       true,
 		CompressionLevel:       -1,
 		CompressionMinimumSize: DefaultCompressionMinimumSize,
+		TLSMinVersion:          "tls1.1",
 	}
 	for _, pattern := range files {
 		configFiles, errGlob := filepath.Glob(pattern)
@@ -948,13 +954,38 @@ func updateStatistics() {
 	promStringDedupIndexBytes.Set(float64(32 * size))
 }
 
-func getMinimalTLSConfig() *tls.Config {
+func getMinimalTLSConfig(localConfig *Config) *tls.Config {
 	config := &tls.Config{
-		MinVersion: tls.VersionTLS12,
+		InsecureSkipVerify: localConfig.SkipSSLCheck > 0,
+	}
+	if localConfig.TLSMinVersion != "" {
+		tlsMinVersion, err := parseTLSMinVersion(localConfig.TLSMinVersion)
+		if err != nil {
+			config.MinVersion = tlsMinVersion
+		}
 	}
 	return (config)
 }
 
 func fmtHTTPerr(req *http.Request, err error) string {
 	return (fmt.Sprintf("%s: %v", req.URL.String(), err))
+}
+
+func parseTLSMinVersion(version string) (tlsminversion uint16, err error) {
+	tlsminversion = 0
+	switch strings.ToLower(version) {
+	case "":
+		tlsminversion = 0
+	case "tls10", "tls1.0":
+		tlsminversion = tls.VersionTLS10
+	case "tls11", "tls1.1":
+		tlsminversion = tls.VersionTLS11
+	case "tls12", "tls1.2":
+		tlsminversion = tls.VersionTLS12
+	case "tls13", "tls1.3":
+		tlsminversion = tls.VersionTLS13
+	default:
+		err = fmt.Errorf("cannot parse %s into tls version valid values are: tls1.0, tls1.1, tls1.2, tls1.3", version)
+	}
+	return
 }

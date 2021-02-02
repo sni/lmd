@@ -2035,7 +2035,7 @@ func (p *Peer) logPeerStatus(logger func(string, ...interface{})) {
 }
 
 func (p *Peer) getTLSClientConfig() (*tls.Config, error) {
-	config := getMinimalTLSConfig()
+	config := getMinimalTLSConfig(p.GlobalConfig)
 	if p.Config.TLSCertificate != "" && p.Config.TLSKey != "" {
 		cer, err := tls.LoadX509KeyPair(p.Config.TLSCertificate, p.Config.TLSKey)
 		if err != nil {
