@@ -441,7 +441,7 @@ func (p *Peer) periodicUpdate() (err error) {
 	case PeerStatusWarning:
 		// run update if it was just a short outage
 		return data.UpdateFull(Objects.UpdateTables)
-	case PeerStatusDown:
+	case PeerStatusDown, PeerStatusPending:
 		return p.InitAllTables()
 	case PeerStatusUp:
 		// full update interval
@@ -449,9 +449,6 @@ func (p *Peer) periodicUpdate() (err error) {
 			return data.UpdateFull(Objects.UpdateTables)
 		}
 		return data.UpdateDelta(lastUpdate, now)
-	case PeerStatusPending:
-		// since we called InitAllTables before, status should not be pending
-		log.Panicf("peer should not be in status pending here")
 	}
 	log.Panicf("unhandled status case: %s", lastStatus)
 	return
