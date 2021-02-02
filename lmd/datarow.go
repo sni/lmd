@@ -1091,7 +1091,7 @@ func interface2jsonstring(in interface{}) string {
 	default:
 		str, err := json.Marshal(in)
 		if err != nil {
-			log.Warnf("cannot parse json structure to string: %w", err)
+			log.Warnf("cannot parse json structure to string: %v", err)
 			return ""
 		}
 		return (string(str))

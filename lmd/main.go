@@ -954,3 +954,7 @@ func getMinimalTLSConfig() *tls.Config {
 	}
 	return (config)
 }
+
+func fmtHTTPerr(req *http.Request, err error) string {
+	return (fmt.Sprintf("%s: %v", req.URL.String(), err))
+}

@@ -760,46 +760,9 @@ func (p *Peer) InitAllTables() (err error) {
 		data.Set(t.Name, store)
 		switch t.Name {
 		case TableStatus:
-			statusData := store.Data
-			hasStatus := len(statusData) > 0
-			// this may happen if we query another lmd daemon which has no backends ready yet
-			if !hasStatus {
-				p.Lock.Lock()
-				p.Status[PeerState] = PeerStatusDown
-				p.Status[LastError] = "peered partner not ready yet"
-				p.ClearData(false)
-				p.Lock.Unlock()
-				return fmt.Errorf("peered partner not ready yet")
-			}
-
-			// if its http and a status request, try a processinfo query to fetch all backends
-			configtool, cerr := p.fetchConfigTool() // this also sets the thruk version and checks the clock, so it should be called first
-			if cerr != nil {
-				err = cerr
-				return
-			}
-			logDebugError2(p.fetchRemotePeers())
-			logDebugError(p.checkStatusFlags(statusData))
-
-			err = p.checkAvailableTables() // must be done after checkStatusFlags, because it does not work on Icinga2
+			err = p.updateInitialStatus(store)
 			if err != nil {
 				return
-			}
-
-			programStart := statusData[0].GetInt64ByName("program_start")
-			corePid := statusData[0].GetIntByName("nagios_pid")
-
-			// check thruk config tool settings
-			p.Lock.Lock()
-			delete(p.Status, ConfigTool)
-			p.Status[ProgramStart] = programStart
-			p.Status[LastPid] = corePid
-			p.Lock.Unlock()
-			if !p.HasFlag(MultiBackend) {
-				if configtool != nil {
-					// store as string, we simply passthrough it anyway
-					p.StatusSet(ConfigTool, interface2jsonstring(configtool))
-				}
 			}
 		case TableComments:
 			err = data.RebuildCommentsCache()
@@ -841,6 +804,52 @@ func (p *Peer) InitAllTables() (err error) {
 	promPeerUpdateDuration.WithLabelValues(p.Name).Set(duration.Seconds())
 
 	p.clearLastRequest()
+	return
+}
+
+// resetErrors reset the error counter after the site has recovered
+func (p *Peer) updateInitialStatus(store *DataStore) (err error) {
+	statusData := store.Data
+	hasStatus := len(statusData) > 0
+	// this may happen if we query another lmd daemon which has no backends ready yet
+	if !hasStatus {
+		p.Lock.Lock()
+		p.Status[PeerState] = PeerStatusDown
+		p.Status[LastError] = "peered partner not ready yet"
+		p.ClearData(false)
+		p.Lock.Unlock()
+		return fmt.Errorf("peered partner not ready yet")
+	}
+
+	// if its http and a status request, try a processinfo query to fetch all backends
+	configtool, cerr := p.fetchConfigTool() // this also sets the thruk version and checks the clock, so it should be called first
+	if cerr != nil {
+		err = cerr
+		return
+	}
+	logDebugError2(p.fetchRemotePeers())
+	logDebugError(p.checkStatusFlags(statusData))
+
+	err = p.checkAvailableTables() // must be done after checkStatusFlags, because it does not work on Icinga2
+	if err != nil {
+		return
+	}
+
+	programStart := statusData[0].GetInt64ByName("program_start")
+	corePid := statusData[0].GetIntByName("nagios_pid")
+
+	// check thruk config tool settings
+	p.Lock.Lock()
+	delete(p.Status, ConfigTool)
+	p.Status[ProgramStart] = programStart
+	p.Status[LastPid] = corePid
+	p.Lock.Unlock()
+	if !p.HasFlag(MultiBackend) {
+		if configtool != nil {
+			// store as string, we simply passthrough it anyway
+			p.StatusSet(ConfigTool, interface2jsonstring(configtool))
+		}
+	}
 	return
 }
 
@@ -1699,6 +1708,7 @@ func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url
 	ctx := context.Background()
 	req, err := http.NewRequestWithContext(ctx, "POST", peerAddr, strings.NewReader(postData.Encode()))
 	if err != nil {
+		log.Debugf("[%s] http(s) error: %s", p.Name, fmtHTTPerr(req, err))
 		return nil, fmt.Errorf("http request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -1707,10 +1717,12 @@ func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url
 	}
 	response, err := p.cache.HTTPClient.Do(req)
 	if err != nil {
+		log.Debugf("[%s] http(s) error: %s", p.Name, fmtHTTPerr(req, err))
 		return
 	}
 	contents, err := ExtractHTTPResponse(response)
 	if err != nil {
+		log.Debugf("[%s] http(s) error: %s", p.Name, fmtHTTPerr(req, err))
 		return
 	}
 
@@ -1733,14 +1745,17 @@ func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url
 			contents = contents[:ErrorContentPreviewSize]
 		}
 		err = &PeerError{msg: fmt.Sprintf("site did not return a proper response: %s", contents), kind: ResponseError}
+		log.Debugf("[%s] http(s) error: %s", p.Name, fmtHTTPerr(req, err))
 		return
 	}
 	err = json.Unmarshal(contents, &result)
 	if err != nil {
+		log.Debugf("[%s] http(s) error: %s", p.Name, fmtHTTPerr(req, err))
 		return
 	}
 	if result.Rc != 0 {
 		err = &PeerError{msg: fmt.Sprintf("remote site returned rc: %d - %s", result.Rc, result.Output), kind: ResponseError}
+		log.Debugf("[%s] http(s) error: %s", p.Name, fmtHTTPerr(req, err))
 	}
 	return
 }
