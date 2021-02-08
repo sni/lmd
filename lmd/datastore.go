@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -20,7 +21,7 @@ type DataStore struct {
 	Index                   map[string]*DataRow            // access data rows from primary key, ex.: hostname or comment id
 	Index2                  map[string]map[string]*DataRow // access data rows from 2 primary keys, ex.: host and service
 	Table                   *Table                         // reference to table definition
-	dupStringList           map[[32]byte][]string          // lookup pointer to other stringlists during initialisation
+	dupStringList           map[[32]byte][]string          // lookup pointer to other stringlists during initialization
 	PeerLockMode            PeerLockMode                   // flag wether datarow have to set PeerLock when accessing status
 	LowerCaseColumns        map[int]int                    // list of string column indexes with their coresponding lower case index
 }
@@ -196,4 +197,90 @@ func (d *DataStore) GetWaitObject(req *Request) (*DataRow, bool) {
 	}
 	obj, ok := d.Index[req.WaitObject]
 	return obj, ok
+}
+
+// GetPreFilteredData returns d.Data but try to return reduced dataset by using host / service index if table supports it
+func (d *DataStore) GetPreFilteredData(filter *[]*Filter) []*DataRow {
+	if len(*filter) == 0 {
+		return d.Data
+	}
+	switch d.Table.Name {
+	case TableHosts:
+		hostlist := GetIndexableHostnames(filter, "name")
+		if len(*hostlist) == 0 {
+			return d.Data
+		}
+		indexedData := make([]*DataRow, 0)
+		for _, name := range *hostlist {
+			row, ok := d.Index[name]
+			if ok {
+				indexedData = append(indexedData, row)
+			}
+		}
+		log.Tracef("using indexed %s dataset of size: %d", d.Table.Name.String(), len(indexedData))
+		return indexedData
+	case TableServices:
+		hostlist := GetIndexableHostnames(filter, "host_name")
+		if len(*hostlist) == 0 {
+			return d.Data
+		}
+		indexedData := make([]*DataRow, 0)
+		for _, name := range *hostlist {
+			rows, ok := d.Index2[name]
+			if ok {
+				for _, row := range rows {
+					indexedData = append(indexedData, row)
+				}
+			}
+		}
+		log.Tracef("using indexed %s dataset of size: %d", d.Table.Name.String(), len(indexedData))
+		return indexedData
+	}
+	return d.Data
+}
+
+// GetIndexableHostnames returns list of hostname which can be used to reduce the initial dataset
+func GetIndexableHostnames(filter *[]*Filter, column string) *[]string {
+	hostlist := []string{}
+	uniqHosts := make(map[string]bool)
+	isUsable := func(f *Filter) bool {
+		return f.Operator == Equal && f.Column.Name == column && !f.Negate
+	}
+	for _, f := range *filter {
+		switch f.GroupOperator {
+		case And:
+			if f.Negate {
+				return &hostlist
+			}
+			for _, f2 := range f.Filter {
+				if isUsable(f2) {
+					uniqHosts[f2.StrValue] = true
+				}
+			}
+		case Or:
+			if f.Negate {
+				return &hostlist
+			}
+			for _, f2 := range f.Filter {
+				if isUsable(f2) {
+					uniqHosts[f2.StrValue] = true
+				} else {
+					// none-indexable or filter, must do full table scan
+					return &hostlist
+				}
+			}
+		default:
+			// top lvl filter are combined by AND, so its safe to prefilter result data and skip the others
+			if isUsable(f) {
+				uniqHosts[f.StrValue] = true
+			}
+		}
+	}
+
+	// sort and return list of index names used
+	for key := range uniqHosts {
+		hostlist = append(hostlist, key)
+	}
+	sort.Strings(hostlist)
+	return &hostlist
 }

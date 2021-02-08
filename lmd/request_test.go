@@ -1549,3 +1549,16 @@ func TestRequestKeepalive(t *testing.T) {
 		panic(err.Error())
 	}
 }
+
+func TestIndexedHost(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	res, _, err := peer.QueryString("GET hosts\nColumns: name\nFilter: host_name = testhost_1\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(1, len(*res)); err != nil {
+		t.Error(err)
+	}
+}

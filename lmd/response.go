@@ -741,7 +741,7 @@ func (res *Response) gatherResultRows(store *DataStore, resultcollector chan *Pe
 	breakOnLimit := res.Request.OutputFormat != OutputFormatWrappedJSON
 
 Rows:
-	for _, row := range store.Data {
+	for _, row := range store.GetPreFilteredData(&req.Filter) {
 		// does our filter match?
 		for _, f := range req.Filter {
 			if !row.MatchFilter(f) {
@@ -772,7 +772,7 @@ func (res *Response) gatherStatsResult(store *DataStore) *ResultSetStats {
 	req := res.Request
 
 Rows:
-	for _, row := range store.Data {
+	for _, row := range store.GetPreFilteredData(&req.Filter) {
 		// does our filter match?
 		for _, f := range req.Filter {
 			if !row.MatchFilter(f) {
