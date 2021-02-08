@@ -764,6 +764,8 @@ func (p *Peer) InitAllTables() (err error) {
 			if err != nil {
 				return
 			}
+			// got an answer, remove last error and let clients know we are reconnecting
+			p.StatusSet(LastError, "reconnecting...")
 		case TableComments:
 			err = data.RebuildCommentsCache()
 			if err != nil {
