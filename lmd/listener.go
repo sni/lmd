@@ -58,9 +58,9 @@ func NewListener(localConfig *Config, listen string, waitGroupInit *sync.WaitGro
 	return &l
 }
 
-// QueryServer handles a single client connection.
+// queryServer handles a single client connection.
 // It returns any error encountered.
-func QueryServer(c net.Conn, conf *Config) error {
+func (l *Listener) queryServer(c net.Conn) error {
 	localAddr := c.LocalAddr().String()
 	keepAlive := false
 	remote := c.RemoteAddr().String()
@@ -83,7 +83,7 @@ func QueryServer(c net.Conn, conf *Config) error {
 		switch {
 		case len(reqs) > 0:
 			promFrontendQueries.WithLabelValues(localAddr).Add(float64(len(reqs)))
-			keepAlive, err = ProcessRequests(reqs, c, remote, conf)
+			keepAlive, err = l.processRequests(reqs, c, remote)
 
 			// keep open keepalive request until either the client closes the connection or the deadline timeout is hit
 			if keepAlive {
@@ -105,7 +105,7 @@ func QueryServer(c net.Conn, conf *Config) error {
 	}
 }
 
-// ProcessRequests creates response for all given requests
+// sendErrorResponse creates response for all given requests
 func sendErrorResponse(c net.Conn, keepAlive bool, remote string, err error) error {
 	if err, ok := err.(net.Error); ok {
 		if keepAlive {
@@ -122,8 +122,8 @@ func sendErrorResponse(c net.Conn, keepAlive bool, remote string, err error) err
 	return err
 }
 
-// ProcessRequests creates response for all given requests
-func ProcessRequests(reqs []*Request, c net.Conn, remote string, conf *Config) (keepalive bool, err error) {
+// processRequests creates response for all given requests
+func (l *Listener) processRequests(reqs []*Request, c net.Conn, remote string) (keepalive bool, err error) {
 	if len(reqs) == 0 {
 		return
 	}
@@ -143,7 +143,7 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string, conf *Config) (
 			return
 		}
 
-		logDebugError(c.SetDeadline(time.Now().Add(time.Duration(conf.ListenTimeout) * time.Second)))
+		logDebugError(c.SetDeadline(time.Now().Add(time.Duration(l.GlobalConfig.ListenTimeout) * time.Second)))
 		var response *Response
 		response, err = req.GetResponse()
 		if err != nil {
@@ -163,9 +163,9 @@ func ProcessRequests(reqs []*Request, c net.Conn, remote string, conf *Config) (
 		size, err = response.Send(c)
 		duration := time.Since(t1)
 		log.Infof("incoming %s request from %s to %s finished in %s, response size: %s", req.Table.String(), remote, c.LocalAddr().String(), duration.String(), ByteCountBinary(size))
-		if duration-time.Duration(req.WaitTimeout)*time.Millisecond > time.Duration(conf.LogSlowQueryThreshold)*time.Second {
+		if duration-time.Duration(req.WaitTimeout)*time.Millisecond > time.Duration(l.GlobalConfig.LogSlowQueryThreshold)*time.Second {
 			log.Warnf("slow query finished after %s, response size: %s\n%s", duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
-		} else if size > int64(conf.LogHugeQueryThreshold*1024*1024) {
+		} else if size > int64(l.GlobalConfig.LogHugeQueryThreshold*1024*1024) {
 			log.Warnf("huge query finished after %s, response size: %s\n%s", duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
 		}
 		if err != nil || !req.KeepAlive {
@@ -331,7 +331,7 @@ func (l *Listener) LocalListenerLivestatus(connType string, listen string) {
 
 			atomic.AddInt64(&l.openConnections, 1)
 			promFrontendOpenConnections.WithLabelValues(l.ConnectionString).Set(float64(atomic.LoadInt64(&l.openConnections)))
-			handleConnection(fd, l.GlobalConfig)
+			l.handleConnection(fd)
 			atomic.AddInt64(&l.openConnections, -1)
 			promFrontendOpenConnections.WithLabelValues(l.ConnectionString).Set(float64(atomic.LoadInt64(&l.openConnections)))
 		}()
@@ -389,13 +389,13 @@ func (l *Listener) LocalListenerHTTP(httpType string, listen string) {
 	}
 }
 
-func handleConnection(c net.Conn, localConfig *Config) {
+func (l *Listener) handleConnection(c net.Conn) {
 	ch := make(chan error, 1)
 	go func() {
 		// make sure we log panics properly
 		defer logPanicExit()
 
-		ch <- QueryServer(c, localConfig)
+		ch <- l.queryServer(c)
 	}()
 	select {
 	case err := <-ch:
@@ -404,7 +404,7 @@ func handleConnection(c net.Conn, localConfig *Config) {
 			remote := c.RemoteAddr().String()
 			log.Debugf("client request from %s to %s failed with client error: %s", remote, localAddr, err.Error())
 		}
-	case <-time.After(time.Duration(localConfig.ListenTimeout) * time.Second):
+	case <-time.After(time.Duration(l.GlobalConfig.ListenTimeout) * time.Second):
 		localAddr := c.LocalAddr().String()
 		remote := c.RemoteAddr().String()
 		log.Warnf("client request from %s to %s timed out", remote, localAddr)
