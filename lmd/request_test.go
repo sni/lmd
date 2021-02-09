@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -1420,7 +1419,11 @@ func TestRequestKeepalive(t *testing.T) {
 
 	getOpenListeners := func() int64 {
 		time.Sleep(KeepAliveWaitInterval)
-		return (atomic.LoadInt64(&(Listeners["test.sock"].openConnections)))
+		l := Listeners["test.sock"]
+		l.Lock.RLock()
+		num := l.openConnections
+		l.Lock.RUnlock()
+		return num
 	}
 
 	// open connections should be zero

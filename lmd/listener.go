@@ -10,7 +10,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/sasha-s/go-deadlock"
@@ -34,10 +33,10 @@ const (
 type Listener struct {
 	noCopy           noCopy
 	Lock             *deadlock.RWMutex // must be used for when changing config
-	ConnectionString string
-	shutdownChannel  chan bool
-	connection       net.Listener
 	GlobalConfig     *Config
+	ShutdownChannel  chan bool
+	connectionString string
+	connection       net.Listener
 	waitGroupDone    *sync.WaitGroup
 	waitGroupInit    *sync.WaitGroup
 	openConnections  int64
@@ -47,9 +46,9 @@ type Listener struct {
 func NewListener(localConfig *Config, listen string, waitGroupInit *sync.WaitGroup, waitGroupDone *sync.WaitGroup, shutdownChannel chan bool) *Listener {
 	l := Listener{
 		Lock:             new(deadlock.RWMutex),
-		ConnectionString: listen,
-		shutdownChannel:  shutdownChannel,
+		ShutdownChannel:  shutdownChannel,
 		GlobalConfig:     localConfig,
+		connectionString: listen,
 		waitGroupDone:    waitGroupDone,
 		waitGroupInit:    waitGroupInit,
 	}
@@ -64,12 +63,12 @@ func NewListener(localConfig *Config, listen string, waitGroupInit *sync.WaitGro
 func (l *Listener) handle() {
 	defer func() {
 		ListenersLock.Lock()
-		delete(Listeners, l.ConnectionString)
+		delete(Listeners, l.connectionString)
 		ListenersLock.Unlock()
 		l.waitGroupDone.Done()
 	}()
 	l.waitGroupDone.Add(1)
-	listen := l.ConnectionString
+	listen := l.connectionString
 	switch {
 	case strings.HasPrefix(listen, "https://"):
 		listen = strings.TrimPrefix(listen, "https://")
@@ -124,7 +123,7 @@ func (l *Listener) localListenerLivestatus(connType string, listen string) {
 	// Close connection and log shutdown
 	go func() {
 		defer logPanicExit()
-		<-l.shutdownChannel
+		<-l.ShutdownChannel
 		log.Infof("stopping %s listener on %s", connType, listen)
 		c.Close()
 	}()
@@ -141,11 +140,11 @@ func (l *Listener) localListenerLivestatus(connType string, listen string) {
 			return
 		}
 
-		atomic.AddInt64(&l.openConnections, 1)
-		promFrontendOpenConnections.WithLabelValues(l.ConnectionString).Set(float64(atomic.LoadInt64(&l.openConnections)))
-		l.Lock.RLock()
+		l.Lock.Lock()
+		l.openConnections++
 		cl := NewClientConnection(fd, l.GlobalConfig.ListenTimeout, l.GlobalConfig.LogSlowQueryThreshold, l.GlobalConfig.LogHugeQueryThreshold)
-		l.Lock.RUnlock()
+		promFrontendOpenConnections.WithLabelValues(l.connectionString).Set(float64(l.openConnections))
+		l.Lock.Unlock()
 
 		// background waiting for query to finish/timeout
 		go func() {
@@ -153,8 +152,10 @@ func (l *Listener) localListenerLivestatus(connType string, listen string) {
 			defer logPanicExit()
 
 			cl.Handle()
-			atomic.AddInt64(&l.openConnections, -1)
-			promFrontendOpenConnections.WithLabelValues(l.ConnectionString).Set(float64(atomic.LoadInt64(&l.openConnections)))
+			l.Lock.Lock()
+			l.openConnections--
+			promFrontendOpenConnections.WithLabelValues(l.connectionString).Set(float64(l.openConnections))
+			l.Lock.Unlock()
 		}()
 	}
 }
@@ -191,7 +192,7 @@ func (l *Listener) localListenerHTTP(httpType string, listen string) {
 
 	// Close connection and log shutdown
 	go func() {
-		<-l.shutdownChannel
+		<-l.ShutdownChannel
 		log.Infof("stopping listener on %s", listen)
 		c.Close()
 	}()
