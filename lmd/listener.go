@@ -51,13 +51,13 @@ func NewListener(localConfig *Config, listen string, waitGroupInit *sync.WaitGro
 	}
 	go func() {
 		defer logPanicExit()
-		l.Listen()
+		l.handle()
 	}()
 	return &l
 }
 
-// Listen start listening the actual connection
-func (l *Listener) Listen() {
+// handle starts listening on the actual connection
+func (l *Listener) handle() {
 	defer func() {
 		ListenersLock.Lock()
 		delete(Listeners, l.ConnectionString)
