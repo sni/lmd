@@ -12,6 +12,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/sasha-s/go-deadlock"
 )
 
 const (
@@ -31,6 +33,7 @@ const (
 // Listener is the object which handles incoming connections
 type Listener struct {
 	noCopy           noCopy
+	Lock             *deadlock.RWMutex // must be used for when changing config
 	ConnectionString string
 	shutdownChannel  chan bool
 	connection       net.Listener
@@ -43,6 +46,7 @@ type Listener struct {
 // NewListener creates a new Listener object
 func NewListener(localConfig *Config, listen string, waitGroupInit *sync.WaitGroup, waitGroupDone *sync.WaitGroup, shutdownChannel chan bool) *Listener {
 	l := Listener{
+		Lock:             new(deadlock.RWMutex),
 		ConnectionString: listen,
 		shutdownChannel:  shutdownChannel,
 		GlobalConfig:     localConfig,
@@ -95,7 +99,9 @@ func (l *Listener) localListenerLivestatus(connType string, listen string) {
 	var err error
 	var c net.Listener
 	if connType == "tls" {
+		l.Lock.RLock()
 		tlsConfig, tErr := GetTLSListenerConfig(l.GlobalConfig)
+		l.Lock.RUnlock()
 		if tErr != nil {
 			log.Fatalf("failed to initialize tls %s", tErr.Error())
 		}
@@ -137,7 +143,9 @@ func (l *Listener) localListenerLivestatus(connType string, listen string) {
 
 		atomic.AddInt64(&l.openConnections, 1)
 		promFrontendOpenConnections.WithLabelValues(l.ConnectionString).Set(float64(atomic.LoadInt64(&l.openConnections)))
+		l.Lock.RLock()
 		cl := NewClientConnection(fd, l.GlobalConfig.ListenTimeout, l.GlobalConfig.LogSlowQueryThreshold, l.GlobalConfig.LogHugeQueryThreshold)
+		l.Lock.RUnlock()
 
 		// background waiting for query to finish/timeout
 		go func() {
@@ -159,7 +167,9 @@ func (l *Listener) localListenerHTTP(httpType string, listen string) {
 	// Listener
 	var c net.Listener
 	if httpType == "https" {
+		l.Lock.RLock()
 		tlsConfig, err := GetTLSListenerConfig(l.GlobalConfig)
+		l.Lock.RUnlock()
 		if err != nil {
 			log.Fatalf("failed to initialize https %s", err.Error())
 		}
