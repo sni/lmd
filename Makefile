@@ -17,6 +17,8 @@ TOOLSFOLDER=$(shell pwd)/tools
 export GOBIN := $(TOOLSFOLDER)
 export PATH := $(GOBIN):$(PATH)
 
+.PHONY: vendor
+
 all: build
 
 tools: versioncheck vendor dump
