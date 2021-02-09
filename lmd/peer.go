@@ -953,6 +953,10 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 	meta.Size = len(*resBytes)
 
 	log.Tracef("[%s] fetched table: %15s - time: %8s - count: %8d - size: %8d kB", p.Name, req.Table.String(), duration, len(*data), len(*resBytes)/1024)
+
+	if duration > time.Duration(p.GlobalConfig.LogSlowQueryThreshold)*time.Second {
+		log.Warnf("[%s] slow query finished after %s, response size: %s\n%s", p.Name, duration, ByteCountBinary(int64(len(*resBytes))), strings.TrimSpace(req.String()))
+	}
 	return data, meta, nil
 }
 
