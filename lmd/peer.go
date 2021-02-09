@@ -910,7 +910,7 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 
 	t1 := time.Now()
 	resBytes, err := p.getQueryResponse(req, query, peerAddr, conn, connType)
-	duration := time.Since(t1).Truncate(time.Millisecond)
+	duration := time.Since(t1)
 	if err != nil {
 		log.Debugf("[%s] sending data/query failed: %s", p.Name, err)
 		return nil, nil, err
@@ -941,8 +941,6 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(totalBytesReceived))
 
 	data, meta, err := req.parseResult(resBytes)
-	meta.Duration = duration
-	meta.Size = len(*resBytes)
 
 	if err != nil {
 		log.Debugf("[%s] fetched table %20s time: %s, size: %d kB", p.Name, req.Table.String(), duration, len(*resBytes)/1024)
@@ -950,6 +948,9 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 		log.Errorf("[%s] result parse error: %s", p.Name, err.Error())
 		return nil, nil, &PeerError{msg: err.Error(), kind: ResponseError}
 	}
+
+	meta.Duration = duration
+	meta.Size = len(*resBytes)
 
 	log.Tracef("[%s] fetched table: %15s - time: %8s - count: %8d - size: %8d kB", p.Name, req.Table.String(), duration, len(*data), len(*resBytes)/1024)
 	return data, meta, nil
@@ -1898,14 +1899,14 @@ func (p *Peer) PassThroughQuery(res *Response, passthroughRequest *Request, virt
 		res.Result = append(res.Result, *result...)
 	} else {
 		if res.Request.StatsResult == nil {
-			res.Request.StatsResult = make(ResultSetStats)
-			res.Request.StatsResult[""] = createLocalStatsCopy(&res.Request.Stats)
+			res.Request.StatsResult = NewResultSetStats()
+			res.Request.StatsResult.Stats[""] = createLocalStatsCopy(&res.Request.Stats)
 		}
 		// apply stats queries
 		if len(*result) > 0 {
 			for i := range (*result)[0] {
 				val := (*result)[0][i].(float64)
-				res.Request.StatsResult[""][i].ApplyValue(val, int(val))
+				res.Request.StatsResult.Stats[""][i].ApplyValue(val, int(val))
 			}
 		}
 	}

@@ -29,7 +29,7 @@ type Request struct {
 	Filter              []*Filter
 	FilterStr           string
 	Stats               []*Filter
-	StatsResult         ResultSetStats
+	StatsResult         *ResultSetStats
 	Limit               *int
 	Offset              int
 	Sort                []*SortField
@@ -146,10 +146,11 @@ func (op *GroupOperator) String() string {
 
 // ResultMetaData contains meta from the response data
 type ResultMetaData struct {
-	Total    int64         // total number of result rows
-	Columns  []string      // list of requested columns
-	Duration time.Duration // response time in seconds
-	Size     int           // result size in bytes
+	Total       int64         // total number of result rows
+	RowsScanned int64         // total number of scanned rows for this result
+	Columns     []string      // list of requested columns
+	Duration    time.Duration // response time in seconds
+	Size        int           // result size in bytes
 }
 
 var reRequestAction = regexp.MustCompile(`^GET +([a-z]+)$`)
@@ -627,7 +628,7 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan ResultSet, c
 
 	// Merge data
 	isStatsRequest := len(req.Stats) != 0
-	req.StatsResult = make(ResultSetStats)
+	req.StatsResult = NewResultSetStats()
 	for currentRows := range collectedDatasets {
 		if isStatsRequest {
 			// Stats request
@@ -643,8 +644,8 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan ResultSet, c
 					}
 					key = strings.Join(keys, ListSepChar1)
 				}
-				if _, ok := req.StatsResult[key]; !ok {
-					req.StatsResult[key] = createLocalStatsCopy(&req.Stats)
+				if _, ok := req.StatsResult.Stats[key]; !ok {
+					req.StatsResult.Stats[key] = createLocalStatsCopy(&req.Stats)
 				}
 				if hasColumns > 0 {
 					row = row[hasColumns:]
@@ -653,7 +654,7 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan ResultSet, c
 					data := reflect.ValueOf(row[i])
 					value := data.Index(0).Interface()
 					count := data.Index(1).Interface()
-					req.StatsResult[key][i].ApplyValue(interface2float64(value), int(interface2float64(count)))
+					req.StatsResult.Stats[key][i].ApplyValue(interface2float64(value), int(interface2float64(count)))
 				}
 			}
 		} else {
@@ -985,6 +986,12 @@ func (req *Request) parseWrappedJSONMeta(resBytes *[]byte, meta *ResultMetaData)
 		return nil, &PeerError{msg: fmt.Sprintf("total header parse error: %s", jErr.Error()), kind: ResponseError, req: req, resBytes: resBytes}
 	}
 	meta.Total = totalCount
+
+	// extract number of scanned rows if available
+	scanned, jErr := jsonparser.GetInt(*resBytes, "rows_scanned")
+	if jErr == nil {
+		meta.RowsScanned = scanned
+	}
 
 	dataBytes, _, _, jErr = jsonparser.Get(*resBytes, "data")
 	if jErr != nil {

@@ -366,6 +366,11 @@ func (d *DataRow) GetServiceMemberList(col *Column) *[]ServiceMember {
 	panic(fmt.Sprintf("unsupported type: %s", col.StorageType))
 }
 
+// GetServiceMemberListByName returns the service member list for given column name
+func (d *DataRow) GetServiceMemberListByName(name string) *[]ServiceMember {
+	return d.GetServiceMemberList(d.DataStore.Table.ColumnsIndex[name])
+}
+
 // GetInterfaceList returns the a list of interfaces
 func (d *DataRow) GetInterfaceList(col *Column) []interface{} {
 	switch col.StorageType {

@@ -30,14 +30,16 @@ type Response struct {
 	Error         error             // error object if the query was not successful
 	RawResults    *RawResultSet     // collected results from peers
 	ResultTotal   int
+	RowsScanned   int // total number of data rows scanned for this result
 	Failed        map[string]string
 	SelectedPeers []*Peer
 }
 
 // PeerResponse is the sub result from a peer before merged into the end result
 type PeerResponse struct {
-	Rows  []*DataRow // set of datarows
-	Total int        // total number of matched rows regardless of any limits or offsets
+	Rows        []*DataRow // set of datarows
+	Total       int        // total number of matched rows regardless of any limits or offsets
+	RowsScanned int        // total number of rows scanned to create result
 }
 
 // NewResponse creates a new response object for a given request
@@ -252,17 +254,17 @@ func (res *Response) CalculateFinalStats() {
 	if len(res.Request.Stats) == 0 {
 		return
 	}
-	hasColumns := len(res.Request.Columns)
-	if hasColumns == 0 && len(res.Request.StatsResult) == 0 {
-		if res.Request.StatsResult == nil {
-			res.Request.StatsResult = make(ResultSetStats)
-		}
-		res.Request.StatsResult[""] = createLocalStatsCopy(&res.Request.Stats)
+	if res.Request.StatsResult == nil {
+		res.Request.StatsResult = NewResultSetStats()
 	}
-	res.Result = make(ResultSet, len(res.Request.StatsResult))
+	hasColumns := len(res.Request.Columns)
+	if hasColumns == 0 && len(res.Request.StatsResult.Stats) == 0 {
+		res.Request.StatsResult.Stats[""] = createLocalStatsCopy(&res.Request.Stats)
+	}
+	res.Result = make(ResultSet, len(res.Request.StatsResult.Stats))
 
 	j := 0
-	for key, stats := range res.Request.StatsResult {
+	for key, stats := range res.Request.StatsResult.Stats {
 		rowSize := len(stats)
 		rowSize += hasColumns
 		res.Result[j] = make([]interface{}, rowSize)
@@ -416,6 +418,7 @@ func (res *Response) WrappedJSON(buf io.Writer) error {
 		res.WriteColumnsResponse(json)
 	}
 
+	json.WriteRaw(fmt.Sprintf("\n,\"rows_scanned\":%d", res.RowsScanned))
 	json.WriteRaw(fmt.Sprintf("\n,\"total_count\":%d}", res.ResultTotal))
 	err := json.Flush()
 	if err != nil {
@@ -437,6 +440,7 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 	} else {
 		// unprocessed result?
 		res.ResultTotal = res.RawResults.Total
+		res.RowsScanned = res.RawResults.RowsScanned
 
 		// PeerLockModeFull means we have to lock all peers before creating the result
 		if len(res.RawResults.DataResult) > 0 && res.RawResults.DataResult[0].DataStore.PeerLockMode == PeerLockModeFull {
@@ -498,6 +502,7 @@ func (res *Response) BuildLocalResponse() {
 			result := res.RawResults
 			for subRes := range resultcollector {
 				result.Total += subRes.Total
+				result.RowsScanned += subRes.RowsScanned
 				result.DataResult = append(result.DataResult, subRes.Rows...)
 			}
 			waitChan <- true
@@ -565,19 +570,21 @@ func (res *Response) MergeStats(stats *ResultSetStats) {
 	res.Lock.Lock()
 	defer res.Lock.Unlock()
 	if res.Request.StatsResult == nil {
-		res.Request.StatsResult = make(ResultSetStats)
+		res.Request.StatsResult = NewResultSetStats()
 	}
 	// apply stats queries
-	for key, stats := range *stats {
-		if _, ok := res.Request.StatsResult[key]; !ok {
-			res.Request.StatsResult[key] = stats
+	for key, stats := range stats.Stats {
+		if _, ok := res.Request.StatsResult.Stats[key]; !ok {
+			res.Request.StatsResult.Stats[key] = stats
 		} else {
 			for i := range stats {
 				s := stats[i]
-				res.Request.StatsResult[key][i].ApplyValue(s.Stats, s.StatsCount)
+				res.Request.StatsResult.Stats[key][i].ApplyValue(s.Stats, s.StatsCount)
 			}
 		}
 	}
+	res.Request.StatsResult.Total += stats.Total
+	res.Request.StatsResult.RowsScanned += stats.RowsScanned
 }
 
 // BuildPassThroughResult passes a query transparently to one or more remote sites and builds the response
@@ -741,7 +748,9 @@ func (res *Response) gatherResultRows(store *DataStore, resultcollector chan *Pe
 	breakOnLimit := res.Request.OutputFormat != OutputFormatWrappedJSON
 
 Rows:
-	for _, row := range store.GetPreFilteredData(&req.Filter) {
+	for _, row := range *(store.GetPreFilteredData(&req.Filter)) {
+		result.RowsScanned++
+
 		// does our filter match?
 		for _, f := range req.Filter {
 			if !row.MatchFilter(f) {
@@ -768,11 +777,13 @@ Rows:
 }
 
 func (res *Response) gatherStatsResult(store *DataStore) *ResultSetStats {
-	localStats := make(ResultSetStats)
+	result := NewResultSetStats()
 	req := res.Request
+	localStats := result.Stats
 
 Rows:
-	for _, row := range store.GetPreFilteredData(&req.Filter) {
+	for _, row := range *(store.GetPreFilteredData(&req.Filter)) {
+		result.RowsScanned++
 		// does our filter match?
 		for _, f := range req.Filter {
 			if !row.MatchFilter(f) {
@@ -783,6 +794,8 @@ Rows:
 		if !row.checkAuth(req.AuthUser) {
 			continue Rows
 		}
+
+		result.Total++
 
 		key := row.getStatsKey(res)
 		stat := localStats[key]
@@ -807,5 +820,5 @@ Rows:
 		}
 	}
 
-	return &localStats
+	return result
 }

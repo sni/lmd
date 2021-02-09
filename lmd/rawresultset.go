@@ -10,6 +10,7 @@ import (
 type RawResultSet struct {
 	noCopy      noCopy
 	Total       int            // total number of results for this set
+	RowsScanned int            // total number of scanned rows for this set
 	DataResult  []*DataRow     // references to the data rows required for the result
 	StatsResult ResultSetStats // intermediate result of stats query
 	Sort        *[]*SortField  // columns required for sorting

@@ -561,7 +561,7 @@ func ParseFilterNegate(stack *[]*Filter) (err error) {
 func (f *Filter) Match(row *DataRow) bool {
 	switch f.Column.DataType {
 	case StringCol, StringLargeCol, JSONCol:
-		return f.MatchString(row.GetString(f.Column))
+		return f.MatchStringRef(row.GetString(f.Column))
 	case StringListCol:
 		return f.MatchStringList(row.GetStringList(f.Column))
 	case IntCol:
@@ -608,7 +608,7 @@ func (f *Filter) MatchInt(value int) bool {
 		return value >= intVal
 	}
 	strVal := fmt.Sprintf("%v", value)
-	return f.MatchString(&strVal)
+	return f.MatchStringRef(&strVal)
 }
 
 func (f *Filter) MatchInt64(value int64) bool {
@@ -628,7 +628,7 @@ func (f *Filter) MatchInt64(value int64) bool {
 		return value >= intVal
 	}
 	strVal := fmt.Sprintf("%v", value)
-	return f.MatchString(&strVal)
+	return f.MatchStringRef(&strVal)
 }
 
 func (f *Filter) MatchFloat(value float64) bool {
@@ -647,7 +647,7 @@ func (f *Filter) MatchFloat(value float64) bool {
 		return value >= f.FloatValue
 	}
 	strVal := fmt.Sprintf("%v", value)
-	return f.MatchString(&strVal)
+	return f.MatchStringRef(&strVal)
 }
 
 func matchEmptyFilter(op Operator) bool {
@@ -669,7 +669,7 @@ func matchEmptyFilter(op Operator) bool {
 	return false
 }
 
-func (f *Filter) MatchString(value *string) bool {
+func (f *Filter) MatchStringRef(value *string) bool {
 	switch f.Operator {
 	case Equal:
 		return *value == f.StrValue
@@ -704,6 +704,41 @@ func (f *Filter) MatchString(value *string) bool {
 	return false
 }
 
+func (f *Filter) MatchString(value string) bool {
+	switch f.Operator {
+	case Equal:
+		return value == f.StrValue
+	case Unequal:
+		return value != f.StrValue
+	case EqualNocase:
+		return strings.EqualFold(value, f.StrValue)
+	case UnequalNocase:
+		return !strings.EqualFold(value, f.StrValue)
+	case RegexMatch, RegexNoCaseMatch:
+		return f.Regexp.MatchString(value)
+	case RegexMatchNot, RegexNoCaseMatchNot:
+		return !f.Regexp.MatchString(value)
+	case Less:
+		return value < f.StrValue
+	case LessThan:
+		return value <= f.StrValue
+	case Greater:
+		return value > f.StrValue
+	case GreaterThan:
+		return value >= f.StrValue
+	case Contains:
+		return strings.Contains(value, f.StrValue)
+	case ContainsNot:
+		return !strings.Contains(value, f.StrValue)
+	case ContainsNoCase:
+		return strings.Contains(strings.ToLower(value), f.StrValue)
+	case ContainsNoCaseNot:
+		return !strings.Contains(strings.ToLower(value), f.StrValue)
+	}
+	log.Warnf("not implemented string op: %s", f.Operator.String())
+	return false
+}
+
 func (f *Filter) MatchStringList(list *[]string) bool {
 	switch f.Operator {
 	case Equal:
@@ -730,7 +765,7 @@ func (f *Filter) MatchStringList(list *[]string) bool {
 		return true
 	case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase:
 		for i := range *list {
-			if f.MatchString(&(*list)[i]) {
+			if f.MatchStringRef(&(*list)[i]) {
 				return true
 			}
 		}
@@ -739,7 +774,7 @@ func (f *Filter) MatchStringList(list *[]string) bool {
 		for i := range *list {
 			// MatchString takes operator into account, so negate the result
 			// so if it returns false it means the value has been found
-			if !f.MatchString(&(*list)[i]) {
+			if !f.MatchStringRef(&(*list)[i]) {
 				return false
 			}
 		}
@@ -781,7 +816,7 @@ func (f *Filter) MatchCustomVar(value map[string]string) bool {
 	if !ok {
 		val = ""
 	}
-	return f.MatchString(&val)
+	return f.MatchStringRef(&val)
 }
 
 // some broken clients request <table>_column instead of just column

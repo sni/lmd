@@ -8,10 +8,10 @@ import (
 func TestStringFilter(t *testing.T) {
 	// compare empty strings
 	val := ""
-	if err := assertEq(true, (&Filter{Operator: Equal, StrValue: ""}).MatchString(&val)); err != nil {
+	if err := assertEq(true, (&Filter{Operator: Equal, StrValue: ""}).MatchStringRef(&val)); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq(false, (&Filter{Operator: Unequal, StrValue: ""}).MatchString(&val)); err != nil {
+	if err := assertEq(false, (&Filter{Operator: Unequal, StrValue: ""}).MatchStringRef(&val)); err != nil {
 		t.Error(err)
 	}
 }
@@ -57,11 +57,11 @@ func TestInt64ListFilter(t *testing.T) {
 func TestRegexpStringFilter(t *testing.T) {
 	value := "1"
 	regex := regexp.MustCompile("[12]")
-	if err := assertEq(true, (&Filter{Operator: RegexMatch, Regexp: regex}).MatchString(&value)); err != nil {
+	if err := assertEq(true, (&Filter{Operator: RegexMatch, Regexp: regex}).MatchStringRef(&value)); err != nil {
 		t.Error(err)
 	}
 	regex = regexp.MustCompile("[02]")
-	if err := assertEq(false, (&Filter{Operator: RegexMatch, Regexp: regex}).MatchString(&value)); err != nil {
+	if err := assertEq(false, (&Filter{Operator: RegexMatch, Regexp: regex}).MatchStringRef(&value)); err != nil {
 		t.Error(err)
 	}
 }

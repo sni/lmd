@@ -9,7 +9,17 @@ import (
 type ResultSet [][]interface{}
 
 // ResultSetStats contains a result from a stats query
-type ResultSetStats map[string][]*Filter
+type ResultSetStats struct {
+	Stats       map[string][]*Filter
+	Total       int // total number of matched rows regardless of any limits or offsets
+	RowsScanned int // total number of rows scanned to create result
+}
+
+func NewResultSetStats() *ResultSetStats {
+	res := ResultSetStats{}
+	res.Stats = make(map[string][]*Filter)
+	return &res
+}
 
 // Precompress compresses large strings in result set to allow faster updates (compressing would happen during locked update loop otherwise)
 func (res *ResultSet) Precompress(offset int, columns *ColumnList) {

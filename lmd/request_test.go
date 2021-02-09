@@ -1554,11 +1554,143 @@ func TestIndexedHost(t *testing.T) {
 	peer := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	res, _, err := peer.QueryString("GET hosts\nColumns: name\nFilter: host_name = testhost_1\n\n")
+	res, meta, err := peer.QueryString("GET hosts\nColumns: name state alias\nOutputFormat: wrapped_json\nColumnHeaders: on\nFilter: name = testhost_1\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err = assertEq(1, len(*res)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(int64(1), meta.Total); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(int64(1), meta.RowsScanned); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestIndexedService(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	res, meta, err := peer.QueryString("GET services\nColumns: host_name description state\nOutputFormat: wrapped_json\nColumnHeaders: on\nFilter: host_name = testhost_1\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(1, len(*res)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(int64(1), meta.Total); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(int64(1), meta.RowsScanned); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestIndexedServiceByHostRegex(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	res, meta, err := peer.QueryString("GET services\nColumns: host_name description state\nOutputFormat: wrapped_json\nColumnHeaders: on\nFilter: host_name ~~ Test.*1$\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(1, len(*res)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(int64(1), meta.Total); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(int64(1), meta.RowsScanned); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestIndexedHostByHostgroup(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	res, meta, err := peer.QueryString("GET hosts\nColumns: name state\nOutputFormat: wrapped_json\nColumnHeaders: on\nFilter: groups >= Everything\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(1, len(*res)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(int64(1), meta.Total); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(int64(1), meta.RowsScanned); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestIndexedServiceByHostgroup(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	res, meta, err := peer.QueryString("GET services\nColumns: host_name description state\nOutputFormat: wrapped_json\nColumnHeaders: on\nFilter: host_groups >= Everything\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(1, len(*res)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(int64(1), meta.Total); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(int64(1), meta.RowsScanned); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestIndexedServiceByServicegroup(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	res, meta, err := peer.QueryString("GET services\nColumns: host_name description state\nOutputFormat: wrapped_json\nColumnHeaders: on\nFilter: groups >= Http Check\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(1, len(*res)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(int64(1), meta.Total); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(int64(1), meta.RowsScanned); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestIndexedServiceByNestedHosts(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	res, meta, err := peer.QueryString(`GET services
+Columns: host_name description state
+OutputFormat: wrapped_json
+ColumnHeaders: on
+Filter: host_name = testhost_1
+Filter: description = testsvc_1
+And: 2
+Filter: host_name = testhost_2
+Filter: description = testsvc_1
+And: 2
+Or: 2
+
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(2, len(*res)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(int64(2), meta.Total); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(int64(2), meta.RowsScanned); err != nil {
 		t.Error(err)
 	}
 }

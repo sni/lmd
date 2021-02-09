@@ -199,88 +199,214 @@ func (d *DataStore) GetWaitObject(req *Request) (*DataRow, bool) {
 	return obj, ok
 }
 
+type getPreFilteredDataFilter func(*DataStore, map[string]bool, *Filter) bool
+
 // GetPreFilteredData returns d.Data but try to return reduced dataset by using host / service index if table supports it
-func (d *DataStore) GetPreFilteredData(filter *[]*Filter) []*DataRow {
+func (d *DataStore) GetPreFilteredData(filter *[]*Filter) *[]*DataRow {
 	if len(*filter) == 0 {
-		return d.Data
+		return &d.Data
 	}
 	switch d.Table.Name {
 	case TableHosts:
-		hostlist := GetIndexableHostnames(filter, "name")
-		if len(*hostlist) == 0 {
-			return d.Data
-		}
-		indexedData := make([]*DataRow, 0)
-		for _, name := range *hostlist {
+		return (d.tryFilterIndexData(filter, appendIndexHostsFromHostColumns))
+	case TableServices:
+		return (d.tryFilterIndexData(filter, appendIndexHostsFromServiceColumns))
+	}
+	return &d.Data
+}
+
+func (d *DataStore) tryFilterIndexData(filter *[]*Filter, fn getPreFilteredDataFilter) *[]*DataRow {
+	uniqHosts := make(map[string]bool)
+	ok := d.TryFilterIndex(uniqHosts, filter, fn, false)
+	if !ok {
+		return &d.Data
+	}
+	// sort and return list of index names used
+	hostlist := []string{}
+	for key := range uniqHosts {
+		hostlist = append(hostlist, key)
+	}
+	sort.Strings(hostlist)
+	if len(hostlist) == 0 {
+		return &d.Data
+	}
+	indexedData := make([]*DataRow, 0)
+	switch d.Table.Name {
+	case TableHosts:
+		for _, name := range hostlist {
 			row, ok := d.Index[name]
 			if ok {
 				indexedData = append(indexedData, row)
 			}
 		}
-		log.Tracef("using indexed %s dataset of size: %d", d.Table.Name.String(), len(indexedData))
-		return indexedData
 	case TableServices:
-		hostlist := GetIndexableHostnames(filter, "host_name")
-		if len(*hostlist) == 0 {
-			return d.Data
-		}
-		indexedData := make([]*DataRow, 0)
-		for _, name := range *hostlist {
-			rows, ok := d.Index2[name]
+		for _, name := range hostlist {
+			services, ok := d.Index2[name]
 			if ok {
-				for _, row := range rows {
+				for _, row := range services {
 					indexedData = append(indexedData, row)
 				}
 			}
 		}
-		log.Tracef("using indexed %s dataset of size: %d", d.Table.Name.String(), len(indexedData))
-		return indexedData
 	}
-	return d.Data
+	log.Tracef("using indexed %s dataset of size: %d", d.Table.Name.String(), len(indexedData))
+	return &indexedData
 }
 
-// GetIndexableHostnames returns list of hostname which can be used to reduce the initial dataset
-func GetIndexableHostnames(filter *[]*Filter, column string) *[]string {
-	hostlist := []string{}
-	uniqHosts := make(map[string]bool)
-	isUsable := func(f *Filter) bool {
-		return f.Operator == Equal && f.Column.Name == column && !f.Negate
-	}
+// TryFilterIndex returns list of hostname which can be used to reduce the initial dataset
+func (d *DataStore) TryFilterIndex(uniqHosts map[string]bool, filter *[]*Filter, fn getPreFilteredDataFilter, breakOnNoneIndexableFilter bool) bool {
+	filterFound := 0
 	for _, f := range *filter {
 		switch f.GroupOperator {
 		case And:
 			if f.Negate {
-				return &hostlist
+				// not supported
+				return false
 			}
-			for _, f2 := range f.Filter {
-				if isUsable(f2) {
-					uniqHosts[f2.StrValue] = true
-				}
+			ok := d.TryFilterIndex(uniqHosts, &f.Filter, fn, false)
+			if !ok {
+				return false
 			}
+			filterFound++
 		case Or:
 			if f.Negate {
-				return &hostlist
+				// not supported
+				return false
 			}
-			for _, f2 := range f.Filter {
-				if isUsable(f2) {
-					uniqHosts[f2.StrValue] = true
-				} else {
-					// none-indexable or filter, must do full table scan
-					return &hostlist
-				}
+			ok := d.TryFilterIndex(uniqHosts, &f.Filter, fn, true)
+			if !ok {
+				return false
 			}
+			filterFound++
 		default:
-			// top lvl filter are combined by AND, so its safe to prefilter result data and skip the others
-			if isUsable(f) {
-				uniqHosts[f.StrValue] = true
+			if f.Negate {
+				// not supported
+				return false
+			}
+
+			if fn(d, uniqHosts, f) {
+				filterFound++
+			} else if breakOnNoneIndexableFilter {
+				return false
 			}
 		}
 	}
+	// index can only be used if there is at least one useable filter found
+	return filterFound > 0
+}
 
-	// sort and return list of index names used
-	for key := range uniqHosts {
-		hostlist = append(hostlist, key)
+func appendIndexHostsFromHostColumns(d *DataStore, uniqHosts map[string]bool, f *Filter) bool {
+	// trim lower case columns prefix, they are used internally only
+	colName := strings.TrimSuffix(f.Column.Name, "_lc")
+	switch colName {
+	case "name":
+		// name == <value>
+		if f.Operator == Equal {
+			uniqHosts[f.StrValue] = true
+			return true
+		}
+	case "groups":
+		// get hosts from host groups members
+		switch f.Operator {
+		// groups >= <value>
+		case GreaterThan:
+			store := d.DataSet.tables[TableHostgroups]
+			group, ok := store.Index[f.StrValue]
+			if ok {
+				members := group.GetStringListByName("members")
+				for _, m := range *members {
+					uniqHosts[m] = true
+				}
+			}
+			return true
+		case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase:
+			store := d.DataSet.tables[TableHostgroups]
+			for groupname, group := range store.Index {
+				if f.MatchString(groupname) {
+					members := group.GetStringListByName("members")
+					for _, m := range *members {
+						uniqHosts[m] = true
+					}
+				}
+			}
+			return true
+		}
 	}
-	sort.Strings(hostlist)
-	return &hostlist
+	return false
+}
+
+func appendIndexHostsFromServiceColumns(d *DataStore, uniqHosts map[string]bool, f *Filter) bool {
+	// trim lower case columns prefix, they are used internally only
+	colName := strings.TrimSuffix(f.Column.Name, "_lc")
+	switch colName {
+	case "host_name":
+		switch f.Operator {
+		// host_name == <value>
+		case Equal:
+			uniqHosts[f.StrValue] = true
+			return true
+		// host_name ~~ <value>
+		case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase, EqualNocase:
+			store := d.DataSet.tables[TableHosts]
+			for hostname := range store.Index {
+				if f.MatchString(hostname) {
+					uniqHosts[hostname] = true
+				}
+			}
+			return true
+		}
+	case "host_groups":
+		// get hosts from host groups members
+		switch f.Operator {
+		// groups >= <value>
+		case GreaterThan:
+			store := d.DataSet.tables[TableHostgroups]
+			group, ok := store.Index[f.StrValue]
+			if ok {
+				members := group.GetStringListByName("members")
+				for _, m := range *members {
+					uniqHosts[m] = true
+				}
+			}
+			return true
+		case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase:
+			store := d.DataSet.tables[TableHostgroups]
+			for groupname, group := range store.Index {
+				if f.MatchString(groupname) {
+					members := group.GetStringListByName("members")
+					for _, m := range *members {
+						uniqHosts[m] = true
+					}
+				}
+			}
+			return true
+		}
+	case "groups":
+		// get hosts from services groups members
+		switch f.Operator {
+		// groups >= <value>
+		case GreaterThan:
+			store := d.DataSet.tables[TableServicegroups]
+			group, ok := store.Index[f.StrValue]
+			if ok {
+				members := group.GetServiceMemberListByName("members")
+				for i := range *members {
+					uniqHosts[(*members)[i][0]] = true
+				}
+			}
+			return true
+		case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase:
+			store := d.DataSet.tables[TableServicegroups]
+			for groupname, group := range store.Index {
+				if f.MatchString(groupname) {
+					members := group.GetServiceMemberListByName("members")
+					for i := range *members {
+						uniqHosts[(*members)[i][0]] = true
+					}
+				}
+			}
+			return true
+		}
+	}
+	return false
 }
