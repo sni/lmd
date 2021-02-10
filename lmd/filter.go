@@ -504,8 +504,8 @@ func ParseStats(value []byte, table TableName, stack *[]*Filter, options ParseOp
 	columnName := string(tmp[1])
 	col := Objects.Tables[table].ColumnsIndex[columnName]
 	if col == nil {
-		err = fmt.Errorf("unrecognized column from stats: %s", columnName)
-		return
+		t := Objects.Tables[table]
+		col = t.GetColumnWithFallback(columnName)
 	}
 	stats := &Filter{
 		Column:     col,
