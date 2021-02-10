@@ -325,13 +325,8 @@ func NewRequest(b *bufio.Reader, options ParseOptions) (req *Request, size int, 
 
 	// remove unnecessary filter indentation
 	if options&ParseOptimize != 0 {
-		for {
-			if len(req.Filter) == 1 && len(req.Filter[0].Filter) > 0 && req.Filter[0].GroupOperator == And {
-				req.Filter = req.Filter[0].Filter
-			} else {
-				break
-			}
-		}
+		req.optimizeFilterIndentation()
+		req.optimizeStatsGroups(&req.Stats)
 	}
 
 	req.SetRequestColumns()
@@ -1030,4 +1025,83 @@ func (req *Request) optimizeResultLimit() (limit int) {
 		limit = -1
 	}
 	return
+}
+
+// optimizeFilterIndentation removes unnecessary filter indentation
+func (req *Request) optimizeFilterIndentation() {
+	for {
+		if len(req.Filter) == 1 && len(req.Filter[0].Filter) > 0 && req.Filter[0].GroupOperator == And {
+			req.Filter = req.Filter[0].Filter
+		} else {
+			break
+		}
+	}
+}
+
+/* optimizeStatsGroups combines similar StatsAnd: to nested stats
+   for example with a query like:
+
+```
+    Stats: has_been_checked = 1
+    Stats: state = 0
+    StatsAnd: 2
+    Stats: has_been_checked = 1
+    Stats: state = 1
+    StatsAnd: 2
+```
+
+    those two counters can be combined, so the has_been_checked has only to be checked once
+*/
+func (req *Request) optimizeStatsGroups(stats *[]*Filter) {
+	if len(*stats) <= 1 {
+		return
+	}
+	groupedStats := make([]*Filter, 0)
+	var lastGroup *Filter
+	for i := range *stats {
+		s := (*stats)[i]
+		if s.StatsType != Counter || s.Column != nil || len(s.Filter) < 2 {
+			groupedStats = append(groupedStats, s)
+			continue
+		}
+
+		// append to previous group?
+		if i >= 1 && lastGroup != nil {
+			firstFilter := s.Filter[0]
+			if lastGroup.Column == firstFilter.Column && lastGroup.Operator == firstFilter.Operator && lastGroup.StrValue == firstFilter.StrValue {
+				_, others := s.Filter[0], s.Filter[1:]
+				s.Filter = others
+				lastGroup.Filter = append(lastGroup.Filter, s)
+				continue
+			}
+			// build sub stats groups recursively
+			req.optimizeStatsGroups(&lastGroup.Filter)
+			lastGroup = nil
+		}
+
+		// start a new group if the current first stats filter matches the next first stats filter
+		if len(*stats) > i+1 {
+			next := (*stats)[i+1]
+			if next.StatsType != Counter || next.Column != nil || len(next.Filter) < 2 {
+				groupedStats = append(groupedStats, s)
+				continue
+			}
+			if !next.Filter[0].Equals(s.Filter[0]) {
+				groupedStats = append(groupedStats, s)
+				continue
+			}
+			group, others := s.Filter[0], s.Filter[1:]
+			group.StatsType = StatsGroup
+			group.Filter = []*Filter{s}
+			s.Filter = others
+			groupedStats = append(groupedStats, group)
+			lastGroup = group
+			continue
+		}
+	}
+	// build sub stats groups recursively
+	if lastGroup != nil {
+		req.optimizeStatsGroups(&lastGroup.Filter)
+	}
+	req.Stats = groupedStats
 }

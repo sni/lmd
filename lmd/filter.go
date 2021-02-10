@@ -21,6 +21,7 @@ const (
 	Average // avg
 	Min     // min
 	Max     // max
+	StatsGroup
 )
 
 const RegexDotMinSize = 4
@@ -180,6 +181,40 @@ func (f *Filter) String(prefix string) (str string) {
 		str += fmt.Sprintf("%s\n", "Negate:")
 	}
 	return
+}
+
+// Equals returns true if both filter are exactly identical
+func (f *Filter) Equals(o *Filter) bool {
+	if f.Column != o.Column {
+		return false
+	}
+	if f.Operator != o.Operator {
+		return false
+	}
+	if f.StrValue != o.StrValue {
+		return false
+	}
+	if f.Negate != o.Negate {
+		return false
+	}
+	if f.FloatValue != o.FloatValue {
+		return false
+	}
+	if f.StatsType != o.StatsType {
+		return false
+	}
+	if f.GroupOperator != o.GroupOperator {
+		return false
+	}
+	if len(f.Filter) != len(o.Filter) {
+		return false
+	}
+	for i := range f.Filter {
+		if !f.Filter[i].Equals(o.Filter[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 func (f *Filter) strValue() string {

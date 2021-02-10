@@ -1373,3 +1373,27 @@ func (d *DataRow) checkAuth(authUser string) (canView bool) {
 	}
 	return
 }
+
+func (d *DataRow) CountStats(stats *[]*Filter) {
+	for i := range *stats {
+		s := (*stats)[i]
+		// avg/sum/min/max are passed through, they don't have filter
+		// counter must match their filter
+		switch s.StatsType {
+		case Counter:
+			if d.MatchFilter(s) {
+				// TODO: implement
+				stat[i].Stats++
+				stat[i].StatsCount++
+			}
+		case StatsGroup:
+			// if filter matches, recurse into sub stats
+			if d.MatchFilter(s) {
+				d.CountStats(&s.Filter)
+			}
+		default:
+			stat[i].ApplyValue(d.GetFloat(s.Column), 1)
+		}
+	}
+
+}

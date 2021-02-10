@@ -1696,3 +1696,35 @@ Or: 2
 		t.Error(err)
 	}
 }
+
+func TestStatsQueryOptimizer(t *testing.T) {
+	query := `GET services
+OutputFormat: wrapped_json
+ColumnHeaders: on
+Stats: has_been_checked = 1
+Stats: has_been_checked = 1
+Stats: state = 0
+StatsAnd: 2
+Stats: has_been_checked = 1
+Stats: state = 1
+StatsAnd: 2
+Stats: has_been_checked = 1
+Stats: state = 2
+StatsAnd: 2
+`
+	buf := bufio.NewReader(bytes.NewBufferString(query))
+	req, _, err := NewRequest(buf, ParseOptimize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(2, len(req.Stats)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(StatsGroup, req.Stats[1].StatsType); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(3, len(req.Stats[1].Filter)); err != nil {
+		t.Error(err)
+	}
+	// TODO: add test case for stats with and without optimizer
+}

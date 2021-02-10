@@ -800,24 +800,13 @@ Rows:
 		key := row.getStatsKey(res)
 		stat := localStats[key]
 		if stat == nil {
+			// TODO: fix
 			stat = createLocalStatsCopy(&req.Stats)
 			localStats[key] = stat
 		}
 
 		// count stats
-		for i := range req.Stats {
-			s := req.Stats[i]
-			// avg/sum/min/max are passed through, they don't have filter
-			// counter must match their filter
-			if s.StatsType == Counter {
-				if row.MatchFilter(s) {
-					stat[i].Stats++
-					stat[i].StatsCount++
-				}
-			} else {
-				stat[i].ApplyValue(row.GetFloat(s.Column), 1)
-			}
-		}
+		row.CountStats(&req.Stats)
 	}
 
 	return result
