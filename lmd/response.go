@@ -433,7 +433,7 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 		// append result row by row
 		for i := range res.Result {
 			if i > 0 {
-				json.WriteRaw(",")
+				json.WriteRaw(",\n")
 			}
 			json.WriteVal(res.Result[i])
 		}
