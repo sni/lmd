@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"strings"
 	"testing"
 	"time"
 )
@@ -491,42 +490,6 @@ Stats: avg latency
 		t.Error(err)
 	}
 	if err = assertEq(0.08365800231700002, (*res)[0][4]); err != nil {
-		t.Error(err)
-	}
-
-	if err := StopTestPeer(peer); err != nil {
-		panic(err.Error())
-	}
-}
-
-func TestRequestStatsTac(t *testing.T) {
-	peer := StartTestPeer(4, 10, 10)
-	PauseTestPeers(peer)
-
-	if err := assertEq(4, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
-
-	res, meta, err := peer.QueryString(strings.ReplaceAll(tacPageStatsQuery, "OutputFormat: json", "OutputFormat: wrapped_json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(int64(1), meta.Total); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq(int64(40), meta.RowsScanned); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq(float64(40), (*res)[0][0]); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq(float64(32), (*res)[0][7]); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq(float64(28), (*res)[0][8]); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq(float64(4), (*res)[0][9]); err != nil {
 		t.Error(err)
 	}
 
@@ -1784,6 +1747,43 @@ Or: 2
 		t.Error(err)
 	}
 	if err = assertEq(int64(2), meta.RowsScanned); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestStatsQueryOptimizer(t *testing.T) {
+	query := `GET services
+OutputFormat: wrapped_json
+ColumnHeaders: on
+Stats: has_been_checked = 1
+Stats: has_been_checked = 1
+Stats: state = 0
+StatsAnd: 2
+Stats: has_been_checked = 1
+Stats: state = 1
+StatsAnd: 2
+Stats: has_been_checked = 1
+Stats: state = 2
+StatsAnd: 2
+`
+	buf := bufio.NewReader(bytes.NewBufferString(query))
+	req, _, err := NewRequest(buf, ParseOptimize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(2, len(*req.StatsGrouped)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(Counter, (*req.StatsGrouped)[0].StatsType); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(StatsGroup, (*req.StatsGrouped)[1].StatsType); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(3, len((*req.StatsGrouped)[1].Filter)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(3, (*req.StatsGrouped)[1].Filter[2].StatsPos); err != nil {
 		t.Error(err)
 	}
 }

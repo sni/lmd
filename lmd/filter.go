@@ -21,6 +21,7 @@ const (
 	Average // avg
 	Min     // min
 	Max     // max
+	StatsGroup
 )
 
 const RegexDotMinSize = 4
@@ -39,7 +40,7 @@ func (op *StatsType) String() string {
 	case Max:
 		return "Max"
 	default:
-		log.Panicf("not implemented")
+		log.Panicf("not implemented: %#v", op)
 	}
 	return ""
 }
@@ -65,6 +66,7 @@ type Filter struct {
 	Stats      float64
 	StatsCount int
 	StatsType  StatsType
+	StatsPos   int // position in stats result array
 
 	// copy of Column.Optional
 	ColumnOptional OptionalFlags
@@ -149,12 +151,14 @@ func (op *Operator) String() string {
 
 // String converts a filter back to its string representation.
 func (f *Filter) String(prefix string) (str string) {
-	if len(f.Filter) > 0 {
-		for i := range f.Filter {
-			str += f.Filter[i].String(prefix)
+	if f.GroupOperator == And || f.GroupOperator == Or {
+		if len(f.Filter) > 0 {
+			for i := range f.Filter {
+				str += f.Filter[i].String(prefix)
+			}
+			str += fmt.Sprintf("%s%s: %d\n", prefix, f.GroupOperator.String(), len(f.Filter))
+			return
 		}
-		str += fmt.Sprintf("%s%s: %d\n", prefix, f.GroupOperator.String(), len(f.Filter))
-		return
 	}
 
 	strVal := f.strValue()
@@ -171,6 +175,11 @@ func (f *Filter) String(prefix string) (str string) {
 			prefix = "Filter"
 		}
 		str = fmt.Sprintf("%s: %s %s%s\n", prefix, colName, f.Operator.String(), strVal)
+	case StatsGroup:
+		if prefix == "" {
+			prefix = "Filter"
+		}
+		str = fmt.Sprintf("%sGroup: %s %s%s\n", prefix, colName, f.Operator.String(), strVal)
 	case Counter:
 		str = fmt.Sprintf("Stats: %s %s%s\n", colName, f.Operator.String(), strVal)
 	default:
@@ -180,6 +189,40 @@ func (f *Filter) String(prefix string) (str string) {
 		str += fmt.Sprintf("%s\n", "Negate:")
 	}
 	return
+}
+
+// Equals returns true if both filter are exactly identical
+func (f *Filter) Equals(o *Filter) bool {
+	if f.Column != o.Column {
+		return false
+	}
+	if f.Operator != o.Operator {
+		return false
+	}
+	if f.StrValue != o.StrValue {
+		return false
+	}
+	if f.Negate != o.Negate {
+		return false
+	}
+	if f.FloatValue != o.FloatValue {
+		return false
+	}
+	if f.StatsType != o.StatsType {
+		return false
+	}
+	if f.GroupOperator != o.GroupOperator {
+		return false
+	}
+	if len(f.Filter) != len(o.Filter) {
+		return false
+	}
+	for i := range f.Filter {
+		if !f.Filter[i].Equals(o.Filter[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 func (f *Filter) strValue() string {
