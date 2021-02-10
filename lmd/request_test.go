@@ -256,7 +256,6 @@ func TestResponseErrorsFunc(t *testing.T) {
 		{"GET hosts\nFilter: name", "bad request: filter header must be Filter: <field> <operator> <value> in: Filter: name"},
 		{"GET hosts\nFilter: name ~~ *^", "bad request: invalid regular expression: error parsing regexp: missing argument to repetition operator: `*` in: Filter: name ~~ *^"},
 		{"GET hosts\nStats: name", "bad request: stats header, must be Stats: <field> <operator> <value> OR Stats: <sum|avg|min|max> <field> in: Stats: name"},
-		{"GET hosts\nStats: avg none", "bad request: unrecognized column from stats: none in: Stats: avg none"},
 		{"GET hosts\nFilter: name !=\nAnd: x", "bad request: And must be a positive number in: And: x"},
 		{"GET hosts\nColumns: name\nFilter: custom_variables =", "bad request: custom variable filter must have form \"Filter: custom_variables <op> <variable> [<value>]\" in: Filter: custom_variables ="},
 		{"GET hosts\nKeepalive: broke", "bad request: must be 'on' or 'off' in: Keepalive: broke"},
