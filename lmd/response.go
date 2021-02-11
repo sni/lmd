@@ -289,6 +289,7 @@ func (res *Response) CalculateFinalStats() {
 			}
 		}
 		j++
+		res.RowsScanned += res.Request.StatsResult.RowsScanned
 	}
 
 	if hasColumns > 0 {
@@ -299,6 +300,7 @@ func (res *Response) CalculateFinalStats() {
 		}
 		sort.Sort(res)
 	}
+	res.ResultTotal += len(res.Result)
 }
 
 func finalStatsApply(s *Filter) (res float64) {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 	"testing"
 	"time"
 )
@@ -436,6 +437,96 @@ func TestRequestStatsBroken(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err = assertEq(float64(0), (*res)[0][0]); err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestRequestStatsFilter(t *testing.T) {
+	peer := StartTestPeer(4, 10, 10)
+	PauseTestPeers(peer)
+
+	if err := assertEq(4, len(PeerMap)); err != nil {
+		t.Error(err)
+	}
+
+	res, _, err := peer.QueryString("GET hosts\nColumns: name latency\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(40, len(*res)); err != nil {
+		t.Error(err)
+	}
+
+	res, _, err = peer.QueryString(`GET hosts
+Stats: has_been_checked = 0
+Stats: has_been_checked = 1
+Stats: state = 0
+StatsAnd: 2
+Stats: has_been_checked = 1
+Stats: state = 1
+StatsAnd: 2
+Stats: has_been_checked = 1
+Stats: state = 2
+StatsAnd: 2
+Stats: avg latency
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = assertEq(float64(0), (*res)[0][0]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(float64(40), (*res)[0][1]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(float64(0), (*res)[0][2]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(float64(0), (*res)[0][3]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(0.08365800231700002, (*res)[0][4]); err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestRequestStatsTac(t *testing.T) {
+	peer := StartTestPeer(4, 10, 10)
+	PauseTestPeers(peer)
+
+	if err := assertEq(4, len(PeerMap)); err != nil {
+		t.Error(err)
+	}
+
+	res, meta, err := peer.QueryString(strings.ReplaceAll(tacPageStatsQuery, "OutputFormat: json", "OutputFormat: wrapped_json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(int64(1), meta.Total); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(int64(40), meta.RowsScanned); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(float64(40), (*res)[0][0]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(float64(32), (*res)[0][7]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(float64(28), (*res)[0][8]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(float64(4), (*res)[0][9]); err != nil {
 		t.Error(err)
 	}
 
