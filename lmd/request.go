@@ -1074,9 +1074,7 @@ func (req *Request) optimizeStatsGroups(stats *[]*Filter, renumber bool) *[]*Fil
 		if i >= 1 && lastGroup != nil {
 			firstFilter := s.Filter[0]
 			if lastGroup.Column == firstFilter.Column && lastGroup.Operator == firstFilter.Operator && lastGroup.StrValue == firstFilter.StrValue {
-				_, others := s.Filter[0], s.Filter[1:]
-				s.Filter = others
-				lastGroup.Filter = append(lastGroup.Filter, s)
+				lastGroup.Filter = append(lastGroup.Filter, removeFirstStatsFilter(s))
 				continue
 			}
 		}
@@ -1096,10 +1094,9 @@ func (req *Request) optimizeStatsGroups(stats *[]*Filter, renumber bool) *[]*Fil
 				continue
 			}
 
-			group, others := s.Filter[0], s.Filter[1:]
+			group := s.Filter[0]
 			group.StatsType = StatsGroup
-			group.Filter = []*Filter{s}
-			s.Filter = others
+			group.Filter = []*Filter{removeFirstStatsFilter(s)}
 
 			groupedStats = append(groupedStats, group)
 			lastGroup = group
@@ -1122,4 +1119,20 @@ func (req *Request) optimizeStatsGroupsRecurse(lastGroup *Filter) {
 		lastGroup.Filter = *subgroup
 	}
 	lastGroup = nil
+}
+
+func removeFirstStatsFilter(s *Filter) *Filter {
+	// strip first filter, this one is handled in the parent group
+	s.Filter = s.Filter[1:]
+
+	// still multiple filters, keep list
+	if len(s.Filter) > 1 {
+		return s
+	}
+
+	// remove indentation lvl if only one remaining
+	s.Filter[0].StatsPos = s.StatsPos
+	s = s.Filter[0]
+	s.StatsType = Counter
+	return s
 }
