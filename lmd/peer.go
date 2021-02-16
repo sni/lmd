@@ -741,6 +741,7 @@ func (p *Peer) InitAllTables() (err error) {
 	p.Status[LastFullUpdate] = time.Now().Unix()
 	p.Status[LastFullServiceUpdate] = time.Now().Unix()
 	p.Status[LastFullHostUpdate] = time.Now().Unix()
+	peerStatus := p.Status[PeerState].(PeerStatus)
 	p.Lock.Unlock()
 	data := NewDataStoreSet(p)
 	t1 := time.Now()
@@ -765,7 +766,9 @@ func (p *Peer) InitAllTables() (err error) {
 				return
 			}
 			// got an answer, remove last error and let clients know we are reconnecting
-			p.StatusSet(LastError, "reconnecting...")
+			if peerStatus != PeerStatusPending {
+				p.StatusSet(LastError, "reconnecting...")
+			}
 		case TableComments:
 			err = data.RebuildCommentsCache()
 			if err != nil {
@@ -791,7 +794,7 @@ func (p *Peer) InitAllTables() (err error) {
 	p.Lock.Lock()
 	p.SetData(data, false)
 	p.Status[ResponseTime] = duration.Seconds()
-	peerStatus := p.Status[PeerState].(PeerStatus)
+	peerStatus = p.Status[PeerState].(PeerStatus)
 	log.Infof("[%s] objects created in: %s", p.Name, duration.String())
 	if peerStatus != PeerStatusUp {
 		// Reset errors
