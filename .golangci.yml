@@ -44,6 +44,7 @@ linters:
     - godot
     - forbidigo
     - ifshort
+    - cyclop
   fast: false
 issues:
   max-same-issues: 0
