@@ -33,6 +33,7 @@ var reHTTPOMDError = regexp.MustCompile(`<h1>(OMD:.*?)</h1>`)
 var reShinkenVersion = regexp.MustCompile(`\-shinken$`)
 var reIcinga2Version = regexp.MustCompile(`^(r[\d.-]+|.*\-icinga2)$`)
 var reNaemonVersion = regexp.MustCompile(`\-naemon$`)
+var reThrukVersion = regexp.MustCompile(`^(\d+\.\d+|\d+).*?$`)
 
 const (
 	// MinFullScanInterval is the minimum interval between two full scans
@@ -1778,7 +1779,8 @@ func (p *Peer) HTTPPostQuery(req *Request, peerAddr string, postData url.Values,
 	}
 	if result.Version != "" {
 		currentVersion := p.StatusGet(ThrukVersion).(float64)
-		thrukVersion, e := strconv.ParseFloat(result.Version, 64)
+		newVersion := reThrukVersion.ReplaceAllString(result.Version, `$1`)
+		thrukVersion, e := strconv.ParseFloat(newVersion, 64)
 		if e == nil && currentVersion != thrukVersion {
 			log.Debugf("[%s] remote site uses thruk version: %s", p.Name, result.Version)
 			p.StatusSet(ThrukVersion, thrukVersion)
