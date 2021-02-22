@@ -391,19 +391,19 @@ func CheckOpenFilesLimit(b *testing.B, minimum uint64) {
 
 func StartHTTPMockServer(t *testing.T) (*httptest.Server, func()) {
 	t.Helper()
-	var data struct {
-		// Credential string  // unused
-		Options struct {
-			// Action string // unused
-			Args []string
-			Sub  string
-		}
-	}
 	nr := 0
 	numHosts := 5
 	numServices := 10
 	dataFolder := prepareTmpData("../t/data", nr, numHosts, numServices)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data struct {
+			// Credential string  // unused
+			Options struct {
+				// Action string // unused
+				Args []string
+				Sub  string
+			}
+		}
 		err := json.Unmarshal([]byte(r.PostFormValue("data")), &data)
 		if err != nil {
 			t.Fatalf("failed to parse request: %s", err.Error())
