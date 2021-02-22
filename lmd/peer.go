@@ -280,20 +280,7 @@ func NewPeer(globalConfig *Config, config *Connection, waitGroup *sync.WaitGroup
 	p.Status[SubType] = []string{}
 
 	/* initialize http client if there are any http(s) connections */
-	hasHTTP := false
-	for _, addr := range config.Source {
-		if strings.HasPrefix(addr, "http") {
-			hasHTTP = true
-			break
-		}
-	}
-	if hasHTTP {
-		tlsConfig, err := p.getTLSClientConfig()
-		if err != nil {
-			log.Fatalf("failed to initialize peer: %s", err.Error())
-		}
-		p.cache.HTTPClient = NewLMDHTTPClient(tlsConfig, config.Proxy)
-	}
+	p.SetHTTPClient()
 
 	p.ResetFlags()
 
@@ -324,6 +311,29 @@ func (p *Peer) Stop() {
 		log.Infof("[%s] stopping connection", p.Name)
 		p.stopChannel <- true
 	}
+}
+
+// SetHTTPClient creates the cached http client (if backend uses HTTP)
+func (p *Peer) SetHTTPClient() {
+	hasHTTP := false
+	for _, addr := range p.Source {
+		if strings.HasPrefix(addr, "http") {
+			hasHTTP = true
+			break
+		}
+	}
+	if !hasHTTP {
+		return
+	}
+
+	tlsConfig, err := p.getTLSClientConfig()
+	if err != nil {
+		log.Fatalf("failed to initialize peer: %s", err.Error())
+	}
+	client := NewLMDHTTPClient(tlsConfig, p.Config.Proxy)
+	client.Timeout = time.Duration(p.GlobalConfig.NetTimeout) * time.Second
+
+	p.cache.HTTPClient = client
 }
 
 func (p *Peer) countFromServer(name string, queryCondition string) (count int) {
@@ -1805,7 +1815,6 @@ func (p *Peer) HTTPQuery(req *Request, peerAddr string, query string) (res []byt
 
 // HTTPPostQueryResult returns response array from thruk api
 func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url.Values, headers map[string]string) (result *HTTPResult, err error) {
-	p.cache.HTTPClient.Timeout = time.Duration(p.GlobalConfig.NetTimeout) * time.Second
 	ctx := context.Background()
 	req, err := http.NewRequestWithContext(ctx, "POST", peerAddr, strings.NewReader(postData.Encode()))
 	if err != nil {

@@ -464,6 +464,7 @@ func initializePeers(localConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 				p.waitGroup = waitGroupPeers
 				p.shutdownChannel = shutdownChannel
 				p.GlobalConfig = localConfig
+				p.SetHTTPClient()
 				p.Lock.Unlock()
 			}
 		}
