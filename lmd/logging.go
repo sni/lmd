@@ -76,22 +76,27 @@ func InitLogging(conf *Config) {
 	}
 }
 
-// can be used as error handler
-func logDebugError(err error) {
-	if err == nil {
-		return
-	}
-	log.Debugf("got error: %e", err)
-	log.Debugf("Stacktrace:\n%s", debug.Stack())
+// LogErrors can be used as error handler, logs error with debug log level
+func LogErrors(v ...interface{}) {
+	LogErrorsPrefix("", v...)
 }
 
-// can be used as error handler
-func logDebugError2(_ interface{}, err error) {
-	if err == nil {
+// LogErrorsPrefix can be used as generic logger with a prefix
+func LogErrorsPrefix(prefix string, v ...interface{}) {
+	if !log.IsV(LogVerbosityDebug) {
 		return
 	}
-	log.Debugf("got error: %e", err)
-	log.Debugf("Stacktrace:\n%s", debug.Stack())
+	for _, e := range v {
+		err, ok := e.(error)
+		if !ok {
+			continue
+		}
+		if err == nil {
+			continue
+		}
+		log.Debugf("%sgot error: %e", prefix, err)
+		log.Debugf("%sStacktrace:\n%s", prefix, debug.Stack())
+	}
 }
 
 // LogWriter implements the io.Writer interface and simply logs everything with given level

@@ -111,36 +111,37 @@ func (c *Connection) Equals(other *Connection) bool {
 
 // Config defines the available configuration options from supplied config files.
 type Config struct {
-	Listen                 []string
-	Nodes                  []string
-	TLSCertificate         string
-	TLSKey                 string
-	TLSClientPems          []string
-	Updateinterval         int64
-	FullUpdateInterval     int64
-	Connections            []Connection
-	LogFile                string
-	LogLevel               string
-	LogSlowQueryThreshold  int
-	LogHugeQueryThreshold  int
-	ConnectTimeout         int
-	NetTimeout             int
-	ListenTimeout          int
-	SaveTempRequests       bool
-	ListenPrometheus       string
-	SkipSSLCheck           int
-	IdleTimeout            int64
-	IdleInterval           int64
-	StaleBackendTimeout    int
-	BackendKeepAlive       bool
-	ServiceAuthorization   string
-	GroupAuthorization     string
-	SyncIsExecuting        bool
-	CompressionMinimumSize int
-	CompressionLevel       int
-	MaxClockDelta          float64
-	UpdateOffset           int64
-	TLSMinVersion          string
+	Listen                     []string
+	Nodes                      []string
+	TLSCertificate             string
+	TLSKey                     string
+	TLSClientPems              []string
+	Updateinterval             int64
+	FullUpdateInterval         int64
+	Connections                []Connection
+	LogFile                    string
+	LogLevel                   string
+	LogSlowQueryThreshold      int
+	LogHugeQueryThreshold      int
+	ConnectTimeout             int
+	NetTimeout                 int
+	ListenTimeout              int
+	SaveTempRequests           bool
+	ListenPrometheus           string
+	SkipSSLCheck               int
+	IdleTimeout                int64
+	IdleInterval               int64
+	StaleBackendTimeout        int
+	BackendKeepAlive           bool
+	ServiceAuthorization       string
+	GroupAuthorization         string
+	SyncIsExecuting            bool
+	CompressionMinimumSize     int
+	CompressionLevel           int
+	MaxClockDelta              float64
+	UpdateOffset               int64
+	TLSMinVersion              string
+	MaxParallelPeerConnections int
 }
 
 // PeerMap contains a map of available remote peers.
@@ -835,11 +836,12 @@ func ReadConfig(files []string) *Config {
 	// combine listeners from all files
 	allListeners := make([]string, 0)
 	conf := &Config{
-		BackendKeepAlive:       true,
-		SaveTempRequests:       true,
-		CompressionLevel:       -1,
-		CompressionMinimumSize: DefaultCompressionMinimumSize,
-		TLSMinVersion:          "tls1.1",
+		BackendKeepAlive:           true,
+		SaveTempRequests:           true,
+		CompressionLevel:           -1,
+		CompressionMinimumSize:     DefaultCompressionMinimumSize,
+		TLSMinVersion:              "tls1.1",
+		MaxParallelPeerConnections: 3,
 	}
 	for _, pattern := range files {
 		configFiles, errGlob := filepath.Glob(pattern)

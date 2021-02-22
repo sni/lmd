@@ -696,7 +696,7 @@ func SpinUpPeers(peers []*Peer) {
 			// make sure we log panics properly
 			defer logPanicExitPeer(peer)
 			defer wg.Done()
-			logDebugError(peer.ResumeFromIdle())
+			LogErrors(peer.ResumeFromIdle())
 		}(p, waitgroup)
 	}
 	waitTimeout(waitgroup, SpinUpPeersTimeout)

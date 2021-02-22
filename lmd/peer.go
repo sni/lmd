@@ -462,7 +462,7 @@ func (p *Peer) periodicUpdateLMD(force bool) (err error) {
 	lastUpdate := p.Status[LastUpdate].(int64)
 	p.Lock.RUnlock()
 
-	data, err := p.GetData()
+	data, err := p.GetDataStoreSet()
 	if err != nil {
 		return
 	}
@@ -575,7 +575,7 @@ func (p *Peer) periodicUpdateMultiBackends(force bool) (err error) {
 		return
 	}
 
-	data, err := p.GetData()
+	data, err := p.GetDataStoreSet()
 	if err != nil {
 		return
 	}
@@ -742,47 +742,33 @@ func (p *Peer) InitAllTables() (err error) {
 	p.Status[LastFullUpdate] = time.Now().Unix()
 	p.Status[LastFullServiceUpdate] = time.Now().Unix()
 	p.Status[LastFullHostUpdate] = time.Now().Unix()
-	peerStatus := p.Status[PeerState].(PeerStatus)
 	p.Lock.Unlock()
 	data := NewDataStoreSet(p)
 	t1 := time.Now()
-	for _, n := range Objects.UpdateTables {
-		t := Objects.Tables[n]
-		if p.HasFlag(MultiBackend) && t.Name != TableStatus {
-			// just create empty data pools
-			// real data is handled by separate peers
-			continue
-		}
-		var store *DataStore
-		store, err = data.CreateObjectByType(t)
+
+	if p.GlobalConfig.MaxParallelPeerConnections <= 1 {
+		err = p.initAllTablesSerial(data)
+	} else {
+		err = p.initAllTablesParallel(data)
+	}
+	if err != nil {
+		return
+	}
+
+	if !p.HasFlag(MultiBackend) {
+		err = data.SetReferences()
 		if err != nil {
-			log.Debugf("[%s] creating initial objects failed in table %s: %s", p.Name, t.Name.String(), err.Error())
 			return
 		}
-		data.Set(t.Name, store)
-		switch t.Name {
-		case TableStatus:
-			err = p.updateInitialStatus(store)
-			if err != nil {
-				return
-			}
-			// got an answer, remove last error and let clients know we are reconnecting
-			if peerStatus != PeerStatusPending {
-				p.StatusSet(LastError, "reconnecting...")
-			}
-		case TableComments:
-			err = data.RebuildCommentsCache()
-			if err != nil {
-				return
-			}
-		case TableDowntimes:
-			err = data.RebuildDowntimesCache()
-			if err != nil {
-				return
-			}
-		case TableTimeperiods:
-			lastTimeperiodUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
-			p.StatusSet(LastTimeperiodUpdateMinute, lastTimeperiodUpdateMinute)
+
+		err = data.RebuildCommentsCache()
+		if err != nil {
+			return
+		}
+
+		err = data.RebuildDowntimesCache()
+		if err != nil {
+			return
 		}
 	}
 
@@ -793,9 +779,9 @@ func (p *Peer) InitAllTables() (err error) {
 
 	duration := time.Since(t1)
 	p.Lock.Lock()
-	p.SetData(data, false)
+	p.SetDataStoreSet(data, false)
 	p.Status[ResponseTime] = duration.Seconds()
-	peerStatus = p.Status[PeerState].(PeerStatus)
+	peerStatus := p.Status[PeerState].(PeerStatus)
 	log.Infof("[%s] objects created in: %s", p.Name, duration.String())
 	if peerStatus != PeerStatusUp {
 		// Reset errors
@@ -813,7 +799,111 @@ func (p *Peer) InitAllTables() (err error) {
 	return
 }
 
+// fetches all objects one at a time
+func (p *Peer) initAllTablesSerial(data *DataStoreSet) (err error) {
+	t1 := time.Now()
+
+	// fetch one at a time
+	for _, n := range Objects.UpdateTables {
+		t := Objects.Tables[n]
+		err = p.initTable(data, t)
+		if err != nil {
+			log.Debugf("[%s] fetching %s objects failed: %s", p.Name, t.Name.String(), err.Error())
+			return
+		}
+	}
+
+	log.Debugf("[%s] objects fetched serially in %s", p.Name, time.Since(t1).String())
+	return
+}
+
+// fetches all objects at once
+func (p *Peer) initAllTablesParallel(data *DataStoreSet) (err error) {
+	t1 := time.Now()
+
+	// go with status table first
+	err = p.initTable(data, Objects.Tables[TableStatus])
+	if err != nil {
+		return
+	}
+
+	// then fetch all others in parallel
+	results := make(chan error, len(Objects.UpdateTables)-1)
+	maxConnPerSite := make(chan bool, p.GlobalConfig.MaxParallelPeerConnections) // limit max parallel connections
+	wait := &sync.WaitGroup{}
+	for _, n := range Objects.UpdateTables {
+		if n == TableStatus {
+			continue
+		}
+		t := Objects.Tables[n]
+		wait.Add(1)
+		maxConnPerSite <- true // wait/reserve one connection slot, channel will block if full
+		go func(data *DataStoreSet, table *Table) {
+			// make sure we log panics properly
+			defer logPanicExitPeer(p)
+			defer func() {
+				wait.Done()
+				<-maxConnPerSite // free one connection slot
+			}()
+
+			err := p.initTable(data, table)
+			results <- err
+			if err != nil {
+				log.Debugf("[%s] fetching %s objects failed: %s", p.Name, table.Name.String(), err.Error())
+				return
+			}
+		}(data, t)
+	}
+
+	// wait till fetching all tables finished
+	go func() {
+		wait.Wait()
+		close(results)
+	}()
+
+	// read results till channel is closed
+	for e := range results {
+		if e != nil {
+			err = e
+			return
+		}
+	}
+	log.Debugf("[%s] objects fetched parallel in %s", p.Name, time.Since(t1).String())
+	return
+}
+
 // resetErrors reset the error counter after the site has recovered
+func (p *Peer) initTable(data *DataStoreSet, table *Table) (err error) {
+	if p.HasFlag(MultiBackend) && table.Name != TableStatus {
+		// just create empty data pools
+		// real data is handled by separate peers
+		return
+	}
+	var store *DataStore
+	store, err = data.CreateObjectByType(table)
+	if err != nil {
+		log.Debugf("[%s] creating initial objects failed in table %s: %s", p.Name, table.Name.String(), err.Error())
+		return
+	}
+	data.Set(table.Name, store)
+	switch table.Name {
+	case TableStatus:
+		err = p.updateInitialStatus(store)
+		if err != nil {
+			return
+		}
+		// got an answer, remove last error and let clients know we are reconnecting
+		if p.StatusGet(PeerState).(PeerStatus) != PeerStatusPending {
+			p.StatusSet(LastError, "reconnecting...")
+		}
+	case TableTimeperiods:
+		lastTimeperiodUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
+		p.StatusSet(LastTimeperiodUpdateMinute, lastTimeperiodUpdateMinute)
+	}
+	return
+}
+
+// updateInitialStatus updates peer meta data from last status request
 func (p *Peer) updateInitialStatus(store *DataStore) (err error) {
 	statusData := store.Data
 	hasStatus := len(statusData) > 0
@@ -833,8 +923,8 @@ func (p *Peer) updateInitialStatus(store *DataStore) (err error) {
 		err = cerr
 		return
 	}
-	logDebugError2(p.fetchRemotePeers())
-	logDebugError(p.checkStatusFlags(statusData))
+	p.LogErrors(p.fetchRemotePeers())
+	p.LogErrors(p.checkStatusFlags(statusData))
 
 	err = p.checkAvailableTables() // must be done after checkStatusFlags, because it does not work on Icinga2
 	if err != nil {
@@ -1013,9 +1103,9 @@ func (p *Peer) getSocketQueryResponse(req *Request, query string, conn net.Conn)
 	if req.Command != "" && !req.KeepAlive {
 		switch c := conn.(type) {
 		case *net.TCPConn:
-			logDebugError(c.CloseWrite())
+			p.LogErrors(c.CloseWrite())
 		case *net.UnixConn:
-			logDebugError(c.CloseWrite())
+			p.LogErrors(c.CloseWrite())
 		}
 	}
 
@@ -1051,7 +1141,7 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) (*[]byte
 		return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: &resBytes}
 	}
 	if bytes.Contains(resBytes, []byte("No UNIX socket /")) {
-		logDebugError2(io.CopyN(header, conn, ErrorContentPreviewSize))
+		p.LogErrors(io.CopyN(header, conn, ErrorContentPreviewSize))
 		resBytes = bytes.TrimSpace(header.Bytes())
 		return nil, &PeerError{msg: fmt.Sprintf("%s", resBytes), kind: ConnectionError}
 	}
@@ -1555,7 +1645,7 @@ func (p *Peer) WaitCondition(req *Request) {
 		// make sure we log panics properly
 		defer logPanicExitPeer(p)
 
-		logDebugError(p.waitcondition(c, req))
+		p.LogErrors(p.waitcondition(c, req))
 	}(p, c, req)
 	select {
 	case <-c:
@@ -1590,7 +1680,7 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
 			continue
 		}
 
-		data, err := p.GetData()
+		data, err := p.GetDataStoreSet()
 		if err != nil {
 			time.Sleep(WaitTimeoutCheckInterval)
 			continue
@@ -1889,7 +1979,7 @@ func (p *Peer) PassThroughQuery(res *Response, passthroughRequest *Request, virt
 	if len(virtualColumns) > 0 {
 		table := Objects.Tables[res.Request.Table]
 		store := NewDataStore(table, p)
-		tmpRow, _ := NewDataRow(store, nil, nil, 0)
+		tmpRow, _ := NewDataRow(store, nil, nil, 0, true)
 		for rowNum := range *result {
 			row := &((*result)[rowNum])
 			for j := range virtualColumns {
@@ -2217,7 +2307,7 @@ func (p *Peer) GetDataStore(tableName TableName) (store *DataStore, err error) {
 		}
 		return
 	}
-	data, err := p.GetData()
+	data, err := p.GetDataStoreSet()
 	if err != nil {
 		return
 	}
@@ -2273,8 +2363,8 @@ func (p *Peer) setQueryOptions(req *Request) {
 	}
 }
 
-// GetData returns table data or error
-func (p *Peer) GetData() (data *DataStoreSet, err error) {
+// GetDataStoreSet returns table data or error
+func (p *Peer) GetDataStoreSet() (data *DataStoreSet, err error) {
 	p.Lock.RLock()
 	data = p.data
 	p.Lock.RUnlock()
@@ -2284,8 +2374,8 @@ func (p *Peer) GetData() (data *DataStoreSet, err error) {
 	return
 }
 
-// SetData resets the data table.
-func (p *Peer) SetData(data *DataStoreSet, lock bool) {
+// SetDataStoreSet resets the data table.
+func (p *Peer) SetDataStoreSet(data *DataStoreSet, lock bool) {
 	if lock {
 		p.Lock.Lock()
 		defer p.Lock.Unlock()
@@ -2359,4 +2449,12 @@ func (p *Peer) CheckLocaltime(unix float64) (err error) {
 		return fmt.Errorf("clock error, peer is off by %s (threshold: %vs)", diff.Truncate(time.Millisecond).String(), p.GlobalConfig.MaxClockDelta)
 	}
 	return
+}
+
+// generic error logger with peer prefix
+func (p *Peer) LogErrors(v ...interface{}) {
+	if !log.IsV(LogVerbosityDebug) {
+		return
+	}
+	LogErrorsPrefix(fmt.Sprintf("[%s] ", p.Name), v...)
 }

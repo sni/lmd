@@ -32,7 +32,7 @@ type DataRow struct {
 }
 
 // NewDataRow creates a new DataRow
-func NewDataRow(store *DataStore, raw *[]interface{}, columns *ColumnList, timestamp int64) (d *DataRow, err error) {
+func NewDataRow(store *DataStore, raw *[]interface{}, columns *ColumnList, timestamp int64, setReferences bool) (d *DataRow, err error) {
 	d = &DataRow{
 		LastUpdate: timestamp,
 		DataStore:  store,
@@ -53,7 +53,9 @@ func NewDataRow(store *DataStore, raw *[]interface{}, columns *ColumnList, times
 
 	d.setLowerCaseCache()
 
-	err = d.setReferences()
+	if setReferences {
+		err = d.SetReferences()
+	}
 	return
 }
 
@@ -118,8 +120,8 @@ func (d *DataRow) setLowerCaseCache() {
 	}
 }
 
-// setReferences creates reference entries for cross referenced objects
-func (d *DataRow) setReferences() (err error) {
+// SetReferences creates reference entries for cross referenced objects
+func (d *DataRow) SetReferences() (err error) {
 	store := d.DataStore
 	for i := range store.Table.RefTables {
 		ref := store.Table.RefTables[i]

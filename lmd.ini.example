@@ -36,6 +36,9 @@ LogHugeQueryThreshold = 100
 # used to indicate that a check is running but adds some additional overhead to syncing.
 SyncIsExecuting = true
 
+# Number of parallel connections used to initially synchronize objects, set to <= 1 to disable parallel fetching
+MaxParallelPeerConnections = 3
+
 # CompressionMinimumSize sets the minimum number of characters to use compression
 CompressionMinimumSize = 500
 

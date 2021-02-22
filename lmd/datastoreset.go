@@ -77,7 +77,7 @@ func (ds *DataStoreSet) CreateObjectByType(table *Table) (store *DataStore, err 
 	}
 
 	now := time.Now().Unix()
-	err = store.InsertData(res, columns)
+	err = store.InsertData(res, columns, false)
 	if err != nil {
 		return
 	}
@@ -90,7 +90,20 @@ func (ds *DataStoreSet) CreateObjectByType(table *Table) (store *DataStore, err 
 	promObjectCount.WithLabelValues(p.Name, tableName).Set(float64(len((*res))))
 
 	duration := time.Since(t1).Truncate(time.Millisecond)
-	log.Debugf("[%s] updated table: %15s - fetch: %8s - insert: %8s - count: %8d - size: %8d kB", p.Name, tableName, resMeta.Duration, duration, len(*res), resMeta.Size/1024)
+	log.Debugf("[%s] updated table: %15s - fetch: %8s - insert: %8s - count: %8d - size: %8d kB", p.Name, tableName, resMeta.Duration.Truncate(time.Microsecond), duration, len(*res), resMeta.Size/1024)
+	return
+}
+
+// SetReferences creates reference entries for all tables
+func (ds *DataStoreSet) SetReferences() (err error) {
+	for _, t := range ds.tables {
+		t := t
+		err = t.SetReferences()
+		if err != nil {
+			log.Debugf("[%s] setting references on table %s failed: %s", ds.peer.Name, t.Table.Name.String(), err.Error())
+			return
+		}
+	}
 	return
 }
 
@@ -695,7 +708,7 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 	}
 
 	if tableName == TableStatus {
-		logDebugError(p.checkStatusFlags(data))
+		LogErrors(p.checkStatusFlags(data))
 		if !p.HasFlag(MultiBackend) && len(data) >= 1 {
 			programStart := data[0].GetInt64ByName("program_start")
 			corePid := data[0].GetIntByName("nagios_pid")

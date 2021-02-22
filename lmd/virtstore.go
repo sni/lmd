@@ -9,7 +9,7 @@ func GetTableBackendsStore(table *Table, peer *Peer) *DataStore {
 	store.DataSet = peer.data
 	rows := make(ResultSet, 1)
 	_, columns := store.GetInitialColumns()
-	err := store.InsertData(&rows, columns)
+	err := store.InsertData(&rows, columns, true)
 	if err != nil {
 		log.Errorf("store error: %s", err.Error())
 	}
@@ -52,7 +52,7 @@ func GetTableColumnsStore(table *Table, _ *Peer) *DataStore {
 			data = append(data, row)
 		}
 	}
-	err := store.InsertData(&data, &table.Columns)
+	err := store.InsertData(&data, &table.Columns, true)
 	if err != nil {
 		log.Errorf("store error: %s", err.Error())
 	}
@@ -109,7 +109,7 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 		log.Panicf("GetGroupByData not implemented for table: %s", store.Table.Name)
 	}
 	_, columns := store.GetInitialColumns()
-	err := store.InsertData(&data, columns)
+	err := store.InsertData(&data, columns, true)
 	if err != nil {
 		log.Errorf("store error: %s", err.Error())
 	}

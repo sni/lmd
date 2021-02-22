@@ -67,7 +67,7 @@ func (cl *ClientConnection) answer() error {
 		if !cl.keepAlive {
 			promFrontendConnections.WithLabelValues(cl.localAddr).Inc()
 			log.Debugf("[%s][%s] incoming request", cl.localAddr, cl.remoteAddr)
-			logDebugError(cl.connection.SetDeadline(time.Now().Add(RequestReadTimeout)))
+			LogErrors(cl.connection.SetDeadline(time.Now().Add(RequestReadTimeout)))
 		}
 
 		reqs, err := ParseRequests(cl.connection)
@@ -82,7 +82,7 @@ func (cl *ClientConnection) answer() error {
 			// keep open keepalive request until either the client closes the connection or the deadline timeout is hit
 			if cl.keepAlive {
 				log.Debugf("[%s][%s] connection keepalive, waiting for more requests", cl.localAddr, cl.remoteAddr)
-				logDebugError(cl.connection.SetDeadline(time.Now().Add(RequestReadTimeout)))
+				LogErrors(cl.connection.SetDeadline(time.Now().Add(RequestReadTimeout)))
 				continue
 			}
 		case cl.keepAlive:
@@ -91,7 +91,7 @@ func (cl *ClientConnection) answer() error {
 			continue
 		default:
 			err = errors.New("bad request: empty request")
-			logDebugError2((&Response{Code: 400, Request: &Request{}, Error: err}).Send(cl.connection))
+			LogErrors((&Response{Code: 400, Request: &Request{}, Error: err}).Send(cl.connection))
 			return err
 		}
 
@@ -112,7 +112,7 @@ func (cl *ClientConnection) sendErrorResponse(err error) error {
 	if errors.Is(err, io.EOF) {
 		return nil
 	}
-	logDebugError2((&Response{Code: 400, Request: &Request{}, Error: err}).Send(cl.connection))
+	LogErrors((&Response{Code: 400, Request: &Request{}, Error: err}).Send(cl.connection))
 	return err
 }
 
@@ -137,19 +137,19 @@ func (cl *ClientConnection) processRequests(reqs []*Request) (err error) {
 			return
 		}
 
-		logDebugError(cl.connection.SetDeadline(time.Now().Add(time.Duration(cl.listenTimeout) * time.Second)))
+		LogErrors(cl.connection.SetDeadline(time.Now().Add(time.Duration(cl.listenTimeout) * time.Second)))
 		var response *Response
 		response, err = req.GetResponse()
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok {
-				logDebugError2((&Response{Code: 502, Request: req, Error: netErr}).Send(cl.connection))
+				LogErrors((&Response{Code: 502, Request: req, Error: netErr}).Send(cl.connection))
 				return
 			}
 			if peerErr, ok := err.(*PeerError); ok && peerErr.kind == ConnectionError {
-				logDebugError2((&Response{Code: 502, Request: req, Error: peerErr}).Send(cl.connection))
+				LogErrors((&Response{Code: 502, Request: req, Error: peerErr}).Send(cl.connection))
 				return
 			}
-			logDebugError2((&Response{Code: 400, Request: req, Error: err}).Send(cl.connection))
+			LogErrors((&Response{Code: 400, Request: req, Error: err}).Send(cl.connection))
 			return
 		}
 

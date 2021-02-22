@@ -83,7 +83,7 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 }
 
 // InsertData adds a list of results and initializes the store table
-func (d *DataStore) InsertData(data *ResultSet, columns *ColumnList) error {
+func (d *DataStore) InsertData(data *ResultSet, columns *ColumnList, setReferences bool) error {
 	now := time.Now().Unix()
 	switch len(d.Table.PrimaryKey) {
 	case 0:
@@ -95,7 +95,7 @@ func (d *DataStore) InsertData(data *ResultSet, columns *ColumnList) error {
 		panic("not supported number of primary keys")
 	}
 	for i := range *data {
-		row, err := NewDataRow(d, &(*data)[i], columns, now)
+		row, err := NewDataRow(d, &(*data)[i], columns, now, setReferences)
 		if err != nil {
 			log.Errorf("adding new %s failed: %s", d.Table.Name.String(), err.Error())
 			return err
@@ -118,7 +118,7 @@ func (d *DataStore) AppendData(data *ResultSet, columns *ColumnList) error {
 	}
 	for i := range *data {
 		resRow := (*data)[i]
-		row, nErr := NewDataRow(d, &resRow, columns, 0)
+		row, nErr := NewDataRow(d, &resRow, columns, 0, true)
 		if nErr != nil {
 			return nErr
 		}
@@ -161,6 +161,18 @@ func (d *DataStore) RemoveItem(row *DataRow) {
 		}
 	}
 	log.Panicf("element not found")
+}
+
+// SetReferences creates reference entries for this tables
+func (d *DataStore) SetReferences() (err error) {
+	for _, row := range d.Data {
+		err = row.SetReferences()
+		if err != nil {
+			log.Debugf("[%s] setting references on table %s failed: %s", d.PeerName, d.Table.Name.String(), err.Error())
+			return
+		}
+	}
+	return
 }
 
 // GetColumn returns column by name
