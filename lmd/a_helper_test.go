@@ -29,7 +29,8 @@ var testLogTarget = "stderr"
 var GlobalTestConfig Config
 
 func init() {
-	setDefaults(&GlobalTestConfig)
+	GlobalTestConfig = DefaultConfig
+	validateConfig(&GlobalTestConfig)
 	InitLogging(&Config{LogLevel: testLogLevel, LogFile: testLogTarget})
 	flagDeadlock = 15
 

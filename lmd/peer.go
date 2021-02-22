@@ -1582,8 +1582,8 @@ func (p *Peer) fetchRemotePeers() (sites []interface{}, err error) {
 	if p.Config.RemoteName != "" {
 		return
 	}
-	if p.StatusGet(ThrukVersion).(float64) < 2.23 {
-		log.Warnf("[%s] remote thruk version too old (%.2f < 2.23) cannot fetch all sites.", p.Name, p.StatusGet(ThrukVersion).(float64))
+	if p.StatusGet(ThrukVersion).(float64) < ThrukMultiBackendMinVersion {
+		log.Warnf("[%s] remote thruk version too old (%.2f < %.2f) cannot fetch all sites.", p.Name, p.StatusGet(ThrukVersion).(float64), ThrukMultiBackendMinVersion)
 		return
 	}
 	// try all http connections and use first working connection
@@ -1781,7 +1781,7 @@ func (p *Peer) HTTPQuery(req *Request, peerAddr string, query string) (res []byt
 	optionStr, _ := json.Marshal(options)
 
 	headers := make(map[string]string)
-	if p.StatusGet(ThrukVersion).(float64) >= 2.23 {
+	if p.StatusGet(ThrukVersion).(float64) >= ThrukMultiBackendMinVersion {
 		headers["Accept"] = "application/livestatus"
 	}
 

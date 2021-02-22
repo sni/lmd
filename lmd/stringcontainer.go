@@ -6,11 +6,8 @@ import (
 	"io/ioutil"
 )
 
-// DefaultCompressionMinimumSize sets the default minimum number of characters to use compression
-const DefaultCompressionMinimumSize = 500
-
 // CompressionMinimumSize sets the minimum number of characters to use compression
-var CompressionMinimumSize = DefaultCompressionMinimumSize
+var CompressionMinimumSize = DefaultConfig.CompressionMinimumSize
 
 // CompressionLevel sets the minimum number of characters to use compression
 var CompressionLevel = gzip.DefaultCompression

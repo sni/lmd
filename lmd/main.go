@@ -69,6 +69,8 @@ const (
 
 	// BlockProfileRateInterval sets the profiling interval when started with -profile
 	BlockProfileRateInterval = 10
+
+	ThrukMultiBackendMinVersion = 2.23
 )
 
 // https://github.com/golang/go/issues/8005#issuecomment-190753527
@@ -142,6 +144,32 @@ type Config struct {
 	UpdateOffset               int64
 	TLSMinVersion              string
 	MaxParallelPeerConnections int
+}
+
+// DefaultConfig contains the default configuration values
+var DefaultConfig = Config{
+	Updateinterval:             7,
+	FullUpdateInterval:         0,
+	LogLevel:                   "Info",
+	LogSlowQueryThreshold:      5,
+	LogHugeQueryThreshold:      100,
+	ConnectTimeout:             30,
+	NetTimeout:                 120,
+	ListenTimeout:              60,
+	SaveTempRequests:           true,
+	IdleTimeout:                120,
+	IdleInterval:               1800,
+	StaleBackendTimeout:        30,
+	BackendKeepAlive:           true,
+	ServiceAuthorization:       AuthLoose,
+	GroupAuthorization:         AuthStrict,
+	SyncIsExecuting:            true,
+	CompressionMinimumSize:     500,
+	CompressionLevel:           -1,
+	MaxClockDelta:              10,
+	UpdateOffset:               3,
+	TLSMinVersion:              "tls1.1",
+	MaxParallelPeerConnections: 3,
 }
 
 // PeerMap contains a map of available remote peers.
@@ -269,7 +297,7 @@ func main() {
 func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode int) {
 	localConfig := *(ReadConfig(flagConfigFile))
 	applyArgFlags(flagCfgOption, &localConfig)
-	setDefaults(&localConfig)
+	validateConfig(&localConfig)
 	setVerboseFlags(&localConfig)
 	InitLogging(&localConfig)
 	setServiceAuthorization(&localConfig)
@@ -753,44 +781,57 @@ func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 	}
 }
 
-func setDefaults(conf *Config) {
+func validateConfig(conf *Config) {
 	if conf.NetTimeout <= 0 {
-		conf.NetTimeout = 120
+		log.Warnf("config: NetTimeout invalid, value must be greater than 0")
+		conf.NetTimeout = DefaultConfig.NetTimeout
 	}
 	if conf.ConnectTimeout <= 0 {
-		conf.ConnectTimeout = 30
+		log.Warnf("config: ConnectTimeout invalid, value must be greater than 0")
+		conf.ConnectTimeout = DefaultConfig.ConnectTimeout
 	}
 	if conf.ListenTimeout <= 0 {
-		conf.ListenTimeout = 60
+		log.Warnf("config: ListenTimeout invalid, value must be greater than 0")
+		conf.ListenTimeout = DefaultConfig.ListenTimeout
 	}
 	if conf.Updateinterval <= 0 {
-		conf.Updateinterval = 7
+		log.Warnf("config: Updateinterval invalid, value must be greater than 0")
+		conf.Updateinterval = DefaultConfig.Updateinterval
 	}
-	if conf.FullUpdateInterval <= 0 {
+	if conf.FullUpdateInterval < 0 {
+		log.Warnf("config: FullUpdateInterval invalid, value must be greater than 0")
 		conf.FullUpdateInterval = 0
 	}
 	if conf.IdleInterval <= 0 {
-		conf.IdleInterval = 1800
+		log.Warnf("config: IdleInterval invalid, value must be greater than 0")
+		conf.IdleInterval = DefaultConfig.IdleInterval
 	}
 	if conf.IdleTimeout <= 0 {
-		conf.IdleTimeout = 120
+		log.Warnf("config: IdleTimeout invalid, value must be greater than 0")
+		conf.IdleTimeout = DefaultConfig.IdleTimeout
 	}
 	if conf.StaleBackendTimeout <= 0 {
-		conf.StaleBackendTimeout = 30
+		log.Warnf("config: StaleBackendTimeout invalid, value must be greater than 0")
+		conf.StaleBackendTimeout = DefaultConfig.StaleBackendTimeout
 	}
 	if conf.LogSlowQueryThreshold <= 0 {
-		conf.LogSlowQueryThreshold = 5
+		log.Warnf("config: LogSlowQueryThreshold invalid, value must be greater than 0")
+		conf.LogSlowQueryThreshold = DefaultConfig.LogSlowQueryThreshold
 	}
 	if conf.LogHugeQueryThreshold <= 0 {
-		conf.LogHugeQueryThreshold = 100
+		log.Warnf("config: LogHugeQueryThreshold invalid, value must be greater than 0")
+		conf.LogHugeQueryThreshold = DefaultConfig.LogHugeQueryThreshold
 	}
 	if conf.CompressionMinimumSize <= 0 {
-		conf.CompressionMinimumSize = 500
+		log.Warnf("config: CompressionMinimumSize invalid, value must be greater than 0")
+		conf.CompressionMinimumSize = DefaultConfig.CompressionMinimumSize
 	}
 	if conf.MaxClockDelta < 0 {
+		log.Warnf("config: MaxClockDelta invalid, value must be greater than 0")
 		conf.MaxClockDelta = 10
 	}
 	if conf.UpdateOffset <= 0 {
+		log.Warnf("config: UpdateOffset invalid, value must be greater than 0")
 		conf.UpdateOffset = 3
 	}
 	_, err := parseTLSMinVersion(conf.TLSMinVersion)
@@ -835,14 +876,8 @@ func PrintVersion() {
 func ReadConfig(files []string) *Config {
 	// combine listeners from all files
 	allListeners := make([]string, 0)
-	conf := &Config{
-		BackendKeepAlive:           true,
-		SaveTempRequests:           true,
-		CompressionLevel:           -1,
-		CompressionMinimumSize:     DefaultCompressionMinimumSize,
-		TLSMinVersion:              "tls1.1",
-		MaxParallelPeerConnections: 3,
-	}
+	// make shallow copy of default config then read config files to override the defaults
+	conf := DefaultConfig
 	for _, pattern := range files {
 		configFiles, errGlob := filepath.Glob(pattern)
 		if errGlob != nil {
@@ -878,7 +913,7 @@ func ReadConfig(files []string) *Config {
 		}
 	}
 
-	return conf
+	return &conf
 }
 
 func logConfig(conf *Config) {

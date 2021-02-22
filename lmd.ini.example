@@ -61,7 +61,7 @@ UpdateOffset = 3
 # Run a full update on all objects every x seconds. Set to zero to turn off
 # completely. This is usually not required and only needed if for uncommon
 # reasons some updates slip through the normal delta updates.
-FullUpdateInterval = 600
+#FullUpdateInterval = 600
 
 # After `IdleTimeout` seconds of no activity (incoming queries for this backend)
 # the slower update interval of `IdleInterval` seconds will be used.
