@@ -90,7 +90,7 @@ func (ds *DataStoreSet) CreateObjectByType(table *Table) (store *DataStore, err 
 	promObjectCount.WithLabelValues(p.Name, tableName).Set(float64(len((*res))))
 
 	duration := time.Since(t1).Truncate(time.Millisecond)
-	log.Debugf("[%s] updated table: %15s - fetch: %8s - insert: %8s - count: %8d - size: %8d kB", p.Name, tableName, resMeta.Duration.Truncate(time.Microsecond), duration, len(*res), resMeta.Size/1024)
+	log.Debugf("[%s] updated table: %15s - fetch: %9s - insert: %9s - count: %8d - size: %8d kB", p.Name, tableName, resMeta.Duration.Truncate(time.Microsecond), duration, len(*res), resMeta.Size/1024)
 	return
 }
 
@@ -721,7 +721,7 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 	}
 
 	duration := time.Since(t1).Truncate(time.Millisecond)
-	log.Debugf("[%s] updated table: %15s - fetch: %8s - insert: %8s - count: %8d - size: %8d kB", p.Name, tableName.String(), resMeta.Duration, duration, len(*res), resMeta.Size/1024)
+	log.Debugf("[%s] updated table: %15s - fetch: %9s - insert: %9s - count: %8d - size: %8d kB", p.Name, tableName, resMeta.Duration.Truncate(time.Microsecond), duration, len(*res), resMeta.Size/1024)
 	return
 }
 
