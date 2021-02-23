@@ -71,7 +71,9 @@ issues:
     - 'Magic number: 2\D '
     - 'Magic number: 3\D '
     - 'Magic number: 4\D '
+    - 'Magic number: 10\D '
     - 'Magic number: 16\D '
+    - 'Magic number: 32\D '
     - 'Magic number: 100\D '
     - 'Magic number: 200\D '
     - 'Magic number: 400\D '
@@ -94,6 +96,6 @@ issues:
     - path: _test\.go
       linters:
         - gomnd
-    - path: main\.go
+    - path: config\.go
       linters:
         - gomnd
