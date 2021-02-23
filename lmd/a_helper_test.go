@@ -26,11 +26,11 @@ var testLogLevel = "Error"
 var testLogTarget = "stderr"
 
 // GlobalTestConfig contains the global configuration (after config files have been parsed)
-var GlobalTestConfig Config
+var GlobalTestConfig *Config
 
 func init() {
-	GlobalTestConfig = DefaultConfig
-	validateConfig(&GlobalTestConfig)
+	GlobalTestConfig = NewConfig([]string{})
+	GlobalTestConfig.ValidateConfig()
 	InitLogging(&Config{LogLevel: testLogLevel, LogFile: testLogTarget})
 	flagDeadlock = 15
 
@@ -327,7 +327,7 @@ func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig
 	StartMockMainLoop(sockets, extraConfig)
 
 	testPeerShutdownChannel := make(chan bool)
-	peer = NewPeer(&GlobalTestConfig, &Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
+	peer = NewPeer(GlobalTestConfig, &Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
 
 	// wait till backend is available
 	retries := 0
@@ -465,7 +465,7 @@ func GetHTTPMockServerPeer(t *testing.T) (peer *Peer, cleanup func()) {
 	t.Helper()
 	ts, cleanup := StartHTTPMockServer(t)
 	testPeerShutdownChannel := make(chan bool)
-	peer = NewPeer(&GlobalTestConfig, &Connection{Source: []string{ts.URL}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
+	peer = NewPeer(GlobalTestConfig, &Connection{Source: []string{ts.URL}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
 	return
 }
 

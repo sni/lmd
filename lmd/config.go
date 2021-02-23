@@ -45,6 +45,25 @@ func (c *Connection) Equals(other *Connection) bool {
 	return equal
 }
 
+type configFiles []string
+
+// String returns the config files list as string.
+func (c *configFiles) String() string {
+	return fmt.Sprintf("%s", *c)
+}
+
+// Set appends a config file to the list of config files.
+func (c *configFiles) Set(value string) (err error) {
+	_, err = os.Stat(value)
+	// check if the file exists but skip errors for file globs
+	if err != nil && !strings.ContainsAny(value, "?*") {
+		return
+	}
+	err = nil
+	*c = append(*c, value)
+	return
+}
+
 // Config defines the available configuration options from supplied config files.
 type Config struct {
 	Listen                     []string
@@ -80,52 +99,73 @@ type Config struct {
 	MaxParallelPeerConnections int
 }
 
-// DefaultConfig contains the default configuration values
-var DefaultConfig = Config{
-	Updateinterval:             7,
-	FullUpdateInterval:         0,
-	LogLevel:                   "Info",
-	LogSlowQueryThreshold:      5,
-	LogHugeQueryThreshold:      100,
-	ConnectTimeout:             30,
-	NetTimeout:                 120,
-	ListenTimeout:              60,
-	SaveTempRequests:           true,
-	IdleTimeout:                120,
-	IdleInterval:               1800,
-	StaleBackendTimeout:        30,
-	BackendKeepAlive:           true,
-	ServiceAuthorization:       AuthLoose,
-	GroupAuthorization:         AuthStrict,
-	SyncIsExecuting:            true,
-	CompressionMinimumSize:     500,
-	CompressionLevel:           -1,
-	MaxClockDelta:              10,
-	UpdateOffset:               3,
-	TLSMinVersion:              "tls1.1",
-	MaxParallelPeerConnections: 3,
-}
-
-type configFiles []string
-
-// String returns the config files list as string.
-func (c *configFiles) String() string {
-	return fmt.Sprintf("%s", *c)
-}
-
-// Set appends a config file to the list of config files.
-func (c *configFiles) Set(value string) (err error) {
-	_, err = os.Stat(value)
-	// check if the file exists but skip errors for file globs
-	if err != nil && !strings.ContainsAny(value, "?*") {
-		return
+// NewConfig reads all config files.
+// It returns a Config object.
+func NewConfig(files []string) *Config {
+	conf := Config{
+		Updateinterval:             7,
+		FullUpdateInterval:         0,
+		LogLevel:                   "Info",
+		LogSlowQueryThreshold:      5,
+		LogHugeQueryThreshold:      100,
+		ConnectTimeout:             30,
+		NetTimeout:                 120,
+		ListenTimeout:              60,
+		SaveTempRequests:           true,
+		IdleTimeout:                120,
+		IdleInterval:               1800,
+		StaleBackendTimeout:        30,
+		BackendKeepAlive:           true,
+		ServiceAuthorization:       AuthLoose,
+		GroupAuthorization:         AuthStrict,
+		SyncIsExecuting:            true,
+		CompressionMinimumSize:     DefaultCompressionMinimumSize,
+		CompressionLevel:           -1,
+		MaxClockDelta:              10,
+		UpdateOffset:               3,
+		TLSMinVersion:              "tls1.1",
+		MaxParallelPeerConnections: 3,
 	}
-	err = nil
-	*c = append(*c, value)
-	return
+
+	// combine listeners from all files
+	allListeners := make([]string, 0)
+	for _, pattern := range files {
+		configFiles, errGlob := filepath.Glob(pattern)
+		if errGlob != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: config file pattern %s is invalid: %s\n", pattern, errGlob.Error())
+			os.Exit(ExitUnknown)
+		}
+		if configFiles == nil {
+			log.Debugf("config file pattern %s did not match any files", pattern)
+			continue
+		}
+		for _, configFile := range configFiles {
+			if _, err := os.Stat(configFile); err != nil {
+				fmt.Fprintf(os.Stderr, "ERROR: could not load configuration from %s: %s\nuse --help to see all options.\n", configFile, err.Error())
+				os.Exit(ExitUnknown)
+			}
+			if _, err := toml.DecodeFile(configFile, &conf); err != nil {
+				panic(err)
+			}
+			allListeners = append(allListeners, conf.Listen...)
+			conf.Listen = []string{}
+		}
+	}
+	conf.Listen = allListeners
+
+	for i := range conf.Connections {
+		for j := range conf.Connections[i].Source {
+			if strings.HasPrefix(conf.Connections[i].Source[j], "http") {
+				conf.Connections[i].Source[j] = completePeerHTTPAddr(conf.Connections[i].Source[j])
+			}
+		}
+	}
+
+	return &conf
 }
 
-func validateConfig(conf *Config) {
+func (conf *Config) ValidateConfig() {
+	DefaultConfig := NewConfig([]string{})
 	if conf.NetTimeout <= 0 {
 		log.Warnf("config: NetTimeout invalid, value must be greater than 0")
 		conf.NetTimeout = DefaultConfig.NetTimeout
@@ -184,7 +224,7 @@ func validateConfig(conf *Config) {
 	}
 }
 
-func setServiceAuthorization(conf *Config) {
+func (conf *Config) SetServiceAuthorization() {
 	ServiceAuth := strings.ToLower(conf.ServiceAuthorization)
 	switch {
 	case ServiceAuth == AuthLoose, ServiceAuth == AuthStrict:
@@ -197,7 +237,7 @@ func setServiceAuthorization(conf *Config) {
 	}
 }
 
-func setGroupAuthorization(conf *Config) {
+func (conf *Config) SetGroupAuthorization() {
 	GroupAuth := strings.ToLower(conf.GroupAuthorization)
 	switch {
 	case GroupAuth == AuthLoose, GroupAuth == AuthStrict:
@@ -210,52 +250,7 @@ func setGroupAuthorization(conf *Config) {
 	}
 }
 
-// ReadConfig reads all config files.
-// It returns a Config object.
-func ReadConfig(files []string) *Config {
-	// combine listeners from all files
-	allListeners := make([]string, 0)
-	// make shallow copy of default config then read config files to override the defaults
-	conf := DefaultConfig
-	for _, pattern := range files {
-		configFiles, errGlob := filepath.Glob(pattern)
-		if errGlob != nil {
-			fmt.Fprintf(os.Stderr, "ERROR: config file pattern %s is invalid: %s\n", pattern, errGlob.Error())
-			os.Exit(ExitUnknown)
-		}
-		if configFiles == nil {
-			log.Debugf("config file pattern %s did not match any files", pattern)
-			continue
-		}
-		for _, configFile := range configFiles {
-			if _, err := os.Stat(configFile); err != nil {
-				fmt.Fprintf(os.Stderr, "ERROR: could not load configuration from %s: %s\nuse --help to see all options.\n", configFile, err.Error())
-				os.Exit(ExitUnknown)
-			}
-			if _, err := toml.DecodeFile(configFile, &conf); err != nil {
-				panic(err)
-			}
-			allListeners = append(allListeners, conf.Listen...)
-			conf.Listen = []string{}
-		}
-	}
-	if flagLogFile != "" {
-		conf.LogFile = flagLogFile
-	}
-	conf.Listen = allListeners
-
-	for i := range conf.Connections {
-		for j := range conf.Connections[i].Source {
-			if strings.HasPrefix(conf.Connections[i].Source[j], "http") {
-				conf.Connections[i].Source[j] = completePeerHTTPAddr(conf.Connections[i].Source[j])
-			}
-		}
-	}
-
-	return &conf
-}
-
-func logConfig(conf *Config) {
+func (conf *Config) LogConfig() {
 	// print command line arguments
 	arg, _ := jsoniter.MarshalIndent(os.Args, "", "  ")
 	cfg, _ := jsoniter.MarshalIndent(*conf, "", "  ")

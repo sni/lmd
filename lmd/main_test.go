@@ -290,12 +290,12 @@ func TestMainConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	conf := ReadConfig([]string{"test1.ini"})
+	conf := NewConfig([]string{"test1.ini"})
 	if err := assertEq(len(conf.Listen), 0); err != nil {
 		t.Error(err)
 	}
 
-	conf = ReadConfig([]string{"test1.ini", "test2.ini"})
+	conf = NewConfig([]string{"test1.ini", "test2.ini"})
 	if err := assertEq(len(conf.Listen), 1); err != nil {
 		t.Error(err)
 	}
@@ -303,7 +303,7 @@ func TestMainConfig(t *testing.T) {
 		t.Error(err)
 	}
 
-	conf = ReadConfig([]string{"test1.ini", "test2.ini", "test3.ini"})
+	conf = NewConfig([]string{"test1.ini", "test2.ini", "test3.ini"})
 	if err := assertEq(len(conf.Listen), 2); err != nil {
 		t.Error(err)
 	}

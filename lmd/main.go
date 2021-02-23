@@ -180,13 +180,13 @@ func main() {
 }
 
 func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode int) {
-	localConfig := *(ReadConfig(flagConfigFile))
-	applyArgFlags(flagCfgOption, &localConfig)
-	validateConfig(&localConfig)
-	setVerboseFlags(&localConfig)
-	InitLogging(&localConfig)
-	setServiceAuthorization(&localConfig)
-	setGroupAuthorization(&localConfig)
+	localConfig := NewConfig(flagConfigFile)
+	applyArgFlags(flagCfgOption, localConfig)
+	localConfig.ValidateConfig()
+	ApplyFlags(localConfig)
+	InitLogging(localConfig)
+	localConfig.SetServiceAuthorization()
+	localConfig.SetGroupAuthorization()
 
 	CompressionLevel = localConfig.CompressionLevel
 	CompressionMinimumSize = localConfig.CompressionMinimumSize
@@ -229,16 +229,16 @@ func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode
 	}
 
 	once.Do(PrintVersion)
-	logConfig(&localConfig)
+	localConfig.LogConfig()
 
 	// initialize prometheus
-	prometheusListener := initPrometheus(&localConfig)
+	prometheusListener := initPrometheus(localConfig)
 
 	// start local listeners
-	initializeListeners(&localConfig, waitGroupListener, waitGroupInit, shutdownChannel)
+	initializeListeners(localConfig, waitGroupListener, waitGroupInit, shutdownChannel)
 
 	// start remote connections
-	initializePeers(&localConfig, waitGroupPeers, waitGroupInit, shutdownChannel)
+	initializePeers(localConfig, waitGroupPeers, waitGroupInit, shutdownChannel)
 
 	if initChannel != nil {
 		initChannel <- true
@@ -257,6 +257,21 @@ func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode
 		case <-statsTimer.C:
 			updateStatistics()
 		}
+	}
+}
+
+func ApplyFlags(conf *Config) {
+	if flagLogFile != "" {
+		conf.LogFile = flagLogFile
+	}
+	if flagVerbose {
+		conf.LogLevel = "Info"
+	}
+	if flagVeryVerbose {
+		conf.LogLevel = "Debug"
+	}
+	if flagTraceVerbose {
+		conf.LogLevel = "Trace"
 	}
 }
 
@@ -486,18 +501,6 @@ func onExit() {
 		pprof.StopCPUProfile()
 		cpuProfileHandler.Close()
 		log.Warnf("cpu profile written to: %s", flagCPUProfile)
-	}
-}
-
-func setVerboseFlags(localConfig *Config) {
-	if flagVerbose {
-		localConfig.LogLevel = "Info"
-	}
-	if flagVeryVerbose {
-		localConfig.LogLevel = "Debug"
-	}
-	if flagTraceVerbose {
-		localConfig.LogLevel = "Trace"
 	}
 }
 
