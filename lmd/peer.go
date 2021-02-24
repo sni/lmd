@@ -447,6 +447,7 @@ func (p *Peer) periodicUpdate() (err error) {
 				log.Debugf("[%s] broken peer has reloaded, trying again.", p.Name)
 				return p.InitAllTables()
 			}
+			return fmt.Errorf("waiting for peer to recover: program_start: %s (%d)  - pid: %d", time.Unix(programStart, 0).String(), programStart, corePid)
 		}
 		return fmt.Errorf("unknown result while waiting for peer to recover: %v", res)
 	case PeerStatusWarning:
