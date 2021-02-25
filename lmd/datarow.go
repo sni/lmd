@@ -124,7 +124,7 @@ func (d *DataRow) setLowerCaseCache() {
 func (d *DataRow) SetReferences() (err error) {
 	store := d.DataStore
 	for i := range store.Table.RefTables {
-		ref := store.Table.RefTables[i]
+		ref := &store.Table.RefTables[i]
 		tableName := ref.Table.Name
 		refsByName := store.DataSet.tables[tableName].Index
 		refsByName2 := store.DataSet.tables[tableName].Index2
@@ -777,12 +777,12 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 }
 
 // UpdateValuesNumberOnly updates this datarow with new values but skips strings
-func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, columns *ColumnList, timestamp int64) error {
-	if len(*columns) != len(data)-dataOffset {
-		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.DataStore.Table.Name.String(), len(*columns), len(data))
+func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, columns ColumnList, timestamp int64) error {
+	if len(columns) != len(data)-dataOffset {
+		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.DataStore.Table.Name.String(), len(columns), len(data))
 	}
-	for i := range *columns {
-		col := (*columns)[i]
+	for i := range columns {
+		col := columns[i]
 		i += dataOffset
 		switch col.DataType {
 		case IntCol:

@@ -298,7 +298,7 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 		if update.FullUpdate {
 			err = update.DataRow.UpdateValues(dataOffset, update.ResultRow, table.DynamicColumnCache, now)
 		} else {
-			err = update.DataRow.UpdateValuesNumberOnly(dataOffset, update.ResultRow, &table.DynamicColumnCache, now)
+			err = update.DataRow.UpdateValuesNumberOnly(dataOffset, update.ResultRow, table.DynamicColumnCache, now)
 		}
 		if err != nil {
 			return

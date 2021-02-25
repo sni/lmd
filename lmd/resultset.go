@@ -22,9 +22,9 @@ func NewResultSetStats() *ResultSetStats {
 }
 
 // Precompress compresses large strings in result set to allow faster updates (compressing would happen during locked update loop otherwise)
-func (res *ResultSet) Precompress(offset int, columns *ColumnList) {
-	for i := range *columns {
-		col := (*columns)[i]
+func (res *ResultSet) Precompress(offset int, columns ColumnList) {
+	for i := range columns {
+		col := columns[i]
 		if col.DataType == StringLargeCol {
 			replaceIndex := i + offset
 			for _, row := range *res {

@@ -102,7 +102,7 @@ type Table struct {
 	PassthroughOnly bool               // flag wether table will be cached or simply passed through to remote sites
 	WorksUnlocked   bool               // flag wether locking the peer.DataLock can be skipped to answer the query
 	PrimaryKey      []string
-	RefTables       []*TableRef // referenced tables
+	RefTables       []TableRef // referenced tables
 	Virtual         VirtualStoreResolveFunc
 	DefaultSort     []string     // columns used to sort if nothing is specified
 	PeerLockMode    PeerLockMode // should the peer be locked once for the complete result or on each access
@@ -126,12 +126,12 @@ func (t *Table) GetColumnWithFallback(name string) *Column {
 }
 
 // GetColumns returns a column list for list of names
-func (t *Table) GetColumns(names []string) *ColumnList {
+func (t *Table) GetColumns(names []string) ColumnList {
 	columns := make(ColumnList, 0, len(names))
 	for i := range names {
 		columns = append(columns, t.ColumnsIndex[names[i]])
 	}
-	return &columns
+	return columns
 }
 
 // GetEmptyColumn returns an empty column
@@ -172,7 +172,7 @@ func (t *Table) AddRefColumns(tableName TableName, prefix string, localName []st
 		log.Panicf("no such reference %s from column %s", tableName, strings.Join(localName, ","))
 	}
 
-	t.RefTables = append(t.RefTables, &TableRef{Table: refTable, Columns: *(t.GetColumns(localName))})
+	t.RefTables = append(t.RefTables, TableRef{Table: refTable, Columns: t.GetColumns(localName)})
 
 	// add fake columns for all columns from the referenced table
 	for i := range Objects.Tables[tableName].Columns {
