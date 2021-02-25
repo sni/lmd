@@ -57,21 +57,21 @@ func TestParseResultJSON(t *testing.T) {
 	 ["host2", "desc2", 1, [1,2], {"a": 1}],
 	]`)
 
-	res, _, err := req.parseResult(&data)
+	res, _, err := req.parseResult(data)
 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(2, len(*res)); err != nil {
+	if err := assertEq(2, len(res)); err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(5, len((*res)[0])); err != nil {
+	if err := assertEq(5, len(res[0])); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq("host2", (*res)[1][0]); err != nil {
+	if err := assertEq("host2", res[1][0]); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq(float64(1), (*res)[1][2]); err != nil {
+	if err := assertEq(float64(1), res[1][2]); err != nil {
 		t.Error(err)
 	}
 }
@@ -87,21 +87,21 @@ func TestParseResultWrappedJSON(t *testing.T) {
 	],
 	"total_count": 2}`)
 
-	res, meta, err := req.parseResult(&data)
+	res, meta, err := req.parseResult(data)
 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(2, len(*res)); err != nil {
+	if err := assertEq(2, len(res)); err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(5, len((*res)[0])); err != nil {
+	if err := assertEq(5, len(res[0])); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq("host2", (*res)[1][0]); err != nil {
+	if err := assertEq("host2", res[1][0]); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq(float64(1), (*res)[1][2]); err != nil {
+	if err := assertEq(float64(1), res[1][2]); err != nil {
 		t.Error(err)
 	}
 	if err := assertEq(int64(2), meta.Total); err != nil {
@@ -120,7 +120,7 @@ func TestParseResultJSONBroken(t *testing.T) {
 	]`)
 
 	InitLogging(&Config{LogLevel: "off", LogFile: "stderr"})
-	res, _, err := req.parseResult(&data)
+	res, _, err := req.parseResult(data)
 	InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
 
 	if err == nil {
@@ -143,7 +143,7 @@ func TestParseResultJSONBroken2(t *testing.T) {
 	]`)
 
 	InitLogging(&Config{LogLevel: "off", LogFile: "stderr"})
-	res, _, err := req.parseResult(&data)
+	res, _, err := req.parseResult(data)
 	InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
 
 	if err == nil {
@@ -164,16 +164,16 @@ func TestParseResultJSONEscapeSequences(t *testing.T) {
 		data := []byte(fmt.Sprintf("[[\"null%s\"]]", s))
 
 		InitLogging(&Config{LogLevel: "off", LogFile: "stderr"})
-		res, _, err := req.parseResult(&data)
+		res, _, err := req.parseResult(data)
 		InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
 
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := assertEq(1, len(*res)); err != nil {
+		if err := assertEq(1, len(res)); err != nil {
 			t.Error(err)
 		}
-		if err := assertLike("null", (*res)[0][0].(string)); err != nil {
+		if err := assertLike("null", res[0][0].(string)); err != nil {
 			t.Error(err)
 		}
 	}

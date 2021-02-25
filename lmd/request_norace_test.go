@@ -28,16 +28,16 @@ func TestRequestStatsTac(t *testing.T) {
 	if err = assertEq(int64(40), meta.RowsScanned); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(float64(40), (*res)[0][0]); err != nil {
+	if err = assertEq(float64(40), res[0][0]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(float64(32), (*res)[0][7]); err != nil {
+	if err = assertEq(float64(32), res[0][7]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(float64(28), (*res)[0][8]); err != nil {
+	if err = assertEq(float64(28), res[0][8]); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq(float64(4), (*res)[0][9]); err != nil {
+	if err = assertEq(float64(4), res[0][9]); err != nil {
 		t.Error(err)
 	}
 

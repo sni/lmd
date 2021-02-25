@@ -20,7 +20,7 @@ func TestAuthuserHost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(1, len(*res)); err != nil {
+	if err := assertEq(1, len(res)); err != nil {
 		t.Error(err)
 	}
 
@@ -44,7 +44,7 @@ func TestAuthuserHostStats(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(1.0, (*res)[0][0]); err != nil {
+	if err := assertEq(1.0, res[0][0]); err != nil {
 		t.Error(err)
 	}
 
@@ -70,7 +70,7 @@ func TestAuthuserService(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := assertEq(1, len(*res)); err != nil {
+	if err := assertEq(1, len(res)); err != nil {
 		t.Error(err)
 	}
 
@@ -94,7 +94,7 @@ func TestAuthuserServiceStats(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(1.0, (*res)[0][0]); err != nil {
+	if err := assertEq(1.0, res[0][0]); err != nil {
 		t.Error(err)
 	}
 
@@ -121,7 +121,7 @@ func TestAuthuserHostgroupsLoose(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(2, len(*res)); err != nil {
+	if err := assertEq(2, len(res)); err != nil {
 		t.Error(err)
 	}
 
@@ -148,7 +148,7 @@ func TestAuthuserHostgroupsStrict(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(1, len(*res)); err != nil {
+	if err := assertEq(1, len(res)); err != nil {
 		t.Error(err)
 	}
 
@@ -173,7 +173,7 @@ func TestAuthuserServicegroups(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(1, len(*res)); err != nil {
+	if err := assertEq(1, len(res)); err != nil {
 		t.Error(err)
 	}
 
@@ -197,7 +197,7 @@ func TestAuthuserComments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(1, len(*res)); err != nil {
+	if err := assertEq(1, len(res)); err != nil {
 		t.Error(err)
 	}
 
@@ -224,7 +224,7 @@ func TestAuthuserServiceAuth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(1, len(*res)); err != nil {
+	if err := assertEq(1, len(res)); err != nil {
 		t.Error(err)
 	}
 
@@ -249,7 +249,7 @@ func TestAuthuserHostsbygroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(1, len(*res)); err != nil {
+	if err := assertEq(1, len(res)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -275,7 +275,7 @@ func TestAuthuserServicesbygroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(1, len(*res)); err != nil {
+	if err := assertEq(1, len(res)); err != nil {
 		t.Error(err)
 	}
 
@@ -301,7 +301,7 @@ func TestAuthuserServicesbyhostgroup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := assertEq(1, len(*res)); err != nil {
+	if err := assertEq(1, len(res)); err != nil {
 		t.Error(err)
 	}
 

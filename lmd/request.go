@@ -29,7 +29,7 @@ type Request struct {
 	Filter              []*Filter
 	FilterStr           string
 	Stats               []*Filter
-	StatsGrouped        *[]*Filter // optimized stats groups
+	StatsGrouped        []*Filter // optimized stats groups
 	StatsResult         *ResultSetStats
 	Limit               *int
 	Offset              int
@@ -328,7 +328,7 @@ func NewRequest(b *bufio.Reader, options ParseOptions) (req *Request, size int, 
 	// remove unnecessary filter indentation
 	if options&ParseOptimize != 0 {
 		req.optimizeFilterIndentation()
-		req.StatsGrouped = req.optimizeStatsGroups(&req.Stats, true)
+		req.StatsGrouped = req.optimizeStatsGroups(req.Stats, true)
 	}
 
 	req.SetRequestColumns()
@@ -642,7 +642,7 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan ResultSet, c
 					key = strings.Join(keys, ListSepChar1)
 				}
 				if _, ok := req.StatsResult.Stats[key]; !ok {
-					req.StatsResult.Stats[key] = createLocalStatsCopy(&req.Stats)
+					req.StatsResult.Stats[key] = createLocalStatsCopy(req.Stats)
 				}
 				if hasColumns > 0 {
 					row = row[hasColumns:]
@@ -740,7 +740,7 @@ func (req *Request) ParseRequestHeaderLine(line []byte, options ParseOptions) (e
 		req.WaitConditionNegate = true
 		return
 	case "negate":
-		err = ParseFilterNegate(&req.Filter)
+		err = ParseFilterNegate(req.Filter)
 		return
 	case "keepalive":
 		err = parseOnOff(&req.KeepAlive, args)
@@ -919,11 +919,11 @@ func (req *Request) SetSortColumns() (err error) {
 }
 
 // parseResult parses the result bytes and returns the data table and optional meta data for wrapped_json requests
-func (req *Request) parseResult(resBytes *[]byte) (*ResultSet, *ResultMetaData, error) {
+func (req *Request) parseResult(resBytes []byte) (ResultSet, *ResultMetaData, error) {
 	var err error
 	meta := &ResultMetaData{}
-	if len(*resBytes) == 0 || (string((*resBytes)[0]) != "{" && string((*resBytes)[0]) != "[") {
-		err = errors.New(strings.TrimSpace(string(*resBytes)))
+	if len(resBytes) == 0 || (string(resBytes[0]) != "{" && string(resBytes[0]) != "[") {
+		err = errors.New(strings.TrimSpace(string(resBytes)))
 		return nil, nil, &PeerError{msg: fmt.Sprintf("response does not look like a json result: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
 	}
 	if req.OutputFormat == OutputFormatWrappedJSON {
@@ -934,7 +934,7 @@ func (req *Request) parseResult(resBytes *[]byte) (*ResultSet, *ResultMetaData, 
 		resBytes = dataBytes
 	}
 	res := make(ResultSet, 0)
-	offset, jErr := jsonparser.ArrayEach(*resBytes, func(rowBytes []byte, _ jsonparser.ValueType, _ int, aErr error) {
+	offset, jErr := jsonparser.ArrayEach(resBytes, func(rowBytes []byte, _ jsonparser.ValueType, _ int, aErr error) {
 		if aErr != nil {
 			err = aErr
 			return
@@ -956,18 +956,18 @@ func (req *Request) parseResult(resBytes *[]byte) (*ResultSet, *ResultMetaData, 
 		res = append(res, row)
 	})
 	// trailing comma error will be ignored
-	if jErr != nil && offset < len(*resBytes)-3 {
+	if jErr != nil && offset < len(resBytes)-3 {
 		return nil, nil, fmt.Errorf("parserResult jsonparse: %w", jErr)
 	}
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return &res, meta, err
+	return res, meta, err
 }
 
-func (req *Request) parseWrappedJSONMeta(resBytes *[]byte, meta *ResultMetaData) (*[]byte, error) {
-	dataBytes, dataType, _, jErr := jsonparser.Get(*resBytes, "columns")
+func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) ([]byte, error) {
+	dataBytes, dataType, _, jErr := jsonparser.Get(resBytes, "columns")
 	if jErr != nil {
 		log.Debugf("column header parse error: %s", jErr.Error())
 	} else if dataType == jsonparser.Array {
@@ -978,23 +978,23 @@ func (req *Request) parseWrappedJSONMeta(resBytes *[]byte, meta *ResultMetaData)
 		}
 		meta.Columns = columns
 	}
-	totalCount, jErr := jsonparser.GetInt(*resBytes, "total_count")
+	totalCount, jErr := jsonparser.GetInt(resBytes, "total_count")
 	if jErr != nil {
 		return nil, &PeerError{msg: fmt.Sprintf("total header parse error: %s", jErr.Error()), kind: ResponseError, req: req, resBytes: resBytes}
 	}
 	meta.Total = totalCount
 
 	// extract number of scanned rows if available
-	scanned, jErr := jsonparser.GetInt(*resBytes, "rows_scanned")
+	scanned, jErr := jsonparser.GetInt(resBytes, "rows_scanned")
 	if jErr == nil {
 		meta.RowsScanned = scanned
 	}
 
-	dataBytes, _, _, jErr = jsonparser.Get(*resBytes, "data")
+	dataBytes, _, _, jErr = jsonparser.Get(resBytes, "data")
 	if jErr != nil {
 		return nil, &PeerError{msg: fmt.Sprintf("data header parse error: %s", jErr.Error()), kind: ResponseError, req: req, resBytes: resBytes}
 	}
-	return &dataBytes, nil
+	return dataBytes, nil
 }
 
 // IsDefaultSortOrder returns true if the sortfields are the default for the given table.
@@ -1054,14 +1054,14 @@ func (req *Request) optimizeFilterIndentation() {
 
     those two counters can be combined, so the has_been_checked has only to be checked once
 */
-func (req *Request) optimizeStatsGroups(stats *[]*Filter, renumber bool) *[]*Filter {
-	if len(*stats) <= 1 {
+func (req *Request) optimizeStatsGroups(stats []*Filter, renumber bool) []*Filter {
+	if len(stats) <= 1 {
 		return nil
 	}
 	groupedStats := make([]*Filter, 0)
 	var lastGroup *Filter
-	for i := range *stats {
-		s := (*stats)[i]
+	for i := range stats {
+		s := stats[i]
 		if renumber {
 			s.StatsPos = i
 		}
@@ -1083,8 +1083,8 @@ func (req *Request) optimizeStatsGroups(stats *[]*Filter, renumber bool) *[]*Fil
 		req.optimizeStatsGroupsRecurse(lastGroup)
 
 		// start a new group if the current first stats filter matches the next first stats filter
-		if len(*stats) > i+1 {
-			next := (*stats)[i+1]
+		if len(stats) > i+1 {
+			next := stats[i+1]
 			if next.StatsType != Counter || next.Column != nil || len(next.Filter) < 2 {
 				groupedStats = append(groupedStats, s)
 				continue
@@ -1107,16 +1107,16 @@ func (req *Request) optimizeStatsGroups(stats *[]*Filter, renumber bool) *[]*Fil
 	}
 	// build sub stats groups recursively
 	req.optimizeStatsGroupsRecurse(lastGroup)
-	return &groupedStats
+	return groupedStats
 }
 
 func (req *Request) optimizeStatsGroupsRecurse(lastGroup *Filter) {
 	if lastGroup == nil {
 		return
 	}
-	subgroup := req.optimizeStatsGroups(&lastGroup.Filter, false)
+	subgroup := req.optimizeStatsGroups(lastGroup.Filter, false)
 	if subgroup != nil {
-		lastGroup.Filter = *subgroup
+		lastGroup.Filter = subgroup
 	}
 	lastGroup = nil
 }

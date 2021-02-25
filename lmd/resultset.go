@@ -27,19 +27,19 @@ func (res *ResultSet) Precompress(offset int, columns *ColumnList) {
 		col := (*columns)[i]
 		if col.DataType == StringLargeCol {
 			replaceIndex := i + offset
-			for j := range *res {
-				(*res)[j][replaceIndex] = interface2stringlarge((*res)[j][replaceIndex])
+			for _, row := range *res {
+				row[replaceIndex] = interface2stringlarge(row[replaceIndex])
 			}
 		}
 	}
 }
 
 // Precompress compresses large strings in result set to allow faster updates (compressing would happen during locked update loop otherwise)
-func (res *ResultSet) SortByPrimaryKey(table *Table, req *Request) *ResultSet {
+func (res *ResultSet) SortByPrimaryKey(table *Table, req *Request) ResultSet {
 	if len(table.PrimaryKey) == 0 {
-		return res
+		return *res
 	}
-	sorted := &ResultSetSorted{Data: res}
+	sorted := ResultSetSorted{Data: *res}
 	for _, name := range table.PrimaryKey {
 		for x, col := range req.Columns {
 			if name == col {
@@ -48,7 +48,7 @@ func (res *ResultSet) SortByPrimaryKey(table *Table, req *Request) *ResultSet {
 			}
 		}
 	}
-	sort.Sort(sorted)
+	sort.Sort(&sorted)
 	return sorted.Data
 }
 
@@ -67,14 +67,14 @@ func (res *ResultSet) Result2Hash(columns []string) []map[string]interface{} {
 
 // ResultSetSorted is a sorted list of result rows
 type ResultSetSorted struct {
-	Data  *ResultSet
+	Data  ResultSet
 	Keys  []int
 	Types []DataType
 }
 
 // Len returns the result length used for sorting results.
 func (res *ResultSetSorted) Len() int {
-	return len(*res.Data)
+	return len(res.Data)
 }
 
 // Less returns the sort result of two data rows
@@ -88,15 +88,15 @@ func (res *ResultSetSorted) Less(i, j int) bool {
 		case Int64Col:
 			fallthrough
 		case FloatCol:
-			valueA := interface2float64((*res.Data)[i][dataIndex])
-			valueB := interface2float64((*res.Data)[j][dataIndex])
+			valueA := interface2float64(res.Data[i][dataIndex])
+			valueB := interface2float64(res.Data[j][dataIndex])
 			if valueA == valueB {
 				continue
 			}
 			return valueA < valueB
 		case StringCol:
-			s1 := *interface2stringNoDedup((*res.Data)[i][dataIndex])
-			s2 := *interface2stringNoDedup((*res.Data)[j][dataIndex])
+			s1 := interface2stringNoDedup(res.Data[i][dataIndex])
+			s2 := interface2stringNoDedup(res.Data[j][dataIndex])
 			if s1 == s2 {
 				continue
 			}
@@ -109,12 +109,12 @@ func (res *ResultSetSorted) Less(i, j int) bool {
 
 // Swap replaces two data rows while sorting.
 func (res *ResultSetSorted) Swap(i, j int) {
-	(*res.Data)[i], (*res.Data)[j] = (*res.Data)[j], (*res.Data)[i]
+	res.Data[i], res.Data[j] = res.Data[j], res.Data[i]
 }
 
 // ResultPreparedSet is a list of result rows prepared to insert faster
 type ResultPrepared struct {
-	ResultRow  *[]interface{}
+	ResultRow  []interface{}
 	DataRow    *DataRow
 	FullUpdate bool
 }

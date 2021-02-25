@@ -111,7 +111,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 	default:
 		// normal requests
 		res.RawResults = &RawResultSet{}
-		res.RawResults.Sort = &req.Sort
+		res.RawResults.Sort = req.Sort
 		res.BuildLocalResponse()
 		res.RawResults.PostProcessing(res)
 	}
@@ -157,8 +157,8 @@ func (res *Response) Less(i, j int) bool {
 			if s.Group {
 				index = 0
 			}
-			s1 := *interface2stringNoDedup(res.Result[i][index])
-			s2 := *interface2stringNoDedup(res.Result[j][index])
+			s1 := interface2stringNoDedup(res.Result[i][index])
+			s2 := interface2stringNoDedup(res.Result[j][index])
 			if s1 == s2 {
 				continue
 			}
@@ -259,7 +259,7 @@ func (res *Response) CalculateFinalStats() {
 	}
 	hasColumns := len(res.Request.Columns)
 	if hasColumns == 0 && len(res.Request.StatsResult.Stats) == 0 {
-		res.Request.StatsResult.Stats[""] = createLocalStatsCopy(&res.Request.Stats)
+		res.Request.StatsResult.Stats[""] = createLocalStatsCopy(res.Request.Stats)
 	}
 	res.Result = make(ResultSet, len(res.Request.StatsResult.Stats))
 
@@ -454,7 +454,7 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 			if i > 0 {
 				json.WriteRaw(",")
 			}
-			res.RawResults.DataResult[i].WriteJSON(json, &res.Request.RequestColumns)
+			res.RawResults.DataResult[i].WriteJSON(json, res.Request.RequestColumns)
 		}
 	}
 }
@@ -467,7 +467,7 @@ func (res *Response) WriteDataResponseRowLocked(json *jsoniter.Stream) {
 		}
 		row := res.RawResults.DataResult[i]
 		row.DataStore.Peer.Lock.RLock()
-		row.WriteJSON(json, &res.Request.RequestColumns)
+		row.WriteJSON(json, res.Request.RequestColumns)
 		row.DataStore.Peer.Lock.RUnlock()
 	}
 }
@@ -750,7 +750,7 @@ func (res *Response) gatherResultRows(store *DataStore, resultcollector chan *Pe
 	breakOnLimit := res.Request.OutputFormat != OutputFormatWrappedJSON
 
 Rows:
-	for _, row := range *(store.GetPreFilteredData(&req.Filter)) {
+	for _, row := range store.GetPreFilteredData(req.Filter) {
 		result.RowsScanned++
 
 		// does our filter match?
@@ -784,7 +784,7 @@ func (res *Response) gatherStatsResult(store *DataStore) *ResultSetStats {
 	localStats := result.Stats
 
 Rows:
-	for _, row := range *(store.GetPreFilteredData(&req.Filter)) {
+	for _, row := range store.GetPreFilteredData(req.Filter) {
 		result.RowsScanned++
 		// does our filter match?
 		for _, f := range req.Filter {
@@ -802,15 +802,15 @@ Rows:
 		key := row.getStatsKey(res)
 		stat := localStats[key]
 		if stat == nil {
-			stat = createLocalStatsCopy(&req.Stats)
+			stat = createLocalStatsCopy(req.Stats)
 			localStats[key] = stat
 		}
 
 		// count stats
 		if req.StatsGrouped == nil {
-			row.CountStats(&req.Stats, &stat)
+			row.CountStats(req.Stats, stat)
 		} else {
-			row.CountStats(req.StatsGrouped, &stat)
+			row.CountStats(req.StatsGrouped, stat)
 		}
 	}
 

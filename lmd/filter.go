@@ -589,14 +589,13 @@ func ParseFilterOp(op GroupOperator, value []byte, stack *[]*Filter) (err error)
 }
 
 // ParseFilterNegate sets the last filter group to be negated
-func ParseFilterNegate(stack *[]*Filter) (err error) {
-	stackLen := len(*stack)
+func ParseFilterNegate(stack []*Filter) (err error) {
+	stackLen := len(stack)
 	if stackLen == 0 {
 		err = fmt.Errorf("no filter on stack to negate")
 		return
 	}
-	filter := (*stack)[stackLen-1]
-	filter.Negate = true
+	stack[stackLen-1].Negate = true
 	return
 }
 
@@ -604,7 +603,7 @@ func ParseFilterNegate(stack *[]*Filter) (err error) {
 func (f *Filter) Match(row *DataRow) bool {
 	switch f.Column.DataType {
 	case StringCol, StringLargeCol, JSONCol:
-		return f.MatchStringRef(row.GetString(f.Column))
+		return f.MatchString(row.GetString(f.Column))
 	case StringListCol:
 		return f.MatchStringList(row.GetStringList(f.Column))
 	case IntCol:
@@ -782,42 +781,42 @@ func (f *Filter) MatchString(value string) bool {
 	return false
 }
 
-func (f *Filter) MatchStringList(list *[]string) bool {
+func (f *Filter) MatchStringList(list []string) bool {
 	switch f.Operator {
 	case Equal:
 		// used to match for empty lists, like: contacts = ""
 		// return true if the list is empty
-		return f.StrValue == "" && len(*list) == 0
+		return f.StrValue == "" && len(list) == 0
 	case Unequal:
 		// used to match for any entry in lists, like: contacts != ""
 		// return true if the list is not empty
-		return f.StrValue == "" && len(*list) != 0
+		return f.StrValue == "" && len(list) != 0
 	case GreaterThan:
-		for i := range *list {
-			if f.StrValue == (*list)[i] {
+		for _, v := range list {
+			if f.StrValue == v {
 				return true
 			}
 		}
 		return false
 	case GroupContainsNot:
-		for i := range *list {
-			if f.StrValue == (*list)[i] {
+		for _, v := range list {
+			if f.StrValue == v {
 				return false
 			}
 		}
 		return true
 	case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase:
-		for i := range *list {
-			if f.MatchStringRef(&(*list)[i]) {
+		for _, v := range list {
+			if f.MatchString(v) {
 				return true
 			}
 		}
 		return false
 	case RegexMatchNot, RegexNoCaseMatchNot, ContainsNot, ContainsNoCaseNot:
-		for i := range *list {
+		for _, v := range list {
 			// MatchString takes operator into account, so negate the result
 			// so if it returns false it means the value has been found
-			if !f.MatchStringRef(&(*list)[i]) {
+			if !f.MatchString(v) {
 				return false
 			}
 		}

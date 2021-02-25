@@ -9,7 +9,7 @@ func GetTableBackendsStore(table *Table, peer *Peer) *DataStore {
 	store.DataSet = peer.data
 	rows := make(ResultSet, 1)
 	_, columns := store.GetInitialColumns()
-	err := store.InsertData(&rows, columns, true)
+	err := store.InsertData(rows, columns, true)
 	if err != nil {
 		log.Errorf("store error: %s", err.Error())
 	}
@@ -52,7 +52,7 @@ func GetTableColumnsStore(table *Table, _ *Peer) *DataStore {
 			data = append(data, row)
 		}
 	}
-	err := store.InsertData(&data, &table.Columns, true)
+	err := store.InsertData(data, table.Columns, true)
 	if err != nil {
 		log.Errorf("store error: %s", err.Error())
 	}
@@ -77,8 +77,8 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 		for _, row := range ds.tables[TableHosts].Data {
 			name := row.GetString(nameCol)
 			groups := row.GetStringList(groupCol)
-			for i := range *groups {
-				data = append(data, []interface{}{*name, (*groups)[i]})
+			for i := range groups {
+				data = append(data, []interface{}{name, groups[i]})
 			}
 		}
 	case TableServicesbygroup:
@@ -89,8 +89,8 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 			hostName := row.GetString(hostNameCol)
 			description := row.GetString(descCol)
 			groups := row.GetStringList(groupCol)
-			for i := range *groups {
-				data = append(data, []interface{}{*hostName, *description, (*groups)[i]})
+			for i := range groups {
+				data = append(data, []interface{}{hostName, description, groups[i]})
 			}
 		}
 	case TableServicesbyhostgroup:
@@ -101,15 +101,15 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 			hostName := row.GetString(hostNameCol)
 			description := row.GetString(descCol)
 			groups := row.GetStringList(hostGroupsCol)
-			for i := range *groups {
-				data = append(data, []interface{}{*hostName, *description, (*groups)[i]})
+			for i := range groups {
+				data = append(data, []interface{}{hostName, description, groups[i]})
 			}
 		}
 	default:
 		log.Panicf("GetGroupByData not implemented for table: %s", store.Table.Name)
 	}
 	_, columns := store.GetInitialColumns()
-	err := store.InsertData(&data, columns, true)
+	err := store.InsertData(data, columns, true)
 	if err != nil {
 		log.Errorf("store error: %s", err.Error())
 	}

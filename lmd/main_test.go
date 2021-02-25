@@ -21,10 +21,10 @@ func TestMainFunc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq("peer_key", (*res)[0][0]); err != nil {
+	if err = assertEq("peer_key", res[0][0]); err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq("mockid0", (*res)[1][0]); err != nil {
+	if err = assertEq("mockid0", res[1][0]); err != nil {
 		t.Fatal(err)
 	}
 
@@ -48,10 +48,10 @@ func TestMainFunc(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err = assertEq("peer_key", (*res)[0][0]); err != nil {
+		if err = assertEq("peer_key", res[0][0]); err != nil {
 			t.Fatal(err)
 		}
-		if err = assertEq("mockid0", (*res)[1][0]); err != nil {
+		if err = assertEq("mockid0", res[1][0]); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -61,7 +61,7 @@ func TestMainFunc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq("mockid0", (*res)[0][0]); err != nil {
+	if err = assertEq("mockid0", res[0][0]); err != nil {
 		t.Fatal(err)
 	}
 
@@ -70,7 +70,7 @@ func TestMainFunc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq(1.0, (*res)[0][0]); err != nil {
+	if err = assertEq(1.0, res[0][0]); err != nil {
 		t.Fatal(err)
 	}
 
@@ -133,7 +133,7 @@ func TestAllOps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, row := range *res {
+	for _, row := range res {
 		if row[2].(string) == "" {
 			t.Fatalf("got no description for %s in %s", row[1].(string), row[0].(string))
 		}

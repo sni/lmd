@@ -75,7 +75,7 @@ type Peer struct {
 	GlobalConfig    *Config                       // reference to global config object
 	last            struct {
 		Request  *Request // reference to last query (used in error reports)
-		Response *[]byte  // reference to last response
+		Response []byte   // reference to last response
 	}
 	cache struct {
 		HTTPClient *http.Client  // cached http client for http backends
@@ -197,7 +197,7 @@ type PeerError struct {
 	kind     PeerErrorType
 	req      *Request
 	res      [][]interface{}
-	resBytes *[]byte
+	resBytes []byte
 }
 
 // Error returns the error message as string.
@@ -210,7 +210,7 @@ func (e *PeerError) Error() string {
 		msg += fmt.Sprintf("\nResponse: %#v", e.res)
 	}
 	if e.resBytes != nil {
-		msg += fmt.Sprintf("\nResponse: %s", string(*(e.resBytes)))
+		msg += fmt.Sprintf("\nResponse: %s", string(e.resBytes))
 	}
 	return msg
 }
@@ -339,8 +339,8 @@ func (p *Peer) SetHTTPClient() {
 func (p *Peer) countFromServer(name string, queryCondition string) (count int) {
 	count = -1
 	res, _, err := p.QueryString("GET " + name + "\nOutputFormat: json\nStats: " + queryCondition + "\n\n")
-	if err == nil && len(*res) > 0 && len((*res)[0]) > 0 {
-		count = int(interface2float64((*res)[0][0]))
+	if err == nil && len(res) > 0 && len(res[0]) > 0 {
+		count = int(interface2float64(res[0][0]))
 	}
 	return
 }
@@ -434,15 +434,15 @@ func (p *Peer) periodicUpdate() (err error) {
 
 	switch lastStatus {
 	case PeerStatusBroken:
-		var res *ResultSet
+		var res ResultSet
 		res, _, err = p.QueryString("GET status\nOutputFormat: json\nColumns: program_start nagios_pid\n\n")
 		if err != nil {
 			log.Debugf("[%s] waiting for reload", p.Name)
 			return
 		}
-		if len(*res) > 0 && len((*res)[0]) == 2 {
-			programStart := interface2int64((*res)[0][0])
-			corePid := interface2int((*res)[0][1])
+		if len(res) > 0 && len(res[0]) == 2 {
+			programStart := interface2int64(res[0][0])
+			corePid := interface2int(res[0][1])
 			if p.StatusGet(ProgramStart) != programStart || p.StatusGet(LastPid) != corePid {
 				log.Debugf("[%s] broken peer has reloaded, trying again.", p.Name)
 				return p.InitAllTables()
@@ -536,7 +536,7 @@ func (p *Peer) periodicUpdateLMD(force bool) (err error) {
 			subPeer.setQueryOptions(req)
 			res, _, err := subPeer.query(req)
 			if err == nil {
-				section := *(interface2stringNoDedup((*res)[0][0]))
+				section := interface2stringNoDedup(res[0][0])
 				section = strings.TrimPrefix(section, "Default")
 				section = strings.TrimPrefix(section, "/")
 				subPeer.StatusSet(Section, section)
@@ -971,7 +971,7 @@ func (p *Peer) resetErrors() {
 
 // query sends the request to a remote livestatus.
 // It returns the unmarshaled result and any error encountered.
-func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
+func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 	conn, connType, err := p.GetConnection()
 	if err != nil {
 		log.Debugf("[%s] connection failed: %s", p.Name, err)
@@ -1021,9 +1021,9 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 		return nil, nil, err
 	}
 	if req.Command != "" {
-		*resBytes = bytes.TrimSpace(*resBytes)
-		if len(*resBytes) > 0 {
-			tmp := strings.SplitN(strings.TrimSpace(string(*resBytes)), ":", 2)
+		resBytes = bytes.TrimSpace(resBytes)
+		if len(resBytes) > 0 {
+			tmp := strings.SplitN(strings.TrimSpace(string(resBytes)), ":", 2)
 			if len(tmp) == 2 {
 				code, _ := strconv.Atoi(tmp[0])
 				return nil, nil, &PeerCommandError{err: fmt.Errorf(strings.TrimSpace(tmp[1])), code: code, peer: p}
@@ -1034,13 +1034,13 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 	}
 
 	if log.IsV(LogVerbosityTrace) {
-		log.Tracef("[%s] result: %s", p.Name, string(*resBytes))
+		log.Tracef("[%s] result: %s", p.Name, string(resBytes))
 	}
 	p.Lock.Lock()
 	if p.GlobalConfig.SaveTempRequests {
 		p.last.Response = resBytes
 	}
-	totalBytesReceived := p.Status[BytesReceived].(int64) + int64(len(*resBytes))
+	totalBytesReceived := p.Status[BytesReceived].(int64) + int64(len(resBytes))
 	p.Status[BytesReceived] = totalBytesReceived
 	p.Lock.Unlock()
 	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(totalBytesReceived))
@@ -1048,24 +1048,24 @@ func (p *Peer) query(req *Request) (*ResultSet, *ResultMetaData, error) {
 	data, meta, err := req.parseResult(resBytes)
 
 	if err != nil {
-		log.Debugf("[%s] fetched table %20s time: %s, size: %d kB", p.Name, req.Table.String(), duration, len(*resBytes)/1024)
-		log.Errorf("[%s] result json string: %s", p.Name, string(*resBytes))
+		log.Debugf("[%s] fetched table %20s time: %s, size: %d kB", p.Name, req.Table.String(), duration, len(resBytes)/1024)
+		log.Errorf("[%s] result json string: %s", p.Name, string(resBytes))
 		log.Errorf("[%s] result parse error: %s", p.Name, err.Error())
 		return nil, nil, &PeerError{msg: err.Error(), kind: ResponseError}
 	}
 
 	meta.Duration = duration
-	meta.Size = len(*resBytes)
+	meta.Size = len(resBytes)
 
-	log.Tracef("[%s] fetched table: %15s - time: %8s - count: %8d - size: %8d kB", p.Name, req.Table.String(), duration, len(*data), len(*resBytes)/1024)
+	log.Tracef("[%s] fetched table: %15s - time: %8s - count: %8d - size: %8d kB", p.Name, req.Table.String(), duration, len(data), len(resBytes)/1024)
 
 	if duration > time.Duration(p.GlobalConfig.LogSlowQueryThreshold)*time.Second {
-		log.Warnf("[%s] slow query finished after %s, response size: %s\n%s", p.Name, duration, ByteCountBinary(int64(len(*resBytes))), strings.TrimSpace(req.String()))
+		log.Warnf("[%s] slow query finished after %s, response size: %s\n%s", p.Name, duration, ByteCountBinary(int64(len(resBytes))), strings.TrimSpace(req.String()))
 	}
 	return data, meta, nil
 }
 
-func (p *Peer) getQueryResponse(req *Request, query string, peerAddr string, conn net.Conn, connType PeerConnType) (*[]byte, error) {
+func (p *Peer) getQueryResponse(req *Request, query string, peerAddr string, conn net.Conn, connType PeerConnType) ([]byte, error) {
 	// http connections
 	if connType == ConnTypeHTTP {
 		return p.getHTTPQueryResponse(req, query, peerAddr)
@@ -1073,7 +1073,7 @@ func (p *Peer) getQueryResponse(req *Request, query string, peerAddr string, con
 	return p.getSocketQueryResponse(req, query, conn)
 }
 
-func (p *Peer) getHTTPQueryResponse(req *Request, query string, peerAddr string) (*[]byte, error) {
+func (p *Peer) getHTTPQueryResponse(req *Request, query string, peerAddr string) ([]byte, error) {
 	res, err := p.HTTPQueryWithRetries(req, peerAddr, query, 2)
 	if err != nil {
 		return nil, err
@@ -1087,17 +1087,17 @@ func (p *Peer) getHTTPQueryResponse(req *Request, query string, peerAddr string)
 		}
 		res = res[16:]
 
-		err = p.validateResponseHeader(&res, req, code, expSize)
+		err = p.validateResponseHeader(res, req, code, expSize)
 		if err != nil {
 			log.Debugf("[%s] LastQuery:", p.Name)
 			log.Debugf("[%s] %s", p.Name, req.String())
 			return nil, err
 		}
 	}
-	return &res, nil
+	return res, nil
 }
 
-func (p *Peer) getSocketQueryResponse(req *Request, query string, conn net.Conn) (*[]byte, error) {
+func (p *Peer) getSocketQueryResponse(req *Request, query string, conn net.Conn) ([]byte, error) {
 	// tcp/unix connections
 	// set read timeout
 	err := conn.SetDeadline(time.Now().Add(time.Duration(p.GlobalConfig.NetTimeout) * time.Second))
@@ -1128,7 +1128,7 @@ func (p *Peer) getSocketQueryResponse(req *Request, query string, conn net.Conn)
 	return p.parseResponseUndefinedSize(conn)
 }
 
-func (p *Peer) parseResponseUndefinedSize(conn io.Reader) (*[]byte, error) {
+func (p *Peer) parseResponseUndefinedSize(conn io.Reader) ([]byte, error) {
 	// read result from connection into result buffer with undefined result size
 	body := new(bytes.Buffer)
 	for {
@@ -1141,15 +1141,15 @@ func (p *Peer) parseResponseUndefinedSize(conn io.Reader) (*[]byte, error) {
 		}
 	}
 	res := body.Bytes()
-	return &res, nil
+	return res, nil
 }
 
-func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) (*[]byte, error) {
+func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) ([]byte, error) {
 	header := new(bytes.Buffer)
 	_, err := io.CopyN(header, conn, 16)
 	resBytes := header.Bytes()
 	if err != nil {
-		return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: &resBytes}
+		return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes}
 	}
 	if bytes.Contains(resBytes, []byte("No UNIX socket /")) {
 		p.LogErrors(io.CopyN(header, conn, ErrorContentPreviewSize))
@@ -1172,19 +1172,19 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) (*[]byte
 	}
 
 	res := body.Bytes()
-	err = p.validateResponseHeader(&res, req, code, expSize)
+	err = p.validateResponseHeader(res, req, code, expSize)
 	if err != nil {
 		log.Debugf("[%s] LastQuery:", p.Name)
 		log.Debugf("[%s] %s", p.Name, req.String())
 		return nil, err
 	}
-	return &res, nil
+	return res, nil
 }
 
 // Query sends a livestatus request from a request object.
 // It calls query and logs all errors except connection errors which are logged in GetConnection.
 // It returns the livestatus result and any error encountered.
-func (p *Peer) Query(req *Request) (result *ResultSet, meta *ResultMetaData, err error) {
+func (p *Peer) Query(req *Request) (result ResultSet, meta *ResultMetaData, err error) {
 	result, meta, err = p.query(req)
 	if err != nil {
 		p.setNextAddrFromErr(err)
@@ -1194,7 +1194,7 @@ func (p *Peer) Query(req *Request) (result *ResultSet, meta *ResultMetaData, err
 
 // QueryString sends a livestatus request from a given string.
 // It returns the livestatus result and any error encountered.
-func (p *Peer) QueryString(str string) (*ResultSet, *ResultMetaData, error) {
+func (p *Peer) QueryString(str string) (ResultSet, *ResultMetaData, error) {
 	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString(str)), ParseDefault)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
@@ -1242,21 +1242,21 @@ func (p *Peer) parseResponseHeader(resBytes *[]byte) (code int, expSize int64, e
 }
 
 // validateResponseHeader checks if the response header returned a valid size and return code
-func (p *Peer) validateResponseHeader(resBytes *[]byte, req *Request, code int, expSize int64) (err error) {
+func (p *Peer) validateResponseHeader(resBytes []byte, req *Request, code int, expSize int64) (err error) {
 	switch code {
 	case 200:
 		// everything fine
 	default:
-		if expSize > 0 && expSize < 200 && int64(len(*resBytes)) == expSize {
-			err = fmt.Errorf("[%s] bad response code: %d - %s", p.Name, code, string(*resBytes))
+		if expSize > 0 && expSize < 200 && int64(len(resBytes)) == expSize {
+			err = fmt.Errorf("[%s] bad response code: %d - %s", p.Name, code, string(resBytes))
 		} else {
 			err = fmt.Errorf("[%s] bad response code: %d", p.Name, code)
 			err = &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes}
 		}
 		return
 	}
-	if int64(len(*resBytes)) != expSize {
-		err = fmt.Errorf("[%s] bad response size, expected %d, got %d", p.Name, expSize, len(*resBytes))
+	if int64(len(resBytes)) != expSize {
+		err = fmt.Errorf("[%s] bad response size, expected %d, got %d", p.Name, expSize, len(resBytes))
 		return &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes}
 	}
 	return
@@ -1430,7 +1430,7 @@ func (p *Peer) checkStatusFlags(data []*DataRow) (err error) {
 	row := data[0]
 	livestatusVersion := row.GetStringByName("livestatus_version")
 	switch {
-	case len(reShinkenVersion.FindStringSubmatch(*livestatusVersion)) > 0:
+	case len(reShinkenVersion.FindStringSubmatch(livestatusVersion)) > 0:
 		if !p.HasFlag(Shinken) {
 			log.Debugf("[%s] remote connection Shinken flag set", p.Name)
 			p.SetFlag(Shinken)
@@ -1454,12 +1454,12 @@ func (p *Peer) checkStatusFlags(data []*DataRow) (err error) {
 			}
 			return
 		}
-	case len(reIcinga2Version.FindStringSubmatch(*livestatusVersion)) > 0:
+	case len(reIcinga2Version.FindStringSubmatch(livestatusVersion)) > 0:
 		if !p.HasFlag(Icinga2) {
 			log.Debugf("[%s] remote connection Icinga2 flag set", p.Name)
 			p.SetFlag(Icinga2)
 		}
-	case len(reNaemonVersion.FindStringSubmatch(*livestatusVersion)) > 0:
+	case len(reNaemonVersion.FindStringSubmatch(livestatusVersion)) > 0:
 		if !p.HasFlag(Naemon) {
 			log.Debugf("[%s] remote connection Naemon flag set", p.Name)
 			p.SetFlag(Naemon)
@@ -1719,7 +1719,7 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
 					found = false
 				}
 			}
-		} else if p.waitConditionTableMatches(store, &req.WaitCondition) {
+		} else if p.waitConditionTableMatches(store, req.WaitCondition) {
 			found = true
 		}
 
@@ -1990,8 +1990,8 @@ func (p *Peer) PassThroughQuery(res *Response, passthroughRequest *Request, virt
 		table := Objects.Tables[res.Request.Table]
 		store := NewDataStore(table, p)
 		tmpRow, _ := NewDataRow(store, nil, nil, 0, true)
-		for rowNum := range *result {
-			row := &((*result)[rowNum])
+		for rowNum := range result {
+			row := &(result[rowNum])
 			for j := range virtualColumns {
 				col := virtualColumns[j]
 				i := columnsIndex[col]
@@ -1999,22 +1999,22 @@ func (p *Peer) PassThroughQuery(res *Response, passthroughRequest *Request, virt
 				copy((*row)[i+1:], (*row)[i:])
 				(*row)[i] = tmpRow.GetValueByColumn(col)
 			}
-			(*result)[rowNum] = *row
+			result[rowNum] = *row
 		}
 	}
 	log.Tracef("[%s] result ready", p.Name)
 	res.Lock.Lock()
 	if len(req.Stats) == 0 {
-		res.Result = append(res.Result, *result...)
+		res.Result = append(res.Result, result...)
 	} else {
 		if res.Request.StatsResult == nil {
 			res.Request.StatsResult = NewResultSetStats()
-			res.Request.StatsResult.Stats[""] = createLocalStatsCopy(&res.Request.Stats)
+			res.Request.StatsResult.Stats[""] = createLocalStatsCopy(res.Request.Stats)
 		}
 		// apply stats queries
-		if len(*result) > 0 {
-			for i := range (*result)[0] {
-				val := (*result)[0][i].(float64)
+		if len(result) > 0 {
+			for i := range result[0] {
+				val := result[0][i].(float64)
 				res.Request.StatsResult.Stats[""][i].ApplyValue(val, int(val))
 			}
 		}
@@ -2057,13 +2057,13 @@ func (p *Peer) getError() string {
 	return fmt.Sprintf("%v", p.StatusGet(LastError))
 }
 
-func (p *Peer) waitConditionTableMatches(store *DataStore, filter *[]*Filter) bool {
+func (p *Peer) waitConditionTableMatches(store *DataStore, filter []*Filter) bool {
 Rows:
 	for j := range store.Data {
 		row := store.Data[j]
 		// does our filter match?
-		for i := range *filter {
-			if !row.MatchFilter((*filter)[i]) {
+		for _, f := range filter {
+			if !row.MatchFilter(f) {
 				continue Rows
 			}
 		}
@@ -2072,10 +2072,9 @@ Rows:
 	return false
 }
 
-func createLocalStatsCopy(stats *[]*Filter) []*Filter {
-	localStats := make([]*Filter, len(*stats))
-	for i := range *stats {
-		s := (*stats)[i]
+func createLocalStatsCopy(stats []*Filter) []*Filter {
+	localStats := make([]*Filter, len(stats))
+	for i, s := range stats {
 		localStats[i] = &Filter{}
 		localStats[i].StatsType = s.StatsType
 		if s.StatsType == Min {
@@ -2120,7 +2119,7 @@ func logPanicExitPeer(p *Peer) {
 		log.Errorf("[%s] LastQuery:", p.Name)
 		log.Errorf("[%s] %s", p.Name, p.last.Request.String())
 		log.Errorf("[%s] LastResponse:", p.Name)
-		log.Errorf("[%s] %s", p.Name, string(*(p.last.Response)))
+		log.Errorf("[%s] %s", p.Name, string(p.last.Response))
 	}
 	logThreaddump()
 	deletePidFile(flagPidfile)
@@ -2345,10 +2344,9 @@ func (p *Peer) GetSupportedColumns() (tables map[TableName]map[string]bool, err 
 		return nil, err
 	}
 	tables = make(map[TableName]map[string]bool)
-	for i := range *res {
-		row := (*res)[i]
+	for _, row := range res {
 		table := interface2stringNoDedup(row[0])
-		tableName, e := NewTableName(*table)
+		tableName, e := NewTableName(table)
 		if e != nil {
 			continue
 		}
@@ -2356,7 +2354,7 @@ func (p *Peer) GetSupportedColumns() (tables map[TableName]map[string]bool, err 
 		if _, ok := tables[tableName]; !ok {
 			tables[tableName] = make(map[string]bool)
 		}
-		tables[tableName][*column] = true
+		tables[tableName][column] = true
 	}
 	return
 }
@@ -2439,10 +2437,10 @@ func (p *Peer) requestLocaltime() (err error) {
 	if err != nil {
 		return
 	}
-	if res == nil || len((*res)) == 0 || len((*res)[0]) == 0 {
+	if res == nil || len(res) == 0 || len(res[0]) == 0 {
 		return
 	}
-	unix := interface2float64((*res)[0][0])
+	unix := interface2float64(res[0][0])
 	return p.CheckLocaltime(unix)
 }
 

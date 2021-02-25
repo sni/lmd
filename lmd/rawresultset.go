@@ -13,7 +13,7 @@ type RawResultSet struct {
 	RowsScanned int            // total number of scanned rows for this set
 	DataResult  []*DataRow     // references to the data rows required for the result
 	StatsResult ResultSetStats // intermediate result of stats query
-	Sort        *[]*SortField  // columns required for sorting
+	Sort        []*SortField   // columns required for sorting
 }
 
 // PostProcessing does all the post processing required for a request like sorting
@@ -59,8 +59,7 @@ func (raw *RawResultSet) Len() int {
 
 // Less returns the sort result of two data rows
 func (raw *RawResultSet) Less(i, j int) bool {
-	for k := range *raw.Sort {
-		s := (*raw.Sort)[k]
+	for _, s := range raw.Sort {
 		switch s.Column.DataType {
 		case IntCol:
 			fallthrough
@@ -79,24 +78,24 @@ func (raw *RawResultSet) Less(i, j int) bool {
 		case StringCol, StringLargeCol, StringListCol, ServiceMemberListCol, InterfaceListCol, JSONCol, CustomVarCol:
 			s1 := raw.DataResult[i].GetString(s.Column)
 			s2 := raw.DataResult[j].GetString(s.Column)
-			if *s1 == *s2 {
+			if s1 == s2 {
 				continue
 			}
 			if s.Direction == Asc {
-				return *s1 < *s2
+				return s1 < s2
 			}
-			return *s1 > *s2
+			return s1 > s2
 		case Int64ListCol:
 			// join numbers to string
 			s1 := raw.DataResult[i].GetString(s.Column)
 			s2 := raw.DataResult[j].GetString(s.Column)
-			if *s1 == *s2 {
+			if s1 == s2 {
 				continue
 			}
 			if s.Direction == Asc {
-				return *s1 < *s2
+				return s1 < s2
 			}
-			return *s1 > *s2
+			return s1 > s2
 		}
 		panic(fmt.Sprintf("sorting not implemented for type %s", s.Column.DataType))
 	}

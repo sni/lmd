@@ -87,10 +87,10 @@ func (ds *DataStoreSet) CreateObjectByType(table *Table) (store *DataStore, err 
 	p.Status[LastFullUpdate] = now
 	p.Lock.Unlock()
 	tableName := table.Name.String()
-	promObjectCount.WithLabelValues(p.Name, tableName).Set(float64(len((*res))))
+	promObjectCount.WithLabelValues(p.Name, tableName).Set(float64(len(res)))
 
 	duration := time.Since(t1).Truncate(time.Millisecond)
-	log.Debugf("[%s] updated table: %15s - fetch: %9s - insert: %9s - count: %8d - size: %8d kB", p.Name, tableName, resMeta.Duration.Truncate(time.Microsecond), duration, len(*res), resMeta.Size/1024)
+	log.Debugf("[%s] updated table: %15s - fetch: %9s - insert: %9s - count: %8d - size: %8d kB", p.Name, tableName, resMeta.Duration.Truncate(time.Microsecond), duration, len(res), resMeta.Size/1024)
 	return
 }
 
@@ -283,7 +283,7 @@ func (ds *DataStoreSet) updateDeltaHostsServices(tableName TableName, filterStr 
 	return
 }
 
-func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res *ResultSet, resMeta *ResultMetaData, table *DataStore) (err error) {
+func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, resMeta *ResultMetaData, table *DataStore) (err error) {
 	t1 := time.Now()
 	updateSet, err := ds.prepareDataUpdateSet(dataOffset, res, table)
 	if err != nil {
@@ -296,7 +296,7 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res *ResultSet, re
 	for i := range updateSet {
 		update := updateSet[i]
 		if update.FullUpdate {
-			err = update.DataRow.UpdateValues(dataOffset, update.ResultRow, &table.DynamicColumnCache, now)
+			err = update.DataRow.UpdateValues(dataOffset, update.ResultRow, table.DynamicColumnCache, now)
 		} else {
 			err = update.DataRow.UpdateValuesNumberOnly(dataOffset, update.ResultRow, &table.DynamicColumnCache, now)
 		}
@@ -309,14 +309,14 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res *ResultSet, re
 
 	p := ds.peer
 	tableName := table.Table.Name.String()
-	promObjectUpdate.WithLabelValues(p.Name, tableName).Add(float64(len(*res)))
+	promObjectUpdate.WithLabelValues(p.Name, tableName).Add(float64(len(res)))
 	log.Debugf("[%s] updated table: %15s - fetch: %8s - insert: %8s - count: %8d - size: %8d kB", p.Name, tableName, resMeta.Duration, duration, len(updateSet), resMeta.Size/1024)
 
 	return
 }
 
-func (ds *DataStoreSet) prepareDataUpdateSet(dataOffset int, res *ResultSet, table *DataStore) (updateSet []ResultPrepared, err error) {
-	updateSet = make([]ResultPrepared, len(*res))
+func (ds *DataStoreSet) prepareDataUpdateSet(dataOffset int, res ResultSet, table *DataStore) (updateSet []ResultPrepared, err error) {
+	updateSet = make([]ResultPrepared, len(res))
 
 	// prepare list of large strings
 	stringlistIndexes := make([]int, 0)
@@ -336,8 +336,7 @@ func (ds *DataStoreSet) prepareDataUpdateSet(dataOffset int, res *ResultSet, tab
 	defer ds.Lock.RUnlock()
 	nameIndex := table.Index
 	nameIndex2 := table.Index2
-	for i := range *res {
-		resRow := &(*res)[i]
+	for i, resRow := range res {
 		prepared := ResultPrepared{
 			ResultRow:  resRow,
 			FullUpdate: false,
@@ -347,16 +346,16 @@ func (ds *DataStoreSet) prepareDataUpdateSet(dataOffset int, res *ResultSet, tab
 		} else {
 			switch table.Table.Name {
 			case TableHosts:
-				hostName := interface2stringNoDedup((*resRow)[0])
-				dataRow := nameIndex[*hostName]
+				hostName := interface2stringNoDedup(resRow[0])
+				dataRow := nameIndex[hostName]
 				if dataRow == nil {
-					return updateSet, fmt.Errorf("cannot update host, no host named '%s' found", *hostName)
+					return updateSet, fmt.Errorf("cannot update host, no host named '%s' found", hostName)
 				}
 				prepared.DataRow = dataRow
 			case TableServices:
-				dataRow := nameIndex2[*(interface2stringNoDedup((*resRow)[0]))][*(interface2stringNoDedup((*resRow)[1]))]
+				dataRow := nameIndex2[interface2stringNoDedup(resRow[0])][interface2stringNoDedup(resRow[1])]
 				if dataRow == nil {
-					return updateSet, fmt.Errorf("cannot update service, no service named '%s' - '%s' found", *(interface2stringNoDedup((*resRow)[0])), *(interface2stringNoDedup((*resRow)[1])))
+					return updateSet, fmt.Errorf("cannot update service, no service named '%s' - '%s' found", interface2stringNoDedup(resRow[0]), interface2stringNoDedup(resRow[1]))
 				}
 
 				prepared.DataRow = dataRow
@@ -364,10 +363,10 @@ func (ds *DataStoreSet) prepareDataUpdateSet(dataOffset int, res *ResultSet, tab
 		}
 
 		// compare last check date and prepare large strings if the last check date has changed
-		if interface2int64((*resRow)[lastCheckIndex]) != prepared.DataRow.GetInt64(lastCheckCol) {
+		if interface2int64(resRow[lastCheckIndex]) != prepared.DataRow.GetInt64(lastCheckCol) {
 			prepared.FullUpdate = true
 			for j := range stringlistIndexes {
-				(*res)[i][j] = interface2stringlarge((*res)[i][j])
+				res[i][j] = interface2stringlarge(res[i][j])
 			}
 		}
 		updateSet[i] = prepared
@@ -430,7 +429,7 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, filterStr string) 
 		columns[i] = store.Table.ColumnsIndex[name]
 	}
 
-	missing, err := ds.getMissingTimestamps(store, res, &columns)
+	missing, err := ds.getMissingTimestamps(store, res, columns)
 	if err != nil {
 		return
 	}
@@ -464,17 +463,17 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, filterStr string) 
 }
 
 // getMissingTimestamps returns list of last_check dates which can be used to delta update
-func (ds *DataStoreSet) getMissingTimestamps(store *DataStore, res *ResultSet, columns *ColumnList) (missing []int64, err error) {
+func (ds *DataStoreSet) getMissingTimestamps(store *DataStore, res ResultSet, columns ColumnList) (missing []int64, err error) {
 	ds.Lock.RLock()
 	p := ds.peer
 	data := store.Data
-	if len(data) < len(*res) {
+	if len(data) < len(res) {
 		ds.Lock.RUnlock()
 		if p.HasFlag(Icinga2) || len(data) == 0 {
 			err = ds.reloadIfNumberOfObjectsChanged()
 			return
 		}
-		err = &PeerError{msg: fmt.Sprintf("%s cache not ready, got %d entries but only have %d in cache", store.Table.Name.String(), len(*res), len(data)), kind: ResponseError}
+		err = &PeerError{msg: fmt.Sprintf("%s cache not ready, got %d entries but only have %d in cache", store.Table.Name.String(), len(res), len(data)), kind: ResponseError}
 		log.Warnf("[%s] %s", p.Name, err.Error())
 		p.setBroken(fmt.Sprintf("got more %s than expected. Hint: check clients 'max_response_size' setting.", store.Table.Name.String()))
 		return
@@ -482,9 +481,8 @@ func (ds *DataStoreSet) getMissingTimestamps(store *DataStore, res *ResultSet, c
 
 	missedUnique := make(map[int64]bool)
 	updateThreshold := time.Now().Unix() - ds.peer.GlobalConfig.UpdateOffset
-	for i := range *res {
-		row := (*res)[i]
-		if data[i].CheckChangedIntValues(&row, columns) {
+	for i, row := range res {
+		if data[i].CheckChangedIntValues(row, columns) {
 			ts := interface2int64(row[0])
 			if ts < updateThreshold {
 				missedUnique[ts] = true
@@ -542,13 +540,12 @@ func (ds *DataStoreSet) UpdateDeltaCommentsOrDowntimes(name TableName) (err erro
 	idIndex := store.Index
 	missingIds := []int64{}
 	resIndex := make(map[string]bool)
-	for i := range *res {
-		resRow := &(*res)[i]
-		id := fmt.Sprintf("%d", interface2int64((*resRow)[0]))
+	for _, resRow := range res {
+		id := fmt.Sprintf("%d", interface2int64(resRow[0]))
 		_, ok := idIndex[id]
 		if !ok {
 			log.Debugf("adding %s with id %s", name.String(), id)
-			id64 := int64((*resRow)[0].(float64))
+			id64 := int64(resRow[0].(float64))
 			missingIds = append(missingIds, id64)
 		}
 		resIndex[id] = true
@@ -629,7 +626,7 @@ func (ds *DataStoreSet) maxIDOrSizeChanged(name TableName) (changed bool, err er
 	}
 	ds.Lock.RUnlock()
 
-	if len(*res) == 0 || float64(entries) == interface2float64((*res)[0][0]) && (entries == 0 || interface2float64((*res)[0][1]) == float64(maxID)) {
+	if len(res) == 0 || float64(entries) == interface2float64(res[0][0]) && (entries == 0 || interface2float64(res[0][1]) == float64(maxID)) {
 		log.Tracef("[%s] %s did not change", p.Name, name.String())
 		return
 	}
@@ -676,19 +673,19 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 	ds.Lock.RLock()
 	data := store.Data
 	ds.Lock.RUnlock()
-	if len(*res) != len(data) {
-		err = fmt.Errorf("site returned different number of objects, assuming backend has been restarted, table: %s, expected: %d, received: %d", store.Table.Name.String(), len(data), len(*res))
+	if len(res) != len(data) {
+		err = fmt.Errorf("site returned different number of objects, assuming backend has been restarted, table: %s, expected: %d, received: %d", store.Table.Name.String(), len(data), len(res))
 		log.Debugf("[%s] %s", p.Name, err.Error())
 		return &PeerError{msg: err.Error(), kind: RestartRequiredError}
 	}
 
-	promObjectUpdate.WithLabelValues(p.Name, tableName.String()).Add(float64(len(*res)))
+	promObjectUpdate.WithLabelValues(p.Name, tableName.String()).Add(float64(len(res)))
 	t1 := time.Now()
 
 	switch tableName {
 	case TableTimeperiods:
 		// check for changed timeperiods, because we have to update the linked hosts and services as well
-		err = ds.updateTimeperiodsData(store, res, &store.DynamicColumnCache)
+		err = ds.updateTimeperiodsData(store, res, store.DynamicColumnCache)
 		lastTimeperiodUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
 		p.StatusSet(LastTimeperiodUpdateMinute, lastTimeperiodUpdateMinute)
 	case TableHosts, TableServices:
@@ -696,9 +693,8 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 	default:
 		ds.Lock.Lock()
 		now := time.Now().Unix()
-		for i := range *res {
-			row := (*res)[i]
-			err = data[i].UpdateValues(0, &row, &store.DynamicColumnCache, now)
+		for i, row := range res {
+			err = data[i].UpdateValues(0, row, store.DynamicColumnCache, now)
 			if err != nil {
 				ds.Lock.Unlock()
 				return
@@ -721,7 +717,7 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 	}
 
 	duration := time.Since(t1).Truncate(time.Millisecond)
-	log.Debugf("[%s] updated table: %15s - fetch: %9s - insert: %9s - count: %8d - size: %8d kB", p.Name, tableName.String(), resMeta.Duration.Truncate(time.Microsecond), duration, len(*res), resMeta.Size/1024)
+	log.Debugf("[%s] updated table: %15s - fetch: %9s - insert: %9s - count: %8d - size: %8d kB", p.Name, tableName.String(), resMeta.Duration.Truncate(time.Microsecond), duration, len(res), resMeta.Size/1024)
 	return
 }
 
@@ -745,19 +741,19 @@ func (ds *DataStoreSet) skipTableUpdate(store *DataStore, table TableName) (bool
 	return false, nil
 }
 
-func (ds *DataStoreSet) updateTimeperiodsData(store *DataStore, res *ResultSet, columns *ColumnList) (err error) {
+func (ds *DataStoreSet) updateTimeperiodsData(store *DataStore, res ResultSet, columns ColumnList) (err error) {
 	changedTimeperiods := make(map[string]bool)
 	ds.Lock.Lock()
 	data := store.Data
 	now := time.Now().Unix()
 	nameCol := store.GetColumn("name")
 	ds.Lock.Unlock()
-	for i := range *res {
-		row := (*res)[i]
-		if data[i].CheckChangedIntValues(&row, columns) {
-			changedTimeperiods[*(data[i].GetString(nameCol))] = true
+	for i := range res {
+		row := res[i]
+		if data[i].CheckChangedIntValues(row, columns) {
+			changedTimeperiods[data[i].GetString(nameCol)] = true
 		}
-		err = data[i].UpdateValues(0, &row, columns, now)
+		err = data[i].UpdateValues(0, row, columns, now)
 		if err != nil {
 			return
 		}

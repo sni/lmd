@@ -35,7 +35,7 @@ func TestInterface2Stringlist1(t *testing.T) {
 	in := ""
 	exp := []string{}
 	got := interface2stringlist(in)
-	if err := assertEq(got, &exp); err != nil {
+	if err := assertEq(got, exp); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -44,7 +44,7 @@ func TestInterface2Stringlist2(t *testing.T) {
 	in := "test"
 	exp := []string{"test"}
 	got := interface2stringlist(&in)
-	if err := assertEq(got, &exp); err != nil {
+	if err := assertEq(got, exp); err != nil {
 		t.Fatal(err)
 	}
 }
