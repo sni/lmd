@@ -213,6 +213,34 @@ bandwith, you just have to update many services every 30 seconds than small
 packages every 3 seconds.
 
 
+Debugging
+=========
+
+LMD can be started with a golang tcp debug profiler:
+```
+lmd -config lmd.ini -debug-profiler localhost:6060
+```
+
+You can then fetch memory heap profile with:
+```
+curl http://localhost:6060/debug/pprof/heap --output heap.tar.gz
+```
+or directly run the profiler from go:
+```
+go tool pprof -web http://localhost:6060/debug/pprof/heap
+```
+
+Accordingly cpu profile can be created by:
+```
+curl http://localhost:6060/debug/pprof/profile --output cpu.tar.gz
+```
+
+Those profiles can then be further processed by gos pprof tool:
+```
+go tool pprof cpu.tar.gz
+```
+
+
 Ideas
 =====
 
