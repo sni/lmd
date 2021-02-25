@@ -32,6 +32,9 @@ LogSlowQueryThreshold = 5
 # LogHugeQueryThreshold sets the maximum size in megabytes before logging a query as huge query
 LogHugeQueryThreshold = 100
 
+# LogQueryStats logs top most 3 queries every minute by total duration
+LogQueryStats = false
+
 # SyncIsExecuting can be used to enable syncing hosts/services that are running right now. It is
 # used to indicate that a check is running but adds some additional overhead to syncing.
 SyncIsExecuting = true

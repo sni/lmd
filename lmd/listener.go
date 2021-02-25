@@ -40,10 +40,11 @@ type Listener struct {
 	waitGroupDone    *sync.WaitGroup
 	waitGroupInit    *sync.WaitGroup
 	openConnections  int64
+	queryStats       *QueryStats
 }
 
 // NewListener creates a new Listener object
-func NewListener(localConfig *Config, listen string, waitGroupInit *sync.WaitGroup, waitGroupDone *sync.WaitGroup, shutdownChannel chan bool) *Listener {
+func NewListener(localConfig *Config, listen string, waitGroupInit *sync.WaitGroup, waitGroupDone *sync.WaitGroup, shutdownChannel chan bool, qStat *QueryStats) *Listener {
 	l := Listener{
 		Lock:             new(deadlock.RWMutex),
 		ShutdownChannel:  shutdownChannel,
@@ -51,6 +52,7 @@ func NewListener(localConfig *Config, listen string, waitGroupInit *sync.WaitGro
 		connectionString: listen,
 		waitGroupDone:    waitGroupDone,
 		waitGroupInit:    waitGroupInit,
+		queryStats:       qStat,
 	}
 	go func() {
 		defer logPanicExit()
@@ -142,7 +144,7 @@ func (l *Listener) localListenerLivestatus(connType string, listen string) {
 
 		l.Lock.Lock()
 		l.openConnections++
-		cl := NewClientConnection(fd, l.GlobalConfig.ListenTimeout, l.GlobalConfig.LogSlowQueryThreshold, l.GlobalConfig.LogHugeQueryThreshold)
+		cl := NewClientConnection(fd, l.GlobalConfig.ListenTimeout, l.GlobalConfig.LogSlowQueryThreshold, l.GlobalConfig.LogHugeQueryThreshold, l.queryStats)
 		promFrontendOpenConnections.WithLabelValues(l.connectionString).Set(float64(l.openConnections))
 		l.Lock.Unlock()
 

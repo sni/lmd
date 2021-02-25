@@ -78,6 +78,7 @@ type Config struct {
 	LogLevel                   string
 	LogSlowQueryThreshold      int
 	LogHugeQueryThreshold      int
+	LogQueryStats              bool
 	ConnectTimeout             int
 	NetTimeout                 int
 	ListenTimeout              int

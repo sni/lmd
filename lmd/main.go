@@ -59,7 +59,7 @@ const (
 	ExitUnknown = 3
 
 	// StatsTimerInterval sets the interval at which statistics will be updated
-	StatsTimerInterval = 30 * time.Second
+	StatsTimerInterval = 60 * time.Second
 
 	// HTTPClientTimeout sets the default HTTP client timeout
 	HTTPClientTimeout = 30 * time.Second
@@ -234,8 +234,14 @@ func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode
 	// initialize prometheus
 	prometheusListener := initPrometheus(localConfig)
 
+	var qStat *QueryStats
+	if localConfig.LogQueryStats {
+		log.Debugf("query stats enabled")
+		qStat = NewQueryStats()
+	}
+
 	// start local listeners
-	initializeListeners(localConfig, waitGroupListener, waitGroupInit, shutdownChannel)
+	initializeListeners(localConfig, waitGroupListener, waitGroupInit, shutdownChannel, qStat)
 
 	// start remote connections
 	initializePeers(localConfig, waitGroupPeers, waitGroupInit, shutdownChannel)
@@ -249,13 +255,13 @@ func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode
 	for {
 		select {
 		case sig := <-osSignalChannel:
-			return mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
+			return mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener, qStat)
 		case sig := <-osSignalUsrChannel:
-			mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
+			mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener, qStat)
 		case sig := <-mainSignalChannel:
-			return mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener)
+			return mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener, qStat)
 		case <-statsTimer.C:
-			updateStatistics()
+			updateStatistics(qStat)
 		}
 	}
 }
@@ -280,7 +286,7 @@ func Version() string {
 	return fmt.Sprintf("%s (Build: %s, %s)", VERSION, Build, runtime.Version())
 }
 
-func initializeListeners(localConfig *Config, waitGroupListener *sync.WaitGroup, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) {
+func initializeListeners(localConfig *Config, waitGroupListener *sync.WaitGroup, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool, qStat *QueryStats) {
 	ListenersNew := make(map[string]*Listener)
 
 	// close all listeners which are no longer defined
@@ -309,7 +315,7 @@ func initializeListeners(localConfig *Config, waitGroupListener *sync.WaitGroup,
 			ListenersNew[listen] = l
 		} else {
 			waitGroupInit.Add(1)
-			l := NewListener(localConfig, listen, waitGroupInit, waitGroupListener, shutdownChannel)
+			l := NewListener(localConfig, listen, waitGroupInit, waitGroupListener, shutdownChannel, qStat)
 			ListenersNew[listen] = l
 		}
 	}
@@ -490,8 +496,12 @@ func deletePidFile(f string) {
 	}
 }
 
-func onExit() {
+func onExit(qStat *QueryStats) {
 	deletePidFile(flagPidfile)
+	if qStat != nil {
+		close(qStat.In)
+		qStat = nil
+	}
 	if flagCPUProfile != "" {
 		pprof.StopCPUProfile()
 		cpuProfileHandler.Close()
@@ -592,7 +602,7 @@ func NewLMDHTTPClient(tlsConfig *tls.Config, proxy string) *http.Client {
 	return netClient
 }
 
-func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers *sync.WaitGroup, waitGroupListener *sync.WaitGroup, prometheusListener io.Closer) (exitCode int) {
+func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers *sync.WaitGroup, waitGroupListener *sync.WaitGroup, prometheusListener io.Closer, qStat *QueryStats) (exitCode int) {
 	switch sig {
 	case syscall.SIGTERM:
 		log.Infof("got sigterm, quiting gracefully")
@@ -603,7 +613,7 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		}
 		waitGroupListener.Wait()
 		waitGroupPeers.Wait()
-		onExit()
+		onExit(qStat)
 		return (0)
 	case syscall.SIGINT:
 		fallthrough
@@ -616,7 +626,7 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		}
 		// wait one second which should be enough for the listeners
 		waitTimeout(waitGroupListener, time.Second)
-		onExit()
+		onExit(qStat)
 		return (1)
 	case syscall.SIGHUP:
 		log.Infof("got sighup, reloading configuration...")
@@ -737,11 +747,14 @@ func ByteCountBinary(b int64) string {
 	return fmt.Sprintf("%.1f%ciB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
-func updateStatistics() {
+func updateStatistics(qStat *QueryStats) {
 	size := stringdedup.Size()
 	promStringDedupCount.Set(float64(size))
 	promStringDedupBytes.Set(float64(stringdedup.ByteCount()))
 	promStringDedupIndexBytes.Set(float64(32 * size))
+	if qStat != nil {
+		qStat.LogTrigger <- true
+	}
 }
 
 func getMinimalTLSConfig(localConfig *Config) *tls.Config {
