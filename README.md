@@ -139,6 +139,7 @@ some more extra meta data:
     - columns: the column names (if requested)
     - data: the original result.
     - total_count: the number of matches in the result set _before_ the limit and offset applied.
+    - rows_scanned: the number of data rows scanned to produce the result set.
     - failed: a hash of backends which have errored for some reason.
 
 ### Response Header ###
@@ -191,7 +192,9 @@ ex.:
   - peer_name: name of the backend where this object belongs too (all tables)
   - has_long_plugin_output: flag if there is long_plugin_output or not (hosts/services table)
 
+### Additional Tables ###
 
+  - sites: list of connected backends
 
 Resource Usage
 ==============
@@ -219,5 +222,3 @@ Some ideas may or may not be implemented in the future
   This is implemented for log table and commands anyway already. Just requires an additional header.
 - Cache last 24h of logfiles to speed up most logfile requests
 - Fix updating comments (takes too long after sending commands)
-- Make use of lmd_last_cache_update in federation mode
-- deduplicate large stringlists like contacts, maybe hostgroups and servicegroups
