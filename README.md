@@ -64,7 +64,12 @@ Installation
     %> go get -u github.com/sni/lmd/lmd
 ```
 
-Copy lmd.ini.example to lmd.ini and change to your needs. Then run lmd.
+Quick start with command line parameters:
+```
+    lmd -o listen=:3333 -o connection=test,remote_host:6557
+```
+
+Or copy lmd.ini.example to lmd.ini and change to your needs. Then run lmd.
 You can specify the path to your config file with `--config`.
 
 ```

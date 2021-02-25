@@ -155,7 +155,7 @@ func setFlags() {
 	flag.StringVar(&flagCPUProfile, "cpuprofile", "", "write cpu profile to `file`")
 	flag.StringVar(&flagMemProfile, "memprofile", "", "write memory profile to `file`")
 	flag.IntVar(&flagDeadlock, "debug-deadlock", 0, "enable deadlock detection with given timeout")
-	flag.Var(&flagCfgOption, "o", "write memory profile to `file`")
+	flag.Var(&flagCfgOption, "o", "override settings, ex.: -o Listen=:3333 -o Connections=name,address")
 }
 
 func main() {
@@ -446,11 +446,6 @@ func checkFlags() {
 		deadlock.Opts.LogBuf = NewLogWriter("Error")
 	}
 
-	if len(flagConfigFile) == 0 {
-		fmt.Print("ERROR: no config files specified.\nSee --help for all options.\n")
-		os.Exit(ExitCritical)
-	}
-
 	createPidFile(flagPidfile)
 }
 
@@ -516,6 +511,18 @@ func applyArgFlags(opts arrayFlags, localConfig *Config) {
 		}
 		optname := tmp[0]
 		optvalue := tmp[1]
+		if strings.EqualFold(optname, "connections") {
+			conVal := strings.SplitN(optvalue, ",", 2)
+			if len(conVal) < 2 {
+				log.Fatalf("ERROR: cannot parse connection, syntax is '-o Connection=name,address'")
+			}
+			con := Connection{
+				Name:   conVal[0],
+				Source: []string{conVal[1]},
+			}
+			localConfig.Connections = append(localConfig.Connections, con)
+			continue
+		}
 		found := false
 		for i := 0; i < s.NumField(); i++ {
 			cfgname := typeOfS.Field(i).Name
@@ -529,6 +536,9 @@ func applyArgFlags(opts arrayFlags, localConfig *Config) {
 						f.SetString(optvalue)
 					case reflect.Bool:
 						f.SetBool(interface2bool(optvalue))
+					case reflect.Slice:
+						v := interface2string(optvalue)
+						f.Set(reflect.Append(f, reflect.ValueOf(*v)))
 					default:
 						log.Fatalf("ERROR: cannot set option %s, type %s is not supported", cfgname, f.Kind())
 					}

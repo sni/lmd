@@ -5,6 +5,7 @@ next:
           - improve stats query performance
           - fetch initial tables in parallel for quicker startup
           - add config option TLSMinVersion
+          - add support for listen / connection parameters in -o
 
 1.9.5    Mon Feb  1 18:46:43 CET 2021
           - fix negated group filters, ex host_groups !~~ ...
