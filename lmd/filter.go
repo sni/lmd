@@ -650,7 +650,7 @@ func (f *Filter) MatchInt(value int) bool {
 		return value >= intVal
 	}
 	strVal := fmt.Sprintf("%v", value)
-	return f.MatchStringRef(&strVal)
+	return f.MatchString(strVal)
 }
 
 func (f *Filter) MatchInt64(value int64) bool {
@@ -670,7 +670,7 @@ func (f *Filter) MatchInt64(value int64) bool {
 		return value >= intVal
 	}
 	strVal := fmt.Sprintf("%v", value)
-	return f.MatchStringRef(&strVal)
+	return f.MatchString(strVal)
 }
 
 func (f *Filter) MatchFloat(value float64) bool {
@@ -689,7 +689,7 @@ func (f *Filter) MatchFloat(value float64) bool {
 		return value >= f.FloatValue
 	}
 	strVal := fmt.Sprintf("%v", value)
-	return f.MatchStringRef(&strVal)
+	return f.MatchString(strVal)
 }
 
 func matchEmptyFilter(op Operator) bool {
@@ -708,41 +708,6 @@ func matchEmptyFilter(op Operator) bool {
 		return true
 	}
 	log.Warnf("not implemented empty op: %s", op.String())
-	return false
-}
-
-func (f *Filter) MatchStringRef(value *string) bool {
-	switch f.Operator {
-	case Equal:
-		return *value == f.StrValue
-	case Unequal:
-		return *value != f.StrValue
-	case EqualNocase:
-		return strings.EqualFold(*value, f.StrValue)
-	case UnequalNocase:
-		return !strings.EqualFold(*value, f.StrValue)
-	case RegexMatch, RegexNoCaseMatch:
-		return f.Regexp.MatchString(*value)
-	case RegexMatchNot, RegexNoCaseMatchNot:
-		return !f.Regexp.MatchString(*value)
-	case Less:
-		return *value < f.StrValue
-	case LessThan:
-		return *value <= f.StrValue
-	case Greater:
-		return *value > f.StrValue
-	case GreaterThan:
-		return *value >= f.StrValue
-	case Contains:
-		return strings.Contains(*value, f.StrValue)
-	case ContainsNot:
-		return !strings.Contains(*value, f.StrValue)
-	case ContainsNoCase:
-		return strings.Contains(strings.ToLower(*value), f.StrValue)
-	case ContainsNoCaseNot:
-		return !strings.Contains(strings.ToLower(*value), f.StrValue)
-	}
-	log.Warnf("not implemented string op: %s", f.Operator.String())
 	return false
 }
 
@@ -858,7 +823,7 @@ func (f *Filter) MatchCustomVar(value map[string]string) bool {
 	if !ok {
 		val = ""
 	}
-	return f.MatchStringRef(&val)
+	return f.MatchString(val)
 }
 
 // some broken clients request <table>_column instead of just column
