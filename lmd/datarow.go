@@ -466,7 +466,7 @@ func (d *DataRow) getVirtualRowValue(col *Column) interface{} {
 // GetCustomVarValue returns custom variable value for given name
 func (d *DataRow) GetCustomVarValue(name string) string {
 	namesCol := d.DataStore.Table.GetColumn("custom_variable_names")
-	names := d.GetStringList(namesCol)
+	names := d.dataStringList[namesCol.Index]
 	for i, n := range names {
 		if n == name {
 			valuesCol := d.DataStore.Table.GetColumn("custom_variable_values")
@@ -647,8 +647,8 @@ func VirtualColDowntimesWithInfo(d *DataRow, col *Column) interface{} {
 func VirtualColCustomVariables(d *DataRow, col *Column) interface{} {
 	namesCol := d.DataStore.Table.GetColumn("custom_variable_names")
 	valuesCol := d.DataStore.Table.GetColumn("custom_variable_values")
-	names := d.GetStringList(namesCol)
-	values := d.GetStringList(valuesCol)
+	names := d.dataStringList[namesCol.Index]
+	values := d.dataStringList[valuesCol.Index]
 	res := make(map[string]string, len(names))
 	for i := range names {
 		res[names[i]] = values[i]
@@ -1164,41 +1164,152 @@ func cast2Type(val interface{}, col *Column) interface{} {
 
 // WriteJSON store duplicate string lists only once
 func (d *DataRow) WriteJSON(jsonwriter *jsoniter.Stream, columns []*Column) {
-	jsonwriter.WriteRaw("[")
+	jsonwriter.WriteArrayStart()
 	for i, col := range columns {
 		if i > 0 {
-			jsonwriter.WriteRaw(",")
+			jsonwriter.WriteMore()
 		}
-		if col.Optional != NoFlags && !d.DataStore.Peer.HasFlag(col.Optional) {
-			jsonwriter.WriteVal(col.GetEmptyValue())
-			continue
-		}
-		switch col.DataType {
-		case StringCol, StringLargeCol:
-			jsonwriter.WriteString(d.GetString(col))
-		case StringListCol:
-			jsonwriter.WriteVal(d.GetStringList(col))
-		case IntCol:
-			jsonwriter.WriteInt(d.GetInt(col))
-		case Int64Col:
-			jsonwriter.WriteInt64(d.GetInt64(col))
-		case FloatCol:
-			jsonwriter.WriteFloat64(d.GetFloat(col))
-		case Int64ListCol:
-			jsonwriter.WriteVal(d.GetInt64List(col))
-		case ServiceMemberListCol:
-			jsonwriter.WriteVal(d.GetServiceMemberList(col))
-		case InterfaceListCol:
-			jsonwriter.WriteVal(d.GetInterfaceList(col))
-		case CustomVarCol:
-			jsonwriter.WriteVal(d.GetHashMap(col))
-		case JSONCol:
-			jsonwriter.WriteRaw(d.GetString(col))
-		default:
-			log.Panicf("unsupported type: %s", col.DataType)
-		}
+		d.WriteJSONColumn(jsonwriter, col)
 	}
-	jsonwriter.WriteRaw("]\n")
+	jsonwriter.WriteArrayEnd()
+}
+
+// WriteJSONColumn directly writes columns to output buffer
+func (d *DataRow) WriteJSONColumn(jsonwriter *jsoniter.Stream, col *Column) {
+	if col.Optional != NoFlags && !d.DataStore.Peer.HasFlag(col.Optional) {
+		d.WriteJSONEmptyColumn(jsonwriter, col)
+		return
+	}
+	switch col.StorageType {
+	case LocalStore:
+		d.WriteJSONLocalColumn(jsonwriter, col)
+	case RefStore:
+		ref := d.Refs[col.RefColTableName]
+		if ref != nil {
+			ref.WriteJSONColumn(jsonwriter, col.RefCol)
+		} else {
+			d.WriteJSONEmptyColumn(jsonwriter, col)
+		}
+	case VirtualStore:
+		d.WriteJSONVirtualColumn(jsonwriter, col)
+	}
+}
+
+// WriteJSONLocalColumn directly writes local storage columns to output buffer
+func (d *DataRow) WriteJSONLocalColumn(jsonwriter *jsoniter.Stream, col *Column) {
+	switch col.DataType {
+	case StringCol:
+		jsonwriter.WriteString(d.dataString[col.Index])
+	case StringLargeCol:
+		jsonwriter.WriteString(d.dataStringLarge[col.Index].String())
+	case StringListCol:
+		jsonwriter.WriteArrayStart()
+		for i, s := range d.dataStringList[col.Index] {
+			if i > 0 {
+				jsonwriter.WriteMore()
+			}
+			jsonwriter.WriteString(s)
+		}
+		jsonwriter.WriteArrayEnd()
+	case IntCol:
+		jsonwriter.WriteInt(d.dataInt[col.Index])
+	case Int64Col:
+		jsonwriter.WriteInt64(d.dataInt64[col.Index])
+	case FloatCol:
+		jsonwriter.WriteFloat64(d.dataFloat[col.Index])
+	case Int64ListCol:
+		jsonwriter.WriteArrayStart()
+		for i, v := range d.dataInt64List[col.Index] {
+			if i > 0 {
+				jsonwriter.WriteMore()
+			}
+			jsonwriter.WriteInt64(v)
+		}
+		jsonwriter.WriteArrayEnd()
+	case ServiceMemberListCol:
+		jsonwriter.WriteArrayStart()
+		members := d.dataServiceMemberList[col.Index]
+		for i := range members {
+			if i > 0 {
+				jsonwriter.WriteMore()
+			}
+			jsonwriter.WriteString(members[i][0])
+			jsonwriter.WriteMore()
+			jsonwriter.WriteString(members[i][1])
+		}
+		jsonwriter.WriteArrayEnd()
+	case InterfaceListCol:
+		jsonwriter.WriteVal(d.GetInterfaceList(col))
+	default:
+		log.Panicf("unsupported type: %s", col.DataType)
+	}
+}
+
+// WriteJSONEmptyColumn directly writes an empty columns to output buffer
+func (d *DataRow) WriteJSONEmptyColumn(jsonwriter *jsoniter.Stream, col *Column) {
+	switch col.DataType {
+	case StringCol, StringLargeCol:
+		jsonwriter.WriteString("")
+	case IntCol, Int64Col, FloatCol:
+		jsonwriter.WriteInt(-1)
+	case Int64ListCol, StringListCol, ServiceMemberListCol, InterfaceListCol:
+		jsonwriter.WriteEmptyArray()
+	case CustomVarCol:
+		jsonwriter.WriteEmptyObject()
+	case JSONCol:
+		jsonwriter.WriteEmptyObject()
+	default:
+		log.Panicf("type %s not supported", col.DataType)
+	}
+}
+
+// WriteJSONVirtualColumn directly writes calculated columns to output buffer
+func (d *DataRow) WriteJSONVirtualColumn(jsonwriter *jsoniter.Stream, col *Column) {
+	switch col.DataType {
+	case StringCol:
+		jsonwriter.WriteString(d.GetString(col))
+	case StringListCol:
+		jsonwriter.WriteArrayStart()
+		for i, s := range d.GetStringList(col) {
+			if i > 0 {
+				jsonwriter.WriteMore()
+			}
+			jsonwriter.WriteString(s)
+		}
+		jsonwriter.WriteArrayEnd()
+	case IntCol:
+		jsonwriter.WriteInt(d.GetInt(col))
+	case Int64Col:
+		jsonwriter.WriteInt64(d.GetInt64(col))
+	case FloatCol:
+		jsonwriter.WriteFloat64(d.GetFloat(col))
+	case Int64ListCol:
+		jsonwriter.WriteArrayStart()
+		for i, v := range d.GetInt64List(col) {
+			if i > 0 {
+				jsonwriter.WriteMore()
+			}
+			jsonwriter.WriteInt64(v)
+		}
+		jsonwriter.WriteArrayEnd()
+	case InterfaceListCol:
+		jsonwriter.WriteVal(d.GetInterfaceList(col))
+	case CustomVarCol:
+		namesCol := d.DataStore.Table.GetColumn("custom_variable_names")
+		valuesCol := d.DataStore.Table.GetColumn("custom_variable_values")
+		names := d.dataStringList[namesCol.Index]
+		values := d.dataStringList[valuesCol.Index]
+		jsonwriter.WriteObjectStart()
+		for i, n := range names {
+			jsonwriter.WriteObjectField(n)
+			jsonwriter.WriteString(values[i])
+		}
+		jsonwriter.WriteObjectEnd()
+	case JSONCol:
+		jsonwriter.WriteRaw(d.GetString(col))
+	default:
+		log.Panicf("unsupported type: %s", col.DataType)
+	}
 }
 
 func (d *DataRow) isAuthorizedFor(authUser string, host string, service string) (canView bool) {
