@@ -463,6 +463,19 @@ func (d *DataRow) getVirtualRowValue(col *Column) interface{} {
 	return cast2Type(value, col)
 }
 
+// GetCustomVarValue returns custom variable value for given name
+func (d *DataRow) GetCustomVarValue(name string) string {
+	namesCol := d.DataStore.Table.GetColumn("custom_variable_names")
+	names := d.GetStringList(namesCol)
+	for i, n := range names {
+		if n == name {
+			valuesCol := d.DataStore.Table.GetColumn("custom_variable_values")
+			return (d.dataStringList[valuesCol.Index][i])
+		}
+	}
+	return ""
+}
+
 // VirtualColLocaltime returns current unix timestamp
 func VirtualColLocaltime(d *DataRow, col *Column) interface{} {
 	return float64(time.Now().UnixNano()) / float64(time.Second)
