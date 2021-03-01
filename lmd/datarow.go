@@ -1233,9 +1233,11 @@ func (d *DataRow) WriteJSONLocalColumn(jsonwriter *jsoniter.Stream, col *Column)
 			if i > 0 {
 				jsonwriter.WriteMore()
 			}
+			jsonwriter.WriteArrayStart()
 			jsonwriter.WriteString(members[i][0])
 			jsonwriter.WriteMore()
 			jsonwriter.WriteString(members[i][1])
+			jsonwriter.WriteArrayEnd()
 		}
 		jsonwriter.WriteArrayEnd()
 	case InterfaceListCol:
