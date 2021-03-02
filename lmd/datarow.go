@@ -1303,6 +1303,9 @@ func (d *DataRow) WriteJSONVirtualColumn(jsonwriter *jsoniter.Stream, col *Colum
 		values := d.dataStringList[valuesCol.Index]
 		jsonwriter.WriteObjectStart()
 		for i, n := range names {
+			if i > 0 {
+				jsonwriter.WriteMore()
+			}
 			jsonwriter.WriteObjectField(n)
 			jsonwriter.WriteString(values[i])
 		}

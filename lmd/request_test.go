@@ -1787,3 +1787,22 @@ StatsAnd: 2
 		t.Error(err)
 	}
 }
+
+func TestQueryWrappedJSON(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	res, meta, err := peer.QueryString(`GET services
+OutputFormat: wrapped_json
+ColumnHeaders: on
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(int64(10), meta.RowsScanned); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(10, len(res)); err != nil {
+		t.Error(err)
+	}
+}
