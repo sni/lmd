@@ -967,33 +967,38 @@ func (req *Request) parseResult(resBytes []byte) (ResultSet, *ResultMetaData, er
 }
 
 func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) ([]byte, error) {
-	dataBytes, dataType, _, jErr := jsonparser.Get(resBytes, "columns")
-	if jErr != nil {
-		log.Debugf("column header parse error: %s", jErr.Error())
-	} else if dataType == jsonparser.Array {
-		var columns []string
-		err := json.Unmarshal(dataBytes, &columns)
-		if err != nil {
-			return nil, &PeerError{msg: fmt.Sprintf("column header parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
+	var dataBytes []byte
+	err := jsonparser.ObjectEach(resBytes, func(keyBytes []byte, valueBytes []byte, _ jsonparser.ValueType, _ int) error {
+		key := string(keyBytes)
+		switch key {
+		case "total_count":
+			val, err := jsonparser.GetInt(valueBytes)
+			if err != nil {
+				return &PeerError{msg: fmt.Sprintf("total_count meta data parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
+			}
+			meta.Total = val
+		case "columns":
+			var columns []string
+			err := json.Unmarshal(valueBytes, &columns)
+			if err != nil {
+				return &PeerError{msg: fmt.Sprintf("columns meta data parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
+			}
+			meta.Columns = columns
+		case "rows_scanned":
+			val, err := jsonparser.GetInt(valueBytes)
+			if err != nil {
+				return &PeerError{msg: fmt.Sprintf("rows_scanned meta data parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
+			}
+			meta.RowsScanned = val
+		case "data":
+			dataBytes = valueBytes
 		}
-		meta.Columns = columns
-	}
-	totalCount, jErr := jsonparser.GetInt(resBytes, "total_count")
-	if jErr != nil {
-		return nil, &PeerError{msg: fmt.Sprintf("total header parse error: %s", jErr.Error()), kind: ResponseError, req: req, resBytes: resBytes}
-	}
-	meta.Total = totalCount
-
-	// extract number of scanned rows if available
-	scanned, jErr := jsonparser.GetInt(resBytes, "rows_scanned")
-	if jErr == nil {
-		meta.RowsScanned = scanned
+		return nil
+	})
+	if err != nil {
+		return nil, &PeerError{msg: fmt.Sprintf("json parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
 	}
 
-	dataBytes, _, _, jErr = jsonparser.Get(resBytes, "data")
-	if jErr != nil {
-		return nil, &PeerError{msg: fmt.Sprintf("data header parse error: %s", jErr.Error()), kind: ResponseError, req: req, resBytes: resBytes}
-	}
 	return dataBytes, nil
 }
 
