@@ -972,7 +972,7 @@ func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) 
 		key := string(keyBytes)
 		switch key {
 		case "total_count":
-			val, err := jsonparser.GetInt(valueBytes)
+			val, err := jsonparser.ParseInt(valueBytes)
 			if err != nil {
 				return &PeerError{msg: fmt.Sprintf("total_count meta data parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
 			}
@@ -985,7 +985,7 @@ func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) 
 			}
 			meta.Columns = columns
 		case "rows_scanned":
-			val, err := jsonparser.GetInt(valueBytes)
+			val, err := jsonparser.ParseInt(valueBytes)
 			if err != nil {
 				return &PeerError{msg: fmt.Sprintf("rows_scanned meta data parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
 			}
