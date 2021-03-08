@@ -1806,3 +1806,41 @@ ColumnHeaders: on
 		t.Error(err)
 	}
 }
+
+func TestServiceCustVarFilter(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	res, meta, err := peer.QueryString("GET services\nColumns: host_name description custom_variables\nOutputFormat: wrapped_json\nFilter: custom_variables = TEST 1\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(3, len(res)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(int64(3), meta.Total); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(int64(10), meta.RowsScanned); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestServiceCustVarRegexFilter(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	res, meta, err := peer.QueryString("GET services\nColumns: host_name description custom_variables\nOutputFormat: wrapped_json\nFilter: custom_variables ~~ TEST2 ^cust\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(3, len(res)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(int64(3), meta.Total); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(int64(10), meta.RowsScanned); err != nil {
+		t.Error(err)
+	}
+}
