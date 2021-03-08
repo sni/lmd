@@ -45,6 +45,9 @@ linters:
     - forbidigo
     - ifshort
     - cyclop
+    - forcetypeassert
+    - nilerr
+    - wastedassign
   fast: false
 issues:
   max-same-issues: 0
@@ -91,6 +94,7 @@ issues:
     - 'lines are duplicate of.*objects.go:'
     - "Function 'NewHostsTable' has too many statements"
     - "Function 'NewServicesTable' has too many statements"
+    - "func .*noCopy.* is unused"
   exclude-rules:
     # Exclude some linters from running on tests files.
     - path: _test\.go

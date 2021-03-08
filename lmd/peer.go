@@ -554,7 +554,6 @@ func (p *Peer) periodicUpdateLMD(force bool) (err error) {
 	PeerMapLock.Unlock()
 
 	// remove exceeding peers
-	removed := 0
 	PeerMapLock.Lock()
 	for id, peer := range PeerMap {
 		if peer.ParentID == p.ID {
@@ -563,7 +562,6 @@ func (p *Peer) periodicUpdateLMD(force bool) (err error) {
 				peer.Stop()
 				peer.ClearData(true)
 				PeerMapRemove(id)
-				removed++
 			}
 		}
 	}
@@ -658,7 +656,6 @@ func (p *Peer) periodicUpdateMultiBackends(force bool) (err error) {
 	}
 
 	// remove exceeding peers
-	removed := 0
 	for id, peer := range PeerMap {
 		if peer.ParentID == p.ID {
 			if _, ok := existing[id]; !ok {
@@ -666,7 +663,6 @@ func (p *Peer) periodicUpdateMultiBackends(force bool) (err error) {
 				peer.Stop()
 				peer.ClearData(true)
 				PeerMapRemove(id)
-				removed++
 			}
 		}
 	}
@@ -1311,6 +1307,7 @@ func (p *Peer) GetConnection() (conn net.Conn, connType PeerConnType, err error)
 					host += ":443"
 				default:
 					err = &PeerError{msg: fmt.Sprintf("unknown scheme: %s", uri.Scheme), kind: ConnectionError}
+					return
 				}
 			}
 			conn, err = net.DialTimeout("tcp", host, time.Duration(p.GlobalConfig.ConnectTimeout)*time.Second)
@@ -1894,13 +1891,12 @@ func (p *Peer) HTTPPostQuery(req *Request, peerAddr string, postData url.Values,
 		log.Errorf(err.Error())
 		return
 	}
-	remoteError := ""
 	if log.IsV(LogVerbosityTrace) {
 		log.Tracef("[%s] response: %s", p.Name, result.Output)
 	}
 	if len(output) >= 4 {
 		if v, ok := output[3].(string); ok {
-			remoteError = strings.TrimSpace(v)
+			remoteError := strings.TrimSpace(v)
 			matched := reHTTPTooOld.FindStringSubmatch(remoteError)
 			if len(matched) > 0 {
 				err = &PeerError{msg: fmt.Sprintf("remote site too old: v%s - %s", result.Version, result.Branch), kind: ResponseError}
