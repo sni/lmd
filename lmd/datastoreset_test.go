@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -37,5 +38,42 @@ func TestComposeTimestamp3(t *testing.T) {
 	}
 	if err := assertEq(expect, composeTimestampFilter(ts, "last_check")); err != nil {
 		t.Error(err)
+	}
+}
+
+func TestDSHasChanged(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	err := peer.data.reloadIfNumberOfObjectsChanged()
+	if err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestDSFullUpdate(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	peer.StatusSet(LastUpdate, int64(0))
+	peer.StatusSet(LastFullServiceUpdate, int64(0))
+	err := peer.data.UpdateDeltaServices(fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), false)
+	if err != nil {
+		t.Error(err)
+	}
+
+	peer.StatusSet(LastUpdate, int64(0))
+	peer.StatusSet(LastFullServiceUpdate, int64(0))
+	err = peer.data.UpdateDeltaServices(fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), true)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
 	}
 }

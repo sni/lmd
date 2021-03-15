@@ -188,6 +188,41 @@ func TestPeerUpdate(t *testing.T) {
 		t.Error(err)
 	}
 
+	peer.StatusSet(LastUpdate, int64(0))
+	err = peer.periodicUpdate()
+	if err != nil {
+		t.Error(err)
+	}
+
+	peer.StatusSet(LastUpdate, int64(0))
+	peer.StatusSet(PeerState, PeerStatusWarning)
+	err = peer.periodicUpdate()
+	if err != nil {
+		t.Error(err)
+	}
+
+	peer.StatusSet(LastUpdate, int64(0))
+	peer.StatusSet(PeerState, PeerStatusDown)
+	err = peer.periodicUpdate()
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = peer.periodicTimeperiodsUpdate(peer.data)
+	if err != nil {
+		t.Error(err)
+	}
+
+	peer.StatusSet(LastUpdate, int64(0))
+	peer.StatusSet(PeerState, PeerStatusBroken)
+	err = peer.periodicUpdate()
+	if err == nil {
+		t.Fatalf("got no error but expected broken peer")
+	}
+	if err := assertLike("waiting for peer to recover", err.Error()); err != nil {
+		t.Error(err)
+	}
+
 	if err := StopTestPeer(peer); err != nil {
 		panic(err.Error())
 	}
@@ -199,6 +234,78 @@ func TestPeerDeltaUpdate(t *testing.T) {
 
 	err := peer.data.UpdateDelta(0, 0)
 	if err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestPeerUpdateResume(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	err := peer.ResumeFromIdle()
+	if err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestPeerInitSerial(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	err := peer.initAllTablesSerial(peer.data)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestLMDPeerUpdate(t *testing.T) {
+	peer := StartTestPeer(3, 10, 10)
+	PauseTestPeers(peer)
+
+	peer.StatusSet(LastUpdate, int64(0))
+	peer.SetFlag(LMD)
+	peer.SetFlag(MultiBackend)
+	err := peer.periodicUpdateLMD(true)
+	if err != nil {
+		t.Error(err)
+	}
+
+	peer.StatusSet(LastUpdate, int64(0))
+	peer.ResetFlags()
+	peer.SetFlag(MultiBackend)
+	err = peer.periodicUpdateMultiBackends(true)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestPeerLog(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	peer.setBroken("test")
+	peer.logPeerStatus(log.Debugf)
+	err := peer.checkRestartRequired(fmt.Errorf("test"))
+	if err == nil {
+		t.Fatalf("got no error but expected broken peer")
+	}
+	if err := assertLike("test", err.Error()); err != nil {
 		t.Error(err)
 	}
 
