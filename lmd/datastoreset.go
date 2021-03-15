@@ -482,7 +482,7 @@ func (ds *DataStoreSet) getMissingTimestamps(store *DataStore, res ResultSet, co
 	missedUnique := make(map[int64]bool)
 	updateThreshold := time.Now().Unix() - ds.peer.GlobalConfig.UpdateOffset
 	for i, row := range res {
-		if data[i].CheckChangedIntValues(row, columns) {
+		if data[i].CheckChangedIntValues(0, row, columns) {
 			ts := interface2int64(row[0])
 			if ts < updateThreshold {
 				missedUnique[ts] = true
@@ -651,8 +651,9 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 	columns := store.DynamicColumnNamesCache
 	// primary keys are not required, we fetch everything anyway
 	primaryKeysLen := len(store.Table.PrimaryKey)
-	if primaryKeysLen > 0 {
+	if primaryKeysLen > 0 && !p.HasFlag(Icinga2) {
 		columns = columns[primaryKeysLen:]
+		primaryKeysLen = 0
 	}
 
 	req := &Request{
@@ -685,16 +686,16 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 	switch tableName {
 	case TableTimeperiods:
 		// check for changed timeperiods, because we have to update the linked hosts and services as well
-		err = ds.updateTimeperiodsData(store, res, store.DynamicColumnCache)
+		err = ds.updateTimeperiodsData(primaryKeysLen, store, res, store.DynamicColumnCache)
 		lastTimeperiodUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
 		p.StatusSet(LastTimeperiodUpdateMinute, lastTimeperiodUpdateMinute)
 	case TableHosts, TableServices:
-		err = ds.insertDeltaDataResult(0, res, resMeta, store)
+		err = ds.insertDeltaDataResult(primaryKeysLen, res, resMeta, store)
 	default:
 		ds.Lock.Lock()
 		now := time.Now().Unix()
 		for i, row := range res {
-			err = data[i].UpdateValues(0, row, store.DynamicColumnCache, now)
+			err = data[i].UpdateValues(primaryKeysLen, row, store.DynamicColumnCache, now)
 			if err != nil {
 				ds.Lock.Unlock()
 				return
@@ -741,7 +742,7 @@ func (ds *DataStoreSet) skipTableUpdate(store *DataStore, table TableName) (bool
 	return false, nil
 }
 
-func (ds *DataStoreSet) updateTimeperiodsData(store *DataStore, res ResultSet, columns ColumnList) (err error) {
+func (ds *DataStoreSet) updateTimeperiodsData(dataOffset int, store *DataStore, res ResultSet, columns ColumnList) (err error) {
 	changedTimeperiods := make(map[string]bool)
 	ds.Lock.Lock()
 	data := store.Data
@@ -750,10 +751,10 @@ func (ds *DataStoreSet) updateTimeperiodsData(store *DataStore, res ResultSet, c
 	ds.Lock.Unlock()
 	for i := range res {
 		row := res[i]
-		if data[i].CheckChangedIntValues(row, columns) {
+		if data[i].CheckChangedIntValues(dataOffset, row, columns) {
 			changedTimeperiods[data[i].GetString(nameCol)] = true
 		}
-		err = data[i].UpdateValues(0, row, columns, now)
+		err = data[i].UpdateValues(dataOffset, row, columns, now)
 		if err != nil {
 			return
 		}

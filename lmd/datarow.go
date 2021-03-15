@@ -815,15 +815,15 @@ func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, col
 }
 
 // CheckChangedIntValues returns true if the given data results in an update
-func (d *DataRow) CheckChangedIntValues(data []interface{}, columns ColumnList) bool {
+func (d *DataRow) CheckChangedIntValues(dataOffset int, data []interface{}, columns ColumnList) bool {
 	for j, col := range columns {
 		switch col.DataType {
 		case IntCol:
-			if interface2int(data[j]) != d.dataInt[columns[j].Index] {
+			if interface2int(data[j+dataOffset]) != d.dataInt[columns[j].Index] {
 				return true
 			}
 		case Int64Col:
-			if interface2int64(data[j]) != d.dataInt64[columns[j].Index] {
+			if interface2int64(data[j+dataOffset]) != d.dataInt64[columns[j].Index] {
 				return true
 			}
 		}
