@@ -452,7 +452,7 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 
 		for i := range res.RawResults.DataResult {
 			if i > 0 {
-				json.WriteRaw(",")
+				json.WriteRaw(",\n")
 			}
 			res.RawResults.DataResult[i].WriteJSON(json, res.Request.RequestColumns)
 		}
@@ -463,7 +463,7 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 func (res *Response) WriteDataResponseRowLocked(json *jsoniter.Stream) {
 	for i := range res.RawResults.DataResult {
 		if i > 0 {
-			json.WriteRaw(",")
+			json.WriteRaw(",\n")
 		}
 		row := res.RawResults.DataResult[i]
 		row.DataStore.Peer.Lock.RLock()
