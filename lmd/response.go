@@ -353,12 +353,12 @@ func (res *Response) Send(c net.Conn) (size int64, err error) {
 		log.Warnf("write error: %s", err.Error())
 		return
 	}
+	localAddr := c.LocalAddr().String()
+	promFrontendBytesSend.WithLabelValues(localAddr).Add(float64(written + 1))
 	if written != size-1 {
 		log.Warnf("write error: written %d, size: %d", written, size)
 		return
 	}
-	localAddr := c.LocalAddr().String()
-	promFrontendBytesSend.WithLabelValues(localAddr).Add(float64(size))
 	_, err = c.Write([]byte("\n"))
 	return
 }
