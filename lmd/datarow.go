@@ -1306,11 +1306,11 @@ func (d *DataRow) WriteJSONVirtualColumn(jsonwriter *jsoniter.Stream, col *Colum
 		names := d.dataStringList[namesCol.Index]
 		values := d.dataStringList[valuesCol.Index]
 		jsonwriter.WriteObjectStart()
-		for i, n := range names {
+		for i := range names {
 			if i > 0 {
 				jsonwriter.WriteMore()
 			}
-			jsonwriter.WriteObjectField(n)
+			jsonwriter.WriteObjectField(names[i])
 			jsonwriter.WriteString(values[i])
 		}
 		jsonwriter.WriteObjectEnd()
