@@ -523,7 +523,7 @@ func VirtualColServicesWithInfo(d *DataRow, col *Column) interface{} {
 	stateCol := servicesStore.Table.GetColumn("state")
 	checkedCol := servicesStore.Table.GetColumn("has_been_checked")
 	outputCol := servicesStore.Table.GetColumn("plugin_output")
-	res := make([]interface{}, 0)
+	res := make([]interface{}, len(services))
 	for i := range services {
 		service, ok := servicesStore.Index2[hostName][services[i]]
 		if !ok {
@@ -534,14 +534,13 @@ func VirtualColServicesWithInfo(d *DataRow, col *Column) interface{} {
 		if col.Name == "services_with_info" {
 			serviceValue = append(serviceValue, service.GetString(outputCol))
 		}
-		res = append(res, serviceValue)
+		res[i] = serviceValue
 	}
 	return res
 }
 
 // VirtualColMembersWithState returns a list of hostgroup/servicegroup members with their states
 func VirtualColMembersWithState(d *DataRow, col *Column) interface{} {
-	res := make([]interface{}, 0)
 	switch d.DataStore.Table.Name {
 	case TableHostgroups:
 		members := d.GetStringListByName("members")
@@ -549,15 +548,16 @@ func VirtualColMembersWithState(d *DataRow, col *Column) interface{} {
 		stateCol := hostsStore.Table.GetColumn("state")
 		checkedCol := hostsStore.Table.GetColumn("has_been_checked")
 
-		for _, hostName := range members {
+		res := make([]interface{}, len(members))
+		for i, hostName := range members {
 			host, ok := hostsStore.Index[hostName]
 			if !ok {
 				log.Errorf("Could not find host: %s\n", hostName)
 				continue
 			}
-			hostValue := []interface{}{hostName, host.GetInt(stateCol), host.GetInt(checkedCol)}
-			res = append(res, hostValue)
+			res[i] = []interface{}{hostName, host.GetInt(stateCol), host.GetInt(checkedCol)}
 		}
+		return res
 	case TableServicegroups:
 		membersCol := d.DataStore.GetColumn("members")
 		members := d.GetServiceMemberList(membersCol)
@@ -565,6 +565,7 @@ func VirtualColMembersWithState(d *DataRow, col *Column) interface{} {
 		stateCol := servicesStore.Table.GetColumn("state")
 		checkedCol := servicesStore.Table.GetColumn("has_been_checked")
 
+		res := make([]interface{}, len(members))
 		for i := range members {
 			hostName := members[i][0]
 			serviceDescription := members[i][1]
@@ -574,11 +575,11 @@ func VirtualColMembersWithState(d *DataRow, col *Column) interface{} {
 				log.Errorf("Could not find service: %s - %s\n", hostName, serviceDescription)
 				continue
 			}
-			serviceValue := []interface{}{hostName, serviceDescription, service.GetInt(stateCol), service.GetInt(checkedCol)}
-			res = append(res, serviceValue)
+			res[i] = []interface{}{hostName, serviceDescription, service.GetInt(stateCol), service.GetInt(checkedCol)}
 		}
+		return res
 	}
-	return res
+	return nil
 }
 
 // VirtualColComments returns list of comment IDs
@@ -1245,7 +1246,15 @@ func (d *DataRow) WriteJSONLocalColumn(jsonwriter *jsoniter.Stream, col *Column)
 		}
 		jsonwriter.WriteArrayEnd()
 	case InterfaceListCol:
-		jsonwriter.WriteVal(d.GetInterfaceList(col))
+		jsonwriter.WriteArrayStart()
+		list := d.dataInterfaceList[col.Index]
+		for i := range list {
+			if i > 0 {
+				jsonwriter.WriteMore()
+			}
+			jsonwriter.WriteVal(list[i])
+		}
+		jsonwriter.WriteArrayEnd()
 	default:
 		log.Panicf("unsupported type: %s", col.DataType)
 	}
@@ -1299,7 +1308,14 @@ func (d *DataRow) WriteJSONVirtualColumn(jsonwriter *jsoniter.Stream, col *Colum
 		}
 		jsonwriter.WriteArrayEnd()
 	case InterfaceListCol:
-		jsonwriter.WriteVal(d.GetInterfaceList(col))
+		jsonwriter.WriteArrayStart()
+		for i, v := range d.GetInterfaceList(col) {
+			if i > 0 {
+				jsonwriter.WriteMore()
+			}
+			jsonwriter.WriteVal(v)
+		}
+		jsonwriter.WriteArrayEnd()
 	case CustomVarCol:
 		namesCol := d.DataStore.Table.GetColumn("custom_variable_names")
 		valuesCol := d.DataStore.Table.GetColumn("custom_variable_values")
