@@ -464,7 +464,11 @@ func (d *DataRow) getVirtualRowValue(col *Column) interface{} {
 }
 
 // GetCustomVarValue returns custom variable value for given name
-func (d *DataRow) GetCustomVarValue(name string) string {
+func (d *DataRow) GetCustomVarValue(col *Column, name string) string {
+	if col.StorageType == RefStore {
+		ref := d.Refs[col.RefColTableName]
+		return ref.GetCustomVarValue(col.RefCol, name)
+	}
 	namesCol := d.DataStore.Table.GetColumn("custom_variable_names")
 	names := d.dataStringList[namesCol.Index]
 	for i, n := range names {

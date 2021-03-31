@@ -624,7 +624,7 @@ func (f *Filter) Match(row *DataRow) bool {
 	case Int64ListCol:
 		return f.MatchInt64List(row.GetInt64List(f.Column))
 	case CustomVarCol:
-		return f.MatchString(row.GetCustomVarValue(f.CustomTag))
+		return f.MatchString(row.GetCustomVarValue(f.Column, f.CustomTag))
 	case InterfaceListCol, ServiceMemberListCol:
 		// not implemented
 		return false
