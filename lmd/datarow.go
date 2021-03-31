@@ -490,7 +490,7 @@ func VirtualColLastStateChangeOrder(d *DataRow, col *Column) interface{} {
 	// return last_state_change or program_start
 	lastStateChange := d.GetIntByName("last_state_change")
 	if lastStateChange == 0 {
-		return d.DataStore.Peer.Status[ProgramStart]
+		return d.DataStore.Peer.StatusGet(ProgramStart)
 	}
 	return lastStateChange
 }
