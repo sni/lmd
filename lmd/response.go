@@ -328,22 +328,29 @@ func finalStatsApply(s *Filter) (res float64) {
 	return
 }
 
-// Send writes converts the result object to a livestatus answer and writes the resulting bytes back to the client.
+// Send converts the result object to a livestatus answer and writes the resulting bytes back to the client.
 func (res *Response) Send(c net.Conn) (size int64, err error) {
+	if res.Request.ResponseFixed16 {
+		return res.SendFixed16(c)
+	}
+	return res.SendUnbuffered(c)
+}
+
+// SendFixed16 converts the result object to a livestatus answer and writes the resulting bytes back to the client.
+func (res *Response) SendFixed16(c net.Conn) (size int64, err error) {
 	resBuffer, err := res.Buffer()
 	if err != nil {
 		return
 	}
 	size = int64(resBuffer.Len()) + 1
-	if res.Request.ResponseFixed16 {
-		if log.IsV(LogVerbosityTrace) {
-			log.Tracef("write: %s", fmt.Sprintf("%d %11d", res.Code, size))
-		}
-		_, err = fmt.Fprintf(c, "%d %11d\n", res.Code, size)
-		if err != nil {
-			log.Warnf("write error: %s", err.Error())
-			return
-		}
+	headerFixed16 := fmt.Sprintf("%d %11d", res.Code, size)
+	if log.IsV(LogVerbosityTrace) {
+		log.Tracef("write: %s", headerFixed16)
+	}
+	_, err = fmt.Fprintf(c, "%s\n", headerFixed16)
+	if err != nil {
+		log.Warnf("write error: %s", err.Error())
+		return
 	}
 	if log.IsV(LogVerbosityTrace) {
 		log.Tracef("write: %s", resBuffer.Bytes())
@@ -360,6 +367,23 @@ func (res *Response) Send(c net.Conn) (size int64, err error) {
 		return
 	}
 	_, err = c.Write([]byte("\n"))
+	return
+}
+
+// SendUnbuffered directly prints the result to the client connection
+func (res *Response) SendUnbuffered(c io.Writer) (size int64, err error) {
+	countingWriter := NewWriteCounter(c)
+	if res.Request.OutputFormat == OutputFormatWrappedJSON {
+		err = res.WrappedJSON(countingWriter)
+	} else {
+		err = res.JSON(countingWriter)
+	}
+	if err != nil {
+		log.Warnf("write error: %s", err.Error())
+		return
+	}
+	_, err = countingWriter.Write([]byte("\n"))
+	size = countingWriter.Count
 	return
 }
 
@@ -401,6 +425,7 @@ func (res *Response) JSON(buf io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("JSON: %w", err)
 	}
+	json.Reset(nil)
 	return nil
 }
 
@@ -411,8 +436,17 @@ func (res *Response) WrappedJSON(buf io.Writer) error {
 
 	json.WriteRaw("{\"data\":\n[")
 	res.WriteDataResponse(json)
-	json.WriteRaw("]\n,\"failed\":")
-	json.WriteVal(res.Failed)
+	json.WriteRaw("]\n,\"failed\": {")
+	num := 0
+	for k, v := range res.Failed {
+		if num > 0 {
+			json.WriteMore()
+		}
+		json.WriteObjectField(k)
+		json.WriteString(v)
+		num++
+	}
+	json.WriteObjectEnd()
 
 	// add optional columns header as first row
 	if res.SendColumnsHeader() {
@@ -426,20 +460,30 @@ func (res *Response) WrappedJSON(buf io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("WrappedJSON: %w", err)
 	}
+	json.Reset(nil)
 	return nil
 }
 
 // WriteDataResponse writes the data part of the result
 func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
-	if res.Result != nil {
+	switch {
+	case res.Result != nil:
 		// append result row by row
 		for i := range res.Result {
 			if i > 0 {
 				json.WriteRaw(",\n")
+				json.Flush()
 			}
-			json.WriteVal(res.Result[i])
+			json.WriteArrayStart()
+			for k := range res.Result[i] {
+				if k > 0 {
+					json.WriteMore()
+				}
+				json.WriteVal(res.Result[i][k])
+			}
+			json.WriteArrayEnd()
 		}
-	} else {
+	case res.RawResults != nil:
 		// unprocessed result?
 		res.ResultTotal = res.RawResults.Total
 		res.RowsScanned = res.RawResults.RowsScanned
@@ -453,9 +497,12 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 		for i := range res.RawResults.DataResult {
 			if i > 0 {
 				json.WriteRaw(",\n")
+				json.Flush()
 			}
 			res.RawResults.DataResult[i].WriteJSON(json, res.Request.RequestColumns)
 		}
+	default:
+		log.Errorf("response contains no result at all")
 	}
 }
 
@@ -474,7 +521,7 @@ func (res *Response) WriteDataResponseRowLocked(json *jsoniter.Stream) {
 
 // WriteColumnsResponse writes the columns header
 func (res *Response) WriteColumnsResponse(json *jsoniter.Stream) {
-	cols := make([]interface{}, len(res.Request.RequestColumns)+len(res.Request.Stats))
+	cols := make([]string, len(res.Request.RequestColumns)+len(res.Request.Stats))
 	for k := 0; k < len(res.Request.RequestColumns); k++ {
 		if k < len(res.Request.Columns) {
 			cols[k] = res.Request.Columns[k]
@@ -489,7 +536,14 @@ func (res *Response) WriteColumnsResponse(json *jsoniter.Stream) {
 		buffer.WriteString(strconv.Itoa(i + 1))
 		cols[index] = buffer.String()
 	}
-	json.WriteVal(cols)
+	json.WriteArrayStart()
+	for i, s := range cols {
+		if i > 0 {
+			json.WriteMore()
+		}
+		json.WriteString(s)
+	}
+	json.WriteArrayEnd()
 	json.WriteRaw("\n")
 }
 
