@@ -92,13 +92,13 @@ func TestMainReload(_ *testing.T) {
 	// shutdown all peers
 	for _, p := range PeerMap {
 		p.Stop()
-		p.shutdownChannel <- true
+		close(p.shutdownChannel)
 		PeerMapRemove(p.ID)
 	}
 	// shutdown all listeners
 	ListenersLock.Lock()
 	for _, l := range Listeners {
-		l.connection.Close()
+		l.Connection.Close()
 	}
 	ListenersLock.Unlock()
 	waitTimeout(TestPeerWaitGroup, 5*time.Second)

@@ -34,9 +34,8 @@ type Listener struct {
 	noCopy           noCopy
 	Lock             *deadlock.RWMutex // must be used for when changing config
 	GlobalConfig     *Config
-	ShutdownChannel  chan bool
 	connectionString string
-	connection       net.Listener
+	Connection       net.Listener
 	waitGroupDone    *sync.WaitGroup
 	waitGroupInit    *sync.WaitGroup
 	openConnections  int64
@@ -44,10 +43,9 @@ type Listener struct {
 }
 
 // NewListener creates a new Listener object
-func NewListener(localConfig *Config, listen string, waitGroupInit *sync.WaitGroup, waitGroupDone *sync.WaitGroup, shutdownChannel chan bool, qStat *QueryStats) *Listener {
+func NewListener(localConfig *Config, listen string, waitGroupInit *sync.WaitGroup, waitGroupDone *sync.WaitGroup, qStat *QueryStats) *Listener {
 	l := Listener{
 		Lock:             new(deadlock.RWMutex),
-		ShutdownChannel:  shutdownChannel,
 		GlobalConfig:     localConfig,
 		connectionString: listen,
 		waitGroupDone:    waitGroupDone,
@@ -110,7 +108,7 @@ func (l *Listener) localListenerLivestatus(connType string, listen string) {
 	} else {
 		c, err = net.Listen(connType, listen)
 	}
-	l.connection = c
+	l.Connection = c
 	if err != nil {
 		log.Fatalf("listen error: %s", err.Error())
 		return
@@ -122,14 +120,6 @@ func (l *Listener) localListenerLivestatus(connType string, listen string) {
 	defer log.Infof("%s listener %s shutdown complete", connType, listen)
 	log.Infof("listening for incoming queries on %s %s", connType, listen)
 
-	// Close connection and log shutdown
-	go func() {
-		defer logPanicExit()
-		<-l.ShutdownChannel
-		log.Infof("stopping %s listener on %s", connType, listen)
-		c.Close()
-	}()
-
 	l.waitGroupInit.Done()
 
 	for {
@@ -138,7 +128,7 @@ func (l *Listener) localListenerLivestatus(connType string, listen string) {
 			continue
 		}
 		if err != nil {
-			// connection closed by shutdown channel
+			log.Infof("stopping %s listener on %s", connType, listen)
 			return
 		}
 
@@ -190,14 +180,7 @@ func (l *Listener) localListenerHTTP(httpType string, listen string) {
 		}
 		c = ln
 	}
-	l.connection = c
-
-	// Close connection and log shutdown
-	go func() {
-		<-l.ShutdownChannel
-		log.Infof("stopping listener on %s", listen)
-		c.Close()
-	}()
+	l.Connection = c
 
 	// Initialize HTTP router
 	router := initializeHTTPRouter()
@@ -211,6 +194,7 @@ func (l *Listener) localListenerHTTP(httpType string, listen string) {
 		WriteTimeout: HTTPServerRequestTimeout,
 	}
 	if err := server.Serve(c); err != nil {
+		log.Infof("stopping listener on %s", listen)
 		log.Debugf("http listener finished with: %e", err)
 	}
 }

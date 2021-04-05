@@ -241,7 +241,7 @@ func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode
 	}
 
 	// start local listeners
-	initializeListeners(localConfig, waitGroupListener, waitGroupInit, shutdownChannel, qStat)
+	initializeListeners(localConfig, waitGroupListener, waitGroupInit, qStat)
 
 	// start remote connections
 	initializePeers(localConfig, waitGroupPeers, waitGroupInit, shutdownChannel)
@@ -286,7 +286,7 @@ func Version() string {
 	return fmt.Sprintf("%s (Build: %s, %s)", VERSION, Build, runtime.Version())
 }
 
-func initializeListeners(localConfig *Config, waitGroupListener *sync.WaitGroup, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool, qStat *QueryStats) {
+func initializeListeners(localConfig *Config, waitGroupListener *sync.WaitGroup, waitGroupInit *sync.WaitGroup, qStat *QueryStats) {
 	ListenersNew := make(map[string]*Listener)
 
 	// close all listeners which are no longer defined
@@ -301,7 +301,7 @@ func initializeListeners(localConfig *Config, waitGroupListener *sync.WaitGroup,
 		}
 		if !found {
 			delete(Listeners, con)
-			l.connection.Close()
+			l.Connection.Close()
 		}
 	}
 
@@ -309,13 +309,12 @@ func initializeListeners(localConfig *Config, waitGroupListener *sync.WaitGroup,
 	for _, listen := range localConfig.Listen {
 		if l, ok := Listeners[listen]; ok {
 			l.Lock.Lock()
-			l.ShutdownChannel = shutdownChannel
 			l.GlobalConfig = localConfig
 			l.Lock.Unlock()
 			ListenersNew[listen] = l
 		} else {
 			waitGroupInit.Add(1)
-			l := NewListener(localConfig, listen, waitGroupInit, waitGroupListener, shutdownChannel, qStat)
+			l := NewListener(localConfig, listen, waitGroupInit, waitGroupListener, qStat)
 			ListenersNew[listen] = l
 		}
 	}
@@ -606,8 +605,13 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 	switch sig {
 	case syscall.SIGTERM:
 		log.Infof("got sigterm, quiting gracefully")
-		shutdownChannel <- true
 		close(shutdownChannel)
+		ListenersLock.Lock()
+		for con, l := range Listeners {
+			delete(Listeners, con)
+			l.Connection.Close()
+		}
+		ListenersLock.Unlock()
 		if prometheusListener != nil {
 			prometheusListener.Close()
 		}
@@ -619,8 +623,13 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		fallthrough
 	case os.Interrupt:
 		log.Infof("got sigint, quitting")
-		shutdownChannel <- true
 		close(shutdownChannel)
+		ListenersLock.Lock()
+		for con, l := range Listeners {
+			delete(Listeners, con)
+			l.Connection.Close()
+		}
+		ListenersLock.Unlock()
 		if prometheusListener != nil {
 			prometheusListener.Close()
 		}
