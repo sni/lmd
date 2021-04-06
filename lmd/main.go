@@ -67,6 +67,9 @@ const (
 	// BlockProfileRateInterval sets the profiling interval when started with -profile
 	BlockProfileRateInterval = 10
 
+	// GC Percentage level like GOGC environment
+	GCPercentage = 30
+
 	ThrukMultiBackendMinVersion = 2.23
 )
 
@@ -248,6 +251,11 @@ func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode
 
 	if initChannel != nil {
 		initChannel <- true
+	}
+
+	// make garbagabe collectore more aggressive
+	if os.Getenv("GOGC") == "" {
+		debug.SetGCPercent(GCPercentage)
 	}
 
 	// just wait till someone hits ctrl+c or we have to reload
