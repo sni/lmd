@@ -192,7 +192,8 @@ func (req *Request) ExpandRequestedBackends() (err error) {
 	PeerMapLock.RLock()
 	defer PeerMapLock.RUnlock()
 	if len(req.Backends) == 0 {
-		for _, p := range PeerMap {
+		for id := range PeerMap {
+			p := PeerMap[id]
 			req.BackendsMap[p.ID] = p.ID
 		}
 		return

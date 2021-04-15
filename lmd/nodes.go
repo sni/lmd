@@ -164,7 +164,8 @@ func (n *Nodes) Initialize() {
 	// Start all peers in single mode
 	if !n.IsClustered() {
 		PeerMapLock.RLock()
-		for _, peer := range PeerMap {
+		for id := range PeerMap {
+			peer := PeerMap[id]
 			if peer.StatusGet(Paused).(bool) {
 				peer.Start()
 			}
@@ -339,7 +340,8 @@ func (n *Nodes) redistribute() {
 func (n *Nodes) updateBackends(ourBackends []string) {
 	// append sub peers
 	PeerMapLock.RLock()
-	for _, p := range PeerMap {
+	for id := range PeerMap {
+		p := PeerMap[id]
 		if p.ParentID == "" {
 			continue
 		}

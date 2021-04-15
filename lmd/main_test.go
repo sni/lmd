@@ -90,7 +90,8 @@ func TestMainReload(_ *testing.T) {
 	mainSignalChannel <- syscall.SIGHUP
 	waitTimeout(TestPeerWaitGroup, 5*time.Second)
 	// shutdown all peers
-	for _, p := range PeerMap {
+	for id := range PeerMap {
+		p := PeerMap[id]
 		p.Stop()
 		close(p.shutdownChannel)
 		PeerMapRemove(p.ID)

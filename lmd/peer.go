@@ -555,7 +555,8 @@ func (p *Peer) periodicUpdateLMD(force bool) (err error) {
 
 	// remove exceeding peers
 	PeerMapLock.Lock()
-	for id, peer := range PeerMap {
+	for id := range PeerMap {
+		peer := PeerMap[id]
 		if peer.ParentID == p.ID {
 			if _, ok := existing[id]; !ok {
 				log.Debugf("[%s] removing sub peer", peer.Name)
@@ -656,7 +657,8 @@ func (p *Peer) periodicUpdateMultiBackends(force bool) (err error) {
 	}
 
 	// remove exceeding peers
-	for id, peer := range PeerMap {
+	for id := range PeerMap {
+		peer := PeerMap[id]
 		if peer.ParentID == p.ID {
 			if _, ok := existing[id]; !ok {
 				log.Debugf("[%s] removing sub peer", peer.Name)

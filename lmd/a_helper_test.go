@@ -372,7 +372,8 @@ func StopTestPeer(peer *Peer) (err error) {
 
 func PauseTestPeers(peer *Peer) {
 	peer.Stop()
-	for _, p := range PeerMap {
+	for id := range PeerMap {
+		p := PeerMap[id]
 		p.Stop()
 	}
 }
