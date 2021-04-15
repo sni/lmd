@@ -2481,7 +2481,7 @@ func (p *Peer) CheckBackendRestarted(primaryKeysLen int, res ResultSet, columns 
 		return
 	}
 
-	if len(res) != len(columns)+primaryKeysLen {
+	if len(res[0]) != len(columns)+primaryKeysLen {
 		return
 	}
 

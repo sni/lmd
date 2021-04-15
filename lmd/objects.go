@@ -147,7 +147,7 @@ func NewStatusTable() (t *Table) {
 	t.AddColumn("livestatus_version", Static, StringCol, "The version of the MK Livestatus module")
 	t.AddColumn("log_messages", Dynamic, IntCol, "The number of new log messages since program start")
 	t.AddColumn("log_messages_rate", Dynamic, FloatCol, "The number of new log messages since program start")
-	t.AddColumn("nagios_pid", Static, IntCol, "The process ID of the core main process")
+	t.AddColumn("nagios_pid", Dynamic, IntCol, "The process ID of the core main process")
 	t.AddColumn("neb_callbacks", Dynamic, IntCol, "The number of NEB call backs since program start")
 	t.AddColumn("neb_callbacks_rate", Dynamic, FloatCol, "The number of NEB call backs since program start")
 	t.AddColumn("obsess_over_hosts", Dynamic, IntCol, "Whether the core will obsess over host checks (0/1)")
