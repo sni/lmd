@@ -263,7 +263,7 @@ func NewPeer(globalConfig *Config, config *Connection, waitGroup *sync.WaitGroup
 	p.Status[LastError] = "connecting..."
 	p.Status[LastOnline] = int64(0)
 	p.Status[LastTimeperiodUpdateMinute] = 0
-	p.Status[ProgramStart] = 0
+	p.Status[ProgramStart] = int64(0)
 	p.Status[LastPid] = 0
 	p.Status[BytesSend] = int64(0)
 	p.Status[BytesReceived] = int64(0)
@@ -2463,4 +2463,43 @@ func (p *Peer) LogErrors(v ...interface{}) {
 		return
 	}
 	LogErrorsPrefix(fmt.Sprintf("[%s] ", p.Name), v...)
+}
+
+func (p *Peer) CheckBackendRestarted(primaryKeysLen int, res ResultSet, columns ColumnList) (err error) {
+	if p.HasFlag(MultiBackend) {
+		return
+	}
+	if len(res) != 1 {
+		return
+	}
+
+	programStart := p.StatusGet(ProgramStart).(int64)
+	corePid := p.StatusGet(LastPid).(int)
+
+	// not yet started completely
+	if programStart == 0 || corePid == 0 {
+		return
+	}
+
+	if len(res) != len(columns)+primaryKeysLen {
+		return
+	}
+
+	newProgramStart := int64(0)
+	newCorePid := 0
+	for i, col := range columns {
+		switch col.Name {
+		case "program_start":
+			newProgramStart = interface2int64(res[0][i+primaryKeysLen])
+		case "nagios_pid":
+			newCorePid = interface2int(res[0][i+primaryKeysLen])
+		}
+	}
+
+	if newProgramStart != programStart || newCorePid != corePid {
+		err = fmt.Errorf("site has been restarted, recreating objects (program_start: %d, pid: %d)", newProgramStart, newCorePid)
+		log.Infof("[%s] %s", p.Name, err.Error())
+		return &PeerError{msg: err.Error(), kind: RestartRequiredError}
+	}
+	return
 }

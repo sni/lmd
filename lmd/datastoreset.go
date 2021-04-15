@@ -691,6 +691,15 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 		p.StatusSet(LastTimeperiodUpdateMinute, lastTimeperiodUpdateMinute)
 	case TableHosts, TableServices:
 		err = ds.insertDeltaDataResult(primaryKeysLen, res, resMeta, store)
+	case TableStatus:
+		// check pid and date before updating tables.
+		// Otherwise we and up with inconsistent state until the full refresh is finished
+		err = p.CheckBackendRestarted(primaryKeysLen, res, store.DynamicColumnCache)
+		if err != nil {
+			return
+		}
+		// continue with normal update
+		fallthrough
 	default:
 		ds.Lock.Lock()
 		now := time.Now().Unix()
@@ -706,15 +715,6 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 
 	if tableName == TableStatus {
 		LogErrors(p.checkStatusFlags(data))
-		if !p.HasFlag(MultiBackend) && len(data) >= 1 {
-			programStart := data[0].GetInt64ByName("program_start")
-			corePid := data[0].GetIntByName("nagios_pid")
-			if p.StatusGet(ProgramStart) != programStart || p.StatusGet(LastPid) != corePid {
-				err = fmt.Errorf("site has been restarted, recreating objects (program_start: %d, pid: %d)", programStart, corePid)
-				log.Infof("[%s] %s", p.Name, err.Error())
-				return &PeerError{msg: err.Error(), kind: RestartRequiredError}
-			}
-		}
 	}
 
 	duration := time.Since(t1).Truncate(time.Millisecond)
