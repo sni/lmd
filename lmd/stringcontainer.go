@@ -54,7 +54,7 @@ func (s *StringContainer) Set(data *string) {
 	}
 	s.CompressedData = b.Bytes()
 	if log.IsV(LogVerbosityTrace) {
-		log.Tracef("compressed string from %d to %d (%.1f%%)", len(*data), len(s.StringData), 100-(float64(len(s.StringData))/float64(len(*data))*100))
+		log.Tracef("compressed string from %d to %d (%.1f%%)", len(*data), len(s.CompressedData), 100-(float64(len(s.CompressedData))/float64(len(*data))*100))
 	}
 }
 
