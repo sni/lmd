@@ -83,7 +83,7 @@ func (cl *ClientConnection) answer() error {
 
 			// keep open keepalive request until either the client closes the connection or the deadline timeout is hit
 			if cl.keepAlive {
-				log.Debugf("[%s][%s] connection keepalive, waiting for more requests", cl.localAddr, cl.remoteAddr)
+				log.Debugf("[%s][%s][%s] connection keepalive, waiting for more requests", reqs[len(reqs)-1].ID(), cl.localAddr, cl.remoteAddr)
 				LogErrors(cl.connection.SetDeadline(time.Now().Add(RequestReadTimeout)))
 				continue
 			}
@@ -158,11 +158,11 @@ func (cl *ClientConnection) processRequests(reqs []*Request) (err error) {
 		var size int64
 		size, err = response.Send(cl.connection)
 		duration := time.Since(t1)
-		log.Infof("[%s][%s] %s request finished in %s, response size: %s", cl.localAddr, cl.remoteAddr, req.Table.String(), duration.String(), ByteCountBinary(size))
+		log.Infof("[%s][%s][%s] %s request finished in %s, response size: %s", req.ID(), cl.localAddr, cl.remoteAddr, req.Table.String(), duration.String(), ByteCountBinary(size))
 		if duration-time.Duration(req.WaitTimeout)*time.Millisecond > time.Duration(cl.logSlowQueryThreshold)*time.Second {
-			log.Warnf("[%s][%s] slow query finished after %s, response size: %s\n%s", cl.localAddr, cl.remoteAddr, duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
+			log.Warnf("[%s][%s][%s] slow query finished after %s, response size: %s\n%s", req.ID(), cl.localAddr, cl.remoteAddr, duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
 		} else if size > int64(cl.logHugeQueryThreshold*1024*1024) {
-			log.Warnf("[%s][%s] huge query finished after %s, response size: %s\n%s", cl.localAddr, cl.remoteAddr, duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
+			log.Warnf("[%s][%s][%s] huge query finished after %s, response size: %s\n%s", req.ID(), cl.localAddr, cl.remoteAddr, duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
 		}
 		if cl.queryStats != nil {
 			cl.queryStats.In <- QueryStatIn{

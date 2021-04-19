@@ -501,7 +501,7 @@ func (p *Peer) periodicUpdateLMD(force bool) (err error) {
 	p.setQueryOptions(req)
 	res, _, err := p.query(req)
 	if err != nil {
-		log.Infof("[%s] failed to fetch sites information: %s", p.Name, err.Error())
+		log.Infof("[%s][%s] failed to fetch sites information: %s", p.Name, req.ID(), err.Error())
 		return
 	}
 	resHash := res.Result2Hash(columns)
@@ -516,9 +516,9 @@ func (p *Peer) periodicUpdateLMD(force bool) (err error) {
 		subName := p.Name + "/" + rowHash["name"].(string)
 		subPeer, ok := PeerMap[subID]
 		if ok {
-			log.Tracef("[%s] already got a sub peer for id %s", p.Name, subID)
+			log.Tracef("[%s][%s] already got a sub peer for id %s", p.Name, req.ID(), subID)
 		} else {
-			log.Debugf("[%s] starting sub peer for %s, id: %s", p.Name, subName, subID)
+			log.Debugf("[%s][%s] starting sub peer for %s, id: %s", p.Name, req.ID(), subName, subID)
 			c := Connection{ID: subID, Name: subName, Source: p.Source, RemoteName: subName}
 			subPeer = NewPeer(p.GlobalConfig, &c, p.waitGroup, p.shutdownChannel)
 			subPeer.ParentID = p.ID
@@ -559,7 +559,7 @@ func (p *Peer) periodicUpdateLMD(force bool) (err error) {
 		peer := PeerMap[id]
 		if peer.ParentID == p.ID {
 			if _, ok := existing[id]; !ok {
-				log.Debugf("[%s] removing sub peer", peer.Name)
+				log.Debugf("[%s][%s] removing sub peer", peer.Name, req.ID())
 				peer.Stop()
 				peer.ClearData(true)
 				PeerMapRemove(id)
@@ -972,7 +972,7 @@ func (p *Peer) resetErrors() {
 func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 	conn, connType, err := p.GetConnection()
 	if err != nil {
-		log.Debugf("[%s] connection failed: %s", p.Name, err)
+		log.Debugf("[%s][%s] connection failed: %s", p.Name, req.ID(), err)
 		return nil, nil, err
 	}
 	if connType == ConnTypeHTTP {
@@ -981,7 +981,7 @@ func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 	defer func() {
 		if req.KeepAlive && err != nil && connType != ConnTypeHTTP {
 			// give back connection
-			log.Tracef("[%s] put cached connection back", p.Name)
+			log.Tracef("[%s][%s] put cached connection back", p.Name, req.ID())
 			p.cache.connection <- conn
 		} else if conn != nil {
 			conn.Close()
@@ -995,7 +995,7 @@ func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 
 	query := req.String()
 	if log.IsV(LogVerbosityTrace) {
-		log.Tracef("[%s] query: %s", p.Name, query)
+		log.Tracef("[%s][%s] query: %s", p.Name, req.ID(), query)
 	}
 
 	p.Lock.Lock()
@@ -1015,7 +1015,7 @@ func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 	resBytes, err := p.getQueryResponse(req, query, peerAddr, conn, connType)
 	duration := time.Since(t1)
 	if err != nil {
-		log.Debugf("[%s] sending data/query failed: %s", p.Name, err)
+		log.Debugf("[%s][%s] sending data/query failed: %s", p.Name, req.ID(), err)
 		return nil, nil, err
 	}
 	if req.Command != "" {
@@ -1032,7 +1032,7 @@ func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 	}
 
 	if log.IsV(LogVerbosityTrace) {
-		log.Tracef("[%s] result: %s", p.Name, string(resBytes))
+		log.Tracef("[%s][%s] result: %s", p.Name, req.ID(), string(resBytes))
 	}
 	p.Lock.Lock()
 	if p.GlobalConfig.SaveTempRequests {
@@ -1046,19 +1046,19 @@ func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 	data, meta, err := req.parseResult(resBytes)
 
 	if err != nil {
-		log.Debugf("[%s] fetched table %20s time: %s, size: %d kB", p.Name, req.Table.String(), duration, len(resBytes)/1024)
-		log.Errorf("[%s] result json string: %s", p.Name, string(resBytes))
-		log.Errorf("[%s] result parse error: %s", p.Name, err.Error())
+		log.Debugf("[%s][%s] fetched table %20s time: %s, size: %d kB", p.Name, req.ID(), req.Table.String(), duration, len(resBytes)/1024)
+		log.Errorf("[%s][%s] result json string: %s", p.Name, req.ID(), string(resBytes))
+		log.Errorf("[%s][%s] result parse error: %s", p.Name, req.ID(), err.Error())
 		return nil, nil, &PeerError{msg: err.Error(), kind: ResponseError}
 	}
 
 	meta.Duration = duration
 	meta.Size = len(resBytes)
 
-	log.Tracef("[%s] fetched table: %15s - time: %8s - count: %8d - size: %8d kB", p.Name, req.Table.String(), duration, len(data), len(resBytes)/1024)
+	log.Tracef("[%s][%s] fetched table: %15s - time: %8s - count: %8d - size: %8d kB", p.Name, req.ID(), req.Table.String(), duration, len(data), len(resBytes)/1024)
 
 	if duration > time.Duration(p.GlobalConfig.LogSlowQueryThreshold)*time.Second {
-		log.Warnf("[%s] slow query finished after %s, response size: %s\n%s", p.Name, duration, ByteCountBinary(int64(len(resBytes))), strings.TrimSpace(req.String()))
+		log.Warnf("[%s][%s] slow query finished after %s, response size: %s\n%s", p.Name, req.ID(), duration, ByteCountBinary(int64(len(resBytes))), strings.TrimSpace(req.String()))
 	}
 	return data, meta, nil
 }
@@ -1079,16 +1079,16 @@ func (p *Peer) getHTTPQueryResponse(req *Request, query string, peerAddr string)
 	if req.ResponseFixed16 {
 		code, expSize, err := p.parseResponseHeader(&res)
 		if err != nil {
-			log.Debugf("[%s] LastQuery:", p.Name)
-			log.Debugf("[%s] %s", p.Name, req.String())
+			log.Debugf("[%s][%s] LastQuery:", p.Name, req.ID())
+			log.Debugf("[%s][%s] %s", p.Name, req.ID(), req.String())
 			return nil, err
 		}
 		res = res[16:]
 
 		err = p.validateResponseHeader(res, req, code, expSize)
 		if err != nil {
-			log.Debugf("[%s] LastQuery:", p.Name)
-			log.Debugf("[%s] %s", p.Name, req.String())
+			log.Debugf("[%s][%s] LastQuery:", p.Name, req.ID())
+			log.Debugf("[%s][%s] %s", p.Name, req.ID(), req.String())
 			return nil, err
 		}
 	}
@@ -1156,8 +1156,8 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) ([]byte,
 	}
 	code, expSize, err := p.parseResponseHeader(&resBytes)
 	if err != nil {
-		log.Debugf("[%s] LastQuery:", p.Name)
-		log.Debugf("[%s] %s", p.Name, req.String())
+		log.Debugf("[%s][%s] LastQuery:", p.Name, req.ID())
+		log.Debugf("[%s][%s] %s", p.Name, req.ID(), req.String())
 		return nil, err
 	}
 	body := new(bytes.Buffer)
@@ -1172,8 +1172,8 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) ([]byte,
 	res := body.Bytes()
 	err = p.validateResponseHeader(res, req, code, expSize)
 	if err != nil {
-		log.Debugf("[%s] LastQuery:", p.Name)
-		log.Debugf("[%s] %s", p.Name, req.String())
+		log.Debugf("[%s][%s] LastQuery:", p.Name, req.ID())
+		log.Debugf("[%s][%s] %s", p.Name, req.ID(), req.String())
 		return nil, err
 	}
 	return res, nil
@@ -1707,7 +1707,7 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
 		if req.WaitObject != "" {
 			obj, ok := store.GetWaitObject(req)
 			if !ok {
-				log.Warnf("WaitObject did not match any object: %s", req.WaitObject)
+				log.Warnf("[%s][%s] WaitObject did not match any object: %s", p.Name, req.ID(), req.WaitObject)
 				close(c)
 				return nil
 			}
@@ -1743,7 +1743,7 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
 		case TableServices:
 			tmp := strings.SplitN(req.WaitObject, ";", 2)
 			if len(tmp) < 2 {
-				log.Errorf("unsupported service wait object: %s", req.WaitObject)
+				log.Errorf("[%s][%s] unsupported service wait object: %s", p.Name, req.ID(), req.WaitObject)
 				close(c)
 				return nil
 			}
@@ -1763,12 +1763,12 @@ func (p *Peer) HTTPQueryWithRetries(req *Request, peerAddr string, query string,
 
 	// retry on broken pipe errors
 	for retry := 1; retry <= retries && err != nil; retry++ {
-		log.Debugf("[%s] errored: %s", p.Name, err.Error())
+		log.Debugf("[%s][%s] errored: %s", p.Name, req.ID(), err.Error())
 		if strings.HasPrefix(err.Error(), "remote site returned rc: 0 - ERROR: broken pipe.") {
 			time.Sleep(1 * time.Second)
 			res, err = p.HTTPQuery(req, peerAddr, query)
 			if err == nil {
-				log.Debugf("[%s] site returned successful result after %d retries", p.Name, retry)
+				log.Debugf("[%s][%s] site returned successful result after %d retries", p.Name, req.ID(), retry)
 			}
 		}
 	}
@@ -1818,7 +1818,7 @@ func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url
 	ctx := context.Background()
 	req, err := http.NewRequestWithContext(ctx, "POST", peerAddr, strings.NewReader(postData.Encode()))
 	if err != nil {
-		log.Debugf("[%s] http(s) error: %s", p.Name, fmtHTTPerr(req, err))
+		log.Debugf("[%s][%s] http(s) error: %s", p.Name, query.ID(), fmtHTTPerr(req, err))
 		return nil, fmt.Errorf("http request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -1827,12 +1827,12 @@ func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url
 	}
 	response, err := p.cache.HTTPClient.Do(req)
 	if err != nil {
-		log.Debugf("[%s] http(s) error: %s", p.Name, fmtHTTPerr(req, err))
+		log.Debugf("[%s][%s] http(s) error: %s", p.Name, query.ID(), fmtHTTPerr(req, err))
 		return
 	}
 	contents, err := ExtractHTTPResponse(response)
 	if err != nil {
-		log.Debugf("[%s] http(s) error: %s", p.Name, fmtHTTPerr(req, err))
+		log.Debugf("[%s][%s] http(s) error: %s", p.Name, query.ID(), fmtHTTPerr(req, err))
 		return
 	}
 
@@ -1855,17 +1855,17 @@ func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url
 			contents = contents[:ErrorContentPreviewSize]
 		}
 		err = &PeerError{msg: fmt.Sprintf("site did not return a proper response: %s", contents), kind: ResponseError}
-		log.Debugf("[%s] http(s) error: %s", p.Name, fmtHTTPerr(req, err))
+		log.Debugf("[%s][%s] http(s) error: %s", p.Name, query.ID(), fmtHTTPerr(req, err))
 		return
 	}
 	err = json.Unmarshal(contents, &result)
 	if err != nil {
-		log.Debugf("[%s] http(s) error: %s", p.Name, fmtHTTPerr(req, err))
+		log.Debugf("[%s][%s] http(s) error: %s", p.Name, query.ID(), fmtHTTPerr(req, err))
 		return
 	}
 	if result.Rc != 0 {
 		err = &PeerError{msg: fmt.Sprintf("remote site returned rc: %d - %s", result.Rc, result.Output), kind: ResponseError}
-		log.Debugf("[%s] http(s) error: %s", p.Name, fmtHTTPerr(req, err))
+		log.Debugf("[%s][%s] http(s) error: %s", p.Name, query.ID(), fmtHTTPerr(req, err))
 	}
 	return
 }
@@ -1881,7 +1881,7 @@ func (p *Peer) HTTPPostQuery(req *Request, peerAddr string, postData url.Values,
 		newVersion := reThrukVersion.ReplaceAllString(result.Version, `$1`)
 		thrukVersion, e := strconv.ParseFloat(newVersion, 64)
 		if e == nil && currentVersion != thrukVersion {
-			log.Debugf("[%s] remote site uses thruk version: %s", p.Name, result.Version)
+			log.Debugf("[%s][%s] remote site uses thruk version: %s", p.Name, req.ID(), result.Version)
 			p.StatusSet(ThrukVersion, thrukVersion)
 		}
 	}
@@ -1890,11 +1890,11 @@ func (p *Peer) HTTPPostQuery(req *Request, peerAddr string, postData url.Values,
 	}
 	err = json.Unmarshal(result.Output, &output)
 	if err != nil {
-		log.Errorf(err.Error())
+		log.Errorf("[%s][%s] %s", p.Name, req.ID(), err.Error())
 		return
 	}
 	if log.IsV(LogVerbosityTrace) {
-		log.Tracef("[%s] response: %s", p.Name, result.Output)
+		log.Tracef("[%s][%s] response: %s", p.Name, req.ID(), result.Output)
 	}
 	if len(output) >= 4 {
 		if v, ok := output[3].(string); ok {
@@ -1975,9 +1975,9 @@ func ExtractHTTPResponse(response *http.Response) (contents []byte, err error) {
 func (p *Peer) PassThroughQuery(res *Response, passthroughRequest *Request, virtualColumns []*Column, columnsIndex map[*Column]int) {
 	req := res.Request
 	result, _, queryErr := p.Query(passthroughRequest)
-	log.Tracef("[%s] req done", p.Name)
+	log.Tracef("[%s][%s] req done", p.Name, req.ID())
 	if queryErr != nil {
-		log.Tracef("[%s] req errored", queryErr.Error())
+		log.Tracef("[%s][%s] req errored %s", p.Name, req.ID(), queryErr.Error())
 		res.Lock.Lock()
 		res.Failed[p.ID] = queryErr.Error()
 		res.Lock.Unlock()
@@ -2000,7 +2000,7 @@ func (p *Peer) PassThroughQuery(res *Response, passthroughRequest *Request, virt
 			result[rowNum] = *row
 		}
 	}
-	log.Tracef("[%s] result ready", p.Name)
+	log.Tracef("[%s][%s] result ready", p.Name, req.ID())
 	res.Lock.Lock()
 	if len(req.Stats) == 0 {
 		res.Result = append(res.Result, result...)
@@ -2114,10 +2114,10 @@ func logPanicExitPeer(p *Peer) {
 	p.logPeerStatus(log.Errorf)
 	log.Errorf("[%s] Stacktrace:\n%s", p.Name, debug.Stack())
 	if p.last.Request != nil {
-		log.Errorf("[%s] LastQuery:", p.Name)
-		log.Errorf("[%s] %s", p.Name, p.last.Request.String())
-		log.Errorf("[%s] LastResponse:", p.Name)
-		log.Errorf("[%s] %s", p.Name, string(p.last.Response))
+		log.Errorf("[%s][%s] LastQuery:", p.Name, p.last.Request.ID())
+		log.Errorf("[%s][%s] %s", p.Name, p.last.Request.ID(), p.last.Request.String())
+		log.Errorf("[%s][%s] LastResponse:", p.Name, p.last.Request.ID())
+		log.Errorf("[%s][%s] %s", p.Name, p.last.Request.ID(), string(p.last.Response))
 	}
 	logThreaddump()
 	deletePidFile(flagPidfile)
@@ -2234,13 +2234,13 @@ func (p *Peer) SendCommands(commands []string) (err error) {
 	if err != nil {
 		switch err := err.(type) {
 		case *PeerCommandError:
-			log.Debugf("[%s] sending command failed (invalid query) - %d: %s", p.Name, err.code, err.Error())
+			log.Debugf("[%s][%s] sending command failed (invalid query) - %d: %s", p.Name, commandRequest.ID(), err.code, err.Error())
 		default:
-			log.Warnf("[%s] sending command failed: %s", p.Name, err.Error())
+			log.Warnf("[%s][%s] sending command failed: %s", p.Name, commandRequest.ID(), err.Error())
 		}
 		return
 	}
-	log.Infof("[%s] send %d commands successfully.", p.Name, len(commands))
+	log.Infof("[%s][%s] send %d commands successfully.", p.Name, commandRequest.ID(), len(commands))
 
 	// schedule immediate update
 	p.ScheduleImmediateUpdate()

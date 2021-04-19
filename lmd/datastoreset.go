@@ -90,7 +90,7 @@ func (ds *DataStoreSet) CreateObjectByType(table *Table) (store *DataStore, err 
 	promObjectCount.WithLabelValues(p.Name, tableName).Set(float64(len(res)))
 
 	duration := time.Since(t1).Truncate(time.Millisecond)
-	log.Debugf("[%s] updated table: %15s - fetch: %9s - insert: %9s - count: %8d - size: %8d kB", p.Name, tableName, resMeta.Duration.Truncate(time.Microsecond), duration, len(res), resMeta.Size/1024)
+	log.Debugf("[%s][%s] updated table: %15s - fetch: %9s - insert: %9s - count: %8d - size: %8d kB", p.Name, req.ID(), tableName, resMeta.Duration.Truncate(time.Microsecond), duration, len(res), resMeta.Size/1024)
 	return
 }
 
@@ -278,7 +278,7 @@ func (ds *DataStoreSet) updateDeltaHostsServices(tableName TableName, filterStr 
 		serviceDataOffset := 2
 		return ds.insertDeltaDataResult(serviceDataOffset, res, meta, table)
 	default:
-		log.Panicf("not implemented for: " + tableName.String())
+		log.Panicf("[%s] not implemented for: %s", req.ID(), tableName.String())
 	}
 	return
 }
@@ -435,13 +435,13 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, filterStr string) 
 	}
 
 	if len(missing) > 0 {
-		log.Debugf("[%s] %s delta scan going to update %d timestamps", ds.peer.Name, store.Table.Name.String(), len(missing))
+		log.Debugf("[%s][%s] %s delta scan going to update %d timestamps", ds.peer.Name, req.ID(), store.Table.Name.String(), len(missing))
 		filter := []string{filterStr}
 		filter = append(filter, composeTimestampFilter(missing, "last_check")...)
 		filter = append(filter, "Or: 2\n")
 		switch {
 		case len(filter) > 100:
-			log.Warnf("[%s] %s delta scan timestamp filter too complex: %d", ds.peer.Name, store.Table.Name.String(), len(missing))
+			log.Warnf("[%s][%s] %s delta scan timestamp filter too complex: %d", ds.peer.Name, req.ID(), store.Table.Name.String(), len(missing))
 		case store.Table.Name == TableServices:
 			err = ds.UpdateDeltaServices(strings.Join(filter, ""), false)
 			updated = true
@@ -450,7 +450,7 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, filterStr string) 
 			updated = true
 		}
 	} else {
-		log.Debugf("[%s] %s delta scan did not find any timestamps", ds.peer.Name, store.Table.Name.String())
+		log.Debugf("[%s][%s] %s delta scan did not find any timestamps", ds.peer.Name, req.ID(), store.Table.Name.String())
 	}
 
 	switch store.Table.Name {
@@ -544,7 +544,7 @@ func (ds *DataStoreSet) UpdateDeltaCommentsOrDowntimes(name TableName) (err erro
 		id := fmt.Sprintf("%d", interface2int64(resRow[0]))
 		_, ok := idIndex[id]
 		if !ok {
-			log.Debugf("adding %s with id %s", name.String(), id)
+			log.Debugf("[%s] adding %s with id %s", req.ID(), name.String(), id)
 			id64 := int64(resRow[0].(float64))
 			missingIds = append(missingIds, id64)
 		}
@@ -627,7 +627,7 @@ func (ds *DataStoreSet) maxIDOrSizeChanged(name TableName) (changed bool, err er
 	ds.Lock.RUnlock()
 
 	if len(res) == 0 || float64(entries) == interface2float64(res[0][0]) && (entries == 0 || interface2float64(res[0][1]) == float64(maxID)) {
-		log.Tracef("[%s] %s did not change", p.Name, name.String())
+		log.Tracef("[%s][%s] %s did not change", p.Name, req.ID(), name.String())
 		return
 	}
 	changed = true

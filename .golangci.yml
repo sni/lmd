@@ -95,6 +95,7 @@ issues:
     - "Function 'NewHostsTable' has too many statements"
     - "Function 'NewServicesTable' has too many statements"
     - "func .*noCopy.* is unused"
+    - "Use of weak random number generator"
   exclude-rules:
     # Exclude some linters from running on tests files.
     - path: _test\.go

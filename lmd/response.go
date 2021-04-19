@@ -216,7 +216,7 @@ func (res *Response) PostProcessing() {
 	if len(res.Request.Stats) > 0 {
 		return
 	}
-	log.Tracef("PostProcessing")
+	log.Tracef("[%s] PostProcessing", res.Request.ID())
 	if res.Result == nil {
 		res.Result = make(ResultSet, 0)
 	}
@@ -227,7 +227,7 @@ func (res *Response) PostProcessing() {
 			t1 := time.Now()
 			sort.Sort(res)
 			duration := time.Since(t1)
-			log.Debugf("sorting result took %s", duration.String())
+			log.Debugf("[%s] sorting result took %s", res.Request.ID(), duration.String())
 		}
 	}
 
@@ -346,25 +346,25 @@ func (res *Response) SendFixed16(c net.Conn) (size int64, err error) {
 	size = int64(resBuffer.Len()) + 1
 	headerFixed16 := fmt.Sprintf("%d %11d", res.Code, size)
 	if log.IsV(LogVerbosityTrace) {
-		log.Tracef("write: %s", headerFixed16)
+		log.Tracef("[%s] write: %s", res.Request.ID(), headerFixed16)
 	}
 	_, err = fmt.Fprintf(c, "%s\n", headerFixed16)
 	if err != nil {
-		log.Warnf("write error: %s", err.Error())
+		log.Warnf("[%s] write error: %s", res.Request.ID(), err.Error())
 		return
 	}
 	if log.IsV(LogVerbosityTrace) {
-		log.Tracef("write: %s", resBuffer.Bytes())
+		log.Tracef("[%s] write: %s", res.Request.ID(), resBuffer.Bytes())
 	}
 	written, err := resBuffer.WriteTo(c)
 	if err != nil {
-		log.Warnf("write error: %s", err.Error())
+		log.Warnf("[%s] write error: %s", res.Request.ID(), err.Error())
 		return
 	}
 	localAddr := c.LocalAddr().String()
 	promFrontendBytesSend.WithLabelValues(localAddr).Add(float64(written + 1))
 	if written != size-1 {
-		log.Warnf("write error: written %d, size: %d", written, size)
+		log.Warnf("[%s] write error: written %d, size: %d", res.Request.ID(), written, size)
 		return
 	}
 	_, err = c.Write([]byte("\n"))
@@ -380,7 +380,7 @@ func (res *Response) SendUnbuffered(c io.Writer) (size int64, err error) {
 		err = res.JSON(countingWriter)
 	}
 	if err != nil {
-		log.Warnf("write error: %s", err.Error())
+		log.Warnf("[%s] write error: %s", res.Request.ID(), err.Error())
 		return
 	}
 	_, err = countingWriter.Write([]byte("\n"))
@@ -392,7 +392,7 @@ func (res *Response) SendUnbuffered(c io.Writer) (size int64, err error) {
 func (res *Response) Buffer() (*bytes.Buffer, error) {
 	buf := new(bytes.Buffer)
 	if res.Error != nil {
-		log.Warnf("sending error response: %d - %s", res.Code, res.Error.Error())
+		log.Warnf("[%s] sending error response: %d - %s", res.Request.ID(), res.Code, res.Error.Error())
 		buf.WriteString(res.Error.Error())
 		return buf, nil
 	}
@@ -503,7 +503,7 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 			res.RawResults.DataResult[i].WriteJSON(json, res.Request.RequestColumns)
 		}
 	default:
-		log.Errorf("response contains no result at all")
+		log.Errorf("[%s] response contains no result at all", res.Request.ID())
 	}
 }
 
@@ -605,13 +605,13 @@ func (res *Response) BuildLocalResponse() {
 			// make sure we log panics properly
 			defer logPanicExitPeer(peer)
 
-			log.Tracef("[%s] starting local data computation", peer.Name)
+			log.Tracef("[%s][%s] starting local data computation", peer.Name, res.Request.ID())
 			defer wg.Done()
 
 			res.BuildLocalResponseData(store, resultcollector)
 		}(p, waitgroup)
 	}
-	log.Tracef("waiting...")
+	log.Tracef("[%s] waiting...", res.Request.ID())
 
 	waitgroup.Wait()
 	if resultcollector != nil {
@@ -619,7 +619,7 @@ func (res *Response) BuildLocalResponse() {
 		<-waitChan
 	}
 
-	log.Tracef("waiting for all local data computations done")
+	log.Tracef("[%s] waiting for all local data computations done", res.Request.ID())
 }
 
 // MergeStats merges stats result into final result set
@@ -705,15 +705,15 @@ func (res *Response) BuildPassThroughResult() {
 			// make sure we log panics properly
 			defer logPanicExitPeer(peer)
 
-			log.Debugf("[%s] starting passthrough request", peer.Name)
+			log.Debugf("[%s][%s] starting passthrough request", peer.Name, passthroughRequest.ID())
 			defer wg.Done()
 
 			peer.PassThroughQuery(res, passthroughRequest, virtualColumns, columnsIndex)
 		}(p, waitgroup)
 	}
-	log.Tracef("waiting...")
+	log.Tracef("[%s] waiting...", passthroughRequest.ID())
 	waitgroup.Wait()
-	log.Debugf("waiting for passed through requests done")
+	log.Debugf("[%s] waiting for passed through requests done", passthroughRequest.ID())
 }
 
 // SendColumnsHeader determines if the response should contain the columns header
@@ -761,7 +761,7 @@ func SpinUpPeers(peers []*Peer) {
 // BuildLocalResponseData returns the result data for a given request
 func (res *Response) BuildLocalResponseData(store *DataStore, resultcollector chan *PeerResponse) {
 	ds := store.DataSet
-	log.Tracef("BuildLocalResponseData: %s", store.PeerName)
+	log.Tracef("[%s][%s] BuildLocalResponseData", store.PeerName, res.Request.ID())
 
 	// for some tables its faster to lock the table only once
 	if store.PeerLockMode == PeerLockModeFull && ds != nil {

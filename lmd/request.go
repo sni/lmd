@@ -3,10 +3,12 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"reflect"
 	"regexp"
@@ -22,6 +24,7 @@ import (
 // Request defines a livestatus request object.
 type Request struct {
 	noCopy              noCopy
+	id                  string
 	Table               TableName
 	Command             string
 	Columns             []string  // parsed columns field
@@ -287,14 +290,15 @@ func NewRequest(b *bufio.Reader, options ParseOptions) (req *Request, size int, 
 	if _, ok := err.(net.Error); ok {
 		return
 	}
+
+	req = &Request{ColumnsHeaders: false, KeepAlive: false}
 	size += len(firstLine)
 	firstLine = strings.TrimSpace(firstLine)
 	// probably a open connection without new data from a keepalive request
 	if firstLine != "" {
-		log.Debugf("request: %s", firstLine)
+		log.Debugf("[%s] request: %s", req.ID(), firstLine)
 	}
 
-	req = &Request{ColumnsHeaders: false, KeepAlive: false}
 	ok, err := req.ParseRequestAction(&firstLine)
 	if err != nil || !ok {
 		req = nil
@@ -313,7 +317,7 @@ func NewRequest(b *bufio.Reader, options ParseOptions) (req *Request, size int, 
 			break
 		}
 
-		log.Debugf("request: %s", line)
+		log.Debugf("[%s] request: %s", req.ID(), line)
 		perr := req.ParseRequestHeaderLine(line, options)
 		if perr != nil {
 			err = fmt.Errorf("bad request: %s in: %s", perr.Error(), line)
@@ -334,6 +338,15 @@ func NewRequest(b *bufio.Reader, options ParseOptions) (req *Request, size int, 
 	req.SetRequestColumns()
 	err = req.SetSortColumns()
 	return
+}
+
+// ID returns the uniq request id
+func (req *Request) ID() string {
+	if req.id != "" {
+		return req.id
+	}
+	req.id = fmt.Sprintf("r:%x", sha256.Sum256([]byte(fmt.Sprintf("%d-%d", time.Now().Nanosecond(), rand.Int()))))[0:8]
+	return req.id
 }
 
 // ParseRequestAction parses the first line from a request which
@@ -750,7 +763,7 @@ func (req *Request) ParseRequestHeaderLine(line []byte, options ParseOptions) (e
 		return
 	case "localtime":
 		if log.IsV(LogVerbosityDebug) {
-			log.Debugf("Ignoring %s as LMD works on unix timestamps only.", matched[0])
+			log.Debugf("[%s] Ignoring %s as LMD works on unix timestamps only.", req.ID(), matched[0])
 		}
 		return
 	case "authuser":
@@ -870,7 +883,7 @@ func parseAuthUser(field *string, value []byte) (err error) {
 
 // SetRequestColumns sets  list of used indexes and columns for this request.
 func (req *Request) SetRequestColumns() {
-	log.Tracef("SetRequestColumns")
+	log.Tracef("[%s] SetRequestColumns", req.ID())
 	if req.Command != "" {
 		return
 	}
@@ -900,7 +913,7 @@ func (req *Request) SetRequestColumns() {
 
 // SetSortColumns set the requestcolumn for the sortfields
 func (req *Request) SetSortColumns() (err error) {
-	log.Tracef("SetSortColumns")
+	log.Tracef("[%s] SetSortColumns", req.ID())
 	if req.Command != "" {
 		return
 	}
@@ -951,7 +964,7 @@ func (req *Request) parseResult(resBytes []byte) (ResultSet, *ResultMetaData, er
 				err = dErr
 				return
 			}
-			log.Debugf("fixed invalid characters in json data")
+			log.Debugf("[%s] fixed invalid characters in json data", req.ID())
 		}
 		res = append(res, row)
 	})
