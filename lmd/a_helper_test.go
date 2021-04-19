@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -91,7 +92,7 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 				panic(err.Error())
 			}
 
-			req, err := ParseRequest(conn)
+			req, err := ParseRequest(context.TODO(), conn)
 			if err != nil {
 				panic(err.Error())
 			}
@@ -410,7 +411,7 @@ func StartHTTPMockServer(t *testing.T) (*httptest.Server, func()) {
 			t.Fatalf("failed to parse request: %s", err.Error())
 		}
 		if data.Options.Sub == "_raw_query" {
-			req, _, err := NewRequest(bufio.NewReader(strings.NewReader(data.Options.Args[0])), ParseDefault)
+			req, _, err := NewRequest(context.TODO(), bufio.NewReader(strings.NewReader(data.Options.Args[0])), ParseDefault)
 			if err != nil {
 				t.Fatalf("failed to parse request: %s", err.Error())
 			}

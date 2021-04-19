@@ -96,6 +96,7 @@ issues:
     - "Function 'NewServicesTable' has too many statements"
     - "func .*noCopy.* is unused"
     - "Use of weak random number generator"
+    - "Error return value of `log.Output` is not checked"
   exclude-rules:
     # Exclude some linters from running on tests files.
     - path: _test\.go

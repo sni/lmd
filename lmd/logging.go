@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -185,6 +186,18 @@ func (l *LogPrefixer) prefix() (prefix string) {
 			prefix = fmt.Sprintf("%s[%s]", prefix, v.PeerName)
 		case *DataStoreSet:
 			prefix = fmt.Sprintf("%s[%s]", prefix, v.peer.Name)
+		case context.Context:
+			for _, key := range []ContextKey{CtxPeer, CtxClient, CtxRequest} {
+				value := v.Value(key)
+				switch val := value.(type) {
+				case string:
+					if val != "" {
+						prefix = fmt.Sprintf("%s[%s]", prefix, val)
+					}
+				default:
+					prefix = fmt.Sprintf("%s[%v]", prefix, val)
+				}
+			}
 		default:
 			log.Panicf("unsupported prefix type: %#v (%T)", p, p)
 		}

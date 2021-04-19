@@ -73,6 +73,15 @@ const (
 	ThrukMultiBackendMinVersion = 2.23
 )
 
+// ContextKey is a key used as context key
+type ContextKey string
+
+const (
+	CtxPeer    ContextKey = "peer"
+	CtxClient  ContextKey = "client"
+	CtxRequest ContextKey = "request"
+)
+
 // https://github.com/golang/go/issues/8005#issuecomment-190753527
 type noCopy struct{}
 

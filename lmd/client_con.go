@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -42,12 +43,13 @@ func NewClientConnection(c net.Conn, listenTimeout int, logSlowQueryThreshold in
 }
 
 func (cl *ClientConnection) Handle() {
+	ctx := context.WithValue(context.Background(), CtxClient, fmt.Sprintf("%s->%s", cl.remoteAddr, cl.localAddr))
 	ch := make(chan error, 1)
 	go func() {
 		// make sure we log panics properly
 		defer logPanicExit()
 
-		ch <- cl.answer()
+		ch <- cl.answer(ctx)
 	}()
 	select {
 	case err := <-ch:
@@ -55,14 +57,14 @@ func (cl *ClientConnection) Handle() {
 			logWith(cl).Debugf("request failed with client error: %s", err.Error())
 		}
 	case <-time.After(time.Duration(cl.listenTimeout) * time.Second):
-		logWith(cl).Warnf("request timed out (timeout: %s)", time.Duration(cl.listenTimeout)*time.Second)
+		logWith(ctx).Warnf("request timed out (timeout: %s)", time.Duration(cl.listenTimeout)*time.Second)
 	}
 	cl.connection.Close()
 }
 
 // answer handles a single client connection.
 // It returns any error encountered.
-func (cl *ClientConnection) answer() error {
+func (cl *ClientConnection) answer(ctx context.Context) error {
 	defer cl.connection.Close()
 
 	for {
@@ -72,7 +74,7 @@ func (cl *ClientConnection) answer() error {
 			LogErrors(cl.connection.SetDeadline(time.Now().Add(RequestReadTimeout)))
 		}
 
-		reqs, err := ParseRequests(cl.connection)
+		reqs, err := ParseRequests(ctx, cl.connection)
 		if err != nil {
 			return cl.sendErrorResponse(err)
 		}

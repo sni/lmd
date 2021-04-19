@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -163,22 +164,22 @@ var defaultParseOptimizer = ParseOptimize
 
 // ParseRequest reads from a connection and returns a single requests.
 // It returns a the requests and any errors encountered.
-func ParseRequest(c net.Conn) (req *Request, err error) {
+func ParseRequest(ctx context.Context, c net.Conn) (req *Request, err error) {
 	b := bufio.NewReader(c)
 	localAddr := c.LocalAddr().String()
-	req, size, err := NewRequest(b, defaultParseOptimizer)
+	req, size, err := NewRequest(ctx, b, defaultParseOptimizer)
 	promFrontendBytesReceived.WithLabelValues(localAddr).Add(float64(size))
 	return
 }
 
 // ParseRequests reads from a connection and returns all requests read.
 // It returns a list of requests and any errors encountered.
-func ParseRequests(c net.Conn) (reqs []*Request, err error) {
+func ParseRequests(ctx context.Context, c net.Conn) (reqs []*Request, err error) {
 	b := bufio.NewReader(c)
 	localAddr := c.LocalAddr().String()
 	eof := false
 	for {
-		req, size, err := NewRequest(b, defaultParseOptimizer)
+		req, size, err := NewRequest(ctx, b, defaultParseOptimizer)
 		promFrontendBytesReceived.WithLabelValues(localAddr).Add(float64(size))
 		if err != nil {
 			if errors.Is(err, io.EOF) {
@@ -277,7 +278,7 @@ func (req *Request) String() (str string) {
 
 // NewRequest reads a buffer and creates a new request object.
 // It returns the request as long with the number of bytes read and any error.
-func NewRequest(b *bufio.Reader, options ParseOptions) (req *Request, size int, err error) {
+func NewRequest(ctx context.Context, b *bufio.Reader, options ParseOptions) (req *Request, size int, err error) {
 	firstLine, err := b.ReadString('\n')
 	if err == io.EOF {
 		if firstLine == "" {
@@ -292,11 +293,12 @@ func NewRequest(b *bufio.Reader, options ParseOptions) (req *Request, size int, 
 	}
 
 	req = &Request{ColumnsHeaders: false, KeepAlive: false}
+	ctx = context.WithValue(ctx, CtxRequest, req.ID())
 	size += len(firstLine)
 	firstLine = strings.TrimSpace(firstLine)
 	// probably a open connection without new data from a keepalive request
 	if firstLine != "" {
-		logWith(req).Debugf("request: %s", firstLine)
+		logWith(ctx).Debugf("request: %s", firstLine)
 	}
 
 	ok, err := req.ParseRequestAction(&firstLine)
@@ -317,7 +319,7 @@ func NewRequest(b *bufio.Reader, options ParseOptions) (req *Request, size int, 
 			break
 		}
 
-		logWith(req).Debugf("request: %s", line)
+		logWith(ctx).Debugf("request: %s", line)
 		perr := req.ParseRequestHeaderLine(line, options)
 		if perr != nil {
 			err = fmt.Errorf("bad request: %s in: %s", perr.Error(), line)

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -48,7 +49,7 @@ func TestPeerHTTPComplete(t *testing.T) {
 }
 
 func TestParseResultJSON(t *testing.T) {
-	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
+	req, _, err := NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -77,7 +78,7 @@ func TestParseResultJSON(t *testing.T) {
 }
 
 func TestParseResultWrappedJSON(t *testing.T) {
-	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: wrapped_json\n")), ParseOptimize)
+	req, _, err := NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: wrapped_json\n")), ParseOptimize)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -110,7 +111,7 @@ func TestParseResultWrappedJSON(t *testing.T) {
 }
 
 func TestParseResultJSONBroken(t *testing.T) {
-	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
+	req, _, err := NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -133,7 +134,7 @@ func TestParseResultJSONBroken(t *testing.T) {
 }
 
 func TestParseResultJSONBroken2(t *testing.T) {
-	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
+	req, _, err := NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -156,7 +157,7 @@ func TestParseResultJSONBroken2(t *testing.T) {
 }
 
 func TestParseResultJSONEscapeSequences(t *testing.T) {
-	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name\nOutputFormat: json\n")), ParseOptimize)
+	req, _, err := NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name\nOutputFormat: json\n")), ParseOptimize)
 	if err != nil {
 		panic(err.Error())
 	}

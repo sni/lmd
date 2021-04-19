@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -20,7 +21,7 @@ func BenchmarkParseResultJSON(b *testing.B) {
 			columns = append(columns, col.Name)
 		}
 	}
-	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString(fmt.Sprintf("GET services\nOutputFormat: json\nColumns: %s\nColumnHeaders: on\n", strings.Join(columns, " ")))), ParseOptimize)
+	req, _, err := NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString(fmt.Sprintf("GET services\nOutputFormat: json\nColumns: %s\nColumnHeaders: on\n", strings.Join(columns, " ")))), ParseOptimize)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -65,7 +66,7 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 			columns = append(columns, col.Name)
 		}
 	}
-	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString(fmt.Sprintf("GET services\nOutputFormat: wrapped_json\nColumns: %s\nColumnHeaders: on\n", strings.Join(columns, " ")))), ParseOptimize)
+	req, _, err := NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString(fmt.Sprintf("GET services\nOutputFormat: wrapped_json\nColumns: %s\nColumnHeaders: on\n", strings.Join(columns, " ")))), ParseOptimize)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -346,7 +347,7 @@ func BenchmarkServicelistLimit_1k_svc_10Peer(b *testing.B) {
 func BenchmarkRequestParser1(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		buf := bufio.NewReader(bytes.NewBufferString(servicesPageQuery))
-		_, size, err := NewRequest(buf, ParseOptimize)
+		_, size, err := NewRequest(context.TODO(), buf, ParseOptimize)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -359,7 +360,7 @@ func BenchmarkRequestParser1(b *testing.B) {
 func BenchmarkRequestParser2(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		buf := bufio.NewReader(bytes.NewBufferString(tacPageStatsQuery))
-		_, size, err := NewRequest(buf, ParseOptimize)
+		_, size, err := NewRequest(context.TODO(), buf, ParseOptimize)
 		if err != nil {
 			panic(err.Error())
 		}

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -174,7 +175,7 @@ func testqueryCol(t *testing.T, peer *Peer, table TableName, column string) {
 		}
 	}()
 	buf := bufio.NewReader(bytes.NewBufferString(query))
-	req, _, err := NewRequest(buf, ParseDefault)
+	req, _, err := NewRequest(context.TODO(), buf, ParseDefault)
 	if err == nil {
 		if err = assertEq(query, req.String()); err != nil {
 			t.Fatal(err)
@@ -202,7 +203,7 @@ func testqueryFilter(t *testing.T, peer *Peer, table TableName, column, op, valu
 		}
 	}()
 	buf := bufio.NewReader(bytes.NewBufferString(query))
-	req, _, err := NewRequest(buf, ParseDefault)
+	req, _, err := NewRequest(context.TODO(), buf, ParseDefault)
 	if err == nil {
 		if err = assertEq(query, req.String()); err != nil {
 			t.Fatal(err)
@@ -230,7 +231,7 @@ func testqueryGroup(t *testing.T, peer *Peer, table TableName, column, op, value
 		}
 	}()
 	buf := bufio.NewReader(bytes.NewBufferString(query))
-	req, _, err := NewRequest(buf, ParseDefault)
+	req, _, err := NewRequest(context.TODO(), buf, ParseDefault)
 	if err == nil {
 		if err = assertEq(query, req.String()); err != nil {
 			t.Fatal(err)

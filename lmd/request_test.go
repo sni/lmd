@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -42,7 +43,7 @@ func TestRequestHeader(t *testing.T) {
 	}
 	for _, str := range testRequestStrings {
 		buf := bufio.NewReader(bytes.NewBufferString(str))
-		req, _, err := NewRequest(buf, ParseDefault)
+		req, _, err := NewRequest(context.TODO(), buf, ParseDefault)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -54,7 +55,7 @@ func TestRequestHeader(t *testing.T) {
 
 func TestRequestHeaderTable(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\n"))
-	req, _, _ := NewRequest(buf, ParseOptimize)
+	req, _, _ := NewRequest(context.TODO(), buf, ParseOptimize)
 	if err := assertEq("hosts", req.Table.String()); err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +63,7 @@ func TestRequestHeaderTable(t *testing.T) {
 
 func TestRequestHeaderLimit(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nLimit: 10\n"))
-	req, _, _ := NewRequest(buf, ParseOptimize)
+	req, _, _ := NewRequest(context.TODO(), buf, ParseOptimize)
 	if err := assertEq(10, *req.Limit); err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +71,7 @@ func TestRequestHeaderLimit(t *testing.T) {
 
 func TestRequestHeaderOffset(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nOffset: 3\n"))
-	req, _, _ := NewRequest(buf, ParseOptimize)
+	req, _, _ := NewRequest(context.TODO(), buf, ParseOptimize)
 	if err := assertEq(3, req.Offset); err != nil {
 		t.Fatal(err)
 	}
@@ -78,14 +79,14 @@ func TestRequestHeaderOffset(t *testing.T) {
 
 func TestRequestHeaderColumns(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name state\n"))
-	req, _, _ := NewRequest(buf, ParseOptimize)
+	req, _, _ := NewRequest(context.TODO(), buf, ParseOptimize)
 	if err := assertEq([]string{"name", "state"}, req.Columns); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestRequestHeaderSort(t *testing.T) {
-	req, _, _ := NewRequest(bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: latency state name\nSort: name desc\nSort: state asc\n")), ParseOptimize)
+	req, _, _ := NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: latency state name\nSort: name desc\nSort: state asc\n")), ParseOptimize)
 	if err := assertEq(&SortField{Name: "name", Direction: Desc, Index: 0, Column: Objects.Tables[TableHosts].GetColumn("name")}, req.Sort[0]); err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +96,7 @@ func TestRequestHeaderSort(t *testing.T) {
 }
 
 func TestRequestHeaderSortCust(t *testing.T) {
-	req, _, _ := NewRequest(bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name custom_variables\nSort: custom_variables TEST asc\n")), ParseOptimize)
+	req, _, _ := NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name custom_variables\nSort: custom_variables TEST asc\n")), ParseOptimize)
 	if err := assertEq(&SortField{Name: "custom_variables", Direction: Asc, Index: 0, Args: "TEST", Column: Objects.Tables[TableHosts].GetColumn("custom_variables")}, req.Sort[0]); err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +104,7 @@ func TestRequestHeaderSortCust(t *testing.T) {
 
 func TestRequestHeaderFilter1(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: name != test\n"))
-	req, _, _ := NewRequest(buf, ParseOptimize)
+	req, _, _ := NewRequest(context.TODO(), buf, ParseOptimize)
 	if err := assertEq(len(req.Filter), 1); err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +115,7 @@ func TestRequestHeaderFilter1(t *testing.T) {
 
 func TestRequestHeaderFilter2(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces \n"))
-	req, _, _ := NewRequest(buf, ParseOptimize)
+	req, _, _ := NewRequest(context.TODO(), buf, ParseOptimize)
 	if err := assertEq(len(req.Filter), 2); err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +132,7 @@ func TestRequestHeaderFilter2(t *testing.T) {
 
 func TestRequestHeaderFilter3(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces\nOr: 2"))
-	req, _, _ := NewRequest(buf, ParseOptimize)
+	req, _, _ := NewRequest(context.TODO(), buf, ParseOptimize)
 	if err := assertEq(len(req.Filter), 1); err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +146,7 @@ func TestRequestHeaderFilter3(t *testing.T) {
 
 func TestRequestHeaderFilter4(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces\nAnd: 2"))
-	req, _, _ := NewRequest(buf, ParseOptimize)
+	req, _, _ := NewRequest(context.TODO(), buf, ParseOptimize)
 	if err := assertEq(len(req.Filter), 2); err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +205,7 @@ func TestRequestHeaderMultipleCommands(t *testing.T) {
 Backends: mockid0
 
 COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web2;1473627610`))
-	req, size, err := NewRequest(buf, ParseOptimize)
+	req, size, err := NewRequest(context.TODO(), buf, ParseOptimize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +218,7 @@ COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web2;1473627610`))
 	if err = assertEq(req.Backends[0], "mockid0"); err != nil {
 		t.Fatal(err)
 	}
-	req, size, err = NewRequest(buf, ParseOptimize)
+	req, size, err = NewRequest(context.TODO(), buf, ParseOptimize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1385,7 +1386,7 @@ OutputFormat: wrapped_json
 ResponseHeader: fixed16
 `
 
-	req, _, err := NewRequest(bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	req, _, err := NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1410,7 +1411,7 @@ ResponseHeader: fixed16
 	OutputFormat: wrapped_json
 	ResponseHeader: fixed16
 	`
-	req, _, err = NewRequest(bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	req, _, err = NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1434,7 +1435,7 @@ ResponseHeader: fixed16
 	OutputFormat: wrapped_json
 	ResponseHeader: fixed16
 	`
-	req, _, err = NewRequest(bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	req, _, err = NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1490,7 +1491,7 @@ func TestRequestKeepalive(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req, _, _ := NewRequest(bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name\n")), ParseOptimize)
+	req, _, _ := NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name\n")), ParseOptimize)
 	req.ResponseFixed16 = true
 
 	// send request without keepalive
@@ -1767,7 +1768,7 @@ Stats: state = 2
 StatsAnd: 2
 `
 	buf := bufio.NewReader(bytes.NewBufferString(query))
-	req, _, err := NewRequest(buf, ParseOptimize)
+	req, _, err := NewRequest(context.TODO(), buf, ParseOptimize)
 	if err != nil {
 		t.Fatal(err)
 	}
