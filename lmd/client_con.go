@@ -52,10 +52,10 @@ func (cl *ClientConnection) Handle() {
 	select {
 	case err := <-ch:
 		if err != nil {
-			log.Debugf("[%s][%s] request failed with client error: %s", cl.localAddr, cl.remoteAddr, err.Error())
+			logWith(cl).Debugf("request failed with client error: %s", err.Error())
 		}
 	case <-time.After(time.Duration(cl.listenTimeout) * time.Second):
-		log.Warnf("[%s][%s] request timed out (timeout: %s)", cl.localAddr, cl.remoteAddr, time.Duration(cl.listenTimeout)*time.Second)
+		logWith(cl).Warnf("request timed out (timeout: %s)", time.Duration(cl.listenTimeout)*time.Second)
 	}
 	cl.connection.Close()
 }
@@ -68,7 +68,7 @@ func (cl *ClientConnection) answer() error {
 	for {
 		if !cl.keepAlive {
 			promFrontendConnections.WithLabelValues(cl.localAddr).Inc()
-			log.Debugf("[%s][%s] incoming request", cl.localAddr, cl.remoteAddr)
+			logWith(cl).Debugf("new client connection")
 			LogErrors(cl.connection.SetDeadline(time.Now().Add(RequestReadTimeout)))
 		}
 
@@ -83,7 +83,7 @@ func (cl *ClientConnection) answer() error {
 
 			// keep open keepalive request until either the client closes the connection or the deadline timeout is hit
 			if cl.keepAlive {
-				log.Debugf("[%s][%s][%s] connection keepalive, waiting for more requests", reqs[len(reqs)-1].ID(), cl.localAddr, cl.remoteAddr)
+				logWith(cl, reqs[len(reqs)-1]).Debugf("connection keepalive, waiting for more requests")
 				LogErrors(cl.connection.SetDeadline(time.Now().Add(RequestReadTimeout)))
 				continue
 			}
@@ -105,9 +105,9 @@ func (cl *ClientConnection) answer() error {
 func (cl *ClientConnection) sendErrorResponse(err error) error {
 	if err, ok := err.(net.Error); ok {
 		if cl.keepAlive {
-			log.Debugf("[%s][%s] closing keepalive connection", cl.localAddr, cl.remoteAddr)
+			logWith(cl).Debugf("closing keepalive connection")
 		} else {
-			log.Debugf("[%s][%s] network error", cl.localAddr, cl.remoteAddr, err.Error())
+			logWith(cl).Debugf("network error: %s", err.Error())
 		}
 		return err
 	}
@@ -158,11 +158,11 @@ func (cl *ClientConnection) processRequests(reqs []*Request) (err error) {
 		var size int64
 		size, err = response.Send(cl.connection)
 		duration := time.Since(t1)
-		log.Infof("[%s][%s][%s] %s request finished in %s, response size: %s", req.ID(), cl.localAddr, cl.remoteAddr, req.Table.String(), duration.String(), ByteCountBinary(size))
+		logWith(req, cl).Infof("%s request finished in %s, response size: %s", req.Table.String(), duration.String(), ByteCountBinary(size))
 		if duration-time.Duration(req.WaitTimeout)*time.Millisecond > time.Duration(cl.logSlowQueryThreshold)*time.Second {
-			log.Warnf("[%s][%s][%s] slow query finished after %s, response size: %s\n%s", req.ID(), cl.localAddr, cl.remoteAddr, duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
+			logWith(req, cl).Warnf("slow query finished after %s, response size: %s\n%s", duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
 		} else if size > int64(cl.logHugeQueryThreshold*1024*1024) {
-			log.Warnf("[%s][%s][%s] huge query finished after %s, response size: %s\n%s", req.ID(), cl.localAddr, cl.remoteAddr, duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
+			logWith(req, cl).Warnf("huge query finished after %s, response size: %s\n%s", duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
 		}
 		if cl.queryStats != nil {
 			cl.queryStats.In <- QueryStatIn{
@@ -198,7 +198,7 @@ func (cl *ClientConnection) sendRemainingCommands(commandsByPeer *map[string][]s
 		_, err = cl.connection.Write([]byte(fmt.Sprintf("%d: %s\n", code, msg)))
 		return
 	}
-	log.Infof("[%s][%s] incoming command request finished in %s", cl.localAddr, cl.remoteAddr, time.Since(t1))
+	logWith(cl).Infof("incoming command request finished in %s", time.Since(t1))
 	return
 }
 

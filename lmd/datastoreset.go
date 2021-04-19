@@ -90,7 +90,7 @@ func (ds *DataStoreSet) CreateObjectByType(table *Table) (store *DataStore, err 
 	promObjectCount.WithLabelValues(p.Name, tableName).Set(float64(len(res)))
 
 	duration := time.Since(t1).Truncate(time.Millisecond)
-	log.Debugf("[%s][%s] updated table: %15s - fetch: %9s - insert: %9s - count: %8d - size: %8d kB", p.Name, req.ID(), tableName, resMeta.Duration.Truncate(time.Microsecond), duration, len(res), resMeta.Size/1024)
+	logWith(p, req).Debugf("updated table: %15s - fetch: %9s - insert: %9s - count: %8d - size: %8d kB", tableName, resMeta.Duration.Truncate(time.Microsecond), duration, len(res), resMeta.Size/1024)
 	return
 }
 
@@ -100,7 +100,7 @@ func (ds *DataStoreSet) SetReferences() (err error) {
 		t := t
 		err = t.SetReferences()
 		if err != nil {
-			log.Debugf("[%s] setting references on table %s failed: %s", ds.peer.Name, t.Table.Name.String(), err.Error())
+			logWith(ds).Debugf("setting references on table %s failed: %s", t.Table.Name.String(), err.Error())
 			return
 		}
 	}
@@ -137,7 +137,7 @@ func (ds *DataStoreSet) UpdateFull(tables []TableName) (err error) {
 	duration := time.Since(t1)
 	peerStatus := p.StatusGet(PeerState).(PeerStatus)
 	if peerStatus != PeerStatusUp && peerStatus != PeerStatusPending {
-		log.Infof("[%s] site soft recovered from short outage", p.Name)
+		logWith(p).Infof("site soft recovered from short outage")
 	}
 	p.Lock.Lock()
 	p.resetErrors()
@@ -145,7 +145,7 @@ func (ds *DataStoreSet) UpdateFull(tables []TableName) (err error) {
 	p.Status[LastUpdate] = time.Now().Unix()
 	p.Status[LastFullUpdate] = time.Now().Unix()
 	p.Lock.Unlock()
-	log.Debugf("[%s] full update complete in: %s", p.Name, duration.String())
+	logWith(p).Debugf("full update complete in: %s", duration.String())
 	promPeerUpdates.WithLabelValues(p.Name).Inc()
 	promPeerUpdateDuration.WithLabelValues(p.Name).Set(duration.Seconds())
 	return
@@ -157,7 +157,7 @@ func (ds *DataStoreSet) UpdateFullTablesList(tables []TableName) (err error) {
 		name := tables[i]
 		err = ds.UpdateFullTable(name)
 		if err != nil {
-			log.Debugf("[%s] update failed: %s", ds.peer.Name, err.Error())
+			logWith(ds).Debugf("update failed: %s", err.Error())
 			return
 		}
 	}
@@ -209,7 +209,7 @@ func (ds *DataStoreSet) UpdateDelta(from, to int64) (err error) {
 
 	p := ds.peer
 	duration := time.Since(t1)
-	log.Debugf("[%s] delta update complete in: %s", p.Name, duration.String())
+	logWith(p).Debugf("delta update complete in: %s", duration.String())
 
 	p.Lock.Lock()
 	peerStatus := p.Status[PeerState].(PeerStatus)
@@ -219,7 +219,7 @@ func (ds *DataStoreSet) UpdateDelta(from, to int64) (err error) {
 	p.Lock.Unlock()
 
 	if peerStatus != PeerStatusUp && peerStatus != PeerStatusPending {
-		log.Infof("[%s] site soft recovered from short outage", p.Name)
+		logWith(p).Infof("site soft recovered from short outage")
 	}
 
 	promPeerUpdates.WithLabelValues(p.Name).Inc()
@@ -278,7 +278,7 @@ func (ds *DataStoreSet) updateDeltaHostsServices(tableName TableName, filterStr 
 		serviceDataOffset := 2
 		return ds.insertDeltaDataResult(serviceDataOffset, res, meta, table)
 	default:
-		log.Panicf("[%s] not implemented for: %s", req.ID(), tableName.String())
+		logWith(p, req).Panicf("not implemented for: %s", tableName.String())
 	}
 	return
 }
@@ -310,7 +310,7 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 	p := ds.peer
 	tableName := table.Table.Name.String()
 	promObjectUpdate.WithLabelValues(p.Name, tableName).Add(float64(len(res)))
-	log.Debugf("[%s] updated table: %15s - fetch: %8s - insert: %8s - count: %8d - size: %8d kB", p.Name, tableName, resMeta.Duration, duration, len(updateSet), resMeta.Size/1024)
+	logWith(p).Debugf("updated table: %15s - fetch: %8s - insert: %8s - count: %8d - size: %8d kB", tableName, resMeta.Duration, duration, len(updateSet), resMeta.Size/1024)
 
 	return
 }
@@ -390,7 +390,7 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, filterStr string) 
 	case TableHosts:
 		lastUpdate = p.StatusGet(LastFullHostUpdate).(int64)
 	default:
-		log.Panicf("not implemented for: " + store.Table.Name.String())
+		logWith(p).Panicf("not implemented for: " + store.Table.Name.String())
 	}
 
 	// do not do a full scan more often than every 30 seconds
@@ -435,13 +435,13 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, filterStr string) 
 	}
 
 	if len(missing) > 0 {
-		log.Debugf("[%s][%s] %s delta scan going to update %d timestamps", ds.peer.Name, req.ID(), store.Table.Name.String(), len(missing))
+		logWith(ds, req).Debugf("%s delta scan going to update %d timestamps", store.Table.Name.String(), len(missing))
 		filter := []string{filterStr}
 		filter = append(filter, composeTimestampFilter(missing, "last_check")...)
 		filter = append(filter, "Or: 2\n")
 		switch {
 		case len(filter) > 100:
-			log.Warnf("[%s][%s] %s delta scan timestamp filter too complex: %d", ds.peer.Name, req.ID(), store.Table.Name.String(), len(missing))
+			logWith(ds, req).Warnf("%s delta scan timestamp filter too complex: %d", store.Table.Name.String(), len(missing))
 		case store.Table.Name == TableServices:
 			err = ds.UpdateDeltaServices(strings.Join(filter, ""), false)
 			updated = true
@@ -450,7 +450,7 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, filterStr string) 
 			updated = true
 		}
 	} else {
-		log.Debugf("[%s][%s] %s delta scan did not find any timestamps", ds.peer.Name, req.ID(), store.Table.Name.String())
+		logWith(ds, req).Debugf("%s delta scan did not find any timestamps", store.Table.Name.String())
 	}
 
 	switch store.Table.Name {
@@ -474,7 +474,7 @@ func (ds *DataStoreSet) getMissingTimestamps(store *DataStore, res ResultSet, co
 			return
 		}
 		err = &PeerError{msg: fmt.Sprintf("%s cache not ready, got %d entries but only have %d in cache", store.Table.Name.String(), len(res), len(data)), kind: ResponseError}
-		log.Warnf("[%s] %s", p.Name, err.Error())
+		logWith(p).Warnf("%s", err.Error())
 		p.setBroken(fmt.Sprintf("got more %s than expected. Hint: check clients 'max_response_size' setting.", store.Table.Name.String()))
 		return
 	}
@@ -544,7 +544,7 @@ func (ds *DataStoreSet) UpdateDeltaCommentsOrDowntimes(name TableName) (err erro
 		id := fmt.Sprintf("%d", interface2int64(resRow[0]))
 		_, ok := idIndex[id]
 		if !ok {
-			log.Debugf("[%s] adding %s with id %s", req.ID(), name.String(), id)
+			logWith(ds, req).Debugf("adding %s with id %s", name.String(), id)
 			id64 := int64(resRow[0].(float64))
 			missingIds = append(missingIds, id64)
 		}
@@ -555,7 +555,7 @@ func (ds *DataStoreSet) UpdateDeltaCommentsOrDowntimes(name TableName) (err erro
 	for id := range idIndex {
 		_, ok := resIndex[id]
 		if !ok {
-			log.Debugf("removing %s with id %s", name.String(), id)
+			logWith(ds, req).Debugf("removing %s with id %s", name.String(), id)
 			tmp := idIndex[id]
 			store.RemoveItem(tmp)
 		}
@@ -599,7 +599,7 @@ func (ds *DataStoreSet) UpdateDeltaCommentsOrDowntimes(name TableName) (err erro
 		}
 	}
 
-	log.Debugf("[%s] updated %s", p.Name, name.String())
+	logWith(p, req).Debugf("updated %s", name.String())
 	return
 }
 
@@ -627,7 +627,7 @@ func (ds *DataStoreSet) maxIDOrSizeChanged(name TableName) (changed bool, err er
 	ds.Lock.RUnlock()
 
 	if len(res) == 0 || float64(entries) == interface2float64(res[0][0]) && (entries == 0 || interface2float64(res[0][1]) == float64(maxID)) {
-		log.Tracef("[%s][%s] %s did not change", p.Name, req.ID(), name.String())
+		logWith(p, req).Tracef("%s did not change", name.String())
 		return
 	}
 	changed = true
@@ -676,7 +676,7 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 	ds.Lock.RUnlock()
 	if len(res) != len(data) {
 		err = fmt.Errorf("site returned different number of objects, assuming backend has been restarted, table: %s, expected: %d, received: %d", store.Table.Name.String(), len(data), len(res))
-		log.Debugf("[%s] %s", p.Name, err.Error())
+		logWith(p).Debugf("%s", err.Error())
 		return &PeerError{msg: err.Error(), kind: RestartRequiredError}
 	}
 
@@ -718,7 +718,7 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 	}
 
 	duration := time.Since(t1).Truncate(time.Millisecond)
-	log.Debugf("[%s] updated table: %15s - fetch: %9s - insert: %9s - count: %8d - size: %8d kB", p.Name, tableName.String(), resMeta.Duration.Truncate(time.Microsecond), duration, len(res), resMeta.Size/1024)
+	logWith(p).Debugf("updated table: %15s - fetch: %9s - insert: %9s - count: %8d - size: %8d kB", tableName.String(), resMeta.Duration.Truncate(time.Microsecond), duration, len(res), resMeta.Size/1024)
 	return
 }
 
@@ -761,7 +761,7 @@ func (ds *DataStoreSet) updateTimeperiodsData(dataOffset int, store *DataStore, 
 	}
 	// Update hosts and services with those changed timeperiods
 	for name, state := range changedTimeperiods {
-		log.Debugf("[%s] timeperiod %s has changed to %v, need to update affected hosts/services", ds.peer.Name, name, state)
+		logWith(ds).Debugf("timeperiod %s has changed to %v, need to update affected hosts/services", name, state)
 		err = ds.UpdateDeltaHosts("Filter: check_period = "+name+"\nFilter: notification_period = "+name+"\nOr: 2\n", false)
 		if err != nil {
 			return
@@ -785,7 +785,7 @@ func (ds *DataStoreSet) RebuildCommentsCache() (err error) {
 	ds.cache.comments = cache
 	ds.Lock.Unlock()
 	duration := time.Since(t1).Truncate(time.Millisecond)
-	log.Debugf("[%s] comments cache rebuild (%s)", ds.peer.Name, duration)
+	logWith(ds).Debugf("comments cache rebuild (%s)", duration)
 	return
 }
 
@@ -800,7 +800,7 @@ func (ds *DataStoreSet) RebuildDowntimesCache() (err error) {
 	ds.cache.downtimes = cache
 	ds.Lock.Unlock()
 	duration := time.Since(t1).Truncate(time.Millisecond)
-	log.Debugf("[%s] downtimes cache rebuild (%s)", ds.peer.Name, duration)
+	logWith(ds).Debugf("downtimes cache rebuild (%s)", duration)
 	return
 }
 

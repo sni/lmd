@@ -78,25 +78,7 @@ func InitLogging(conf *Config) {
 
 // LogErrors can be used as error handler, logs error with debug log level
 func LogErrors(v ...interface{}) {
-	LogErrorsPrefix("", v...)
-}
-
-// LogErrorsPrefix can be used as generic logger with a prefix
-func LogErrorsPrefix(prefix string, v ...interface{}) {
-	if !log.IsV(LogVerbosityDebug) {
-		return
-	}
-	for _, e := range v {
-		err, ok := e.(error)
-		if !ok {
-			continue
-		}
-		if err == nil {
-			continue
-		}
-		log.Debugf("%sgot error: %e", prefix, err)
-		log.Debugf("%sStacktrace:\n%s", prefix, debug.Stack())
-	}
+	logWith().LogErrors(v...)
 }
 
 // LogWriter implements the io.Writer interface and simply logs everything with given level
@@ -121,4 +103,96 @@ func NewLogWriter(level string) *LogWriter {
 	l := new(LogWriter)
 	l.level = level
 	return l
+}
+
+type LogPrefixer struct {
+	pre []interface{}
+}
+
+const LoggerCalldepth = 2
+
+func (l *LogPrefixer) Panicf(format string, v ...interface{}) {
+	log.Output(factorlog.PANIC, LoggerCalldepth, fmt.Sprintf(l.prefix()+" "+format, v...))
+}
+
+func (l *LogPrefixer) Fatalf(format string, v ...interface{}) {
+	log.Output(factorlog.FATAL, LoggerCalldepth, fmt.Sprintf(l.prefix()+" "+format, v...))
+}
+
+func (l *LogPrefixer) Errorf(format string, v ...interface{}) {
+	log.Output(factorlog.ERROR, LoggerCalldepth, fmt.Sprintf(l.prefix()+" "+format, v...))
+}
+
+func (l *LogPrefixer) Warnf(format string, v ...interface{}) {
+	log.Output(factorlog.WARN, LoggerCalldepth, fmt.Sprintf(l.prefix()+" "+format, v...))
+}
+
+func (l *LogPrefixer) Infof(format string, v ...interface{}) {
+	if !log.IsV(LogVerbosityDefault) {
+		return
+	}
+	log.Output(factorlog.INFO, LoggerCalldepth, fmt.Sprintf(l.prefix()+" "+format, v...))
+}
+
+func (l *LogPrefixer) Debugf(format string, v ...interface{}) {
+	if !log.IsV(LogVerbosityDebug) {
+		return
+	}
+	log.Output(factorlog.DEBUG, LoggerCalldepth, fmt.Sprintf(l.prefix()+" "+format, v...))
+}
+
+func (l *LogPrefixer) Tracef(format string, v ...interface{}) {
+	if !log.IsV(LogVerbosityTrace) {
+		return
+	}
+	log.Output(factorlog.TRACE, LoggerCalldepth, fmt.Sprintf(l.prefix()+" "+format, v...))
+}
+
+// LogErrorsPrefix can be used as generic logger with a prefix
+func (l *LogPrefixer) LogErrors(v ...interface{}) {
+	if !log.IsV(LogVerbosityDebug) {
+		return
+	}
+	for _, e := range v {
+		err, ok := e.(error)
+		if !ok {
+			continue
+		}
+		if err == nil {
+			continue
+		}
+		l.Debugf("got error: %e", err)
+		l.Debugf("Stacktrace:\n%s", debug.Stack())
+	}
+}
+
+func (l *LogPrefixer) prefix() (prefix string) {
+	for _, p := range l.pre {
+		switch v := p.(type) {
+		case string:
+			prefix = fmt.Sprintf("%s[%s]", prefix, v)
+		case *Peer:
+			prefix = fmt.Sprintf("%s[%s]", prefix, v.Name)
+		case *Request:
+			prefix = fmt.Sprintf("%s[%s]", prefix, v.ID())
+		case *Response:
+			prefix = fmt.Sprintf("%s[%s]", prefix, v.Request.ID())
+		case *ClientConnection:
+			prefix = fmt.Sprintf("%s[%s->%s]", prefix, v.remoteAddr, v.localAddr)
+		case *DataRow:
+			prefix = fmt.Sprintf("%s[%s]", prefix, v.DataStore.PeerName)
+		case *DataStore:
+			prefix = fmt.Sprintf("%s[%s]", prefix, v.PeerName)
+		case *DataStoreSet:
+			prefix = fmt.Sprintf("%s[%s]", prefix, v.peer.Name)
+		default:
+			log.Panicf("unsupported prefix type: %#v (%T)", p, p)
+		}
+	}
+	return prefix
+}
+
+// return logger with prefixed strings from given objects
+func logWith(pre ...interface{}) *LogPrefixer {
+	return &LogPrefixer{pre: pre}
 }

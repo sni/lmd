@@ -296,7 +296,7 @@ func NewRequest(b *bufio.Reader, options ParseOptions) (req *Request, size int, 
 	firstLine = strings.TrimSpace(firstLine)
 	// probably a open connection without new data from a keepalive request
 	if firstLine != "" {
-		log.Debugf("[%s] request: %s", req.ID(), firstLine)
+		logWith(req).Debugf("request: %s", firstLine)
 	}
 
 	ok, err := req.ParseRequestAction(&firstLine)
@@ -317,7 +317,7 @@ func NewRequest(b *bufio.Reader, options ParseOptions) (req *Request, size int, 
 			break
 		}
 
-		log.Debugf("[%s] request: %s", req.ID(), line)
+		logWith(req).Debugf("request: %s", line)
 		perr := req.ParseRequestHeaderLine(line, options)
 		if perr != nil {
 			err = fmt.Errorf("bad request: %s in: %s", perr.Error(), line)
@@ -763,7 +763,7 @@ func (req *Request) ParseRequestHeaderLine(line []byte, options ParseOptions) (e
 		return
 	case "localtime":
 		if log.IsV(LogVerbosityDebug) {
-			log.Debugf("[%s] Ignoring %s as LMD works on unix timestamps only.", req.ID(), matched[0])
+			logWith(req).Debugf("Ignoring %s as LMD works on unix timestamps only.", matched[0])
 		}
 		return
 	case "authuser":
@@ -883,7 +883,7 @@ func parseAuthUser(field *string, value []byte) (err error) {
 
 // SetRequestColumns sets  list of used indexes and columns for this request.
 func (req *Request) SetRequestColumns() {
-	log.Tracef("[%s] SetRequestColumns", req.ID())
+	logWith(req).Tracef("SetRequestColumns")
 	if req.Command != "" {
 		return
 	}
@@ -913,7 +913,7 @@ func (req *Request) SetRequestColumns() {
 
 // SetSortColumns set the requestcolumn for the sortfields
 func (req *Request) SetSortColumns() (err error) {
-	log.Tracef("[%s] SetSortColumns", req.ID())
+	logWith(req).Tracef("SetSortColumns")
 	if req.Command != "" {
 		return
 	}
@@ -964,7 +964,7 @@ func (req *Request) parseResult(resBytes []byte) (ResultSet, *ResultMetaData, er
 				err = dErr
 				return
 			}
-			log.Debugf("[%s] fixed invalid characters in json data", req.ID())
+			logWith(req).Debugf("fixed invalid characters in json data")
 		}
 		res = append(res, row)
 	})

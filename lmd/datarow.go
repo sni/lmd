@@ -67,7 +67,7 @@ func (d *DataRow) GetID() string {
 	if len(d.DataStore.Table.PrimaryKey) == 1 {
 		id := d.GetStringByName(d.DataStore.Table.PrimaryKey[0])
 		if id == "" {
-			log.Errorf("[%s] id for %s is null", d.DataStore.Peer.Name, d.DataStore.Table.Name.String())
+			logWith(d).Errorf("id for %s is null", d.DataStore.Table.Name.String())
 		}
 		return id
 	}
@@ -81,7 +81,7 @@ func (d *DataRow) GetID() string {
 	}
 	id := key.String()
 	if id == "" || id == ListSepChar1 {
-		log.Errorf("[%s] id for %s is null", d.DataStore.Peer.Name, d.DataStore.Table.Name.String())
+		logWith(d).Errorf("id for %s is null", d.DataStore.Table.Name.String())
 	}
 	return id
 }
@@ -90,11 +90,11 @@ func (d *DataRow) GetID() string {
 func (d *DataRow) GetID2() (string, string) {
 	id1 := d.GetStringByName(d.DataStore.Table.PrimaryKey[0])
 	if id1 == "" {
-		log.Errorf("[%s] id1 for %s is null", d.DataStore.Peer.Name, d.DataStore.Table.Name.String())
+		logWith(d).Errorf("id1 for %s is null", d.DataStore.Table.Name.String())
 	}
 	id2 := d.GetStringByName(d.DataStore.Table.PrimaryKey[1])
 	if id2 == "" {
-		log.Errorf("[%s] id2 for %s is null", d.DataStore.Peer.Name, d.DataStore.Table.Name.String())
+		logWith(d).Errorf("id2 for %s is null", d.DataStore.Table.Name.String())
 	}
 	return id1, id2
 }

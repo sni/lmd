@@ -187,7 +187,7 @@ func (d *DataStore) SetReferences() (err error) {
 	for _, row := range d.Data {
 		err = row.SetReferences()
 		if err != nil {
-			log.Debugf("[%s] setting references on table %s failed: %s", d.PeerName, d.Table.Name.String(), err.Error())
+			logWith(d).Debugf("setting references on table %s failed: %s", d.Table.Name.String(), err.Error())
 			return
 		}
 	}
