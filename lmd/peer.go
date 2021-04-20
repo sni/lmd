@@ -350,7 +350,7 @@ func (p *Peer) countFromServer(name string, queryCondition string) (count int) {
 func (p *Peer) updateLoop() {
 	err := p.InitAllTables()
 	if err != nil {
-		logWith(p).Infof("initializing objects failed: %s", err.Error())
+		logWith(p).Warnf("initializing objects failed: %s", err.Error())
 		p.ErrorLogged = true
 	}
 

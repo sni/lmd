@@ -109,7 +109,7 @@ GroupAuthorization = "strict"
 # LMD can check clock differences if supported by the remote peer. Time delta is crucial
 # for synchronization. MaxClockDelta is the maximum amount of seconds a clock is allowed
 # to go off. Set to zero to disable this check.
-MaxClockDelta = 10
+MaxClockDelta = 10.0
 
 # use tcp connections
 [[Connections]]
