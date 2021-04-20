@@ -2172,12 +2172,13 @@ func (p *Peer) getTLSClientConfig() (*tls.Config, error) {
 }
 
 // SendCommandsWithRetry sends list of commands and retries until the peer is completely down
-func (p *Peer) SendCommandsWithRetry(commands []string) (err error) {
+func (p *Peer) SendCommandsWithRetry(ctx context.Context, commands []string) (err error) {
+	ctx = context.WithValue(ctx, CtxPeer, p.Name)
 	p.Lock.Lock()
 	p.Status[LastQuery] = time.Now().Unix()
 	if p.Status[Idling].(bool) {
 		p.Status[Idling] = false
-		logWith(p).Infof("switched back to normal update interval")
+		logWith(ctx).Infof("switched back to normal update interval")
 	}
 	p.Lock.Unlock()
 
@@ -2187,13 +2188,13 @@ func (p *Peer) SendCommandsWithRetry(commands []string) (err error) {
 		status := p.StatusGet(PeerState).(PeerStatus)
 		switch status {
 		case PeerStatusDown:
-			logWith(p).Debugf("cannot send command, peer is down")
+			logWith(ctx).Debugf("cannot send command, peer is down")
 			return fmt.Errorf("%s", p.StatusGet(LastError))
 		case PeerStatusWarning, PeerStatusPending:
 			// wait till we get either a up or down
 			time.Sleep(1 * time.Second)
 		case PeerStatusUp:
-			err = p.SendCommands(commands)
+			err = p.SendCommands(ctx, commands)
 			if err == nil {
 				return
 			}
@@ -2220,28 +2221,29 @@ func (p *Peer) SendCommandsWithRetry(commands []string) (err error) {
 			}
 			return fmt.Errorf("%s", p.StatusGet(LastError))
 		default:
-			logWith(p).Panicf("PeerStatus %v not implemented", status)
+			logWith(ctx).Panicf("PeerStatus %v not implemented", status)
 		}
 	}
 }
 
 // SendCommands sends list of commands
-func (p *Peer) SendCommands(commands []string) (err error) {
+func (p *Peer) SendCommands(ctx context.Context, commands []string) (err error) {
 	commandRequest := &Request{
 		Command: strings.Join(commands, "\n\n"),
 	}
+	ctx = context.WithValue(ctx, CtxRequest, commandRequest.ID())
 	p.setQueryOptions(commandRequest)
 	_, _, err = p.Query(commandRequest)
 	if err != nil {
 		switch err := err.(type) {
 		case *PeerCommandError:
-			logWith(p, commandRequest).Debugf("sending command failed (invalid query) - %d: %s", err.code, err.Error())
+			logWith(ctx).Debugf("sending command failed (invalid query) - %d: %s", err.code, err.Error())
 		default:
-			logWith(p, commandRequest).Warnf("sending command failed: %s", err.Error())
+			logWith(ctx).Warnf("sending command failed: %s", err.Error())
 		}
 		return
 	}
-	logWith(p, commandRequest).Infof("send %d commands successfully.", len(commands))
+	logWith(ctx).Infof("send %d commands successfully.", len(commands))
 
 	// schedule immediate update
 	p.ScheduleImmediateUpdate()

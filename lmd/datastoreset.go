@@ -310,7 +310,7 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 	p := ds.peer
 	tableName := table.Table.Name.String()
 	promObjectUpdate.WithLabelValues(p.Name, tableName).Add(float64(len(res)))
-	logWith(p).Debugf("updated table: %15s - fetch: %8s - insert: %8s - count: %8d - size: %8d kB", tableName, resMeta.Duration, duration, len(updateSet), resMeta.Size/1024)
+	logWith(p, resMeta.Request).Debugf("updated table: %15s - fetch: %9s - insert: %9s - count: %8d - size: %8d kB", tableName, resMeta.Duration, duration, len(updateSet), resMeta.Size/1024)
 
 	return
 }
@@ -718,7 +718,7 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 	}
 
 	duration := time.Since(t1).Truncate(time.Millisecond)
-	logWith(p).Debugf("updated table: %15s - fetch: %9s - insert: %9s - count: %8d - size: %8d kB", tableName.String(), resMeta.Duration.Truncate(time.Microsecond), duration, len(res), resMeta.Size/1024)
+	logWith(p, req).Debugf("updated table: %15s - fetch: %9s - insert: %9s - count: %8d - size: %8d kB", tableName.String(), resMeta.Duration.Truncate(time.Microsecond), duration, len(res), resMeta.Size/1024)
 	return
 }
 

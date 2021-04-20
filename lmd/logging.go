@@ -187,16 +187,12 @@ func (l *LogPrefixer) prefix() (prefix string) {
 		case *DataStoreSet:
 			prefix = fmt.Sprintf("%s[%s]", prefix, v.peer.Name)
 		case context.Context:
-			for _, key := range []ContextKey{CtxPeer, CtxClient, CtxRequest} {
+			for _, key := range AvailableContextKeys {
 				value := v.Value(key)
-				switch val := value.(type) {
-				case string:
-					if val != "" {
-						prefix = fmt.Sprintf("%s[%s]", prefix, val)
-					}
-				default:
-					prefix = fmt.Sprintf("%s[%v]", prefix, val)
+				if value == nil {
+					continue
 				}
+				prefix = fmt.Sprintf("%s[%v]", prefix, value)
 			}
 		default:
 			log.Panicf("unsupported prefix type: %#v (%T)", p, p)

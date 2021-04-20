@@ -54,7 +54,7 @@ func (cl *ClientConnection) Handle() {
 	select {
 	case err := <-ch:
 		if err != nil {
-			logWith(cl).Debugf("request failed with client error: %s", err.Error())
+			logWith(ctx).Debugf("request failed with client error: %s", err.Error())
 		}
 	case <-time.After(time.Duration(cl.listenTimeout) * time.Second):
 		logWith(ctx).Warnf("request timed out (timeout: %s)", time.Duration(cl.listenTimeout)*time.Second)
@@ -81,7 +81,7 @@ func (cl *ClientConnection) answer(ctx context.Context) error {
 		switch {
 		case len(reqs) > 0:
 			promFrontendQueries.WithLabelValues(cl.localAddr).Add(float64(len(reqs)))
-			err = cl.processRequests(reqs)
+			err = cl.processRequests(ctx, reqs)
 
 			// keep open keepalive request until either the client closes the connection or the deadline timeout is hit
 			if cl.keepAlive {
@@ -121,12 +121,13 @@ func (cl *ClientConnection) sendErrorResponse(err error) error {
 }
 
 // processRequests creates response for all given requests
-func (cl *ClientConnection) processRequests(reqs []*Request) (err error) {
+func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request) (err error) {
 	if len(reqs) == 0 {
 		return
 	}
 	commandsByPeer := make(map[string][]string)
 	for _, req := range reqs {
+		reqctx := context.WithValue(ctx, CtxRequest, req.ID())
 		t1 := time.Now()
 		if req.Command != "" {
 			for _, pID := range req.BackendsMap {
@@ -136,7 +137,7 @@ func (cl *ClientConnection) processRequests(reqs []*Request) (err error) {
 		}
 
 		// send all pending commands so far
-		err = cl.sendRemainingCommands(&commandsByPeer)
+		err = cl.sendRemainingCommands(reqctx, &commandsByPeer)
 		if err != nil {
 			return
 		}
@@ -160,11 +161,11 @@ func (cl *ClientConnection) processRequests(reqs []*Request) (err error) {
 		var size int64
 		size, err = response.Send(cl.connection)
 		duration := time.Since(t1)
-		logWith(req, cl).Infof("%s request finished in %s, response size: %s", req.Table.String(), duration.String(), ByteCountBinary(size))
+		logWith(reqctx).Infof("%s request finished in %s, response size: %s", req.Table.String(), duration.String(), ByteCountBinary(size))
 		if duration-time.Duration(req.WaitTimeout)*time.Millisecond > time.Duration(cl.logSlowQueryThreshold)*time.Second {
-			logWith(req, cl).Warnf("slow query finished after %s, response size: %s\n%s", duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
+			logWith(reqctx).Warnf("slow query finished after %s, response size: %s\n%s", duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
 		} else if size > int64(cl.logHugeQueryThreshold*1024*1024) {
-			logWith(req, cl).Warnf("huge query finished after %s, response size: %s\n%s", duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
+			logWith(reqctx).Warnf("huge query finished after %s, response size: %s\n%s", duration.String(), ByteCountBinary(size), strings.TrimSpace(req.String()))
 		}
 		if cl.queryStats != nil {
 			cl.queryStats.In <- QueryStatIn{
@@ -178,7 +179,7 @@ func (cl *ClientConnection) processRequests(reqs []*Request) (err error) {
 	}
 
 	// send all remaining commands
-	err = cl.sendRemainingCommands(&commandsByPeer)
+	err = cl.sendRemainingCommands(ctx, &commandsByPeer)
 	if err != nil {
 		return
 	}
@@ -188,25 +189,25 @@ func (cl *ClientConnection) processRequests(reqs []*Request) (err error) {
 }
 
 // sendRemainingCommands sends all queued commands
-func (cl *ClientConnection) sendRemainingCommands(commandsByPeer *map[string][]string) (err error) {
+func (cl *ClientConnection) sendRemainingCommands(ctx context.Context, commandsByPeer *map[string][]string) (err error) {
 	if len(*commandsByPeer) == 0 {
 		return
 	}
 	t1 := time.Now()
-	code, msg := SendCommands(*commandsByPeer)
+	code, msg := SendCommands(ctx, *commandsByPeer)
 	// clear the commands queue
 	*commandsByPeer = make(map[string][]string)
 	if code != 200 {
 		_, err = cl.connection.Write([]byte(fmt.Sprintf("%d: %s\n", code, msg)))
 		return
 	}
-	logWith(cl).Infof("incoming command request finished in %s", time.Since(t1))
+	logWith(ctx).Infof("incoming command request finished in %s", time.Since(t1))
 	return
 }
 
 // SendCommands sends commands for this request to all selected remote sites.
 // It returns any error encountered.
-func SendCommands(commandsByPeer map[string][]string) (code int, msg string) {
+func SendCommands(ctx context.Context, commandsByPeer map[string][]string) (code int, msg string) {
 	code = 200
 	msg = "OK"
 	resultChan := make(chan error, len(commandsByPeer))
@@ -219,7 +220,7 @@ func SendCommands(commandsByPeer map[string][]string) (code int, msg string) {
 		go func(peer *Peer) {
 			defer logPanicExitPeer(peer)
 			defer wg.Done()
-			resultChan <- peer.SendCommandsWithRetry(commandsByPeer[peer.ID])
+			resultChan <- peer.SendCommandsWithRetry(ctx, commandsByPeer[peer.ID])
 		}(p)
 	}
 

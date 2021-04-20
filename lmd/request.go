@@ -156,6 +156,7 @@ type ResultMetaData struct {
 	Columns     []string      // list of requested columns
 	Duration    time.Duration // response time in seconds
 	Size        int           // result size in bytes
+	Request     *Request      // the request itself
 }
 
 var reRequestAction = regexp.MustCompile(`^GET +([a-z]+)$`)
@@ -936,7 +937,7 @@ func (req *Request) SetSortColumns() (err error) {
 // parseResult parses the result bytes and returns the data table and optional meta data for wrapped_json requests
 func (req *Request) parseResult(resBytes []byte) (ResultSet, *ResultMetaData, error) {
 	var err error
-	meta := &ResultMetaData{}
+	meta := &ResultMetaData{Request: req}
 	if len(resBytes) == 0 || (string(resBytes[0]) != "{" && string(resBytes[0]) != "[") {
 		err = errors.New(strings.TrimSpace(string(resBytes)))
 		return nil, nil, &PeerError{msg: fmt.Sprintf("response does not look like a json result: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
