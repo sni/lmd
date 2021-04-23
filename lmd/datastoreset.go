@@ -365,7 +365,7 @@ func (ds *DataStoreSet) prepareDataUpdateSet(dataOffset int, res ResultSet, tabl
 		// compare last check date and prepare large strings if the last check date has changed
 		if interface2int64(resRow[lastCheckIndex]) != prepared.DataRow.GetInt64(lastCheckCol) {
 			prepared.FullUpdate = true
-			for j := range stringlistIndexes {
+			for _, j := range stringlistIndexes {
 				res[i][j] = interface2stringlarge(res[i][j])
 			}
 		}
