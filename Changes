@@ -1,6 +1,6 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
-next:
+2.0.0    Mon Apr 26 11:41:42 CEST 2021
           - use index to speed up hosts/services queries with hostname/group filter
           - improve stats query performance
           - fetch initial tables in parallel for quicker startup
