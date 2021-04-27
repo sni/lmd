@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
@@ -661,10 +662,16 @@ func VirtualColCustomVariables(d *DataRow, col *Column) interface{} {
 	return res
 }
 
-// VirtualColTotalServices returns 1 if there is long plugin output, 0 if not
+// VirtualColTotalServices returns number of services
 func VirtualColTotalServices(d *DataRow, col *Column) interface{} {
 	val := d.GetIntByName("num_services")
 	return val
+}
+
+// VirtualColFlags returns flags for peer
+func VirtualColFlags(d *DataRow, col *Column) interface{} {
+	peerflags := OptionalFlags(atomic.LoadUint32(&d.DataStore.Peer.Flags))
+	return peerflags.List()
 }
 
 // getVirtualSubLMDValue returns status values for LMDSub backends

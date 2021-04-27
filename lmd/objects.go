@@ -97,6 +97,7 @@ func NewBackendsTable() (t *Table) {
 	t.AddPeerInfoColumn("section", StringCol, "Section information when having cascaded LMDs")
 	t.AddPeerInfoColumn("parent", StringCol, "Parent id when having cascaded LMDs")
 	t.AddPeerInfoColumn("lmd_version", StringCol, "LMD version string")
+	t.AddPeerInfoColumn("flags", StringListCol, "peer flags")
 	t.AddPeerInfoColumn("configtool", JSONCol, "Thruks config tool configuration if available")
 	t.AddPeerInfoColumn("federation_key", StringListCol, "original keys when using nested federation")
 	t.AddPeerInfoColumn("federation_name", StringListCol, "original names when using nested federation")
