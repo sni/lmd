@@ -70,6 +70,12 @@ const (
 	// GC Percentage level like GOGC environment
 	GCPercentage = 30
 
+	// permissions for new files
+	DefaultFilePerm = 0644
+
+	// permissions for new folders
+	DefaultDirPerm = 0755
+
 	ThrukMultiBackendMinVersion = 2.23
 )
 
@@ -133,6 +139,8 @@ var flagDeadlock int
 var flagCPUProfile string
 var flagMemProfile string
 var flagCfgOption arrayFlags
+var flagExport string
+var flagImport string
 
 var cpuProfileHandler *os.File
 
@@ -170,6 +178,8 @@ func setFlags() {
 	flag.StringVar(&flagMemProfile, "memprofile", "", "write memory profile to `file`")
 	flag.IntVar(&flagDeadlock, "debug-deadlock", 0, "enable deadlock detection with given timeout")
 	flag.Var(&flagCfgOption, "o", "override settings, ex.: -o Listen=:3333 -o Connections=name,address")
+	flag.StringVar(&flagExport, "export", "", "export/snapshot data to file.")
+	flag.StringVar(&flagImport, "import", "", "start lmd from export/snapshot and do not contact backends.")
 }
 
 func main() {
@@ -179,6 +189,15 @@ func main() {
 
 	// make sure we log panics properly
 	defer logPanicExit()
+
+	if flagExport != "" {
+		err := exportData(flagExport)
+		if err != nil {
+			log.Fatalf("export failed: %s", err)
+		}
+		log.Printf("export successful")
+		os.Exit(0)
+	}
 
 	for {
 		exitCode := mainLoop(mainSignalChannel, nil)
@@ -194,13 +213,7 @@ func main() {
 }
 
 func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode int) {
-	localConfig := NewConfig(flagConfigFile)
-	applyArgFlags(flagCfgOption, localConfig)
-	localConfig.ValidateConfig()
-	ApplyFlags(localConfig)
-	InitLogging(localConfig)
-	localConfig.SetServiceAuthorization()
-	localConfig.SetGroupAuthorization()
+	localConfig := finalFlagsConfig()
 
 	CompressionLevel = localConfig.CompressionLevel
 	CompressionMinimumSize = localConfig.CompressionMinimumSize
@@ -800,4 +813,15 @@ func getMinimalTLSConfig(localConfig *Config) *tls.Config {
 
 func fmtHTTPerr(req *http.Request, err error) string {
 	return (fmt.Sprintf("%s: %v", req.URL.String(), err))
+}
+
+func finalFlagsConfig() *Config {
+	localConfig := NewConfig(flagConfigFile)
+	applyArgFlags(flagCfgOption, localConfig)
+	localConfig.ValidateConfig()
+	ApplyFlags(localConfig)
+	InitLogging(localConfig)
+	localConfig.SetServiceAuthorization()
+	localConfig.SetGroupAuthorization()
+	return localConfig
 }
