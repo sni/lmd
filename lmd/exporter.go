@@ -23,9 +23,9 @@ type Exporter struct {
 
 // export peer data to tarball containing json files
 func exportData(file string) (err error) {
+	localConfig := finalFlagsConfig(true)
 	log.Infof("starting export to %s", file)
 
-	localConfig := finalFlagsConfig()
 	if len(localConfig.Connections) == 0 {
 		return fmt.Errorf("no connections defined")
 	}
@@ -181,7 +181,7 @@ func (ex *Exporter) initPeers(localConfig *Config) {
 	}
 
 	waitGroupPeers.Wait()
-	log.Infof("all peers ready")
+	log.Infof("waiting for peers finished")
 	nodeAccessor = NewNodes(localConfig, []string{}, "", waitGroupPeers, shutdownChannel)
 	ex.peers = peers
 }

@@ -213,7 +213,7 @@ func main() {
 }
 
 func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode int) {
-	localConfig := finalFlagsConfig()
+	localConfig := finalFlagsConfig(false)
 
 	CompressionLevel = localConfig.CompressionLevel
 	CompressionMinimumSize = localConfig.CompressionMinimumSize
@@ -815,8 +815,12 @@ func fmtHTTPerr(req *http.Request, err error) string {
 	return (fmt.Sprintf("%s: %v", req.URL.String(), err))
 }
 
-func finalFlagsConfig() *Config {
+func finalFlagsConfig(stdoutLogging bool) *Config {
 	localConfig := NewConfig(flagConfigFile)
+	if stdoutLogging {
+		localConfig.LogLevel = "info"
+		localConfig.LogFile = "stdout"
+	}
 	applyArgFlags(flagCfgOption, localConfig)
 	localConfig.ValidateConfig()
 	ApplyFlags(localConfig)

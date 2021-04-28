@@ -43,7 +43,7 @@ func InitLogging(conf *Config) {
 	var targetWriter io.Writer
 	var err error
 	switch {
-	case conf.LogFile == "":
+	case conf.LogFile == "" || conf.LogFile == "stdout":
 		logFormatter = factorlog.NewStdFormatter(LogColors + LogFormat + LogColorReset)
 		targetWriter = os.Stdout
 	case strings.EqualFold(conf.LogFile, "stderr"):
