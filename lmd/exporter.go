@@ -90,10 +90,13 @@ func (ex *Exporter) exportPeers() (err error) {
 		if err != nil {
 			return
 		}
-		err = ex.addTable(p, Objects.Tables[TableSites])
+		total := int64(0)
+		written := int64(0)
+		written, err = ex.addTable(p, Objects.Tables[TableSites])
 		if err != nil {
 			return
 		}
+		total += written
 		for _, t := range Objects.Tables {
 			switch {
 			case t.PassthroughOnly:
@@ -107,12 +110,14 @@ func (ex *Exporter) exportPeers() (err error) {
 			case t.Virtual != nil:
 				continue
 			default:
-				err = ex.addTable(p, t)
+				written, err = ex.addTable(p, t)
 				if err != nil {
 					return
 				}
+				total += written
 			}
 		}
+		log.Infof("exported %10s (%5s), used space: %8d kb", p.Name, p.ID, total/1024)
 	}
 	return
 }
@@ -130,7 +135,7 @@ func (ex *Exporter) addDir(name string) (err error) {
 	return
 }
 
-func (ex *Exporter) addTable(p *Peer, t *Table) (err error) {
+func (ex *Exporter) addTable(p *Peer, t *Table) (written int64, err error) {
 	logWith(p).Debugf("exporting table: %s", t.Name.String())
 	req := &Request{
 		Table:           t.Name,
@@ -169,7 +174,7 @@ func (ex *Exporter) addTable(p *Peer, t *Table) (err error) {
 	if err != nil {
 		return
 	}
-	_, err = io.Copy(ex.tar, buf)
+	written, err = io.Copy(ex.tar, buf)
 	if err != nil {
 		return
 	}
