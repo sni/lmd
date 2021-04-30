@@ -201,7 +201,7 @@ func (ex *Exporter) initPeers(localConfig *Config) {
 	}
 
 	waitGroupPeers.Wait()
-	log.Infof("waiting for peers finished")
+	log.Infof("waiting for peer to initialize")
 	nodeAccessor = NewNodes(localConfig, []string{}, "", waitGroupPeers, shutdownChannel)
 	ex.peers = peers
 }

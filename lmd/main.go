@@ -198,7 +198,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("export failed: %s", err)
 		}
-		log.Printf("export successful")
+		log.Infof("export successful")
 		os.Exit(0)
 	}
 
