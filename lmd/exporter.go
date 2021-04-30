@@ -233,4 +233,5 @@ func (ex *Exporter) initPeers(localConfig *Config) {
 		log.Infof("waiting for all federated peers to connect and initialize")
 	}
 	waitGroupPeers.Wait()
+	log.Infof("all peers ready for export")
 }
