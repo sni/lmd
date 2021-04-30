@@ -50,13 +50,12 @@ func NewResultSet(data []byte) (res ResultSet, err error) {
 	})
 	// trailing comma error will be ignored
 	if jErr != nil && offset < len(data)-3 {
-		err = fmt.Errorf("parserResult jsonparse: %w", jErr)
-		return
+		return nil, fmt.Errorf("parserResult jsonparse: %w", jErr)
 	}
 	if err != nil {
-		return
+		return nil, err
 	}
-	return
+	return res, nil
 }
 
 // Precompress compresses large strings in result set to allow faster updates (compressing would happen during locked update loop otherwise)
