@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"regexp"
 	"strings"
@@ -64,11 +65,78 @@ func initializePeersWithImport(localConfig *Config, waitGroupPeers *sync.WaitGro
 	return
 }
 
+// importPeersFromDir imports all peers recursively for given folder
 func importPeersFromDir(localConfig *Config, waitGroupPeers *sync.WaitGroup, shutdownChannel chan bool, folder string) (peers []*Peer, err error) {
-	// TODO: implement
+	folder = strings.TrimRight(folder, "/")
+	files, err := ioutil.ReadDir(folder)
+	if err != nil {
+		err = fmt.Errorf("cannot read %s: %s", folder, err)
+		return
+	}
+	if _, err := os.Stat(folder + "/sites.json"); err == nil {
+		return importPeerFromDir(peers, folder, localConfig, waitGroupPeers, shutdownChannel)
+	}
+	for _, f := range files {
+		if f.IsDir() {
+			peer, err := importPeersFromDir(localConfig, waitGroupPeers, shutdownChannel, fmt.Sprintf("%s/%s", folder, f.Name()))
+			if err != nil {
+				return nil, err
+			}
+			peers = append(peers, peer...)
+		}
+	}
 	return
 }
 
+// importPeerFromDir imports single peer from folder which must contain all required json files
+func importPeerFromDir(peers []*Peer, folder string, localConfig *Config, waitGroupPeers *sync.WaitGroup, shutdownChannel chan bool) ([]*Peer, error) {
+	folder = strings.TrimRight(folder, "/")
+	files, err := ioutil.ReadDir(folder)
+	if err != nil {
+		err = fmt.Errorf("cannot read %s: %s", folder, err)
+		return nil, err
+	}
+	peers, err = importPeerFromFile(peers, folder+"/sites.json", localConfig, waitGroupPeers, shutdownChannel)
+	if err != nil {
+		return nil, fmt.Errorf("import error in file %s: %s", folder+"/sites.json", err)
+	}
+	for _, f := range files {
+		if f.Mode().IsRegular() {
+			if strings.Contains(f.Name(), "sites.json") {
+				continue
+			}
+			peers, err = importPeerFromFile(peers, folder+"/"+f.Name(), localConfig, waitGroupPeers, shutdownChannel)
+			if err != nil {
+				return nil, fmt.Errorf("import error in file %s: %s", folder+"/"+f.Name(), err)
+			}
+		}
+	}
+	return peers, nil
+}
+
+// importPeerFromFile imports next file
+func importPeerFromFile(peers []*Peer, filename string, localConfig *Config, waitGroupPeers *sync.WaitGroup, shutdownChannel chan bool) ([]*Peer, error) {
+	log.Debugf("reading %s", filename)
+	matches := reImportFileTable.FindStringSubmatch(filename)
+	if len(matches) != 2 {
+		log.Warnf("no idea what to do with file: %s", filename)
+	}
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, fmt.Errorf("read error: %s", err)
+	}
+	stat, err := file.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("read error: %s", err)
+	}
+	table, rows, columns, err := importReadFile(matches[1], file, stat.Size())
+	if err != nil {
+		return nil, fmt.Errorf("import error: %s", err)
+	}
+	return importData(peers, table, rows, columns, localConfig, waitGroupPeers, shutdownChannel)
+}
+
+// importPeersFromTar imports all peers from tarball
 func importPeersFromTar(localConfig *Config, waitGroupPeers *sync.WaitGroup, shutdownChannel chan bool, tarFile string) (peers []*Peer, err error) {
 	f, err := os.Open(tarFile)
 	if err != nil {
@@ -110,17 +178,23 @@ func importPeersFromTar(localConfig *Config, waitGroupPeers *sync.WaitGroup, shu
 	return
 }
 
+// importPeerFromTar imports next file from tarball
 func importPeerFromTar(peers []*Peer, header *tar.Header, tarReader io.Reader, localConfig *Config, waitGroupPeers *sync.WaitGroup, shutdownChannel chan bool) ([]*Peer, error) {
 	filename := header.Name
 	log.Debugf("reading %s", filename)
 	matches := reImportFileTable.FindStringSubmatch(filename)
 	if len(matches) != 2 {
-		log.Warnf("no idea what to do with file: %s", filename)
+		return nil, fmt.Errorf("no idea what to do with file: %s", filename)
 	}
-	table, rows, columns, err := importTarFile(matches[1], tarReader, header.Size)
+	table, rows, columns, err := importReadFile(matches[1], tarReader, header.Size)
 	if err != nil {
-		return peers, fmt.Errorf("import error: %s", err)
+		return nil, fmt.Errorf("import error: %s", err)
 	}
+	return importData(peers, table, rows, columns, localConfig, waitGroupPeers, shutdownChannel)
+}
+
+// importData creates/extends peer from given table data
+func importData(peers []*Peer, table *Table, rows ResultSet, columns ColumnList, localConfig *Config, waitGroupPeers *sync.WaitGroup, shutdownChannel chan bool) ([]*Peer, error) {
 	colIndex := make(map[string]int)
 	for i, col := range columns {
 		colIndex[col.Name] = i
@@ -131,7 +205,7 @@ func importPeerFromTar(peers []*Peer, header *tar.Header, tarReader io.Reader, l
 	}
 	if table.Name == TableSites {
 		if len(rows) != 1 {
-			return peers, fmt.Errorf("wrong number of site rows in %s, expected 1 but got: %d", filename, len(rows))
+			return peers, fmt.Errorf("wrong number of site rows, expected 1 but got: %d", len(rows))
 		}
 
 		// new peer export starting
@@ -144,7 +218,7 @@ func importPeerFromTar(peers []*Peer, header *tar.Header, tarReader io.Reader, l
 		}
 		p = NewPeer(localConfig, con, waitGroupPeers, shutdownChannel)
 		peers = append(peers, p)
-		log.Infof("restoring peer %s (%s) from %s", p.Name, p.ID, strings.Replace(filename, "sites.json", "*.json", 1))
+		log.Infof("restoring peer %s (%s)", p.Name, p.ID)
 
 		p.Status[PeerState] = PeerStatus(interface2int(rows[0][colIndex["status"]]))
 		p.Status[LastUpdate] = interface2int64(rows[0][colIndex["last_update"]])
@@ -160,7 +234,7 @@ func importPeerFromTar(peers []*Peer, header *tar.Header, tarReader io.Reader, l
 	if p != nil && p.isOnline() {
 		store := NewDataStore(table, p)
 		store.DataSet = p.data
-		err = store.InsertData(rows, columns, false)
+		err := store.InsertData(rows, columns, false)
 		if err != nil {
 			return peers, fmt.Errorf("failed to insert data: %s", err)
 		}
@@ -169,7 +243,8 @@ func importPeerFromTar(peers []*Peer, header *tar.Header, tarReader io.Reader, l
 	return peers, nil
 }
 
-func importTarFile(tableName string, tarReader io.Reader, size int64) (table *Table, rows ResultSet, columns ColumnList, err error) {
+// importReadFile returns table, data and columns from json file
+func importReadFile(tableName string, tarReader io.Reader, size int64) (table *Table, rows ResultSet, columns ColumnList, err error) {
 	for _, t := range Objects.Tables {
 		if strings.EqualFold(t.Name.String(), tableName) {
 			table = t
