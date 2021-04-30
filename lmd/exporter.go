@@ -15,7 +15,6 @@ type Exporter struct {
 	user       *user.User
 	group      *user.Group
 	tar        *tar.Writer
-	peers      []*Peer
 	exportTime time.Time
 	config     *Config
 }
@@ -79,7 +78,14 @@ func (ex *Exporter) exportPeers() (err error) {
 	if err != nil {
 		return
 	}
-	for _, p := range ex.peers {
+	PeerMapLock.RLock()
+	defer PeerMapLock.RUnlock()
+	for _, id := range PeerMapOrder {
+		p := PeerMap[id]
+		if p.HasFlag(MultiBackend) {
+			continue
+		}
+		log.Errorf("exporting %s (%s)", p.Name, p.ID)
 		err = ex.addDir(fmt.Sprintf("sites/%s/", p.ID))
 		if err != nil {
 			return
@@ -171,22 +177,19 @@ func (ex *Exporter) addTable(p *Peer, t *Table) (err error) {
 }
 
 func (ex *Exporter) initPeers(localConfig *Config) {
-	log.Infof("waiting for all peers to connect and initialize")
+	log.Debugf("starting peers")
 	waitGroupPeers := &sync.WaitGroup{}
 	shutdownChannel := make(chan bool)
 	defer close(shutdownChannel)
 
-	PeerMapLock.Lock()
-	defer PeerMapLock.Unlock()
-
-	peers := make([]*Peer, 0)
 	for i := range localConfig.Connections {
 		c := localConfig.Connections[i]
 		p := NewPeer(localConfig, &c, nil, shutdownChannel)
-		log.Debugf("creating peer: ", p.Name)
-		peers = append(peers, p)
+		log.Debugf("creating peer: %s", p.Name)
+		PeerMapLock.Lock()
 		PeerMap[p.ID] = p
 		PeerMapOrder = append(PeerMapOrder, p.ID)
+		PeerMapLock.Unlock()
 		waitGroupPeers.Add(1)
 		go func() {
 			// make sure we log panics properly
@@ -199,9 +202,8 @@ func (ex *Exporter) initPeers(localConfig *Config) {
 			waitGroupPeers.Done()
 		}()
 	}
-
 	waitGroupPeers.Wait()
-	log.Infof("waiting for peer to initialize")
+
+	log.Infof("waiting for all peers to connect and initialize")
 	nodeAccessor = NewNodes(localConfig, []string{}, "", waitGroupPeers, shutdownChannel)
-	ex.peers = peers
 }
