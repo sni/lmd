@@ -569,6 +569,7 @@ func applyArgFlags(opts arrayFlags, localConfig *Config) {
 			}
 			con := Connection{
 				Name:   conVal[0],
+				ID:     conVal[0],
 				Source: []string{conVal[1]},
 			}
 			localConfig.Connections = append(localConfig.Connections, con)

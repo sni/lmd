@@ -85,7 +85,7 @@ func (ex *Exporter) exportPeers() (err error) {
 		if p.HasFlag(MultiBackend) {
 			continue
 		}
-		log.Errorf("exporting %s (%s)", p.Name, p.ID)
+		log.Debugf("exporting %s (%s)", p.Name, p.ID)
 		err = ex.addDir(fmt.Sprintf("sites/%s/", p.ID))
 		if err != nil {
 			return
@@ -181,6 +181,7 @@ func (ex *Exporter) initPeers(localConfig *Config) {
 	waitGroupPeers := &sync.WaitGroup{}
 	shutdownChannel := make(chan bool)
 	defer close(shutdownChannel)
+	nodeAccessor = NewNodes(localConfig, []string{}, "", waitGroupPeers, shutdownChannel)
 
 	for i := range localConfig.Connections {
 		c := localConfig.Connections[i]
@@ -202,8 +203,34 @@ func (ex *Exporter) initPeers(localConfig *Config) {
 			waitGroupPeers.Done()
 		}()
 	}
-	waitGroupPeers.Wait()
 
 	log.Infof("waiting for all peers to connect and initialize")
-	nodeAccessor = NewNodes(localConfig, []string{}, "", waitGroupPeers, shutdownChannel)
+	waitGroupPeers.Wait()
+
+	PeerMapLock.RLock()
+	defer PeerMapLock.RUnlock()
+	hasSubPeers := false
+	for _, id := range PeerMapOrder {
+		p := PeerMap[id]
+		if p.ParentID == "" {
+			continue
+		}
+		hasSubPeers = true
+		waitGroupPeers.Add(1)
+		go func() {
+			// make sure we log panics properly
+			defer logPanicExitPeer(p)
+			err := p.InitAllTables()
+			if err != nil {
+				logWith(p).Warnf("failed to initialize peer: %s", err)
+			}
+			logWith(p).Debugf("peer ready")
+			waitGroupPeers.Done()
+		}()
+	}
+
+	if hasSubPeers {
+		log.Infof("waiting for all federated peers to connect and initialize")
+	}
+	waitGroupPeers.Wait()
 }

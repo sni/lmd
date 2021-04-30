@@ -374,7 +374,7 @@ func (p *Peer) updateLoop() {
 		case <-ticker.C:
 			switch {
 			case p.HasFlag(MultiBackend):
-				err = p.periodicUpdateMultiBackends(false)
+				err = p.periodicUpdateMultiBackends(nil, false)
 			default:
 				err = p.periodicUpdate()
 			}
@@ -468,14 +468,16 @@ func (p *Peer) periodicUpdate() (err error) {
 
 // periodicUpdateLMD runs the periodic updates from the update loop for LMD backends
 // it fetches the sites table and creates and updates LMDSub backends for them
-func (p *Peer) periodicUpdateLMD(force bool) (err error) {
+func (p *Peer) periodicUpdateLMD(data *DataStoreSet, force bool) (err error) {
 	p.Lock.RLock()
 	lastUpdate := p.Status[LastUpdate].(int64)
 	p.Lock.RUnlock()
 
-	data, err := p.GetDataStoreSet()
-	if err != nil {
-		return
+	if data == nil {
+		data, err = p.GetDataStoreSet()
+		if err != nil {
+			return
+		}
 	}
 
 	now := time.Now().Unix()
@@ -510,6 +512,7 @@ func (p *Peer) periodicUpdateLMD(force bool) (err error) {
 	logWith(p).Debugf("checking for changed remote lmd backends")
 	existing := make(map[string]bool)
 	PeerMapLock.Lock()
+	defer PeerMapLock.Unlock()
 	for _, rowHash := range resHash {
 		subID := rowHash["key"].(string)
 		existing[subID] = true
@@ -543,7 +546,9 @@ func (p *Peer) periodicUpdateLMD(force bool) (err error) {
 			}
 
 			nodeAccessor.assignedBackends = append(nodeAccessor.assignedBackends, subID)
-			subPeer.Start()
+			if !p.StatusGet(Paused).(bool) {
+				subPeer.Start()
+			}
 		}
 
 		// update flags for existing sub peers
@@ -551,10 +556,8 @@ func (p *Peer) periodicUpdateLMD(force bool) (err error) {
 		subPeer.Status[SubPeerStatus] = rowHash
 		subPeer.Lock.Unlock()
 	}
-	PeerMapLock.Unlock()
 
 	// remove exceeding peers
-	PeerMapLock.Lock()
 	for id := range PeerMap {
 		peer := PeerMap[id]
 		if peer.ParentID == p.ID {
@@ -566,15 +569,14 @@ func (p *Peer) periodicUpdateLMD(force bool) (err error) {
 			}
 		}
 	}
-	PeerMapLock.Unlock()
 	return
 }
 
 // periodicUpdateMultiBackends runs the periodic updates from the update loop for multi backends
 // it fetches the all sites and creates and updates HTTPSub backends for them
-func (p *Peer) periodicUpdateMultiBackends(force bool) (err error) {
+func (p *Peer) periodicUpdateMultiBackends(data *DataStoreSet, force bool) (err error) {
 	if p.HasFlag(LMD) {
-		return p.periodicUpdateLMD(force)
+		return p.periodicUpdateLMD(data, force)
 	}
 	p.Lock.RLock()
 	lastUpdate := p.Status[LastUpdate].(int64)
@@ -585,9 +587,11 @@ func (p *Peer) periodicUpdateMultiBackends(force bool) (err error) {
 		return
 	}
 
-	data, err := p.GetDataStoreSet()
-	if err != nil {
-		return
+	if data == nil {
+		data, err = p.GetDataStoreSet()
+		if err != nil {
+			return
+		}
 	}
 
 	// check main connection and update status table
@@ -611,6 +615,7 @@ func (p *Peer) periodicUpdateMultiBackends(force bool) (err error) {
 	logWith(p).Debugf("checking for changed remote multi backends")
 	existing := make(map[string]bool)
 	PeerMapLock.Lock()
+	defer PeerMapLock.Unlock()
 	for _, siteRow := range sites {
 		var site map[string]interface{}
 		if s, ok := siteRow.(map[string]interface{}); ok {
@@ -652,7 +657,9 @@ func (p *Peer) periodicUpdateMultiBackends(force bool) (err error) {
 			PeerMap[subID] = subPeer
 			PeerMapOrder = append(PeerMapOrder, c.ID)
 			nodeAccessor.assignedBackends = append(nodeAccessor.assignedBackends, subID)
-			subPeer.Start()
+			if !p.StatusGet(Paused).(bool) {
+				subPeer.Start()
+			}
 		}
 	}
 
@@ -668,7 +675,6 @@ func (p *Peer) periodicUpdateMultiBackends(force bool) (err error) {
 			}
 		}
 	}
-	PeerMapLock.Unlock()
 	return
 }
 
@@ -933,7 +939,7 @@ func (p *Peer) updateInitialStatus(store *DataStore) (err error) {
 		return
 	}
 	p.LogErrors(p.fetchRemotePeers())
-	p.LogErrors(p.checkStatusFlags(statusData))
+	p.LogErrors(p.checkStatusFlags(store.DataSet))
 
 	err = p.checkAvailableTables() // must be done after checkStatusFlags, because it does not work on Icinga2
 	if err != nil {
@@ -1422,7 +1428,8 @@ cache:
 	}
 }
 
-func (p *Peer) checkStatusFlags(data []*DataRow) (err error) {
+func (p *Peer) checkStatusFlags(store *DataStoreSet) (err error) {
+	data := store.Get(TableStatus).Data
 	if len(data) == 0 {
 		return
 	}
@@ -1448,7 +1455,7 @@ func (p *Peer) checkStatusFlags(data []*DataRow) (err error) {
 			p.Status[LastUpdate] = time.Now().Unix() - p.GlobalConfig.Updateinterval
 			p.Lock.Unlock()
 
-			err = p.periodicUpdateMultiBackends(true)
+			err = p.periodicUpdateMultiBackends(store, true)
 			if err != nil {
 				return
 			}
@@ -1617,7 +1624,7 @@ func (p *Peer) fetchRemotePeers() (sites []interface{}, err error) {
 			logWith(p).Infof("remote connection MultiBackend flag set, got %d sites", len(sites))
 			p.SetFlag(MultiBackend)
 			p.Lock.Unlock()
-			err = p.periodicUpdateMultiBackends(true)
+			err = p.periodicUpdateMultiBackends(nil, true)
 			if err != nil {
 				return
 			}

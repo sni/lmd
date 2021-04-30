@@ -278,7 +278,7 @@ func TestLMDPeerUpdate(t *testing.T) {
 	peer.StatusSet(LastUpdate, int64(0))
 	peer.SetFlag(LMD)
 	peer.SetFlag(MultiBackend)
-	err := peer.periodicUpdateLMD(true)
+	err := peer.periodicUpdateLMD(nil, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -286,7 +286,7 @@ func TestLMDPeerUpdate(t *testing.T) {
 	peer.StatusSet(LastUpdate, int64(0))
 	peer.ResetFlags()
 	peer.SetFlag(MultiBackend)
-	err = peer.periodicUpdateMultiBackends(true)
+	err = peer.periodicUpdateMultiBackends(nil, true)
 	if err != nil {
 		t.Error(err)
 	}

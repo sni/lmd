@@ -714,7 +714,7 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 	}
 
 	if tableName == TableStatus {
-		LogErrors(p.checkStatusFlags(data))
+		LogErrors(p.checkStatusFlags(ds))
 	}
 
 	duration := time.Since(t1).Truncate(time.Millisecond)
