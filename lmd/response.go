@@ -603,7 +603,6 @@ func (res *Response) BuildLocalResponse() {
 			// make sure we log panics properly
 			defer logPanicExitPeer(peer)
 
-			logWith(peer, res).Tracef("starting local data computation")
 			defer wg.Done()
 
 			res.BuildLocalResponseData(store, resultcollector)

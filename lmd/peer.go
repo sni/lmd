@@ -2301,7 +2301,9 @@ func (p *Peer) ResetFlags() {
 			logWith(p).Debugf("remote connection Icinga2 flag set")
 			p.SetFlag(Icinga2)
 		default:
-			logWith(p).Warnf("unknown flag: %s", flag)
+			if flagImport == "" {
+				logWith(p).Warnf("unknown flag: %s", flag)
+			}
 		}
 	}
 }

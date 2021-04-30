@@ -18,7 +18,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/a8m/djson"
 	"github.com/buger/jsonparser"
 )
 
@@ -949,35 +948,8 @@ func (req *Request) parseResult(resBytes []byte) (ResultSet, *ResultMetaData, er
 		}
 		resBytes = dataBytes
 	}
-	res := make(ResultSet, 0)
-	offset, jErr := jsonparser.ArrayEach(resBytes, func(rowBytes []byte, _ jsonparser.ValueType, _ int, aErr error) {
-		if aErr != nil {
-			err = aErr
-			return
-		}
-		row, dErr := djson.DecodeArray(rowBytes)
-		if dErr != nil {
-			// try to fix invalid escape sequences and unknown utf8 characters
-			if strings.Contains(dErr.Error(), "invalid character") {
-				rowBytes = bytesToValidUTF8(rowBytes, []byte("\uFFFD"))
-				row, dErr = djson.DecodeArray(rowBytes)
-			}
-			// still failing
-			if dErr != nil {
-				err = dErr
-				return
-			}
-			logWith(req).Debugf("fixed invalid characters in json data")
-		}
-		res = append(res, row)
-	})
-	// trailing comma error will be ignored
-	if jErr != nil && offset < len(resBytes)-3 {
-		return nil, nil, fmt.Errorf("parserResult jsonparse: %w", jErr)
-	}
-	if err != nil {
-		return nil, nil, err
-	}
+
+	res, err := NewResultSet(resBytes)
 
 	return res, meta, err
 }

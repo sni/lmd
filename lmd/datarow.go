@@ -765,6 +765,12 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.DataStore.Table.Name.String(), len(columns), len(data))
 	}
 	for i, col := range columns {
+		if col.StorageType != LocalStore {
+			continue
+		}
+		if col.Optional != NoFlags && !d.DataStore.Peer.HasFlag(col.Optional) {
+			continue
+		}
 		i += dataOffset
 		switch col.DataType {
 		case StringCol:

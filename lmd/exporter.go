@@ -5,7 +5,6 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
-	_ "net/http/pprof"
 	"os"
 	"os/user"
 	"sync"
@@ -85,52 +84,27 @@ func (ex *Exporter) exportPeers() (err error) {
 		if err != nil {
 			return
 		}
+		err = ex.addTable(p, Objects.Tables[TableSites])
+		if err != nil {
+			return
+		}
 		for _, t := range Objects.Tables {
-			if t.PassthroughOnly {
+			switch {
+			case t.PassthroughOnly:
 				continue
-			}
-
-			logWith(p).Debugf("exporting table: %s", t.Name.String())
-			req := &Request{
-				Table:           t.Name,
-				ColumnsHeaders:  true,
-				ResponseFixed16: true,
-				OutputFormat:    OutputFormatJSON,
-				Backends:        []string{p.ID},
-			}
-			err = req.ExpandRequestedBackends()
-			if err != nil {
-				return
-			}
-			req.SetRequestColumns()
-			res, rErr := NewResponse(req)
-			if rErr != nil {
-				return rErr
-			}
-
-			buf, bErr := res.Buffer()
-			if bErr != nil {
-				return bErr
-			}
-
-			header := &tar.Header{
-				Name:    fmt.Sprintf("sites/%s/%s.json", p.ID, t.Name.String()),
-				Size:    int64(buf.Len()),
-				Mode:    DefaultFilePerm,
-				ModTime: ex.exportTime,
-				Uid:     interface2int(ex.user.Uid),
-				Uname:   ex.user.Username,
-				Gid:     interface2int(ex.user.Gid),
-				Gname:   ex.group.Name,
-			}
-
-			err = ex.tar.WriteHeader(header)
-			if err != nil {
-				return
-			}
-			_, err = io.Copy(ex.tar, buf)
-			if err != nil {
-				return
+			case t.Name == TableBackends:
+				continue
+			case t.Name == TableSites:
+				continue
+			case t.Name == TableColumns:
+				continue
+			case t.Virtual != nil:
+				continue
+			default:
+				err = ex.addTable(p, t)
+				if err != nil {
+					return
+				}
 			}
 		}
 	}
@@ -147,6 +121,52 @@ func (ex *Exporter) addDir(name string) (err error) {
 		Gid:     interface2int(ex.user.Gid),
 		Gname:   ex.group.Name,
 	})
+	return
+}
+
+func (ex *Exporter) addTable(p *Peer, t *Table) (err error) {
+	logWith(p).Debugf("exporting table: %s", t.Name.String())
+	req := &Request{
+		Table:           t.Name,
+		ColumnsHeaders:  true,
+		ResponseFixed16: true,
+		OutputFormat:    OutputFormatJSON,
+		Backends:        []string{p.ID},
+	}
+	err = req.ExpandRequestedBackends()
+	if err != nil {
+		return
+	}
+	req.SetRequestColumns()
+	res, err := NewResponse(req)
+	if err != nil {
+		return
+	}
+
+	buf, err := res.Buffer()
+	if err != nil {
+		return
+	}
+
+	header := &tar.Header{
+		Name:    fmt.Sprintf("sites/%s/%s.json", p.ID, t.Name.String()),
+		Size:    int64(buf.Len()),
+		Mode:    DefaultFilePerm,
+		ModTime: ex.exportTime,
+		Uid:     interface2int(ex.user.Uid),
+		Uname:   ex.user.Username,
+		Gid:     interface2int(ex.user.Gid),
+		Gname:   ex.group.Name,
+	}
+
+	err = ex.tar.WriteHeader(header)
+	if err != nil {
+		return
+	}
+	_, err = io.Copy(ex.tar, buf)
+	if err != nil {
+		return
+	}
 	return
 }
 

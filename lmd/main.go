@@ -191,6 +191,9 @@ func main() {
 	defer logPanicExit()
 
 	if flagExport != "" {
+		if flagImport != "" {
+			log.Fatal("cannot use -export and -import at the same time.")
+		}
 		err := exportData(flagExport)
 		if err != nil {
 			log.Fatalf("export failed: %s", err)
@@ -271,7 +274,14 @@ func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode
 	initializeListeners(localConfig, waitGroupListener, waitGroupInit, qStat)
 
 	// start remote connections
-	initializePeers(localConfig, waitGroupPeers, waitGroupInit, shutdownChannel)
+	if flagImport != "" {
+		err := initializePeersWithImport(localConfig, waitGroupPeers, waitGroupInit, shutdownChannel, flagImport)
+		if err != nil {
+			log.Fatalf("%s", err)
+		}
+	} else {
+		initializePeers(localConfig, waitGroupPeers, waitGroupInit, shutdownChannel)
+	}
 
 	if initChannel != nil {
 		initChannel <- true

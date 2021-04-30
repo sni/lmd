@@ -210,6 +210,11 @@ func (cl *ClientConnection) sendRemainingCommands(ctx context.Context, commandsB
 func SendCommands(ctx context.Context, commandsByPeer map[string][]string) (code int, msg string) {
 	code = 200
 	msg = "OK"
+	if flagImport != "" {
+		code = 500
+		msg = "lmd started with -import from file, cannot send commands without real backend connection."
+		return
+	}
 	resultChan := make(chan error, len(commandsByPeer))
 	wg := &sync.WaitGroup{}
 	for pID := range commandsByPeer {

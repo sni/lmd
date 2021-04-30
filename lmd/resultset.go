@@ -3,6 +3,10 @@ package main
 import (
 	"fmt"
 	"sort"
+	"strings"
+
+	"github.com/a8m/djson"
+	"github.com/buger/jsonparser"
 )
 
 // ResultSet is a list of result rows
@@ -19,6 +23,40 @@ func NewResultSetStats() *ResultSetStats {
 	res := ResultSetStats{}
 	res.Stats = make(map[string][]*Filter)
 	return &res
+}
+
+// NewResultSet parses resultset from given bytes
+func NewResultSet(data []byte) (res ResultSet, err error) {
+	res = make(ResultSet, 0)
+	offset, jErr := jsonparser.ArrayEach(data, func(rowBytes []byte, _ jsonparser.ValueType, _ int, aErr error) {
+		if aErr != nil {
+			err = aErr
+			return
+		}
+		row, dErr := djson.DecodeArray(rowBytes)
+		if dErr != nil {
+			// try to fix invalid escape sequences and unknown utf8 characters
+			if strings.Contains(dErr.Error(), "invalid character") {
+				rowBytes = bytesToValidUTF8(rowBytes, []byte("\uFFFD"))
+				row, dErr = djson.DecodeArray(rowBytes)
+			}
+			// still failing
+			if dErr != nil {
+				err = dErr
+				return
+			}
+		}
+		res = append(res, row)
+	})
+	// trailing comma error will be ignored
+	if jErr != nil && offset < len(data)-3 {
+		err = fmt.Errorf("parserResult jsonparse: %w", jErr)
+		return
+	}
+	if err != nil {
+		return
+	}
+	return
 }
 
 // Precompress compresses large strings in result set to allow faster updates (compressing would happen during locked update loop otherwise)
