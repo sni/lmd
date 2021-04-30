@@ -600,7 +600,7 @@ func (p *Peer) periodicUpdateMultiBackends(data *DataStoreSet, force bool) (err 
 		return
 	}
 
-	sites, err := p.fetchRemotePeers()
+	sites, err := p.fetchRemotePeers(data)
 	if err != nil {
 		logWith(p).Infof("failed to fetch sites information: %s", err.Error())
 		p.ErrorLogged = true
@@ -938,7 +938,7 @@ func (p *Peer) updateInitialStatus(store *DataStore) (err error) {
 		err = cerr
 		return
 	}
-	p.LogErrors(p.fetchRemotePeers())
+	p.LogErrors(p.fetchRemotePeers(store.DataSet))
 	p.LogErrors(p.checkStatusFlags(store.DataSet))
 
 	err = p.checkAvailableTables() // must be done after checkStatusFlags, because it does not work on Icinga2
@@ -1591,7 +1591,7 @@ func (p *Peer) extractConfigToolResult(output []interface{}) (map[string]interfa
 	return nil, nil
 }
 
-func (p *Peer) fetchRemotePeers() (sites []interface{}, err error) {
+func (p *Peer) fetchRemotePeers(store *DataStoreSet) (sites []interface{}, err error) {
 	// no http client is a sure sign for no http connection
 	if p.cache.HTTPClient == nil {
 		return
@@ -1624,7 +1624,7 @@ func (p *Peer) fetchRemotePeers() (sites []interface{}, err error) {
 			logWith(p).Infof("remote connection MultiBackend flag set, got %d sites", len(sites))
 			p.SetFlag(MultiBackend)
 			p.Lock.Unlock()
-			err = p.periodicUpdateMultiBackends(nil, true)
+			err = p.periodicUpdateMultiBackends(store, true)
 			if err != nil {
 				return
 			}
