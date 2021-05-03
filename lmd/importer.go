@@ -218,7 +218,7 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns ColumnList,
 		}
 		p = NewPeer(localConfig, con, waitGroupPeers, shutdownChannel)
 		peers = append(peers, p)
-		log.Infof("restoring peer %s (%s)", p.Name, p.ID)
+		logWith(p).Infof("restoring peer id %s", p.ID)
 
 		p.Status[PeerState] = PeerStatus(interface2int(rows[0][colIndex["status"]]))
 		p.Status[LastUpdate] = interface2int64(rows[0][colIndex["last_update"]])

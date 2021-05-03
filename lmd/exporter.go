@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/user"
+	"strings"
 	"sync"
 	"time"
 )
@@ -139,6 +140,7 @@ func (ex *Exporter) addTable(p *Peer, t *Table) (written int64, err error) {
 	logWith(p).Debugf("exporting table: %s", t.Name.String())
 	req := &Request{
 		Table:           t.Name,
+		Columns:         ex.exportableColumns(p, t),
 		ColumnsHeaders:  true,
 		ResponseFixed16: true,
 		OutputFormat:    OutputFormatJSON,
@@ -239,4 +241,40 @@ func (ex *Exporter) initPeers(localConfig *Config) {
 	}
 	waitGroupPeers.Wait()
 	log.Infof("all peers ready for export")
+}
+
+// exportableColumns generates list of columns to export
+func (ex *Exporter) exportableColumns(p *Peer, t *Table) (columns []string) {
+	for _, col := range t.Columns {
+		if ex.isExportColumn(p, col) {
+			columns = append(columns, col.Name)
+		}
+	}
+	return
+}
+
+// isExportColumn returns true if column should be exported
+func (ex *Exporter) isExportColumn(p *Peer, col *Column) bool {
+	if col.Optional != NoFlags && !p.HasFlag(col.Optional) {
+		return false
+	}
+	if col.Table.Name == TableSites {
+		return true
+	}
+	if col.Table.Name == TableStatus {
+		return true
+	}
+	if col.StorageType == RefStore {
+		return false
+	}
+	if col.StorageType == VirtualStore {
+		return false
+	}
+	if strings.HasSuffix(col.Name, "_lc") {
+		return false
+	}
+	if col.Name == "custom_variables" {
+		return false
+	}
+	return true
 }
