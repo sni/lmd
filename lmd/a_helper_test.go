@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/signal"
 	"reflect"
 	"regexp"
 	"strings"
@@ -38,6 +39,15 @@ func init() {
 	TestPeerWaitGroup = &sync.WaitGroup{}
 
 	once.Do(PrintVersion)
+
+	osSignalChannel := make(chan os.Signal, 1)
+	signal.Notify(osSignalChannel, syscall.SIGTERM)
+	signal.Notify(osSignalChannel, os.Interrupt)
+	signal.Notify(osSignalChannel, syscall.SIGINT)
+	go func() {
+		<-osSignalChannel
+		os.Exit(1)
+	}()
 }
 
 func assertEq(exp, got interface{}) error {
