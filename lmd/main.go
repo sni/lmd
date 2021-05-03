@@ -198,7 +198,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("export failed: %s", err)
 		}
-		log.Infof("export successful")
+		log.Infof("exported %d peers successfully", len(PeerMapOrder))
 		os.Exit(0)
 	}
 

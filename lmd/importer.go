@@ -61,6 +61,8 @@ func initializePeersWithImport(localConfig *Config, waitGroupPeers *sync.WaitGro
 	PeerMap = PeerMapNew
 	PeerMapLock.Unlock()
 
+	log.Infof("imported %d peers successfully", len(PeerMapOrderNew))
+
 	nodeAccessor = NewNodes(localConfig, []string{}, "", waitGroupInit, shutdownChannel)
 	return
 }
