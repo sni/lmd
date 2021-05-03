@@ -246,7 +246,7 @@ func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode
 	waitGroupListener := &sync.WaitGroup{}
 	waitGroupPeers := &sync.WaitGroup{}
 
-	if len(localConfig.Connections) == 0 {
+	if len(localConfig.Connections) == 0 && flagImport == "" {
 		log.Fatalf("no connections defined")
 	}
 
