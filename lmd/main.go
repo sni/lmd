@@ -191,14 +191,7 @@ func main() {
 	defer logPanicExit()
 
 	if flagExport != "" {
-		if flagImport != "" {
-			log.Fatal("cannot use -export and -import at the same time.")
-		}
-		err := exportData(flagExport)
-		if err != nil {
-			log.Fatalf("export failed: %s", err)
-		}
-		log.Infof("exported %d peers successfully", len(PeerMapOrder))
+		mainExport()
 		os.Exit(0)
 	}
 
@@ -230,11 +223,7 @@ func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode
 	promSaveTempRequests.Set(float64(interface2int(localConfig.SaveTempRequests)))
 	promBackendKeepAlive.Set(float64(interface2int(localConfig.BackendKeepAlive)))
 
-	osSignalChannel := make(chan os.Signal, 1)
-	signal.Notify(osSignalChannel, syscall.SIGHUP)
-	signal.Notify(osSignalChannel, syscall.SIGTERM)
-	signal.Notify(osSignalChannel, os.Interrupt)
-	signal.Notify(osSignalChannel, syscall.SIGINT)
+	osSignalChannel := buildSignalChannel()
 
 	osSignalUsrChannel := make(chan os.Signal, 1)
 	signal.Notify(osSignalUsrChannel, syscall.SIGUSR1)
@@ -245,10 +234,6 @@ func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode
 	waitGroupInit := &sync.WaitGroup{}
 	waitGroupListener := &sync.WaitGroup{}
 	waitGroupPeers := &sync.WaitGroup{}
-
-	if len(localConfig.Connections) == 0 && flagImport == "" {
-		log.Fatalf("no connections defined")
-	}
 
 	if len(localConfig.Listen) == 0 {
 		log.Fatalf("no listeners defined")
@@ -276,10 +261,12 @@ func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode
 	// start remote connections
 	if flagImport != "" {
 		mainImport(localConfig, waitGroupPeers, waitGroupInit, shutdownChannel, flagImport, osSignalChannel)
-		os.Exit(0)
+	} else {
+		if len(localConfig.Connections) == 0 {
+			log.Fatalf("no connections defined")
+		}
+		initializePeers(localConfig, waitGroupPeers, waitGroupInit, shutdownChannel)
 	}
-
-	initializePeers(localConfig, waitGroupPeers, waitGroupInit, shutdownChannel)
 
 	if initChannel != nil {
 		initChannel <- true
@@ -306,6 +293,15 @@ func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode
 	}
 }
 
+func buildSignalChannel() chan os.Signal {
+	osSignalChannel := make(chan os.Signal, 1)
+	signal.Notify(osSignalChannel, syscall.SIGHUP)
+	signal.Notify(osSignalChannel, syscall.SIGTERM)
+	signal.Notify(osSignalChannel, os.Interrupt)
+	signal.Notify(osSignalChannel, syscall.SIGINT)
+	return osSignalChannel
+}
+
 func mainImport(localConfig *Config, waitGroupPeers *sync.WaitGroup, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool, importFile string, osSignalChannel chan os.Signal) {
 	go func() {
 		sig := <-osSignalChannel
@@ -316,6 +312,19 @@ func mainImport(localConfig *Config, waitGroupPeers *sync.WaitGroup, waitGroupIn
 	if err != nil {
 		log.Fatalf("%s", err)
 	}
+}
+
+func mainExport() {
+	osSignalChannel := buildSignalChannel()
+	go func() {
+		<-osSignalChannel
+		os.Exit(1)
+	}()
+	err := exportData(flagExport)
+	if err != nil {
+		log.Fatalf("export failed: %s", err)
+	}
+	log.Infof("exported %d peers successfully", len(PeerMapOrder))
 }
 
 func ApplyFlags(conf *Config) {
@@ -501,6 +510,11 @@ func checkFlags() {
 		deadlock.Opts.Disable = false
 		deadlock.Opts.DeadlockTimeout = time.Duration(flagDeadlock) * time.Second
 		deadlock.Opts.LogBuf = NewLogWriter("Error")
+	}
+
+	if flagImport != "" && flagExport != "" {
+		fmt.Printf("ERROR: cannot use import and export at the same time.")
+		os.Exit(ExitCritical)
 	}
 
 	createPidFile(flagPidfile)
