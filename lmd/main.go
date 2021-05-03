@@ -275,13 +275,11 @@ func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode
 
 	// start remote connections
 	if flagImport != "" {
-		err := initializePeersWithImport(localConfig, waitGroupPeers, waitGroupInit, shutdownChannel, flagImport)
-		if err != nil {
-			log.Fatalf("%s", err)
-		}
-	} else {
-		initializePeers(localConfig, waitGroupPeers, waitGroupInit, shutdownChannel)
+		mainImport(localConfig, waitGroupPeers, waitGroupInit, shutdownChannel, flagImport, osSignalChannel)
+		os.Exit(0)
 	}
+
+	initializePeers(localConfig, waitGroupPeers, waitGroupInit, shutdownChannel)
 
 	if initChannel != nil {
 		initChannel <- true
@@ -305,6 +303,18 @@ func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode
 		case <-statsTimer.C:
 			updateStatistics(qStat)
 		}
+	}
+}
+
+func mainImport(localConfig *Config, waitGroupPeers *sync.WaitGroup, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool, importFile string, osSignalChannel chan os.Signal) {
+	go func() {
+		sig := <-osSignalChannel
+		mainSignalHandler(sig, shutdownChannel, waitGroupPeers, nil, nil, nil)
+		os.Exit(1)
+	}()
+	err := initializePeersWithImport(localConfig, waitGroupPeers, waitGroupInit, shutdownChannel, importFile)
+	if err != nil {
+		log.Fatalf("%s", err)
 	}
 }
 
@@ -677,8 +687,12 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 			prometheusListener.Close()
 		}
 		// wait one second which should be enough for the listeners
-		waitTimeout(waitGroupListener, time.Second)
-		onExit(qStat)
+		if waitGroupListener != nil {
+			waitTimeout(waitGroupListener, time.Second)
+		}
+		if qStat != nil {
+			onExit(qStat)
+		}
 		return (1)
 	case syscall.SIGHUP:
 		log.Infof("got sighup, reloading configuration...")
