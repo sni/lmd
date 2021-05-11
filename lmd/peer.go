@@ -1813,10 +1813,14 @@ func (p *Peer) HTTPQuery(req *Request, peerAddr string, query string) (res []byt
 		res = result.Raw
 		return
 	}
+	if len(output) <= 2 {
+		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %#v", result), kind: ResponseError}
+		return
+	}
 	if v, ok := output[2].(string); ok {
 		res = []byte(v)
 	} else {
-		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %v", result), kind: ResponseError}
+		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %#v", result), kind: ResponseError}
 	}
 	return
 }
