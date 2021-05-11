@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"runtime/debug"
 	"strings"
 
@@ -169,6 +170,10 @@ func (l *LogPrefixer) LogErrors(v ...interface{}) {
 
 func (l *LogPrefixer) prefix() (prefix string) {
 	for _, p := range l.pre {
+		if reflect.ValueOf(p).IsNil() {
+			prefix = fmt.Sprintf("%s[%T(nil)]", prefix, p)
+			continue
+		}
 		switch v := p.(type) {
 		case string:
 			prefix = fmt.Sprintf("%s[%s]", prefix, v)
