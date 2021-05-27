@@ -92,6 +92,7 @@ func (s *SortDirection) String() string {
 // OutputFormat defines the format used to return the result
 type OutputFormat uint8
 
+// available output formats
 const (
 	OutputFormatDefault OutputFormat = iota
 	OutputFormatJSON
@@ -102,12 +103,10 @@ const (
 // String converts a SortDirection back to the original string.
 func (o *OutputFormat) String() string {
 	switch *o {
-	case OutputFormatDefault:
+	case OutputFormatJSON, OutputFormatDefault:
 		return "json"
 	case OutputFormatWrappedJSON:
 		return "wrapped_json"
-	case OutputFormatJSON:
-		return "json"
 	case OutputFormatPython:
 		return "python"
 	}

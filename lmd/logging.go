@@ -150,7 +150,7 @@ func (l *LogPrefixer) Tracef(format string, v ...interface{}) {
 	log.Output(factorlog.TRACE, LoggerCalldepth, fmt.Sprintf(l.prefix()+" "+format, v...))
 }
 
-// LogErrorsPrefix can be used as generic logger with a prefix
+// LogErrors can be used as generic logger with a prefix
 func (l *LogPrefixer) LogErrors(v ...interface{}) {
 	if !log.IsV(LogVerbosityDebug) {
 		return

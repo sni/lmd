@@ -48,7 +48,7 @@ const (
 	// WaitTimeoutDefault sets the default timeout if nothing specified (1 minute in milliseconds)
 	WaitTimeoutDefault = 60000
 
-	// Interval in which wait condition is checked
+	// WaitTimeoutCheckInterval set interval in which wait condition is checked
 	WaitTimeoutCheckInterval = 200 * time.Millisecond
 
 	// ErrorContentPreviewSize sets the number of bytes from the response to include in the error message
@@ -133,6 +133,7 @@ const (
 // PeerStatusKey contains the different keys for the Peer.Status map
 type PeerStatusKey int32
 
+// available keys for the peer status map
 const (
 	_ PeerStatusKey = iota
 	PeerKey
@@ -2473,7 +2474,7 @@ func (p *Peer) CheckLocaltime(unix float64) (err error) {
 	return
 }
 
-// generic error logger with peer prefix
+// LogErrors i a generic error logger with peer prefix
 func (p *Peer) LogErrors(v ...interface{}) {
 	if !log.IsV(LogVerbosityDebug) {
 		return

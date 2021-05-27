@@ -100,7 +100,7 @@ func (d *DataRow) GetID2() (string, string) {
 	return id1, id2
 }
 
-// setData creates initial data
+// SetData creates initial data
 func (d *DataRow) SetData(raw []interface{}, columns ColumnList, timestamp int64) error {
 	d.dataString = make([]string, d.DataStore.DataSizes[StringCol])
 	d.dataStringList = make([][]string, d.DataStore.DataSizes[StringListCol])
@@ -276,7 +276,7 @@ func (d *DataRow) GetInt(col *Column) int {
 	panic(fmt.Sprintf("unsupported type: %s", col.StorageType))
 }
 
-// GetInt returns the int64 value for given column
+// GetInt64 returns the int64 value for given column
 func (d *DataRow) GetInt64(col *Column) int64 {
 	switch col.StorageType {
 	case LocalStore:

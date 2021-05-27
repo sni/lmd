@@ -67,27 +67,30 @@ const (
 	// BlockProfileRateInterval sets the profiling interval when started with -profile
 	BlockProfileRateInterval = 10
 
-	// GC Percentage level like GOGC environment
+	// GCPercentage sets gc level like GOGC environment
 	GCPercentage = 30
 
-	// permissions for new files
+	// DefaultFilePerm set default permissions for new files
 	DefaultFilePerm = 0644
 
-	// permissions for new folders
+	// DefaultDirPerm set default permissions for new folders
 	DefaultDirPerm = 0755
 
+	// ThrukMultiBackendMinVersion is the minimum required thruk version
 	ThrukMultiBackendMinVersion = 2.23
 )
 
 // ContextKey is a key used as context key
 type ContextKey string
 
+// available ContextKeys
 const (
 	CtxPeer    ContextKey = "peer"
 	CtxClient  ContextKey = "client"
 	CtxRequest ContextKey = "request"
 )
 
+// AvailableContextKeys set list of available log prefix objects
 var AvailableContextKeys = []ContextKey{CtxPeer, CtxClient, CtxRequest}
 
 // https://github.com/golang/go/issues/8005#issuecomment-190753527

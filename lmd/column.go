@@ -158,16 +158,17 @@ const (
 	// HasDependencyColumn flag is set if the remote site has depends_exec and depends_notify columns
 	HasDependencyColumn
 
-	// HasLastUpdate flag is set if the remote site has a last_update column for hosts and services
+	// HasLastUpdateColumn flag is set if the remote site has a last_update column for hosts and services
 	HasLastUpdateColumn
 
-	// HasLMDLastUpdate flag is set if the remote site has a lmd_last_cache_update column for hosts and services
+	// HasLMDLastCacheUpdateColumn flag is set if the remote site has a lmd_last_cache_update column for hosts and services
 	HasLMDLastCacheUpdateColumn
 
 	// HasLocaltimeColumn flag is set if the remote site has a localtime column
 	HasLocaltimeColumn
 )
 
+// OptionalFlagsStrings maps available backend flags to their string value
 var OptionalFlagsStrings = map[OptionalFlags]string{
 	LMD:                         "LMD",
 	MultiBackend:                "MultiBackend",

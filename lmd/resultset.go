@@ -71,7 +71,7 @@ func (res *ResultSet) Precompress(offset int, columns ColumnList) {
 	}
 }
 
-// Precompress compresses large strings in result set to allow faster updates (compressing would happen during locked update loop otherwise)
+// SortByPrimaryKey sorts the resultset by their primary columns
 func (res *ResultSet) SortByPrimaryKey(table *Table, req *Request) ResultSet {
 	if len(table.PrimaryKey) == 0 {
 		return *res
@@ -149,7 +149,7 @@ func (res *ResultSetSorted) Swap(i, j int) {
 	res.Data[i], res.Data[j] = res.Data[j], res.Data[i]
 }
 
-// ResultPreparedSet is a list of result rows prepared to insert faster
+// ResultPrepared is a list of result rows prepared to insert faster
 type ResultPrepared struct {
 	ResultRow  []interface{}
 	DataRow    *DataRow

@@ -15,6 +15,7 @@ type TableRef struct {
 // TableName contains all table names
 type TableName int
 
+// available table names
 const (
 	TableNone TableName = iota
 	TableBackends
@@ -38,6 +39,7 @@ const (
 	TableServicesbyhostgroup
 )
 
+// TableNameMapping contains TableName to string mapping
 var TableNameMapping = map[TableName]string{
 	TableBackends:            "backends",
 	TableSites:               "sites",
@@ -59,14 +61,19 @@ var TableNameMapping = map[TableName]string{
 	TableServicesbygroup:     "servicesbygroup",
 	TableServicesbyhostgroup: "servicesbyhostgroup",
 }
+
+// TableNameLookup is a hash map of string to Table object
 var TableNameLookup = map[string]TableName{}
 
-// TableName contains all table names
+// PeerLockMode sets full or simple lock mode
 type PeerLockMode int
 
 const (
-	PeerLockModeSimple PeerLockMode = iota // lock each peer.Status access separately
-	PeerLockModeFull                       // lock peer once before createing the result
+	// PeerLockModeSimple locks each peer.Status access separately
+	PeerLockModeSimple PeerLockMode = iota
+
+	// PeerLockModeFull locks peer once before createing the result
+	PeerLockModeFull
 )
 
 // InitTableNames initializes the table name lookup map
@@ -157,7 +164,7 @@ func (t *Table) AddExtraColumn(name string, storage StorageType, update FetchTyp
 	NewColumn(t, name, storage, update, datatype, restrict, nil, description)
 }
 
-// AddPeerStatusColumns adds a new column related to peer information
+// AddPeerInfoColumn adds a new column related to peer information
 func (t *Table) AddPeerInfoColumn(name string, datatype DataType, description string) {
 	NewColumn(t, name, VirtualStore, None, datatype, NoFlags, nil, description)
 }
