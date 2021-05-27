@@ -763,7 +763,7 @@ func (f *Filter) MatchStringList(list []string) bool {
 			}
 		}
 		return false
-	case GroupContainsNot:
+	case GroupContainsNot, LessThan:
 		for _, v := range list {
 			if f.StrValue == v {
 				return false
