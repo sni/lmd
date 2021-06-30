@@ -532,7 +532,7 @@ func createPidFile(path string) {
 	if !checkPidFile(path) {
 		fmt.Fprintf(os.Stderr, "WARNING: removing stale pidfile %s\n", path)
 	}
-	err := ioutil.WriteFile(path, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0664)
+	err := ioutil.WriteFile(path, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0644)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: Could not write pidfile: %s\n", err.Error())
 		os.Exit(ExitCritical)
