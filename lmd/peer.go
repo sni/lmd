@@ -435,28 +435,21 @@ func (p *Peer) periodicUpdate() (err error) {
 
 	switch lastStatus {
 	case PeerStatusBroken:
-		var res ResultSet
-		res, _, err = p.QueryString("GET status\nOutputFormat: json\nColumns: program_start nagios_pid\n\n")
-		if err != nil {
-			logWith(p).Debugf("waiting for reload")
-			return
-		}
-		if len(res) > 0 && len(res[0]) == 2 {
-			programStart := interface2int64(res[0][0])
-			corePid := interface2int(res[0][1])
-			if p.StatusGet(ProgramStart) != programStart || p.StatusGet(LastPid) != corePid {
-				logWith(p).Debugf("broken peer has reloaded, trying again.")
-				return p.InitAllTables()
-			}
-			return fmt.Errorf("waiting for peer to recover: program_start: %s (%d)  - pid: %d", time.Unix(programStart, 0).String(), programStart, corePid)
-		}
-		return fmt.Errorf("unknown result while waiting for peer to recover: %v", res)
-	case PeerStatusWarning:
-		// run update if it was just a short outage
-		return data.UpdateFull(Objects.UpdateTables)
+		return p.handleBrokenPeer()
 	case PeerStatusDown, PeerStatusPending:
 		return p.InitAllTables()
+	case PeerStatusWarning:
+		if data == nil {
+			logWith(p).Warnf("inconsistent state, no data with state: %s", lastStatus)
+			return p.InitAllTables()
+		}
+		// run update if it was just a short outage
+		return data.UpdateFull(Objects.UpdateTables)
 	case PeerStatusUp:
+		if data == nil {
+			logWith(p).Warnf("inconsistent state, no data with state: %s", lastStatus)
+			return p.InitAllTables()
+		}
 		// full update interval
 		if !idling && p.GlobalConfig.FullUpdateInterval > 0 && now > lastFullUpdate+p.GlobalConfig.FullUpdateInterval {
 			return data.UpdateFull(Objects.UpdateTables)
@@ -465,6 +458,26 @@ func (p *Peer) periodicUpdate() (err error) {
 	}
 	logWith(p).Panicf("unhandled status case: %s", lastStatus)
 	return
+}
+
+// it fetches the sites table and creates and updates LMDSub backends for them
+func (p *Peer) handleBrokenPeer() (err error) {
+	var res ResultSet
+	res, _, err = p.QueryString("GET status\nOutputFormat: json\nColumns: program_start nagios_pid\n\n")
+	if err != nil {
+		logWith(p).Debugf("waiting for reload")
+		return
+	}
+	if len(res) > 0 && len(res[0]) == 2 {
+		programStart := interface2int64(res[0][0])
+		corePid := interface2int(res[0][1])
+		if p.StatusGet(ProgramStart) != programStart || p.StatusGet(LastPid) != corePid {
+			logWith(p).Debugf("broken peer has reloaded, trying again.")
+			return p.InitAllTables()
+		}
+		return fmt.Errorf("waiting for peer to recover: program_start: %s (%d)  - pid: %d", time.Unix(programStart, 0).String(), programStart, corePid)
+	}
+	return fmt.Errorf("unknown result while waiting for peer to recover: %v", res)
 }
 
 // periodicUpdateLMD runs the periodic updates from the update loop for LMD backends
