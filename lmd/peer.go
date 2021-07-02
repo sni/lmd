@@ -1593,6 +1593,7 @@ func (p *Peer) extractConfigToolResult(output []interface{}) (map[string]interfa
 		if ts, ok2 := processinfo["localtime"]; ok2 {
 			err := p.CheckLocaltime(interface2float64(ts))
 			if err != nil {
+				p.setNextAddrFromErr(err)
 				return nil, err
 			}
 		}
@@ -2469,7 +2470,11 @@ func (p *Peer) requestLocaltime() (err error) {
 		return
 	}
 	unix := interface2float64(res[0][0])
-	return p.CheckLocaltime(unix)
+	err = p.CheckLocaltime(unix)
+	if err != nil {
+		p.setNextAddrFromErr(err)
+	}
+	return
 }
 
 func (p *Peer) CheckLocaltime(unix float64) (err error) {
