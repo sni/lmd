@@ -438,7 +438,9 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, filterStr string) 
 		logWith(ds, req).Debugf("%s delta scan going to update %d timestamps", store.Table.Name.String(), len(missing))
 		filter := []string{filterStr}
 		filter = append(filter, composeTimestampFilter(missing, "last_check")...)
-		filter = append(filter, "Or: 2\n")
+		if len(filterStr) > 0 {
+			filter = append(filter, "Or: 2\n")
+		}
 		switch {
 		case len(filter) > 100:
 			logWith(ds, req).Warnf("%s delta scan timestamp filter too complex: %d", store.Table.Name.String(), len(missing))

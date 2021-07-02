@@ -166,6 +166,7 @@ const (
 	SubType
 	SubPeerStatus
 	ConfigTool
+	ForceFull
 )
 
 // PeerConnType contains the different connection types
@@ -264,6 +265,7 @@ func NewPeer(globalConfig *Config, config *Connection, waitGroup *sync.WaitGroup
 	p.Status[LastError] = "connecting..."
 	p.Status[LastOnline] = int64(0)
 	p.Status[LastTimeperiodUpdateMinute] = 0
+	p.Status[ForceFull] = false
 	p.Status[ProgramStart] = int64(0)
 	p.Status[LastPid] = 0
 	p.Status[BytesSend] = int64(0)
@@ -403,6 +405,7 @@ func (p *Peer) periodicUpdate() (err error) {
 	lastStatus := p.Status[PeerState].(PeerStatus)
 	lastQuery := p.Status[LastQuery].(int64)
 	idling := p.Status[Idling].(bool)
+	forceFull := p.Status[ForceFull].(bool)
 	data := p.data
 	p.Lock.RUnlock()
 
@@ -453,6 +456,10 @@ func (p *Peer) periodicUpdate() (err error) {
 		// full update interval
 		if !idling && p.GlobalConfig.FullUpdateInterval > 0 && now > lastFullUpdate+p.GlobalConfig.FullUpdateInterval {
 			return data.UpdateFull(Objects.UpdateTables)
+		}
+		if forceFull {
+			lastUpdate = 0
+			p.StatusSet(ForceFull, false)
 		}
 		return data.UpdateDelta(lastUpdate, now)
 	}
@@ -2273,6 +2280,10 @@ func (p *Peer) SendCommands(ctx context.Context, commands []string) (err error) 
 
 	// schedule immediate update
 	p.ScheduleImmediateUpdate()
+
+	if !p.HasFlag(HasLastUpdateColumn) {
+		p.StatusSet(ForceFull, true)
+	}
 
 	return
 }
