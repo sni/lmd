@@ -170,13 +170,16 @@ func (l *LogPrefixer) LogErrors(v ...interface{}) {
 
 func (l *LogPrefixer) prefix() (prefix string) {
 	for _, p := range l.pre {
+		if v, ok := p.(string); ok {
+			prefix = fmt.Sprintf("%s[%s]", prefix, v)
+			continue
+		}
+
 		if reflect.ValueOf(p).IsNil() {
 			prefix = fmt.Sprintf("%s[%T(nil)]", prefix, p)
 			continue
 		}
 		switch v := p.(type) {
-		case string:
-			prefix = fmt.Sprintf("%s[%s]", prefix, v)
 		case *Peer:
 			prefix = fmt.Sprintf("%s[%s]", prefix, v.Name)
 		case *Request:
