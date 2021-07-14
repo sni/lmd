@@ -19,10 +19,11 @@ require (
 	github.com/petermattis/goid v0.0.0-20180202154549-b0b1615b78e5 // indirect
 	github.com/prometheus/client_golang v1.11.0
 	github.com/prometheus/common v0.29.0 // indirect
+	github.com/prometheus/procfs v0.7.0 // indirect
 	github.com/sasha-s/go-deadlock v0.2.0
 	github.com/sni/copyfighter v0.0.0-20200526203728-2c11bc793600
 	github.com/stretchr/objx v0.2.0 // indirect
 	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c // indirect
-	golang.org/x/tools v0.1.4
+	golang.org/x/tools v0.1.5
 	google.golang.org/protobuf v1.27.1 // indirect
 )
