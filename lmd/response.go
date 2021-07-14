@@ -372,6 +372,16 @@ func (res *Response) SendFixed16(c net.Conn) (size int64, err error) {
 // SendUnbuffered directly prints the result to the client connection
 func (res *Response) SendUnbuffered(c io.Writer) (size int64, err error) {
 	countingWriter := NewWriteCounter(c)
+	if res.Error != nil {
+		logWith(res).Warnf("sending error response: %d - %s", res.Code, res.Error.Error())
+		_, err = countingWriter.Write([]byte(res.Error.Error()))
+		if err != nil {
+			return
+		}
+		_, err = countingWriter.Write([]byte("\n"))
+		size = countingWriter.Count
+		return
+	}
 	if res.Request.OutputFormat == OutputFormatWrappedJSON {
 		err = res.WrappedJSON(countingWriter)
 	} else {
