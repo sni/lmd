@@ -137,7 +137,7 @@ func (ds *DataStoreSet) UpdateFull(tables []TableName) (err error) {
 	duration := time.Since(t1)
 	peerStatus := p.StatusGet(PeerState).(PeerStatus)
 	if peerStatus != PeerStatusUp && peerStatus != PeerStatusPending {
-		logWith(p).Infof("site soft recovered from short outage")
+		logWith(p).Infof("site soft recovered from short outage (reason: %s - %s)", peerStatus.String(), p.StatusGet(LastError).(string))
 	}
 	p.Lock.Lock()
 	p.resetErrors()

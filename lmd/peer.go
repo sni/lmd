@@ -1401,7 +1401,7 @@ func (p *Peer) setNextAddrFromErr(err error) {
 
 	peerAddr := p.Status[PeerAddr].(string)
 	logWith(p).Debugf("connection error %s: %s", peerAddr, err)
-	p.Status[LastError] = err.Error()
+	p.Status[LastError] = strings.TrimSpace(err.Error())
 	p.ErrorCount++
 
 	numSources := len(p.Source)
@@ -2127,6 +2127,7 @@ func (p *Peer) clearLastRequest() {
 }
 
 func (p *Peer) setBroken(details string) {
+	details = strings.TrimSpace(details)
 	logWith(p).Warnf("%s", details)
 	p.Lock.Lock()
 	p.Status[PeerState] = PeerStatusBroken

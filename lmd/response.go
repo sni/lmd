@@ -452,7 +452,7 @@ func (res *Response) WrappedJSON(buf io.Writer) error {
 			json.WriteMore()
 		}
 		json.WriteObjectField(k)
-		json.WriteString(v)
+		json.WriteString(strings.TrimSpace(v))
 		num++
 	}
 	json.WriteObjectEnd()
