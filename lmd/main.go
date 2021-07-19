@@ -854,7 +854,10 @@ func getMinimalTLSConfig(localConfig *Config) *tls.Config {
 }
 
 func fmtHTTPerr(req *http.Request, err error) string {
-	return (fmt.Sprintf("%s: %v", req.URL.String(), err))
+	if req != nil {
+		return (fmt.Sprintf("%s: %v", req.URL.String(), err))
+	}
+	return (fmt.Sprintf("%v", err))
 }
 
 func finalFlagsConfig(stdoutLogging bool) *Config {
