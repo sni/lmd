@@ -1690,12 +1690,18 @@ func (p *Peer) WaitCondition(req *Request) {
 	select {
 	case <-c:
 		// finished with condition met
-		return
 	case <-time.After(time.Duration(req.WaitTimeout) * time.Millisecond):
 		// timed out
-		close(c)
-		return
 	}
+
+	// close channel safely
+	select {
+	case <-c:
+		// already closed
+		return
+	default:
+	}
+	close(c)
 }
 
 func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
