@@ -779,8 +779,8 @@ func (ds *DataStoreSet) RebuildCommentsList() (err error) {
 	if err != nil {
 		return
 	}
-	duration := time.Since(t1).Truncate(time.Millisecond)
-	logWith(ds).Debugf("comments rebuild (%s)", duration)
+	duration := time.Since(t1)
+	logWith(ds).Debugf("comments rebuild (%s)", duration.Truncate(time.Microsecond))
 	return
 }
 
@@ -791,8 +791,8 @@ func (ds *DataStoreSet) RebuildDowntimesList() (err error) {
 	if err != nil {
 		return
 	}
-	duration := time.Since(t1).Truncate(time.Millisecond)
-	logWith(ds).Debugf("downtimes rebuild (%s)", duration)
+	duration := time.Since(t1)
+	logWith(ds).Debugf("downtimes rebuild (%s)", duration.Truncate(time.Microsecond))
 	return
 }
 
