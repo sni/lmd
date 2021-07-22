@@ -1,5 +1,12 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
+next:
+          - improve error logging on clock errors
+          - fix crash after recover from short outage
+          - fix sending errored results
+          - fix crash on http timeouts
+          - fix crash on some wait conditions
+
 2.0.1    Thu Jun 10 19:27:05 CEST 2021
           - add --export option to export all backends into json file structure
           - add --import option to run lmd based on export file
