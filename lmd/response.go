@@ -771,9 +771,9 @@ func (res *Response) BuildLocalResponseData(store *DataStore, resultcollector ch
 	logWith(store.PeerName, res).Tracef("BuildLocalResponseData")
 
 	// for some tables its faster to lock the table only once
-	if store.PeerLockMode == PeerLockModeFull && ds != nil {
-		ds.Lock.RLock()
-		defer ds.Lock.RUnlock()
+	if store.PeerLockMode == PeerLockModeFull && ds != nil && ds.peer != nil {
+		ds.peer.Lock.RLock()
+		defer ds.peer.Lock.RUnlock()
 	}
 
 	if !store.Table.WorksUnlocked {
