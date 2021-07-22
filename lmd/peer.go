@@ -797,12 +797,12 @@ func (p *Peer) InitAllTables() (err error) {
 			return
 		}
 
-		err = data.RebuildCommentsCache()
+		err = data.RebuildCommentsList()
 		if err != nil {
 			return
 		}
 
-		err = data.RebuildDowntimesCache()
+		err = data.RebuildDowntimesList()
 		if err != nil {
 			return
 		}

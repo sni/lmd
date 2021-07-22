@@ -340,6 +340,9 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("pnpgraph_present", Dynamic, IntCol, "The pnp graph presence (0/1)")
 	t.AddColumn("worst_service_hard_state", Dynamic, IntCol, "The worst hard state of all of the host's services (OK <= WARN <= UNKNOWN <= CRIT)")
 	t.AddColumn("worst_service_state", Dynamic, IntCol, "The worst soft state of all of the host's services (OK <= WARN <= UNKNOWN <= CRIT)")
+	// will be updated from the comments/downtimes update, no need to fetch twice
+	t.AddColumn("comments", Static, Int64ListCol, "A list of the ids of all comments of this host")
+	t.AddColumn("downtimes", Static, Int64ListCol, "A list of the ids of all scheduled downtimes of this host")
 
 	// lowercase columns are used to make case insensitive filter faster
 	t.AddExtraColumn("name_lc", LocalStore, None, StringCol, NoFlags, "Host name (lowercase)")
@@ -375,9 +378,7 @@ func NewHostsTable() (t *Table) {
 	t.AddExtraColumn("custom_variables", VirtualStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
 	t.AddExtraColumn("services_with_info", VirtualStore, None, InterfaceListCol, NoFlags, "The services, including info, that is associated with the host")
 	t.AddExtraColumn("services_with_state", VirtualStore, None, InterfaceListCol, NoFlags, "The services, including state info, that is associated with the host")
-	t.AddExtraColumn("comments", VirtualStore, None, Int64ListCol, NoFlags, "A list of the ids of all comments of this host")
 	t.AddExtraColumn("comments_with_info", VirtualStore, None, InterfaceListCol, NoFlags, "A list of all comments of the host with id, author and comment")
-	t.AddExtraColumn("downtimes", VirtualStore, None, Int64ListCol, NoFlags, "A list of the ids of all scheduled downtimes of this host")
 	t.AddExtraColumn("downtimes_with_info", VirtualStore, None, InterfaceListCol, NoFlags, "A list of all downtimes of the host with id, author and comment")
 	t.AddPeerInfoColumn("lmd_last_cache_update", Int64Col, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
@@ -501,6 +502,9 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("host_name", Static, StringCol, "Host name")
 	t.AddColumn("staleness", Dynamic, FloatCol, "Staleness indicator for this host")
 	t.AddColumn("pnpgraph_present", Dynamic, IntCol, "The pnp graph presence (0/1)")
+	// will be updated from the comments/downtimes update, no need to fetch twice
+	t.AddColumn("comments", Static, Int64ListCol, "A list of the ids of all comments of this service")
+	t.AddColumn("downtimes", Static, Int64ListCol, "A list of the ids of all scheduled downtimes of this service")
 
 	// lowercase columns are used to make case insensitive filter faster
 	t.AddExtraColumn("host_name_lc", LocalStore, None, StringCol, NoFlags, "Host name (lowercase)")
@@ -533,9 +537,7 @@ func NewServicesTable() (t *Table) {
 	t.AddRefColumns(TableHosts, "host", []string{"host_name"})
 
 	t.AddExtraColumn("custom_variables", VirtualStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
-	t.AddExtraColumn("comments", VirtualStore, None, Int64ListCol, NoFlags, "A list of all comment ids of the service")
 	t.AddExtraColumn("comments_with_info", VirtualStore, None, InterfaceListCol, NoFlags, "A list of all comments of the host with id, author and comment")
-	t.AddExtraColumn("downtimes", VirtualStore, None, Int64ListCol, NoFlags, "A list of all downtime ids of the service")
 	t.AddExtraColumn("downtimes_with_info", VirtualStore, None, InterfaceListCol, NoFlags, "A list of all downtimes of the service with id, author and comment")
 	t.AddPeerInfoColumn("lmd_last_cache_update", Int64Col, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")

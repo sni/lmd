@@ -332,6 +332,11 @@ func (d *DataRow) GetInt64List(col *Column) []int64 {
 	panic(fmt.Sprintf("unsupported type: %s", col.StorageType))
 }
 
+// GetInt64ListByName returns the int64 list for given column name
+func (d *DataRow) GetInt64ListByName(name string) []int64 {
+	return d.GetInt64List(d.DataStore.Table.ColumnsIndex[name])
+}
+
 // GetHashMap returns the hashmap for given column
 func (d *DataRow) GetHashMap(col *Column) map[string]string {
 	switch col.StorageType {
@@ -583,23 +588,14 @@ func VirtualColMembersWithState(d *DataRow, col *Column) interface{} {
 	return nil
 }
 
-// VirtualColComments returns list of comment IDs
-func VirtualColComments(d *DataRow, col *Column) interface{} {
-	comments, ok := d.DataStore.DataSet.cache.comments[d]
-	if ok {
-		return comments
-	}
-	return emptyInt64List
-}
-
 // VirtualColCommentsWithInfo returns list of comment IDs with additional information
 func VirtualColCommentsWithInfo(d *DataRow, col *Column) interface{} {
 	commentsStore := d.DataStore.DataSet.tables[TableComments]
 	commentsTable := commentsStore.Table
 	authorCol := commentsTable.GetColumn("author")
 	commentCol := commentsTable.GetColumn("comment")
-	comments, ok := d.DataStore.DataSet.cache.comments[d]
-	if !ok {
+	comments := d.GetInt64ListByName("comments")
+	if len(comments) == 0 {
 		return emptyInterfaceList
 	}
 	res := make([]interface{}, 0)
@@ -616,23 +612,14 @@ func VirtualColCommentsWithInfo(d *DataRow, col *Column) interface{} {
 	return res
 }
 
-// VirtualColDowntimes returns list of downtimes IDs
-func VirtualColDowntimes(d *DataRow, col *Column) interface{} {
-	downtimes, ok := d.DataStore.DataSet.cache.downtimes[d]
-	if ok {
-		return downtimes
-	}
-	return emptyInt64List
-}
-
 // VirtualColDowntimesWithInfo returns list of downtimes IDs with additional information
 func VirtualColDowntimesWithInfo(d *DataRow, col *Column) interface{} {
 	downtimesStore := d.DataStore.DataSet.tables[TableDowntimes]
 	downtimesTable := downtimesStore.Table
 	authorCol := downtimesTable.GetColumn("author")
 	commentCol := downtimesTable.GetColumn("comment")
-	downtimes, ok := d.DataStore.DataSet.cache.downtimes[d]
-	if !ok {
+	downtimes := d.GetInt64ListByName("downtimes")
+	if len(downtimes) == 0 {
 		return emptyInterfaceList
 	}
 	res := make([]interface{}, 0)
