@@ -200,6 +200,7 @@ type PeerError struct {
 	req      *Request
 	res      [][]interface{}
 	resBytes []byte
+	code     int
 }
 
 // Error returns the error message as string.
@@ -1273,17 +1274,16 @@ func (p *Peer) validateResponseHeader(resBytes []byte, req *Request, code int, e
 	case 200:
 		// everything fine
 	default:
-		if expSize > 0 && expSize < 200 && int64(len(resBytes)) == expSize {
-			err = fmt.Errorf("bad response code: %d - %s", code, string(resBytes))
-		} else {
-			err = fmt.Errorf("bad response code: %d", code)
-			err = &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes}
+		if expSize > 0 && expSize < 300 && int64(len(resBytes)) == expSize {
+			msg := fmt.Sprintf("bad response code: %d - %s", code, string(resBytes))
+			return &PeerError{msg: msg, kind: ResponseError, req: req, resBytes: resBytes, code: code}
 		}
-		return
+		msg := fmt.Sprintf("bad response code: %d", code)
+		return &PeerError{msg: msg, kind: ResponseError, req: req, resBytes: resBytes, code: code}
 	}
 	if int64(len(resBytes)) != expSize {
 		err = fmt.Errorf("bad response size, expected %d, got %d", expSize, len(resBytes))
-		return &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes}
+		return &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes, code: code}
 	}
 	return
 }
@@ -2014,10 +2014,16 @@ func ExtractHTTPResponse(response *http.Response) (contents []byte, err error) {
 // PassThroughQuery runs a passthrough query on a single peer and appends the result
 func (p *Peer) PassThroughQuery(res *Response, passthroughRequest *Request, virtualColumns []*Column, columnsIndex map[*Column]int) {
 	req := res.Request
-	result, _, queryErr := p.Query(passthroughRequest)
+	// do not use Query here, might be a log query with log
+	result, _, queryErr := p.query(passthroughRequest)
 	logWith(p, req).Tracef("req done")
 	if queryErr != nil {
-		logWith(p, req).Tracef("req errored %s", queryErr.Error())
+		if peerErr, ok := queryErr.(*PeerError); ok && peerErr.kind == ResponseError {
+			// no connection issue, no need to reset current connection
+		} else {
+			p.setNextAddrFromErr(queryErr)
+		}
+		logWith(p, req).Tracef("passthrough req errored %s", queryErr.Error())
 		res.Lock.Lock()
 		res.Failed[p.ID] = queryErr.Error()
 		res.Lock.Unlock()
