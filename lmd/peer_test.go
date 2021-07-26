@@ -302,7 +302,7 @@ func TestPeerLog(t *testing.T) {
 
 	peer.setBroken("test")
 	peer.logPeerStatus(log.Debugf)
-	err := peer.checkRestartRequired(fmt.Errorf("test"))
+	err := peer.initTablesIfRestartRequiredError(fmt.Errorf("test"))
 	if err == nil {
 		t.Fatalf("got no error but expected broken peer")
 	}

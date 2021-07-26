@@ -384,7 +384,7 @@ func (p *Peer) updateLoop() {
 			}
 		}
 		duration := time.Since(t1)
-		err = p.checkRestartRequired(err)
+		err = p.initTablesIfRestartRequiredError(err)
 		if err != nil {
 			if !p.ErrorLogged {
 				logWith(p).Infof("updating objects failed after: %s: %s", duration.String(), err.Error())
@@ -734,7 +734,7 @@ func (p *Peer) periodicTimeperiodsUpdate(data *DataStoreSet) (err error) {
 	return
 }
 
-func (p *Peer) checkRestartRequired(err error) error {
+func (p *Peer) initTablesIfRestartRequiredError(err error) error {
 	if err == nil {
 		return nil
 	}
@@ -744,6 +744,19 @@ func (p *Peer) checkRestartRequired(err error) error {
 		}
 	}
 	return err
+}
+
+func (p *Peer) scheduleUpdateIfRestartRequiredError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if e, ok := err.(*PeerError); ok {
+		if e.kind == RestartRequiredError {
+			p.ScheduleImmediateUpdate()
+			return true
+		}
+	}
+	return false
 }
 
 // StatusSet updates a status map and takes care about the logging.
@@ -1788,7 +1801,13 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
 			err = data.UpdateFullTable(req.Table)
 		}
 		if err != nil {
-			return err
+			if p.scheduleUpdateIfRestartRequiredError(err) {
+				// backend is going to restart, wait a bit and try again
+				time.Sleep(WaitTimeoutCheckInterval)
+			} else {
+				close(c)
+				return err
+			}
 		}
 	}
 }
@@ -2557,7 +2576,10 @@ func (p *Peer) CheckBackendRestarted(primaryKeysLen int, res ResultSet, columns 
 
 	if newProgramStart != programStart || newCorePid != corePid {
 		err = fmt.Errorf("site has been restarted, recreating objects (program_start: %d, pid: %d)", newProgramStart, newCorePid)
-		logWith(p).Infof("%s", err.Error())
+		if !p.ErrorLogged {
+			logWith(p).Infof("%s", err.Error())
+			p.ErrorLogged = true
+		}
 		return &PeerError{msg: err.Error(), kind: RestartRequiredError}
 	}
 	return
