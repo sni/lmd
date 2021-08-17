@@ -166,6 +166,7 @@ const (
 	SubType
 	SubPeerStatus
 	ConfigTool
+	ThrukExtras
 	ForceFull
 )
 
@@ -728,7 +729,7 @@ func (p *Peer) periodicTimeperiodsUpdate(data *DataStoreSet) (err error) {
 		return
 	}
 	// this also sets the thruk version and checks the clock, so it should be called first
-	if _, err = p.fetchConfigTool(); err != nil {
+	if _, _, err = p.fetchThrukExtras(); err != nil {
 		return
 	}
 	return
@@ -968,7 +969,7 @@ func (p *Peer) updateInitialStatus(store *DataStore) (err error) {
 	}
 
 	// if its http and a status request, try a processinfo query to fetch all backends
-	configtool, cerr := p.fetchConfigTool() // this also sets the thruk version and checks the clock, so it should be called first
+	configtool, thrukextras, cerr := p.fetchThrukExtras() // this also sets the thruk version and checks the clock, so it should be called first
 	if cerr != nil {
 		err = cerr
 		return
@@ -984,16 +985,20 @@ func (p *Peer) updateInitialStatus(store *DataStore) (err error) {
 	programStart := statusData[0].GetInt64ByName("program_start")
 	corePid := statusData[0].GetIntByName("nagios_pid")
 
-	// check thruk config tool settings
+	// check thruk config tool settings and other extra data
 	p.Lock.Lock()
 	delete(p.Status, ConfigTool)
+	delete(p.Status, ThrukExtras)
 	p.Status[ProgramStart] = programStart
 	p.Status[LastPid] = corePid
 	p.Lock.Unlock()
 	if !p.HasFlag(MultiBackend) {
+		// store as string, we simply passthrough it anyway
 		if configtool != nil {
-			// store as string, we simply passthrough it anyway
 			p.StatusSet(ConfigTool, interface2jsonstring(configtool))
+		}
+		if thrukextras != nil {
+			p.StatusSet(ThrukExtras, interface2jsonstring(thrukextras))
 		}
 	}
 	return
@@ -1554,7 +1559,7 @@ func (p *Peer) checkAvailableTables() (err error) {
 	return
 }
 
-func (p *Peer) fetchConfigTool() (conf map[string]interface{}, err error) {
+func (p *Peer) fetchThrukExtras() (conf map[string]interface{}, thrukextras map[string]interface{}, err error) {
 	// no http client is a sure sign for no http connection
 	if p.cache.HTTPClient == nil {
 		return
@@ -1562,8 +1567,11 @@ func (p *Peer) fetchConfigTool() (conf map[string]interface{}, err error) {
 	// try all http connections and return first config tool config
 	for _, addr := range p.Config.Source {
 		if strings.HasPrefix(addr, "http") {
-			c, e := p.fetchConfigToolFromAddr(addr)
+			c, t, e := p.fetchThrukExtrasFromAddr(addr)
 			err = e
+			if t != nil {
+				thrukextras = t
+			}
 			if c != nil {
 				conf = c
 				return
@@ -1573,7 +1581,7 @@ func (p *Peer) fetchConfigTool() (conf map[string]interface{}, err error) {
 	return
 }
 
-func (p *Peer) fetchConfigToolFromAddr(peerAddr string) (conf map[string]interface{}, err error) {
+func (p *Peer) fetchThrukExtrasFromAddr(peerAddr string) (conf map[string]interface{}, thrukextras map[string]interface{}, err error) {
 	if !strings.HasPrefix(peerAddr, "http") {
 		return
 	}
@@ -1590,20 +1598,20 @@ func (p *Peer) fetchConfigToolFromAddr(peerAddr string) (conf map[string]interfa
 	if err != nil {
 		return
 	}
-	conf, err = p.extractConfigToolResult(output)
+	conf, thrukextras, err = p.extractThrukExtrasFromResult(output)
 	if err != nil {
 		return
 	}
 	return
 }
 
-func (p *Peer) extractConfigToolResult(output []interface{}) (map[string]interface{}, error) {
+func (p *Peer) extractThrukExtrasFromResult(output []interface{}) (map[string]interface{}, map[string]interface{}, error) {
 	if len(output) < 3 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	data, ok := output[2].(map[string]interface{})
 	if !ok {
-		return nil, nil
+		return nil, nil, nil
 	}
 	for k := range data {
 		processinfo, ok := data[k].(map[string]interface{})
@@ -1614,16 +1622,25 @@ func (p *Peer) extractConfigToolResult(output []interface{}) (map[string]interfa
 			err := p.CheckLocaltime(interface2float64(ts))
 			if err != nil {
 				p.setNextAddrFromErr(err)
-				return nil, err
+				return nil, nil, err
+			}
+		}
+		var thrukextras map[string]interface{}
+		if c, ok2 := processinfo["thruk"]; ok2 {
+			if v, ok3 := c.(map[string]interface{}); ok3 {
+				thrukextras = v
 			}
 		}
 		if c, ok2 := processinfo["configtool"]; ok2 {
 			if v, ok3 := c.(map[string]interface{}); ok3 {
-				return v, nil
+				return v, thrukextras, nil
 			}
 		}
+		if thrukextras != nil {
+			return nil, thrukextras, nil
+		}
 	}
-	return nil, nil
+	return nil, nil, nil
 }
 
 func (p *Peer) fetchRemotePeers(store *DataStoreSet) (sites []interface{}, err error) {

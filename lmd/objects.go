@@ -99,6 +99,7 @@ func NewBackendsTable() (t *Table) {
 	t.AddPeerInfoColumn("lmd_version", StringCol, "LMD version string")
 	t.AddPeerInfoColumn("flags", StringListCol, "peer flags")
 	t.AddPeerInfoColumn("configtool", JSONCol, "Thruks config tool configuration if available")
+	t.AddPeerInfoColumn("thruk", JSONCol, "Thruks extra data if available")
 	t.AddPeerInfoColumn("federation_key", StringListCol, "original keys when using nested federation")
 	t.AddPeerInfoColumn("federation_name", StringListCol, "original names when using nested federation")
 	t.AddPeerInfoColumn("federation_addr", StringListCol, "original addresses when using nested federation")
@@ -174,6 +175,7 @@ func NewStatusTable() (t *Table) {
 	t.AddPeerInfoColumn("peer_last_online", Int64Col, "Timestamp when peer was last online")
 	t.AddPeerInfoColumn("peer_response_time", FloatCol, "Duration of last update in seconds")
 	t.AddPeerInfoColumn("configtool", JSONCol, "Thruks config tool configuration if available")
+	t.AddPeerInfoColumn("thruk", JSONCol, "Thruks extra information if available")
 
 	t.AddExtraColumn("localtime", VirtualStore, None, FloatCol, NoFlags, "The unix timestamp of the local lmd host.")
 	return

@@ -36,6 +36,7 @@ var VirtualColumnList = []VirtualColumnMapEntry{
 	{Name: "section", StatusKey: Section},
 	{Name: "parent", StatusKey: PeerParent},
 	{Name: "configtool", StatusKey: ConfigTool},
+	{Name: "thruk", StatusKey: ThrukExtras},
 	{Name: "federation_key", StatusKey: SubKey},
 	{Name: "federation_name", StatusKey: SubName},
 	{Name: "federation_addr", StatusKey: SubAddr},
