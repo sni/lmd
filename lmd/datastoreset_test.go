@@ -77,3 +77,22 @@ func TestDSFullUpdate(t *testing.T) {
 		panic(err.Error())
 	}
 }
+
+func TestDSDowntimesComments(t *testing.T) {
+	peer := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	err := peer.data.buildDowntimeCommentsList(TableComments)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = peer.data.buildDowntimeCommentsList(TableDowntimes)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if err := StopTestPeer(peer); err != nil {
+		panic(err.Error())
+	}
+}

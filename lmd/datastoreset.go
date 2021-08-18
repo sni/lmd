@@ -796,33 +796,33 @@ func (ds *DataStoreSet) RebuildDowntimesList() (err error) {
 	return
 }
 
-// buildDowntimeCommentsList returns the downtimes/comments id list
+// buildDowntimeCommentsList updates the downtimes/comments id list for all hosts and services
 func (ds *DataStoreSet) buildDowntimeCommentsList(name TableName) (err error) {
-	store := ds.Get(name)
+	ds.Lock.Lock()
+	defer ds.Lock.Unlock()
+
+	store := ds.tables[name]
 	if store == nil {
 		return fmt.Errorf("cannot build id list, peer is down: %s", ds.peer.getError())
 	}
-	hostStore := ds.Get(TableHosts)
+	hostStore := ds.tables[TableHosts]
 	if hostStore == nil {
 		return fmt.Errorf("cannot build id list, peer is down: %s", ds.peer.getError())
 	}
 	hostIdx := hostStore.Table.GetColumn(name.String()).Index
 
-	serviceStore := ds.Get(TableServices)
+	serviceStore := ds.tables[TableServices]
 	if serviceStore == nil {
 		return fmt.Errorf("cannot build id list, peer is down: %s", ds.peer.getError())
 	}
 	serviceIdx := serviceStore.Table.GetColumn(name.String()).Index
 
-	ds.Lock.RLock()
-	defer ds.Lock.RUnlock()
-
 	list := make(map[*DataRow][]int64)
 	idIndex := store.Table.GetColumn("id").Index
 	hostNameIndex := store.Table.GetColumn("host_name").Index
 	serviceDescIndex := store.Table.GetColumn("service_description").Index
-	hostIndex := ds.tables[TableHosts].Index
-	serviceIndex := ds.tables[TableServices].Index2
+	hostIndex := hostStore.Index
+	serviceIndex := serviceStore.Index2
 	for i := range store.Data {
 		row := store.Data[i]
 		key := row.dataString[hostNameIndex]
@@ -846,7 +846,7 @@ func (ds *DataStoreSet) buildDowntimeCommentsList(name TableName) (err error) {
 		d.dataInt64List[serviceIdx] = emptyInt64List
 	}
 
-	// ser updated lists
+	// store updated lists
 	for d, ids := range list {
 		switch d.DataStore.Table.Name {
 		case TableHosts:
