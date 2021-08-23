@@ -312,8 +312,8 @@ LogLockTimeout = 10
 		flagConfigFile = configFiles{"test.ini"}
 		TestPeerWaitGroup.Add(1)
 		mainLoop(mainSignalChannel, startedChannel)
-		TestPeerWaitGroup.Done()
 		os.Remove("test.ini")
+		TestPeerWaitGroup.Done()
 	}()
 	<-startedChannel
 }
@@ -341,16 +341,15 @@ func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig
 	peer = NewPeer(GlobalTestConfig, &Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
 
 	// wait till backend is available
-	retries := 0
+	waitUntil := time.Now().Add(3 * time.Second)
 	for {
 		err := peer.InitAllTables()
 		if err == nil {
 			break
 		}
-		// recheck every 100ms
-		time.Sleep(100 * time.Millisecond)
-		retries++
-		if retries > 100 {
+		// recheck every 50ms
+		time.Sleep(50 * time.Millisecond)
+		if time.Now().After(waitUntil) {
 			if err != nil {
 				panic("backend never came online: " + err.Error())
 			} else {
