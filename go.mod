@@ -19,9 +19,8 @@ require (
 	github.com/prometheus/common v0.30.0 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/sasha-s/go-deadlock v0.3.1
-	github.com/sni/copyfighter v0.0.0-20200526203728-2c11bc793600
 	github.com/stretchr/objx v0.2.0 // indirect
-	golang.org/x/sys v0.0.0-20210816183151-1e6c022a8912 // indirect
+	golang.org/x/sys v0.0.0-20210823070655-63515b42dcdf // indirect
 	golang.org/x/tools v0.1.5
 	google.golang.org/protobuf v1.27.1 // indirect
 )

@@ -46,9 +46,9 @@ vendor:
 
 dump:
 	if [ $(shell grep -rc Dump $(LAMPDDIR)/*.go | grep -v :0 | grep -v $(LAMPDDIR)/dump.go | wc -l) -ne 0 ]; then \
-		sed -i.bak 's/\/\/ +build.*/\/\/ build with debug functions/' $(LAMPDDIR)/dump.go; \
+		sed -i.bak -e 's/\/\/go:build.*/\/\/ :build with debug functions/' -e 's/\/\/ +build.*/\/\/ build with debug functions/' $(LAMPDDIR)/dump.go; \
 	else \
-		sed -i.bak 's/\/\/ build.*/\/\/ +build ignore/' $(LAMPDDIR)/dump.go; \
+		sed -i.bak -e 's/\/\/ :build.*/\/\/go:build ignore/' -e 's/\/\/ build.*/\/\/ +build ignore/' $(LAMPDDIR)/dump.go; \
 	fi
 	rm -f $(LAMPDDIR)/dump.go.bak
 
@@ -94,7 +94,6 @@ citest: vendor
 	#
 	# Run other subtests
 	#
-	$(MAKE) copyfighter
 	$(MAKE) golangci
 	$(MAKE) fmt
 	#
@@ -153,13 +152,6 @@ versioncheck:
 		echo "**** this is: $$(go version)"; \
 		exit 1; \
 	}
-
-copyfighter: tools
-	#
-	# Check if there are values better passed as pointer
-	# See https://github.com/jmhodges/copyfighter
-	#
-	#cd $(LAMPDDIR) && copyfighter .
 
 golangci: tools
 	#

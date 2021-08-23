@@ -1,3 +1,4 @@
+//go:build tools
 // +build tools
 
 package tools
@@ -10,8 +11,7 @@ package tools
 
 import (
 	_ "github.com/davecgh/go-spew/spew"
-	_ "golang.org/x/tools/cmd/goimports"
-	_ "github.com/sni/copyfighter"
 	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
+	_ "golang.org/x/tools/cmd/goimports"
 	_ "golang.org/x/tools/cmd/stringer"
 )

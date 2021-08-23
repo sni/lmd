@@ -23,12 +23,12 @@ jobs:
         go-version: ${{ matrix.go-version }}
     - uses: actions/checkout@v2
     - run: make clean
+    - run: make updatedeps
+      if: github.event_name != 'pull_request'
+    - run: make citest
     - run: make
     - run: make clean
     - run: make build
     - run: make clean
     - run: make debugbuild
     - run: make clean
-    - run: make updatedeps
-      if: github.event_name != 'pull_request'
-    - run: make citest
