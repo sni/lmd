@@ -438,7 +438,6 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("action_url_expanded", Static, StringCol, "An optional URL for actions or custom information about the service")
 	t.AddColumn("active_checks_enabled", Dynamic, IntCol, "Whether active checks are enabled for the service (0/1)")
 	t.AddColumn("check_command", Static, StringCol, "Naemon command used for active checks")
-	t.AddColumn("check_freshness", Dynamic, IntCol, "Whether freshness checks are activated (0/1)")
 	t.AddColumn("check_interval", Static, IntCol, "Number of basic interval lengths between two scheduled checks of the service")
 	t.AddColumn("check_options", Dynamic, IntCol, "The current check option, forced, normal, freshness... (0/1)")
 	t.AddColumn("check_period", Static, StringCol, "The name of the check period of the service. It this is empty, the service is always checked")
@@ -549,6 +548,7 @@ func NewServicesTable() (t *Table) {
 	t.AddExtraColumn("last_state_change_order", VirtualStore, None, Int64Col, NoFlags, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked")
 	t.AddExtraColumn("state_order", VirtualStore, None, IntCol, NoFlags, "The service state suitable for sorting. Unknown and Critical state are switched")
 	t.AddExtraColumn("has_long_plugin_output", VirtualStore, None, IntCol, NoFlags, "Flag wether this service has long_plugin_output or not")
+	t.AddExtraColumn("check_freshness", LocalStore, Dynamic, IntCol, HasCheckFreshnessColumn, "Whether freshness checks are activated (0/1)")
 	return
 }
 

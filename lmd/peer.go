@@ -1556,6 +1556,12 @@ func (p *Peer) checkAvailableTables() (err error) {
 			}
 		}
 	}
+	if !p.HasFlag(HasCheckFreshnessColumn) {
+		if _, ok := availableTables[TableServices]["check_freshness"]; ok {
+			logWith(p).Debugf("remote connection supports services.check_freshness column")
+			p.SetFlag(HasCheckFreshnessColumn)
+		}
+	}
 	return
 }
 
