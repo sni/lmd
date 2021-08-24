@@ -337,7 +337,6 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("services", Static, StringListCol, "The services associated with the host")
 	t.AddColumn("state", Dynamic, IntCol, "The current state of the host (0: up, 1: down, 2: unreachable)")
 	t.AddColumn("state_type", Dynamic, IntCol, "The current state of the host (0: up, 1: down, 2: unreachable)")
-	t.AddColumn("staleness", Dynamic, FloatCol, "Staleness indicator for this host")
 	t.AddColumn("pnpgraph_present", Dynamic, IntCol, "The pnp graph presence (0/1)")
 	t.AddColumn("worst_service_hard_state", Dynamic, IntCol, "The worst hard state of all of the host's services (OK <= WARN <= UNKNOWN <= CRIT)")
 	t.AddColumn("worst_service_state", Dynamic, IntCol, "The worst soft state of all of the host's services (OK <= WARN <= UNKNOWN <= CRIT)")
@@ -389,6 +388,7 @@ func NewHostsTable() (t *Table) {
 	t.AddExtraColumn("has_long_plugin_output", VirtualStore, None, IntCol, NoFlags, "Flag wether this host has long_plugin_output or not")
 	t.AddExtraColumn("total_services", VirtualStore, None, IntCol, NoFlags, "The total number of services of the host")
 	t.AddExtraColumn("event_handler", LocalStore, Static, StringCol, HasEventHandlerColumn, "Naemon command used as event handler")
+	t.AddExtraColumn("staleness", LocalStore, Dynamic, FloatCol, HasStalenessColumn, "Staleness indicator for this host")
 	return
 }
 
@@ -502,7 +502,6 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("state", Dynamic, IntCol, "The current state of the service (0: OK, 1: WARN, 2: CRITICAL, 3: UNKNOWN)")
 	t.AddColumn("state_type", Dynamic, IntCol, "The current state of the service (0: OK, 1: WARN, 2: CRITICAL, 3: UNKNOWN)")
 	t.AddColumn("host_name", Static, StringCol, "Host name")
-	t.AddColumn("staleness", Dynamic, FloatCol, "Staleness indicator for this host")
 	t.AddColumn("pnpgraph_present", Dynamic, IntCol, "The pnp graph presence (0/1)")
 
 	// will be updated from the comments/downtimes update, no need to fetch twice
@@ -549,6 +548,7 @@ func NewServicesTable() (t *Table) {
 	t.AddExtraColumn("state_order", VirtualStore, None, IntCol, NoFlags, "The service state suitable for sorting. Unknown and Critical state are switched")
 	t.AddExtraColumn("has_long_plugin_output", VirtualStore, None, IntCol, NoFlags, "Flag wether this service has long_plugin_output or not")
 	t.AddExtraColumn("check_freshness", LocalStore, Dynamic, IntCol, HasCheckFreshnessColumn, "Whether freshness checks are activated (0/1)")
+	t.AddExtraColumn("staleness", LocalStore, Dynamic, FloatCol, HasStalenessColumn, "Staleness indicator for this host")
 	return
 }
 
