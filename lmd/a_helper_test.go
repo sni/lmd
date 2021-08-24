@@ -127,6 +127,7 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 					{"hosts", "depends_exec"},
 					{"services", "description"},
 					{"services", "check_freshness"},
+					{"hosts", "event_handler"},
 				})
 				_checkErr2(conn.Write([]byte(fmt.Sprintf("200 %11d\n", len(b)+1))))
 				_checkErr2(conn.Write(b))
@@ -440,6 +441,7 @@ func StartHTTPMockServer(t *testing.T) (*httptest.Server, func()) {
 					{"hosts", "depends_exec"},
 					{"services", "description"},
 					{"services", "check_freshness"},
+					{"hosts", "event_handler"},
 				})
 				fmt.Fprintf(w, "%d %11d\n", 200, len(b))
 				fmt.Fprint(w, string(b))

@@ -275,7 +275,6 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("custom_variable_names", Static, StringListCol, "A list of the names of all custom variables")
 	t.AddColumn("custom_variable_values", Dynamic, StringListCol, "A list of the values of the custom variables")
 	t.AddColumn("display_name", Static, StringCol, "Optional display name of the host")
-	t.AddColumn("event_handler", Static, StringCol, "Naemon command used as event handler")
 	t.AddColumn("event_handler_enabled", Dynamic, IntCol, "Naemon command used as event handler")
 	t.AddColumn("execution_time", Dynamic, FloatCol, "Time the host check needed for execution")
 	t.AddColumn("first_notification_delay", Static, IntCol, "Delay before the first notification")
@@ -389,6 +388,7 @@ func NewHostsTable() (t *Table) {
 	t.AddExtraColumn("last_state_change_order", VirtualStore, None, Int64Col, NoFlags, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked")
 	t.AddExtraColumn("has_long_plugin_output", VirtualStore, None, IntCol, NoFlags, "Flag wether this host has long_plugin_output or not")
 	t.AddExtraColumn("total_services", VirtualStore, None, IntCol, NoFlags, "The total number of services of the host")
+	t.AddExtraColumn("event_handler", LocalStore, Static, StringCol, HasEventHandlerColumn, "Naemon command used as event handler")
 	return
 }
 

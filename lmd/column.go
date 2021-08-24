@@ -168,6 +168,9 @@ const (
 
 	// HasCheckFreshnessColumn flag is set if the remote site has a check_freshness column for services
 	HasCheckFreshnessColumn
+
+	// HasEventHandlerColumn flag is set if the remote site has a event_handler column for hosts
+	HasEventHandlerColumn
 )
 
 // OptionalFlagsStrings maps available backend flags to their string value
@@ -184,6 +187,7 @@ var OptionalFlagsStrings = map[OptionalFlags]string{
 	HasLMDLastCacheUpdateColumn: "HasLMDLastCacheUpdateColumn",
 	HasLocaltimeColumn:          "HasLocaltimeColumn",
 	HasCheckFreshnessColumn:     "HasCheckFreshnessColumn",
+	HasEventHandlerColumn:       "HasEventHandlerColumn",
 }
 
 // String returns the string representation of used flags
