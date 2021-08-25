@@ -205,7 +205,8 @@ func (t *Table) SetColumnIndex() {
 		NoFlags,
 		Shinken,
 		Icinga2,
-		Naemon | HasDependencyColumn,
+		Naemon,
+		// could also be Naemon | Naemon1_10 but the later one has been removed
 	}
 	for _, flags := range flagCombos {
 		indexes := make(map[DataType]int)
