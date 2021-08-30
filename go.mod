@@ -7,6 +7,7 @@ require (
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/a8m/djson v0.0.0-20170509170705-c02c5aef757f
 	github.com/buger/jsonparser v1.1.1
+	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1
 	github.com/golangci/golangci-lint v1.42.0
 	github.com/json-iterator/go v1.1.11
