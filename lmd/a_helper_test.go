@@ -13,6 +13,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/signal"
+	"path"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"strings"
@@ -122,11 +124,7 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 
 			if req.Table == TableColumns {
 				// make the peer detect dependency columns
-				b, _ := json.Marshal([][]string{
-					{"hosts", "name"},
-					{"hosts", "depends_exec"},
-					{"services", "description"},
-				})
+				b, _ := json.Marshal(getTestDataColumns(dataFolder))
 				_checkErr2(conn.Write([]byte(fmt.Sprintf("200 %11d\n", len(b)+1))))
 				_checkErr2(conn.Write(b))
 				_checkErr2(conn.Write([]byte("\n")))
@@ -428,11 +426,7 @@ func StartHTTPMockServer(t *testing.T) (*httptest.Server, func()) {
 			switch {
 			case req.Table == TableColumns:
 				// make the peer detect dependency columns
-				b, _ := json.Marshal([][]string{
-					{"hosts", "name"},
-					{"hosts", "depends_exec"},
-					{"services", "description"},
-				})
+				b, _ := json.Marshal(getTestDataColumns(dataFolder))
 				fmt.Fprintf(w, "%d %11d\n", 200, len(b))
 				fmt.Fprint(w, string(b))
 				return
@@ -536,6 +530,29 @@ func readTestData(filename string, columns []string) []byte {
 		panic("could not read file: " + err.Error())
 	}
 	return dat
+}
+
+func getTestDataColumns(dataFolder string) (columns [][]string) {
+	matches, _ := filepath.Glob(dataFolder + "/*.map")
+	for _, match := range matches {
+		tableName := strings.TrimSuffix(path.Base(match), ".map")
+		raw, err := ioutil.ReadFile(match)
+		if err != nil {
+			panic("failed to read json file: " + err.Error())
+		}
+		dat := make([]map[string]interface{}, 0)
+		err = json.Unmarshal(raw, &dat)
+		if err != nil {
+			panic("failed to read json file: " + err.Error())
+		}
+		if len(dat) == 0 {
+			continue
+		}
+		for col := range dat[0] {
+			columns = append(columns, []string{tableName, col})
+		}
+	}
+	return
 }
 
 func _checkErr(err error) {
