@@ -1,3 +1,65 @@
-[["24 Hours A Day, 7 Days A Week","24x7",1,[[0,86400],[0,86400],[0,86400],[0,86400],[0,86400],[0,86400],[0,86400]],[],[],[],[],[],[],0],
-["No Time Is A Good Time","none",0,[[],[],[],[],[],[],[]],[],[],[],[],[],[],1],
-["24 Hours A Day, 7 Days A Week","thruk_24x7",1,[[0,86400],[0,86400],[0,86400],[0,86400],[0,86400],[0,86400],[0,86400]],[],[],[],[],[],[],2]]
+[
+  {
+    "alias": "24 Hours A Day, 7 Days A Week",
+    "days": [
+      [ 0, 86400 ],
+      [ 0, 86400 ],
+      [ 0, 86400 ],
+      [ 0, 86400 ],
+      [ 0, 86400 ],
+      [ 0, 86400 ],
+      [ 0, 86400 ]
+    ],
+    "exceptions_calendar_dates": [],
+    "exceptions_month_date": [],
+    "exceptions_month_day": [],
+    "exceptions_month_week_day": [],
+    "exceptions_week_day": [],
+    "exclusions": [],
+    "id": 0,
+    "in": 1,
+    "name": "24x7"
+  },
+  {
+    "alias": "No Time Is A Good Time",
+    "days": [
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      []
+    ],
+    "exceptions_calendar_dates": [],
+    "exceptions_month_date": [],
+    "exceptions_month_day": [],
+    "exceptions_month_week_day": [],
+    "exceptions_week_day": [],
+    "exclusions": [],
+    "id": 1,
+    "in": 0,
+    "name": "none"
+  },
+  {
+    "alias": "24 Hours A Day, 7 Days A Week",
+    "days": [
+      [ 0, 86400 ],
+      [ 0, 86400 ],
+      [ 0, 86400 ],
+      [ 0, 86400 ],
+      [ 0, 86400 ],
+      [ 0, 86400 ],
+      [ 0, 86400 ]
+    ],
+    "exceptions_calendar_dates": [],
+    "exceptions_month_date": [],
+    "exceptions_month_day": [],
+    "exceptions_month_week_day": [],
+    "exceptions_week_day": [],
+    "exclusions": [],
+    "id": 2,
+    "in": 1,
+    "name": "thruk_24x7"
+  }
+]

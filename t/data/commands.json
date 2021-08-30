@@ -1,30 +1,122 @@
-[["check-host-alive","$USER1$/check_icmp -H $HOSTADDRESS$ -w 3000.0,80% -c 5000.0,100% -p 5"],
-["check_dhcp","$USER1$/check_dhcp $ARG1$"],
-["check_dummy","$USER1$/check_dummy $ARG1$ $ARG2$"],
-["check_ftp","$USER1$/check_ftp -H $HOSTADDRESS$ $ARG1$"],
-["check_hpjd","$USER1$/check_hpjd -H $HOSTADDRESS$ $ARG1$"],
-["check_http","$USER1$/check_http -I $HOSTADDRESS$ $ARG1$"],
-["check_imap","$USER1$/check_imap -H $HOSTADDRESS$ $ARG1$"],
-["check_jmx4perl","$USER1$/check_jmx4perl --config $USER4$/etc/jmx4perl/jmx4perl.cfg --server $HOSTNAME$ --check  $ARG1$ $ARG2$ $ARG3$ $ARG4$"],
-["check_local_disk","$USER1$/check_disk -w $ARG1$ -c $ARG2$ -p $ARG3$"],
-["check_local_load","$USER1$/check_load -w $ARG1$ -c $ARG2$"],
-["check_local_procs","$USER1$/check_procs -w $ARG1$ -c $ARG2$ -s $ARG3$"],
-["check_local_swap","$USER1$/check_swap -w $ARG1$ -c $ARG2$"],
-["check_local_users","$USER1$/check_users -w $ARG1$ -c $ARG2$"],
-["check_nt","$USER1$/check_nt -H $HOSTADDRESS$ -p 12489 -v $ARG1$ $ARG2$"],
-["check_ping","$USER1$/check_ping -H $HOSTADDRESS$ -w $ARG1$ -c $ARG2$ -p 5"],
-["check_pop","$USER1$/check_pop -H $HOSTADDRESS$ $ARG1$"],
-["check_smtp","$USER1$/check_smtp -H $HOSTADDRESS$ $ARG1$"],
-["check_snmp","$USER1$/check_snmp -H $HOSTADDRESS$ $ARG1$"],
-["check_ssh","$USER1$/check_ssh $ARG1$ $HOSTADDRESS$"],
-["check_tcp","$USER1$/check_tcp -H $HOSTADDRESS$ -p $ARG1$ $ARG2$"],
-["check_thruk_bp","thruk -a bp $_HOSTTHRUK_BP_ID$"],
-["check_udp","$USER1$/check_udp -H $HOSTADDRESS$ -p $ARG1$ $ARG2$"],
-["host-notify-by-email","/usr/bin/perl $USER1$/notify-by-email.pl --template=$USER4$/etc/mail-templates/notify-by-email.host.tpl --livestatus=$USER4$/tmp/run/live -o NOTIFICATIONTYPE='$NOTIFICATIONTYPE$' -o NOTIFICATIONCOMMENT='$NOTIFICATIONCOMMENT$' -o HOSTNAME='$HOSTNAME$' -o HOSTSTATE='$HOSTSTATE$' -o CONTACTEMAIL='$CONTACTEMAIL$' -o HOSTADDRESS='$HOSTADDRESS$' -o SHORTDATETIME='$SHORTDATETIME$' -o HOSTOUTPUT='$HOSTOUTPUT$' -o HOSTPERFDATA='$HOSTPERFDATA$' -o ACKAUTHOR='$HOSTACKAUTHOR$' -o ACKCOMMENT='$HOSTACKCOMMENT$' -o DURATION='$HOSTDURATION$' -o HOSTEVENTID='$HOSTEVENTID$' -o LASTHOSTEVENTID='$LASTHOSTEVENTID$' >> $USER4$/var/log/notifications.log 2>&1"],
-["host-notify-by-email-html","/usr/bin/perl $USER1$/notify-by-email.pl --template=$USER4$/etc/mail-templates/notify-by-email.host.html.tpl --livestatus=$USER4$/tmp/run/live --mail=/usr/sbin/sendmail -o BASEURL=\"http://`hostname -f`/$USER3$/\" -o NOTIFICATIONTYPE='$NOTIFICATIONTYPE$' -o NOTIFICATIONCOMMENT='$NOTIFICATIONCOMMENT$' -o HOSTNAME='$HOSTNAME$' -o HOSTALIAS='$HOSTALIAS$' -o HOSTSTATE='$HOSTSTATE$' -o CONTACTEMAIL='$CONTACTEMAIL$' -o HOSTADDRESS='$HOSTADDRESS$' -o SHORTDATETIME='$SHORTDATETIME$' -o HOSTOUTPUT='$HOSTOUTPUT$' -o HOSTPERFDATA='$HOSTPERFDATA$' -o ACKAUTHOR='$HOSTACKAUTHOR$' -o ACKCOMMENT='$HOSTACKCOMMENT$' -o DURATION='$HOSTDURATION$' -o HOSTEVENTID='$HOSTEVENTID$' -o LASTHOSTEVENTID='$LASTHOSTEVENTID$' >> $USER4$/var/log/notifications.log 2>&1"],
-["omd-process-host-perfdata-file","/bin/mv /omd/sites/demo/var/pnp4nagios/host-perfdata /omd/sites/demo/var/pnp4nagios/spool/host-perfdata.$TIMET$"],
-["omd-process-host-perfdata-file-nagflux","/bin/mv /omd/sites/demo/var/pnp4nagios/host-perfdata /omd/sites/demo/var/pnp4nagios/spool/host-perfdata.$TIMET$"],
-["omd-process-service-perfdata-file","/bin/mv /omd/sites/demo/var/pnp4nagios/service-perfdata /omd/sites/demo/var/pnp4nagios/spool/service-perfdata.$TIMET$"],
-["omd-process-service-perfdata-file-nagflux","/bin/mv /omd/sites/demo/var/pnp4nagios/service-perfdata /omd/sites/demo/var/pnp4nagios/spool/service-perfdata.$TIMET$"],
-["service-notify-by-email","/usr/bin/perl $USER1$/notify-by-email.pl --template=$USER4$/etc/mail-templates/notify-by-email.service.tpl  --livestatus=$USER4$/tmp/run/live -o NOTIFICATIONTYPE='$NOTIFICATIONTYPE$' -o NOTIFICATIONCOMMENT='$NOTIFICATIONCOMMENT$' -o HOSTNAME='$HOSTNAME$' -o HOSTSTATE='$HOSTSTATE$' -o CONTACTEMAIL='$CONTACTEMAIL$' -o HOSTADDRESS='$HOSTADDRESS$' -o SHORTDATETIME='$SHORTDATETIME$' -o SERVICEDESC='$SERVICEDESC$' -o SERVICESTATE='$SERVICESTATE$' -o SERVICEOUTPUT='$SERVICEOUTPUT$' -o SERVICEPERFDATA='$SERVICEPERFDATA$' -o ACKAUTHOR='$SERVICEACKAUTHOR$' -o ACKCOMMENT='$SERVICEACKCOMMENT$' -o DURATION='$SERVICEDURATION$' -o SERVICEEVENTID='$SERVICEEVENTID$' -o LASTSERVICEEVENTID='$LASTSERVICEEVENTID$' >> $USER4$/var/log/notifications.log 2>&1"],
-["service-notify-by-email-html","/usr/bin/perl $USER1$/notify-by-email.pl --template=$USER4$/etc/mail-templates/notify-by-email.service.html.tpl  --livestatus=$USER4$/tmp/run/live --mail=/usr/sbin/sendmail -o BASEURL=\"http://`hostname -f`/$USER3$/\" -o NOTIFICATIONTYPE='$NOTIFICATIONTYPE$' -o NOTIFICATIONCOMMENT='$NOTIFICATIONCOMMENT$' -o HOSTNAME='$HOSTNAME$' -o HOSTALIAS='$HOSTALIAS$' -o HOSTSTATE='$HOSTSTATE$' -o CONTACTEMAIL='$CONTACTEMAIL$' -o HOSTADDRESS='$HOSTADDRESS$' -o SHORTDATETIME='$SHORTDATETIME$' -o SERVICEDESC='$SERVICEDESC$' -o SERVICESTATE='$SERVICESTATE$' -o SERVICEOUTPUT='$SERVICEOUTPUT$' -o SERVICEPERFDATA='$SERVICEPERFDATA$' -o ACKAUTHOR='$SERVICEACKAUTHOR$' -o ACKCOMMENT='$SERVICEACKCOMMENT$' -o DURATION='$SERVICEDURATION$' -o SERVICEEVENTID='$SERVICEEVENTID$' -o LASTSERVICEEVENTID='$LASTSERVICEEVENTID$' >> $USER4$/var/log/notifications.log 2>&1"]]
+[
+  {
+    "line": "$USER1$/check_icmp -H $HOSTADDRESS$ -w 3000.0,80% -c 5000.0,100% -p 5",
+    "name": "check-host-alive"
+  },
+  {
+    "line": "$USER1$/check_dhcp $ARG1$",
+    "name": "check_dhcp"
+  },
+  {
+    "line": "$USER1$/check_dummy $ARG1$ $ARG2$",
+    "name": "check_dummy"
+  },
+  {
+    "line": "$USER1$/check_ftp -H $HOSTADDRESS$ $ARG1$",
+    "name": "check_ftp"
+  },
+  {
+    "line": "$USER1$/check_hpjd -H $HOSTADDRESS$ $ARG1$",
+    "name": "check_hpjd"
+  },
+  {
+    "line": "$USER1$/check_http -I $HOSTADDRESS$ $ARG1$",
+    "name": "check_http"
+  },
+  {
+    "line": "$USER1$/check_imap -H $HOSTADDRESS$ $ARG1$",
+    "name": "check_imap"
+  },
+  {
+    "line": "$USER1$/check_jmx4perl --config $USER4$/etc/jmx4perl/jmx4perl.cfg --server $HOSTNAME$ --check  $ARG1$ $ARG2$ $ARG3$ $ARG4$",
+    "name": "check_jmx4perl"
+  },
+  {
+    "line": "$USER1$/check_disk -w $ARG1$ -c $ARG2$ -p $ARG3$",
+    "name": "check_local_disk"
+  },
+  {
+    "line": "$USER1$/check_load -w $ARG1$ -c $ARG2$",
+    "name": "check_local_load"
+  },
+  {
+    "line": "$USER1$/check_procs -w $ARG1$ -c $ARG2$ -s $ARG3$",
+    "name": "check_local_procs"
+  },
+  {
+    "line": "$USER1$/check_swap -w $ARG1$ -c $ARG2$",
+    "name": "check_local_swap"
+  },
+  {
+    "line": "$USER1$/check_users -w $ARG1$ -c $ARG2$",
+    "name": "check_local_users"
+  },
+  {
+    "line": "$USER1$/check_nt -H $HOSTADDRESS$ -p 12489 -v $ARG1$ $ARG2$",
+    "name": "check_nt"
+  },
+  {
+    "line": "$USER1$/check_ping -H $HOSTADDRESS$ -w $ARG1$ -c $ARG2$ -p 5",
+    "name": "check_ping"
+  },
+  {
+    "line": "$USER1$/check_pop -H $HOSTADDRESS$ $ARG1$",
+    "name": "check_pop"
+  },
+  {
+    "line": "$USER1$/check_smtp -H $HOSTADDRESS$ $ARG1$",
+    "name": "check_smtp"
+  },
+  {
+    "line": "$USER1$/check_snmp -H $HOSTADDRESS$ $ARG1$",
+    "name": "check_snmp"
+  },
+  {
+    "line": "$USER1$/check_ssh $ARG1$ $HOSTADDRESS$",
+    "name": "check_ssh"
+  },
+  {
+    "line": "$USER1$/check_tcp -H $HOSTADDRESS$ -p $ARG1$ $ARG2$",
+    "name": "check_tcp"
+  },
+  {
+    "line": "thruk -a bp $_HOSTTHRUK_BP_ID$",
+    "name": "check_thruk_bp"
+  },
+  {
+    "line": "$USER1$/check_udp -H $HOSTADDRESS$ -p $ARG1$ $ARG2$",
+    "name": "check_udp"
+  },
+  {
+    "line": "/usr/bin/perl $USER1$/notify-by-email.pl --template=$USER4$/etc/mail-templates/notify-by-email.host.tpl --livestatus=$USER4$/tmp/run/live -o NOTIFICATIONTYPE='$NOTIFICATIONTYPE$' -o NOTIFICATIONCOMMENT='$NOTIFICATIONCOMMENT$' -o HOSTNAME='$HOSTNAME$' -o HOSTSTATE='$HOSTSTATE$' -o CONTACTEMAIL='$CONTACTEMAIL$' -o HOSTADDRESS='$HOSTADDRESS$' -o SHORTDATETIME='$SHORTDATETIME$' -o HOSTOUTPUT='$HOSTOUTPUT$' -o HOSTPERFDATA='$HOSTPERFDATA$' -o ACKAUTHOR='$HOSTACKAUTHOR$' -o ACKCOMMENT='$HOSTACKCOMMENT$' -o DURATION='$HOSTDURATION$' -o HOSTEVENTID='$HOSTEVENTID$' -o LASTHOSTEVENTID='$LASTHOSTEVENTID$' >> $USER4$/var/log/notifications.log 2>&1",
+    "name": "host-notify-by-email"
+  },
+  {
+    "line": "/usr/bin/perl $USER1$/notify-by-email.pl --template=$USER4$/etc/mail-templates/notify-by-email.host.html.tpl --livestatus=$USER4$/tmp/run/live --mail=/usr/sbin/sendmail -o BASEURL=\"http://`hostname -f`/$USER3$/\" -o NOTIFICATIONTYPE='$NOTIFICATIONTYPE$' -o NOTIFICATIONCOMMENT='$NOTIFICATIONCOMMENT$' -o HOSTNAME='$HOSTNAME$' -o HOSTALIAS='$HOSTALIAS$' -o HOSTSTATE='$HOSTSTATE$' -o CONTACTEMAIL='$CONTACTEMAIL$' -o HOSTADDRESS='$HOSTADDRESS$' -o SHORTDATETIME='$SHORTDATETIME$' -o HOSTOUTPUT='$HOSTOUTPUT$' -o HOSTPERFDATA='$HOSTPERFDATA$' -o ACKAUTHOR='$HOSTACKAUTHOR$' -o ACKCOMMENT='$HOSTACKCOMMENT$' -o DURATION='$HOSTDURATION$' -o HOSTEVENTID='$HOSTEVENTID$' -o LASTHOSTEVENTID='$LASTHOSTEVENTID$' >> $USER4$/var/log/notifications.log 2>&1",
+    "name": "host-notify-by-email-html"
+  },
+  {
+    "line": "/bin/mv /omd/sites/demo/var/pnp4nagios/host-perfdata /omd/sites/demo/var/pnp4nagios/spool/host-perfdata.$TIMET$",
+    "name": "omd-process-host-perfdata-file"
+  },
+  {
+    "line": "/bin/mv /omd/sites/demo/var/pnp4nagios/host-perfdata /omd/sites/demo/var/pnp4nagios/spool/host-perfdata.$TIMET$",
+    "name": "omd-process-host-perfdata-file-nagflux"
+  },
+  {
+    "line": "/bin/mv /omd/sites/demo/var/pnp4nagios/service-perfdata /omd/sites/demo/var/pnp4nagios/spool/service-perfdata.$TIMET$",
+    "name": "omd-process-service-perfdata-file"
+  },
+  {
+    "line": "/bin/mv /omd/sites/demo/var/pnp4nagios/service-perfdata /omd/sites/demo/var/pnp4nagios/spool/service-perfdata.$TIMET$",
+    "name": "omd-process-service-perfdata-file-nagflux"
+  },
+  {
+    "line": "/usr/bin/perl $USER1$/notify-by-email.pl --template=$USER4$/etc/mail-templates/notify-by-email.service.tpl  --livestatus=$USER4$/tmp/run/live -o NOTIFICATIONTYPE='$NOTIFICATIONTYPE$' -o NOTIFICATIONCOMMENT='$NOTIFICATIONCOMMENT$' -o HOSTNAME='$HOSTNAME$' -o HOSTSTATE='$HOSTSTATE$' -o CONTACTEMAIL='$CONTACTEMAIL$' -o HOSTADDRESS='$HOSTADDRESS$' -o SHORTDATETIME='$SHORTDATETIME$' -o SERVICEDESC='$SERVICEDESC$' -o SERVICESTATE='$SERVICESTATE$' -o SERVICEOUTPUT='$SERVICEOUTPUT$' -o SERVICEPERFDATA='$SERVICEPERFDATA$' -o ACKAUTHOR='$SERVICEACKAUTHOR$' -o ACKCOMMENT='$SERVICEACKCOMMENT$' -o DURATION='$SERVICEDURATION$' -o SERVICEEVENTID='$SERVICEEVENTID$' -o LASTSERVICEEVENTID='$LASTSERVICEEVENTID$' >> $USER4$/var/log/notifications.log 2>&1",
+    "name": "service-notify-by-email"
+  },
+  {
+    "line": "/usr/bin/perl $USER1$/notify-by-email.pl --template=$USER4$/etc/mail-templates/notify-by-email.service.html.tpl  --livestatus=$USER4$/tmp/run/live --mail=/usr/sbin/sendmail -o BASEURL=\"http://`hostname -f`/$USER3$/\" -o NOTIFICATIONTYPE='$NOTIFICATIONTYPE$' -o NOTIFICATIONCOMMENT='$NOTIFICATIONCOMMENT$' -o HOSTNAME='$HOSTNAME$' -o HOSTALIAS='$HOSTALIAS$' -o HOSTSTATE='$HOSTSTATE$' -o CONTACTEMAIL='$CONTACTEMAIL$' -o HOSTADDRESS='$HOSTADDRESS$' -o SHORTDATETIME='$SHORTDATETIME$' -o SERVICEDESC='$SERVICEDESC$' -o SERVICESTATE='$SERVICESTATE$' -o SERVICEOUTPUT='$SERVICEOUTPUT$' -o SERVICEPERFDATA='$SERVICEPERFDATA$' -o ACKAUTHOR='$SERVICEACKAUTHOR$' -o ACKCOMMENT='$SERVICEACKCOMMENT$' -o DURATION='$SERVICEDURATION$' -o SERVICEEVENTID='$SERVICEEVENTID$' -o LASTSERVICEEVENTID='$LASTSERVICEEVENTID$' >> $USER4$/var/log/notifications.log 2>&1",
+    "name": "service-notify-by-email-html"
+  }
+]

@@ -1,1 +1,9 @@
-[["example",["example"],"example"]]
+[
+  {
+    "alias": "example",
+    "members": [
+      "example"
+    ],
+    "name": "example"
+  }
+]

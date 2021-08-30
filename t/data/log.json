@@ -1,1 +1,20 @@
-[[1558468664,"HOST ALERT","[1558468664] HOST ALERT: localhost;UP;HARD;1;OK - localhost: rta 131.593ms, lost 0%"]]
+[
+  {
+    "attempt": 3,
+    "class": 1,
+    "contact_name": "",
+    "host_name": "localhost",
+    "lineno": 409,
+    "message": "[1630307788] SERVICE ALERT: localhost;Load;OK;HARD;3;OK - load average: 2.82, 3.15, 3.91",
+    "options": "localhost;Load;OK;HARD;3;OK - load average: 2.82, 3.15, 3.91",
+    "plugin_output": "OK - load average: 2.82, 3.15, 3.91",
+    "service_description": "Load",
+    "state": 0,
+    "state_type": "HARD",
+    "time": 1630307788,
+    "type": "SERVICE ALERT",
+    "command_name": "",
+    "current_service_contacts": [],
+    "current_host_contacts": []
+  }
+]

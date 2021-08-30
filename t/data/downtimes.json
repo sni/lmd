@@ -1,1 +1,17 @@
-[["thrukadmin","test",7200,1557960660,1557953527,1,1,1,1557953460,0,1,"testhost_1","testsvc_1"]]
+[
+  {
+    "author": "thrukadmin",
+    "comment": "test",
+    "duration": 7200,
+    "end_time": 1557960660,
+    "entry_time": 1557953527,
+    "fixed": 1,
+    "host_name": "testhost_1",
+    "id": 1,
+    "is_service": 1,
+    "service_description": "testsvc_1",
+    "start_time": 1557953460,
+    "triggered_by": 0,
+    "type": 1
+  }
+]

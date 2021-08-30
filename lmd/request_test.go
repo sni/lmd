@@ -917,10 +917,10 @@ func TestRequestPassthrough(t *testing.T) {
 	if err = assertEq(3, len(res)); err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq(float64(1558468664), res[0][0]); err != nil {
+	if err = assertEq(float64(1630307788), res[0][0]); err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq("HOST ALERT", res[0][1]); err != nil {
+	if err = assertEq("SERVICE ALERT", res[0][1]); err != nil {
 		t.Fatal(err)
 	}
 
@@ -932,13 +932,13 @@ func TestRequestPassthrough(t *testing.T) {
 	if err = assertEq(3, len(res)); err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq(float64(1558468664), res[0][0]); err != nil {
+	if err = assertEq(float64(1630307788), res[0][0]); err != nil {
 		t.Fatal(err)
 	}
 	if err = assertEq("mockid0", res[0][1]); err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq("HOST ALERT", res[0][2]); err != nil {
+	if err = assertEq("SERVICE ALERT", res[0][2]); err != nil {
 		t.Fatal(err)
 	}
 

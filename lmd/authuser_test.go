@@ -16,7 +16,7 @@ func TestAuthuserHost(t *testing.T) {
 	}
 
 	// Authuser should only see it's own hosts
-	res, _, err := peer.QueryString("GET hosts\nColumns: name state\nAuthUser: authuser\n\n")
+	res, _, err := peer.QueryString("GET hosts\nColumns: name state contacts\nAuthUser: authuser\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,18 +83,18 @@ func TestAuthuserService(t *testing.T) {
  * Tests that only two services stats are returned with AuthUser is set
  */
 func TestAuthuserServiceStats(t *testing.T) {
-	peer := StartTestPeer(1, 2, 2)
+	peer := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	if err := assertEq(1, len(PeerMap)); err != nil {
 		t.Error(err)
 	}
 
-	res, _, err := peer.QueryString("GET services\nStats: state = 1\nAuthUser: authuser\n\n")
+	res, _, err := peer.QueryString("GET services\nStats: state = 0\nAuthUser: authuser\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(1.0, res[0][0]); err != nil {
+	if err := assertEq(7.0, res[0][0]); err != nil {
 		t.Error(err)
 	}
 
@@ -213,18 +213,18 @@ func TestAuthuserServiceAuth(t *testing.T) {
 	extraConfig := `
 		ServiceAuthorization = "strict"
 	`
-	peer := StartTestPeerExtra(1, 2, 9, extraConfig)
+	peer := StartTestPeerExtra(1, 2, 10, extraConfig)
 	PauseTestPeers(peer)
 
 	if err := assertEq(1, len(PeerMap)); err != nil {
 		t.Error(err)
 	}
 
-	res, _, err := peer.QueryString("GET services\nColumns: host_name description state\nAuthUser: authuser\n\n")
+	res, _, err := peer.QueryString("GET services\nColumns: host_name description state contacts\nAuthUser: authuser\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(1, len(res)); err != nil {
+	if err := assertEq(2, len(res)); err != nil {
 		t.Error(err)
 	}
 
@@ -263,7 +263,7 @@ func TestAuthuserHostsbygroup(t *testing.T) {
  * test that when setting the AuthUser header, no servicegroups are returned.
  */
 func TestAuthuserServicesbygroup(t *testing.T) {
-	peer := StartTestPeer(1, 2, 9)
+	peer := StartTestPeer(1, 2, 10)
 	PauseTestPeers(peer)
 
 	if err := assertEq(1, len(PeerMap)); err != nil {
@@ -275,7 +275,7 @@ func TestAuthuserServicesbygroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(1, len(res)); err != nil {
+	if err := assertEq(2, len(res)); err != nil {
 		t.Error(err)
 	}
 

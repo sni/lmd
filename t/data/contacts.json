@@ -1,2 +1,32 @@
-[["example",1,"nobody@localhost","24x7",0,"example","","24x7",0,["FOO"],[12345]],
-["authuser",1,"nobody@localhost","24x7",0,"authuser","","24x7",0,[],[]]]
+[
+  {
+    "alias": "example",
+    "can_submit_commands": 1,
+    "custom_variable_names": [
+      "FOO"
+    ],
+    "custom_variable_values": [
+      12345
+    ],
+    "email": "nobody@localhost",
+    "host_notification_period": "24x7",
+    "host_notifications_enabled": 0,
+    "name": "example",
+    "pager": "",
+    "service_notification_period": "24x7",
+    "service_notifications_enabled": 0
+  },
+  {
+    "alias": "authuser",
+    "can_submit_commands": 1,
+    "custom_variable_names": [],
+    "custom_variable_values": [],
+    "email": "nobody@localhost",
+    "host_notification_period": "24x7",
+    "host_notifications_enabled": 0,
+    "name": "authuser",
+    "pager": "",
+    "service_notification_period": "24x7",
+    "service_notifications_enabled": 0
+  }
+]
