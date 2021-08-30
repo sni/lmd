@@ -333,7 +333,7 @@ func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig
 	peer = NewPeer(GlobalTestConfig, &Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
 
 	// wait till backend is available
-	waitUntil := time.Now().Add(3 * time.Second)
+	waitUntil := time.Now().Add(10 * time.Second)
 	for {
 		err := peer.InitAllTables()
 		if err == nil {
