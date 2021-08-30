@@ -1516,68 +1516,40 @@ func (p *Peer) checkStatusFlags(store *DataStoreSet) (err error) {
 }
 
 func (p *Peer) checkAvailableTables() (err error) {
+	columnFlags := []struct {
+		Table  TableName
+		Column string
+		Flag   OptionalFlags
+	}{
+		{TableStatus, "localtime", HasLocaltimeColumn},
+		{TableHosts, "depends_exec", HasDependencyColumn},
+		{TableHosts, "lmd_last_cache_update", HasLMDLastCacheUpdateColumn},
+		{TableHosts, "last_update", HasLastUpdateColumn},
+		{TableHosts, "event_handler", HasEventHandlerColumn},
+		{TableHosts, "staleness", HasStalenessColumn},
+		{TableServices, "check_freshness", HasCheckFreshnessColumn},
+		{TableServices, "parents", HasServiceParentsColumn},
+	}
+
 	if p.HasFlag(Icinga2) {
 		logWith(p).Debugf("Icinga2 does not support checking tables and columns")
 		return
 	}
+
 	availableTables, err := p.GetSupportedColumns()
 	if err != nil {
 		return
 	}
-	if _, ok := availableTables[TableHosts]; !ok {
-		return
-	}
-	if _, ok := availableTables[TableServices]; !ok {
-		return
-	}
-	if !p.HasFlag(HasDependencyColumn) {
-		if _, ok := availableTables[TableHosts]["depends_exec"]; ok {
-			logWith(p).Debugf("remote connection supports dependency columns")
-			p.SetFlag(HasDependencyColumn)
+
+	for _, optFlag := range columnFlags {
+		if _, ok := availableTables[optFlag.Table]; !ok {
+			continue
 		}
-	}
-	if !p.HasFlag(HasLMDLastCacheUpdateColumn) {
-		if _, ok := availableTables[TableHosts]["lmd_last_cache_update"]; ok {
-			logWith(p).Debugf("remote connection supports lmd_last_cache_update columns")
-			p.SetFlag(HasLMDLastCacheUpdateColumn)
-		}
-	}
-	if !p.HasFlag(HasLastUpdateColumn) {
-		if _, ok := availableTables[TableHosts]["last_update"]; ok {
-			logWith(p).Debugf("remote connection supports last_update columns")
-			p.SetFlag(HasLastUpdateColumn)
-		}
-	}
-	if !p.HasFlag(HasLocaltimeColumn) {
-		if _, ok := availableTables[TableStatus]; ok {
-			if _, ok := availableTables[TableStatus]["localtime"]; ok {
-				logWith(p).Debugf("remote connection supports localtime columns")
-				p.SetFlag(HasLocaltimeColumn)
+		if !p.HasFlag(optFlag.Flag) {
+			if _, ok := availableTables[optFlag.Table][optFlag.Column]; ok {
+				logWith(p).Debugf("remote connection supports %s.%s column", &optFlag.Table, &optFlag.Column)
+				p.SetFlag(optFlag.Flag)
 			}
-		}
-	}
-	if !p.HasFlag(HasCheckFreshnessColumn) {
-		if _, ok := availableTables[TableServices]["check_freshness"]; ok {
-			logWith(p).Debugf("remote connection supports services.check_freshness column")
-			p.SetFlag(HasCheckFreshnessColumn)
-		}
-	}
-	if !p.HasFlag(HasEventHandlerColumn) {
-		if _, ok := availableTables[TableHosts]["event_handler"]; ok {
-			logWith(p).Debugf("remote connection supports hosts.event_handler column")
-			p.SetFlag(HasEventHandlerColumn)
-		}
-	}
-	if !p.HasFlag(HasStalenessColumn) {
-		if _, ok := availableTables[TableHosts]["staleness"]; ok {
-			logWith(p).Debugf("remote connection supports (services|hosts).staleness column")
-			p.SetFlag(HasStalenessColumn)
-		}
-	}
-	if !p.HasFlag(HasServiceParentsColumn) {
-		if _, ok := availableTables[TableServices]["parents"]; ok {
-			logWith(p).Debugf("remote connection supports services.parents column")
-			p.SetFlag(HasServiceParentsColumn)
 		}
 	}
 	return
