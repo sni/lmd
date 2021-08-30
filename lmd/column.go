@@ -174,6 +174,9 @@ const (
 
 	// HasStalenessColumn flag is set if the remote site has a staleness column for hosts and services
 	HasStalenessColumn
+
+	// HasServiceParentsColumn flag is set if remote site support service parents column
+	HasServiceParentsColumn
 )
 
 // OptionalFlagsStrings maps available backend flags to their string value
@@ -192,6 +195,7 @@ var OptionalFlagsStrings = map[OptionalFlags]string{
 	HasCheckFreshnessColumn:     "HasCheckFreshnessColumn",
 	HasEventHandlerColumn:       "HasEventHandlerColumn",
 	HasStalenessColumn:          "HasStalenessColumn",
+	HasServiceParentsColumn:     "HasServiceParentsColumn",
 }
 
 // String returns the string representation of used flags

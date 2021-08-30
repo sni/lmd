@@ -1574,6 +1574,12 @@ func (p *Peer) checkAvailableTables() (err error) {
 			p.SetFlag(HasStalenessColumn)
 		}
 	}
+	if !p.HasFlag(HasServiceParentsColumn) {
+		if _, ok := availableTables[TableServices]["parents"]; ok {
+			logWith(p).Debugf("remote connection supports services.parents column")
+			p.SetFlag(HasServiceParentsColumn)
+		}
+	}
 	return
 }
 

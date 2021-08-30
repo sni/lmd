@@ -520,7 +520,7 @@ func NewServicesTable() (t *Table) {
 	t.AddExtraColumn("obsess", LocalStore, Dynamic, IntCol, Naemon, "The obsessing over service")
 	t.AddExtraColumn("depends_exec", LocalStore, Static, ServiceMemberListCol, HasDependencyColumn, "List of services this services depends on for execution")
 	t.AddExtraColumn("depends_notify", LocalStore, Static, ServiceMemberListCol, HasDependencyColumn, "List of services this services depends on for notification")
-	t.AddExtraColumn("parents", LocalStore, Static, StringListCol, Naemon, "List of services descriptions this services depends on")
+	t.AddExtraColumn("parents", LocalStore, Static, StringListCol, HasServiceParentsColumn, "List of services descriptions this services depends on")
 	t.AddExtraColumn("should_be_scheduled", LocalStore, Dynamic, IntCol, Naemon, "Whether Naemon still tries to run checks on this service (0/1)")
 	t.AddExtraColumn("hourly_value", LocalStore, Static, IntCol, Naemon, "Hourly Value")
 	t.AddExtraColumn("check_freshness", LocalStore, Dynamic, IntCol, HasCheckFreshnessColumn, "Whether freshness checks are activated (0/1)")
