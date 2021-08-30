@@ -156,7 +156,7 @@ func NewStatusTable() (t *Table) {
 	t.AddColumn("obsess_over_services", Dynamic, IntCol, "Whether the core will obsess over service checks and run the ocsp_command (0/1)")
 	t.AddColumn("process_performance_data", Dynamic, IntCol, "Whether processing of performance data is activated in general (0/1)")
 	t.AddColumn("program_version", Static, StringCol, "The version of the monitoring daemon")
-	t.AddColumn("requests", Dynamic, FloatCol, "The number of requests to Livestatus since program start")
+	t.AddColumn("requests", Dynamic, IntCol, "The number of requests to Livestatus since program start")
 	t.AddColumn("requests_rate", Dynamic, FloatCol, "The number of requests to Livestatus since program start")
 	t.AddColumn("service_checks", Dynamic, IntCol, "The number of completed service checks since program start")
 	t.AddColumn("service_checks_rate", Dynamic, FloatCol, "The number of completed service checks since program start")
@@ -307,7 +307,7 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("modified_attributes", Dynamic, IntCol, "A bitmask specifying which attributes have been modified")
 	t.AddColumn("modified_attributes_list", Dynamic, StringListCol, "A bitmask specifying which attributes have been modified")
 	t.AddColumn("name", Static, StringCol, "Host name")
-	t.AddColumn("next_check", Dynamic, FloatCol, "Scheduled time for the next check (Unix timestamp)")
+	t.AddColumn("next_check", Dynamic, Int64Col, "Scheduled time for the next check (Unix timestamp)")
 	t.AddColumn("next_notification", Dynamic, Int64Col, "Time of the next notification (Unix timestamp)")
 	t.AddColumn("num_services", Static, IntCol, "The total number of services of the host")
 	t.AddColumn("num_services_crit", Dynamic, IntCol, "The number of the host's services with the soft state CRIT")
@@ -360,6 +360,8 @@ func NewHostsTable() (t *Table) {
 	t.AddExtraColumn("depends_notify", LocalStore, Static, StringListCol, HasDependencyColumn, "List of hosts this hosts depends on for notification")
 	t.AddExtraColumn("should_be_scheduled", LocalStore, Dynamic, IntCol, Naemon, "Whether Naemon still tries to run checks on this host (0/1)")
 	t.AddExtraColumn("hourly_value", LocalStore, Static, IntCol, Naemon, "Hourly Value")
+	t.AddExtraColumn("event_handler", LocalStore, Static, StringCol, HasEventHandlerColumn, "Naemon command used as event handler")
+	t.AddExtraColumn("staleness", LocalStore, Dynamic, FloatCol, HasStalenessColumn, "Staleness indicator for this host")
 
 	// shinken specific
 	t.AddExtraColumn("is_impact", LocalStore, Dynamic, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
@@ -387,8 +389,6 @@ func NewHostsTable() (t *Table) {
 	t.AddExtraColumn("last_state_change_order", VirtualStore, None, Int64Col, NoFlags, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked")
 	t.AddExtraColumn("has_long_plugin_output", VirtualStore, None, IntCol, NoFlags, "Flag wether this host has long_plugin_output or not")
 	t.AddExtraColumn("total_services", VirtualStore, None, IntCol, NoFlags, "The total number of services of the host")
-	t.AddExtraColumn("event_handler", LocalStore, Static, StringCol, HasEventHandlerColumn, "Naemon command used as event handler")
-	t.AddExtraColumn("staleness", LocalStore, Dynamic, FloatCol, HasStalenessColumn, "Staleness indicator for this host")
 	return
 }
 
@@ -483,7 +483,7 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("max_check_attempts", Static, IntCol, "The maximum number of check attempts")
 	t.AddColumn("modified_attributes", Dynamic, IntCol, "A bitmask specifying which attributes have been modified")
 	t.AddColumn("modified_attributes_list", Dynamic, StringListCol, "A bitmask specifying which attributes have been modified")
-	t.AddColumn("next_check", Dynamic, FloatCol, "The scheduled time of the next check (Unix timestamp)")
+	t.AddColumn("next_check", Dynamic, Int64Col, "The scheduled time of the next check (Unix timestamp)")
 	t.AddColumn("next_notification", Dynamic, Int64Col, "The time of the next notification (Unix timestamp)")
 	t.AddColumn("notes", Static, StringCol, "Optional notes about the service")
 	t.AddColumn("notes_expanded", Static, StringCol, "Optional notes about the service")
@@ -523,6 +523,8 @@ func NewServicesTable() (t *Table) {
 	t.AddExtraColumn("parents", LocalStore, Static, StringListCol, Naemon, "List of services descriptions this services depends on")
 	t.AddExtraColumn("should_be_scheduled", LocalStore, Dynamic, IntCol, Naemon, "Whether Naemon still tries to run checks on this service (0/1)")
 	t.AddExtraColumn("hourly_value", LocalStore, Static, IntCol, Naemon, "Hourly Value")
+	t.AddExtraColumn("check_freshness", LocalStore, Dynamic, IntCol, HasCheckFreshnessColumn, "Whether freshness checks are activated (0/1)")
+	t.AddExtraColumn("staleness", LocalStore, Dynamic, FloatCol, HasStalenessColumn, "Staleness indicator for this host")
 
 	// shinken specific
 	t.AddExtraColumn("is_impact", LocalStore, Dynamic, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
@@ -547,8 +549,6 @@ func NewServicesTable() (t *Table) {
 	t.AddExtraColumn("last_state_change_order", VirtualStore, None, Int64Col, NoFlags, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked")
 	t.AddExtraColumn("state_order", VirtualStore, None, IntCol, NoFlags, "The service state suitable for sorting. Unknown and Critical state are switched")
 	t.AddExtraColumn("has_long_plugin_output", VirtualStore, None, IntCol, NoFlags, "Flag wether this service has long_plugin_output or not")
-	t.AddExtraColumn("check_freshness", LocalStore, Dynamic, IntCol, HasCheckFreshnessColumn, "Whether freshness checks are activated (0/1)")
-	t.AddExtraColumn("staleness", LocalStore, Dynamic, FloatCol, HasStalenessColumn, "Staleness indicator for this host")
 	return
 }
 

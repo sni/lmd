@@ -201,14 +201,12 @@ func (t *Table) AddRefColumns(tableName TableName, prefix string, localName []st
 
 // SetColumnIndex sets index for all columns
 func (t *Table) SetColumnIndex() {
-	flagCombos := []OptionalFlags{
-		NoFlags,
-		Shinken,
-		Icinga2,
-		Naemon,
-		// could also be Naemon | Naemon1_10 but the later one has been removed
+	flagCombos := make(map[OptionalFlags]bool)
+	for i := range t.Columns {
+		col := t.Columns[i]
+		flagCombos[col.Optional] = true
 	}
-	for _, flags := range flagCombos {
+	for flags := range flagCombos {
 		indexes := make(map[DataType]int)
 		for i := range t.Columns {
 			col := t.Columns[i]
