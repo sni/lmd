@@ -1,6 +1,6 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
-next:
+2.0.2    Tue Aug 31 17:26:18 CEST 2021
           - rework comment/downtime id handling
           - improve error logging on clock errors
           - improve status table waitcondition queries during backend reloads
