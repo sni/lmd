@@ -537,47 +537,8 @@ func (p *Peer) periodicUpdateLMD(data *DataStoreSet, force bool) (err error) {
 	PeerMapLock.Lock()
 	defer PeerMapLock.Unlock()
 	for _, rowHash := range resHash {
-		subID := rowHash["key"].(string)
+		subID := p.addSubPeer(LMDSub, rowHash["key"].(string), p.Name+"/"+rowHash["name"].(string), rowHash)
 		existing[subID] = true
-		subName := p.Name + "/" + rowHash["name"].(string)
-		subPeer, ok := PeerMap[subID]
-		if ok {
-			logWith(p, req).Tracef("already got a sub peer for id %s", subID)
-		} else {
-			logWith(p, req).Debugf("starting sub peer for %s, id: %s", subName, subID)
-			c := Connection{ID: subID, Name: subName, Source: p.Source, RemoteName: subName}
-			subPeer = NewPeer(p.GlobalConfig, &c, p.waitGroup, p.shutdownChannel)
-			subPeer.ParentID = p.ID
-			subPeer.SetFlag(LMDSub)
-			subPeer.StatusSet(PeerParent, p.ID)
-			PeerMap[subID] = subPeer
-			PeerMapOrder = append(PeerMapOrder, c.ID)
-
-			// try to fetch section information
-			// may fail for older lmd versions
-			req := &Request{
-				Table:   TableSites,
-				Columns: []string{"section"},
-			}
-			subPeer.setQueryOptions(req)
-			res, _, err := subPeer.query(req)
-			if err == nil {
-				section := interface2stringNoDedup(res[0][0])
-				section = strings.TrimPrefix(section, "Default")
-				section = strings.TrimPrefix(section, "/")
-				subPeer.StatusSet(Section, section)
-			}
-
-			nodeAccessor.assignedBackends = append(nodeAccessor.assignedBackends, subID)
-			if !p.StatusGet(Paused).(bool) {
-				subPeer.Start()
-			}
-		}
-
-		// update flags for existing sub peers
-		subPeer.Lock.Lock()
-		subPeer.Status[SubPeerStatus] = rowHash
-		subPeer.Lock.Unlock()
 	}
 
 	// remove exceeding peers
@@ -646,44 +607,8 @@ func (p *Peer) periodicUpdateMultiBackends(data *DataStoreSet, force bool) (err 
 		} else {
 			continue
 		}
-		subID := site["id"].(string)
+		subID := p.addSubPeer(HTTPSub, site["id"].(string), site["name"].(string), site)
 		existing[subID] = true
-		subName := site["name"].(string)
-		subPeer, ok := PeerMap[subID]
-		if ok {
-			logWith(p).Tracef("already got a sub peer for id %s", subPeer.ID)
-		} else {
-			logWith(p).Debugf("starting sub peer for %s, id: %s", subName, subID)
-			c := Connection{
-				ID:             subID,
-				Name:           subName,
-				Source:         p.Source,
-				RemoteName:     site["name"].(string),
-				TLSCertificate: p.Config.TLSCertificate,
-				TLSKey:         p.Config.TLSKey,
-				TLSCA:          p.Config.TLSCA,
-				TLSSkipVerify:  p.Config.TLSSkipVerify,
-				Auth:           p.Config.Auth,
-			}
-			subPeer = NewPeer(p.GlobalConfig, &c, p.waitGroup, p.shutdownChannel)
-			subPeer.ParentID = p.ID
-			subPeer.SetFlag(HTTPSub)
-			subPeer.Status[PeerParent] = p.ID
-			section := site["section"].(string)
-			section = strings.TrimPrefix(section, "Default")
-			section = strings.TrimPrefix(section, "/")
-			subPeer.Status[Section] = section
-			subPeer.setFederationInfo(site, SubKey, "key")
-			subPeer.setFederationInfo(site, SubName, "name")
-			subPeer.setFederationInfo(site, SubAddr, "addr")
-			subPeer.setFederationInfo(site, SubType, "type")
-			PeerMap[subID] = subPeer
-			PeerMapOrder = append(PeerMapOrder, c.ID)
-			nodeAccessor.assignedBackends = append(nodeAccessor.assignedBackends, subID)
-			if !p.StatusGet(Paused).(bool) {
-				subPeer.Start()
-			}
-		}
 	}
 
 	// remove exceeding peers
@@ -2594,6 +2519,90 @@ func (p *Peer) CheckBackendRestarted(primaryKeysLen int, res ResultSet, columns 
 			p.ErrorLogged = true
 		}
 		return &PeerError{msg: err.Error(), kind: RestartRequiredError}
+	}
+	return
+}
+
+// addSubPeer adds new/existing lmd/http sub federated peer
+func (p *Peer) addSubPeer(subFlag OptionalFlags, key string, subName string, data map[string]interface{}) (subID string) {
+	subID = key
+	subPeer, ok := PeerMap[subID]
+	duplicate := ""
+	if ok {
+		logWith(p).Tracef("already got a sub peer for id %s", subPeer.ID)
+		if subPeer.HasFlag(subFlag) {
+			// update flags for existing sub peers
+			subPeer.Lock.Lock()
+			subPeer.Status[SubPeerStatus] = data
+			subPeer.Lock.Unlock()
+			return
+		}
+
+		duplicate = fmt.Sprintf("federate site %s/%s id clash %s already taken", p.Name, subName, subID)
+		subID += "dup"
+		_, ok = PeerMap[subID]
+		if ok {
+			return
+		}
+	}
+
+	logWith(p).Debugf("starting sub peer for %s, id: %s", subName, subID)
+	c := Connection{
+		ID:             subID,
+		Name:           subName,
+		Source:         p.Source,
+		RemoteName:     subName,
+		TLSCertificate: p.Config.TLSCertificate,
+		TLSKey:         p.Config.TLSKey,
+		TLSCA:          p.Config.TLSCA,
+		TLSSkipVerify:  p.Config.TLSSkipVerify,
+		Auth:           p.Config.Auth,
+	}
+	subPeer = NewPeer(p.GlobalConfig, &c, p.waitGroup, p.shutdownChannel)
+	subPeer.ParentID = p.ID
+	subPeer.SetFlag(subFlag)
+	subPeer.Status[PeerParent] = p.ID
+	subPeer.Status[SubPeerStatus] = data
+	section := ""
+
+	switch subFlag {
+	case HTTPSub:
+		section = interface2stringNoDedup(data["section"])
+		subPeer.setFederationInfo(data, SubKey, "key")
+		subPeer.setFederationInfo(data, SubName, "name")
+		subPeer.setFederationInfo(data, SubAddr, "addr")
+		subPeer.setFederationInfo(data, SubType, "type")
+
+	case LMDSub:
+		// try to fetch section information
+		// may fail for older lmd versions
+		req := &Request{
+			Table:   TableSites,
+			Columns: []string{"section"},
+		}
+		subPeer.setQueryOptions(req)
+		res, _, err := subPeer.query(req)
+		if err == nil {
+			section = interface2stringNoDedup(res[0][0])
+		}
+	default:
+		log.Panicf("sub flag %#v not supported", subFlag)
+	}
+
+	section = strings.TrimPrefix(section, "Default")
+	section = strings.TrimPrefix(section, "/")
+	subPeer.Status[Section] = section
+
+	PeerMap[subID] = subPeer
+	PeerMapOrder = append(PeerMapOrder, c.ID)
+	nodeAccessor.assignedBackends = append(nodeAccessor.assignedBackends, subID)
+
+	if !p.StatusGet(Paused).(bool) {
+		subPeer.Start()
+	}
+	if duplicate != "" {
+		subPeer.Stop()
+		subPeer.setBroken(duplicate)
 	}
 	return
 }
