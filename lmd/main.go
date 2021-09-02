@@ -90,9 +90,6 @@ const (
 	CtxRequest ContextKey = "request"
 )
 
-// AvailableContextKeys set list of available log prefix objects
-var AvailableContextKeys = []ContextKey{CtxPeer, CtxClient, CtxRequest}
-
 // https://github.com/golang/go/issues/8005#issuecomment-190753527
 type noCopy struct{}
 

@@ -195,7 +195,7 @@ func (l *LogPrefixer) prefix() (prefix string) {
 		case *DataStoreSet:
 			prefix = fmt.Sprintf("%s[%s]", prefix, v.peer.Name)
 		case context.Context:
-			for _, key := range AvailableContextKeys {
+			for _, key := range []ContextKey{CtxPeer, CtxClient, CtxRequest} {
 				value := v.Value(key)
 				if value == nil {
 					continue
