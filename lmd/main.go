@@ -96,23 +96,39 @@ type noCopy struct{}
 func (*noCopy) Lock()   {}
 func (*noCopy) Unlock() {}
 
-// PeerMap contains a map of available remote peers.
-var PeerMap map[string]*Peer
-
-// PeerMapOrder contains the order of all remote peers as defined in the supplied config files.
-var PeerMapOrder []string
-
-// PeerMapLock is the lock for the PeerMap map
-var PeerMapLock *deadlock.RWMutex
-
-// Listeners stores if we started a listener
-var Listeners map[string]*Listener
-
-// ListenersLock is the lock for the Listeners map
-var ListenersLock *deadlock.RWMutex
-
-// nodeAccessor manages cluster nodes and starts/stops peers.
-var nodeAccessor *Nodes
+type LMDInstance struct {
+	Config            *Config              // reference to global config object
+	PeerMap           map[string]*Peer     // PeerMap contains a map of available remote peers.
+	PeerMapOrder      []string             // PeerMapOrder contains the order of all remote peers as defined in the supplied config files.
+	PeerMapLock       *deadlock.RWMutex    // PeerMapLock is the lock for the PeerMap map
+	Listeners         map[string]*Listener // Listeners stores if we started a listener
+	ListenersLock     *deadlock.RWMutex    // ListenersLock is the lock for the Listeners map
+	nodeAccessor      *Nodes               // nodeAccessor manages cluster nodes and starts/stops peers.
+	waitGroupInit     *sync.WaitGroup
+	waitGroupListener *sync.WaitGroup
+	waitGroupPeers    *sync.WaitGroup
+	shutdownChannel   chan bool
+	flags             struct {
+		flagVerbose      bool
+		flagVeryVerbose  bool
+		flagTraceVerbose bool
+		flagConfigFile   configFiles
+		flagVersion      bool
+		flagLogFile      string
+		flagPidfile      string
+		flagProfile      string
+		flagDeadlock     int
+		flagCPUProfile   string
+		flagMemProfile   string
+		flagCfgOption    arrayFlags
+		flagExport       string
+		flagImport       string
+	}
+	mainSignalChannel chan os.Signal
+	initChannel       chan bool
+	lastMainRestart   int64
+	cpuProfileHandler *os.File
+}
 
 type arrayFlags struct {
 	list []string
@@ -127,76 +143,70 @@ func (i *arrayFlags) Set(value string) error {
 	return nil
 }
 
-var flagVerbose bool
-var flagVeryVerbose bool
-var flagTraceVerbose bool
-var flagConfigFile configFiles
-var flagVersion bool
-var flagLogFile string
-var flagPidfile string
-var flagProfile string
-var flagDeadlock int
-var flagCPUProfile string
-var flagMemProfile string
-var flagCfgOption arrayFlags
-var flagExport string
-var flagImport string
-
-var cpuProfileHandler *os.File
+// Objects contains the static definition of all available tables and columns
+var Objects *ObjectsType
 
 var once sync.Once
-var mainSignalChannel chan os.Signal
-var lastMainRestart = time.Now().Unix()
-
-var reHTTPHostPort *regexp.Regexp
+var reHTTPHostPort = regexp.MustCompile("^(https?)://(.*?):(.*)")
 
 // initialize objects structure
 func init() {
-	InitTableNames()
 	InitObjects()
-	mainSignalChannel = make(chan os.Signal)
-	PeerMapLock = new(deadlock.RWMutex)
-	PeerMap = make(map[string]*Peer)
-	PeerMapOrder = make([]string, 0)
-	Listeners = make(map[string]*Listener)
-	ListenersLock = new(deadlock.RWMutex)
-	reHTTPHostPort = regexp.MustCompile("^(https?)://(.*?):(.*)")
 }
 
-func setFlags() {
-	flag.Var(&flagConfigFile, "c", "set location for config file, can be specified multiple times, can contain globs like lmd.ini.d/*.ini")
-	flag.Var(&flagConfigFile, "config", "set location for config file, can be specified multiple times, can contain globs like lmd.ini.d/*.ini")
-	flag.StringVar(&flagPidfile, "pidfile", "", "set path to pidfile")
-	flag.StringVar(&flagLogFile, "logfile", "", "override logfile from the configuration file")
-	flag.BoolVar(&flagVerbose, "v", false, "enable verbose output")
-	flag.BoolVar(&flagVerbose, "verbose", false, "enable verbose output")
-	flag.BoolVar(&flagVeryVerbose, "vv", false, "enable very verbose output")
-	flag.BoolVar(&flagTraceVerbose, "vvv", false, "enable trace output")
-	flag.BoolVar(&flagVersion, "version", false, "print version and exit")
-	flag.StringVar(&flagProfile, "debug-profiler", "", "start pprof profiler on this port, ex. :6060")
-	flag.StringVar(&flagCPUProfile, "cpuprofile", "", "write cpu profile to `file`")
-	flag.StringVar(&flagMemProfile, "memprofile", "", "write memory profile to `file`")
-	flag.IntVar(&flagDeadlock, "debug-deadlock", 0, "enable deadlock detection with given timeout")
-	flag.Var(&flagCfgOption, "o", "override settings, ex.: -o Listen=:3333 -o Connections=name,address")
-	flag.StringVar(&flagExport, "export", "", "export/snapshot data to file.")
-	flag.StringVar(&flagImport, "import", "", "start lmd from export/snapshot and do not contact backends.")
+func NewLMDInstance() (lmd *LMDInstance) {
+	lmd = &LMDInstance{
+		lastMainRestart:   time.Now().Unix(),
+		mainSignalChannel: make(chan os.Signal),
+		initChannel:       nil,
+		PeerMapLock:       new(deadlock.RWMutex),
+		PeerMap:           make(map[string]*Peer),
+		PeerMapOrder:      make([]string, 0),
+		Listeners:         make(map[string]*Listener),
+		ListenersLock:     new(deadlock.RWMutex),
+		waitGroupInit:     &sync.WaitGroup{},
+		waitGroupListener: &sync.WaitGroup{},
+		waitGroupPeers:    &sync.WaitGroup{},
+		shutdownChannel:   make(chan bool),
+	}
+	return
+}
+
+func (lmd *LMDInstance) setFlags() {
+	flag.Var(&lmd.flags.flagConfigFile, "c", "set location for config file, can be specified multiple times, can contain globs like lmd.ini.d/*.ini")
+	flag.Var(&lmd.flags.flagConfigFile, "config", "set location for config file, can be specified multiple times, can contain globs like lmd.ini.d/*.ini")
+	flag.StringVar(&lmd.flags.flagPidfile, "pidfile", "", "set path to pidfile")
+	flag.StringVar(&lmd.flags.flagLogFile, "logfile", "", "override logfile from the configuration file")
+	flag.BoolVar(&lmd.flags.flagVerbose, "v", false, "enable verbose output")
+	flag.BoolVar(&lmd.flags.flagVerbose, "verbose", false, "enable verbose output")
+	flag.BoolVar(&lmd.flags.flagVeryVerbose, "vv", false, "enable very verbose output")
+	flag.BoolVar(&lmd.flags.flagTraceVerbose, "vvv", false, "enable trace output")
+	flag.BoolVar(&lmd.flags.flagVersion, "version", false, "print version and exit")
+	flag.StringVar(&lmd.flags.flagProfile, "debug-profiler", "", "start pprof profiler on this port, ex. :6060")
+	flag.StringVar(&lmd.flags.flagCPUProfile, "cpuprofile", "", "write cpu profile to `file`")
+	flag.StringVar(&lmd.flags.flagMemProfile, "memprofile", "", "write memory profile to `file`")
+	flag.IntVar(&lmd.flags.flagDeadlock, "debug-deadlock", 0, "enable deadlock detection with given timeout")
+	flag.Var(&lmd.flags.flagCfgOption, "o", "override settings, ex.: -o Listen=:3333 -o Connections=name,address")
+	flag.StringVar(&lmd.flags.flagExport, "export", "", "export/snapshot data to file.")
+	flag.StringVar(&lmd.flags.flagImport, "import", "", "start lmd from export/snapshot and do not contact backends.")
 }
 
 func main() {
+	lmd := NewLMDInstance()
 	// command line arguments
-	setFlags()
-	checkFlags()
+	lmd.setFlags()
+	lmd.checkFlags()
 
 	// make sure we log panics properly
-	defer logPanicExit()
+	defer lmd.logPanicExit()
 
-	if flagExport != "" {
-		mainExport()
+	if lmd.flags.flagExport != "" {
+		lmd.mainExport()
 		os.Exit(0)
 	}
 
 	for {
-		exitCode := mainLoop(mainSignalChannel, nil)
+		exitCode := lmd.mainLoop()
 		defer log.Debugf("lmd shutdown complete")
 		if exitCode > 0 {
 			os.Exit(exitCode)
@@ -208,8 +218,9 @@ func main() {
 	}
 }
 
-func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode int) {
-	localConfig := finalFlagsConfig(false)
+func (lmd *LMDInstance) mainLoop() (exitCode int) {
+	localConfig := lmd.finalFlagsConfig(false)
+	lmd.Config = localConfig
 
 	CompressionLevel = localConfig.CompressionLevel
 	CompressionMinimumSize = localConfig.CompressionMinimumSize
@@ -229,25 +240,25 @@ func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode
 	signal.Notify(osSignalUsrChannel, syscall.SIGUSR1)
 	signal.Notify(osSignalUsrChannel, syscall.SIGUSR2)
 
-	lastMainRestart = time.Now().Unix()
-	shutdownChannel := make(chan bool)
-	waitGroupInit := &sync.WaitGroup{}
-	waitGroupListener := &sync.WaitGroup{}
-	waitGroupPeers := &sync.WaitGroup{}
+	lmd.lastMainRestart = time.Now().Unix()
+	lmd.shutdownChannel = make(chan bool)
+	lmd.waitGroupInit = &sync.WaitGroup{}
+	lmd.waitGroupListener = &sync.WaitGroup{}
+	lmd.waitGroupPeers = &sync.WaitGroup{}
 
 	if len(localConfig.Listen) == 0 {
 		log.Fatalf("no listeners defined")
 	}
 
-	if flagProfile != "" {
-		log.Warnf("pprof profiler listening at %s", flagProfile)
+	if lmd.flags.flagProfile != "" {
+		log.Warnf("pprof profiler listening at %s", lmd.flags.flagProfile)
 	}
 
-	once.Do(PrintVersion)
+	once.Do(lmd.PrintVersion)
 	localConfig.LogConfig()
 
 	// initialize prometheus
-	prometheusListener := initPrometheus(localConfig)
+	prometheusListener := initPrometheus(lmd)
 
 	var qStat *QueryStats
 	if localConfig.LogQueryStats {
@@ -256,20 +267,20 @@ func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode
 	}
 
 	// start local listeners
-	initializeListeners(localConfig, waitGroupListener, waitGroupInit, qStat)
+	lmd.initializeListeners(qStat)
 
 	// start remote connections
-	if flagImport != "" {
-		mainImport(localConfig, waitGroupPeers, waitGroupInit, shutdownChannel, flagImport, osSignalChannel)
+	if lmd.flags.flagImport != "" {
+		lmd.mainImport(lmd.flags.flagImport, osSignalChannel)
 	} else {
 		if len(localConfig.Connections) == 0 {
 			log.Fatalf("no connections defined")
 		}
-		initializePeers(localConfig, waitGroupPeers, waitGroupInit, shutdownChannel)
+		lmd.initializePeers()
 	}
 
-	if initChannel != nil {
-		initChannel <- true
+	if lmd.initChannel != nil {
+		lmd.initChannel <- true
 	}
 
 	// make garbagabe collectore more aggressive
@@ -282,11 +293,11 @@ func mainLoop(mainSignalChannel chan os.Signal, initChannel chan bool) (exitCode
 	for {
 		select {
 		case sig := <-osSignalChannel:
-			return mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener, qStat)
+			return lmd.mainSignalHandler(sig, prometheusListener, qStat)
 		case sig := <-osSignalUsrChannel:
-			mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener, qStat)
-		case sig := <-mainSignalChannel:
-			return mainSignalHandler(sig, shutdownChannel, waitGroupPeers, waitGroupListener, prometheusListener, qStat)
+			lmd.mainSignalHandler(sig, prometheusListener, qStat)
+		case sig := <-lmd.mainSignalChannel:
+			return lmd.mainSignalHandler(sig, prometheusListener, qStat)
 		case <-statsTimer.C:
 			updateStatistics(qStat)
 		}
@@ -302,42 +313,42 @@ func buildSignalChannel() chan os.Signal {
 	return osSignalChannel
 }
 
-func mainImport(localConfig *Config, waitGroupPeers *sync.WaitGroup, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool, importFile string, osSignalChannel chan os.Signal) {
+func (lmd *LMDInstance) mainImport(importFile string, osSignalChannel chan os.Signal) {
 	go func() {
 		sig := <-osSignalChannel
-		mainSignalHandler(sig, shutdownChannel, waitGroupPeers, nil, nil, nil)
+		lmd.mainSignalHandler(sig, nil, nil)
 		os.Exit(1)
 	}()
-	err := initializePeersWithImport(localConfig, waitGroupPeers, waitGroupInit, shutdownChannel, importFile)
+	err := initializePeersWithImport(lmd, importFile)
 	if err != nil {
 		log.Fatalf("%s", err)
 	}
 }
 
-func mainExport() {
+func (lmd *LMDInstance) mainExport() {
 	osSignalChannel := buildSignalChannel()
 	go func() {
 		<-osSignalChannel
 		os.Exit(1)
 	}()
-	err := exportData(flagExport)
+	err := exportData(lmd)
 	if err != nil {
 		log.Fatalf("export failed: %s", err)
 	}
-	log.Infof("exported %d peers successfully", len(PeerMapOrder))
+	log.Infof("exported %d peers successfully", len(lmd.PeerMapOrder))
 }
 
-func ApplyFlags(conf *Config) {
-	if flagLogFile != "" {
-		conf.LogFile = flagLogFile
+func (lmd *LMDInstance) ApplyFlags(conf *Config) {
+	if lmd.flags.flagLogFile != "" {
+		conf.LogFile = lmd.flags.flagLogFile
 	}
-	if flagVerbose {
+	if lmd.flags.flagVerbose {
 		conf.LogLevel = "Info"
 	}
-	if flagVeryVerbose {
+	if lmd.flags.flagVeryVerbose {
 		conf.LogLevel = "Debug"
 	}
-	if flagTraceVerbose {
+	if lmd.flags.flagTraceVerbose {
 		conf.LogLevel = "Trace"
 	}
 }
@@ -347,47 +358,44 @@ func Version() string {
 	return fmt.Sprintf("%s (Build: %s, %s)", VERSION, Build, runtime.Version())
 }
 
-func initializeListeners(localConfig *Config, waitGroupListener *sync.WaitGroup, waitGroupInit *sync.WaitGroup, qStat *QueryStats) {
+func (lmd *LMDInstance) initializeListeners(qStat *QueryStats) {
 	ListenersNew := make(map[string]*Listener)
 
 	// close all listeners which are no longer defined
-	ListenersLock.Lock()
-	for con, l := range Listeners {
+	lmd.ListenersLock.Lock()
+	for con, l := range lmd.Listeners {
 		found := false
-		for _, listen := range localConfig.Listen {
+		for _, listen := range lmd.Config.Listen {
 			if listen == con {
 				found = true
 				break
 			}
 		}
 		if !found {
-			delete(Listeners, con)
-			l.Connection.Close()
+			delete(lmd.Listeners, con)
+			l.Stop()
 		}
 	}
 
 	// open new listeners
-	for _, listen := range localConfig.Listen {
-		if l, ok := Listeners[listen]; ok {
-			l.Lock.Lock()
-			l.GlobalConfig = localConfig
-			l.Lock.Unlock()
+	for _, listen := range lmd.Config.Listen {
+		if l, ok := lmd.Listeners[listen]; ok {
 			ListenersNew[listen] = l
 		} else {
-			waitGroupInit.Add(1)
-			l := NewListener(localConfig, listen, waitGroupInit, waitGroupListener, qStat)
+			lmd.waitGroupInit.Add(1)
+			l := NewListener(lmd, listen, qStat)
 			ListenersNew[listen] = l
 		}
 	}
 
-	Listeners = ListenersNew
-	ListenersLock.Unlock()
+	lmd.Listeners = ListenersNew
+	lmd.ListenersLock.Unlock()
 }
 
-func initializePeers(localConfig *Config, waitGroupPeers *sync.WaitGroup, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) {
+func (lmd *LMDInstance) initializePeers() {
 	// This node's http address (http://*:1234), to be used as address pattern
 	var nodeListenAddress string
-	for _, listen := range localConfig.Listen {
+	for _, listen := range lmd.Config.Listen {
 		parts := reHTTPHostPort.FindStringSubmatch(listen)
 		if len(parts) != 4 {
 			continue
@@ -397,48 +405,47 @@ func initializePeers(localConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 	}
 
 	// Get rid of obsolete peers (removed from config)
-	PeerMapLock.Lock()
-	for id := range PeerMap {
+	lmd.PeerMapLock.Lock()
+	for id := range lmd.PeerMap {
 		found := false // id exists
-		for i := range localConfig.Connections {
-			if localConfig.Connections[i].ID == id {
+		for i := range lmd.Config.Connections {
+			if lmd.Config.Connections[i].ID == id {
 				found = true
 			}
 		}
 		if !found {
-			p := PeerMap[id]
+			p := lmd.PeerMap[id]
 			p.Stop()
 			p.ClearData(true)
-			PeerMapRemove(id)
+			lmd.PeerMapRemove(id)
 		}
 	}
-	PeerMapLock.Unlock()
+	lmd.PeerMapLock.Unlock()
 
 	// Create/set Peer objects
 	PeerMapNew := make(map[string]*Peer)
 	PeerMapOrderNew := make([]string, 0)
-	backends := make([]string, 0, len(localConfig.Connections))
-	for i := range localConfig.Connections {
-		c := localConfig.Connections[i]
+	backends := make([]string, 0, len(lmd.Config.Connections))
+	for i := range lmd.Config.Connections {
+		c := lmd.Config.Connections[i]
 		// Keep peer if connection settings unchanged
 		var p *Peer
-		PeerMapLock.RLock()
-		if v, ok := PeerMap[c.ID]; ok {
+		lmd.PeerMapLock.RLock()
+		if v, ok := lmd.PeerMap[c.ID]; ok {
 			if c.Equals(v.Config) {
 				p = v
 				p.Lock.Lock()
-				p.waitGroup = waitGroupPeers
-				p.shutdownChannel = shutdownChannel
-				p.GlobalConfig = localConfig
+				p.waitGroup = lmd.waitGroupPeers
+				p.shutdownChannel = lmd.shutdownChannel
 				p.SetHTTPClient()
 				p.Lock.Unlock()
 			}
 		}
-		PeerMapLock.RUnlock()
+		lmd.PeerMapLock.RUnlock()
 
 		// Create new peer otherwise
 		if p == nil {
-			p = NewPeer(localConfig, &c, waitGroupPeers, shutdownChannel)
+			p = NewPeer(lmd, &c)
 		}
 
 		// Check for duplicate id
@@ -455,27 +462,27 @@ func initializePeers(localConfig *Config, waitGroupPeers *sync.WaitGroup, waitGr
 		// Peer started later in node redistribution routine
 	}
 
-	PeerMapLock.Lock()
-	PeerMapOrder = PeerMapOrderNew
-	PeerMap = PeerMapNew
-	PeerMapLock.Unlock()
+	lmd.PeerMapLock.Lock()
+	lmd.PeerMapOrder = PeerMapOrderNew
+	lmd.PeerMap = PeerMapNew
+	lmd.PeerMapLock.Unlock()
 
 	// Node accessor
-	nodeAddresses := localConfig.Nodes
-	nodeAccessor = NewNodes(localConfig, nodeAddresses, nodeListenAddress, waitGroupInit, shutdownChannel)
-	nodeAccessor.Initialize() // starts peers in single mode
-	nodeAccessor.Start()      // nodes loop starts/stops peers in cluster mode
+	nodeAddresses := lmd.Config.Nodes
+	lmd.nodeAccessor = NewNodes(lmd, nodeAddresses, nodeListenAddress)
+	lmd.nodeAccessor.Initialize() // starts peers in single mode
+	lmd.nodeAccessor.Start()      // nodes loop starts/stops peers in cluster mode
 }
 
-func checkFlags() {
+func (lmd *LMDInstance) checkFlags() {
 	flag.Parse()
-	if flagVersion {
+	if lmd.flags.flagVersion {
 		fmt.Printf("%s - version %s\n", NAME, Version())
 		os.Exit(ExitCritical)
 	}
 
-	if flagProfile != "" {
-		if flagCPUProfile != "" || flagMemProfile != "" {
+	if lmd.flags.flagProfile != "" {
+		if lmd.flags.flagCPUProfile != "" || lmd.flags.flagMemProfile != "" {
 			fmt.Print("ERROR: either use -debug-profile or -cpu/memprofile, not both\n")
 			os.Exit(ExitCritical)
 		}
@@ -483,17 +490,17 @@ func checkFlags() {
 		runtime.SetMutexProfileFraction(BlockProfileRateInterval)
 		go func() {
 			// make sure we log panics properly
-			defer logPanicExit()
-			err := http.ListenAndServe(flagProfile, http.DefaultServeMux)
+			defer lmd.logPanicExit()
+			err := http.ListenAndServe(lmd.flags.flagProfile, http.DefaultServeMux)
 			if err != nil {
 				log.Debugf("http.ListenAndServe finished with: %e", err)
 			}
 		}()
 	}
 
-	if flagCPUProfile != "" {
+	if lmd.flags.flagCPUProfile != "" {
 		runtime.SetBlockProfileRate(BlockProfileRateInterval)
-		cpuProfileHandler, err := os.Create(flagCPUProfile)
+		cpuProfileHandler, err := os.Create(lmd.flags.flagCPUProfile)
 		if err != nil {
 			fmt.Printf("ERROR: could not create CPU profile: %s", err.Error())
 			os.Exit(ExitCritical)
@@ -504,20 +511,20 @@ func checkFlags() {
 		}
 	}
 
-	if flagDeadlock <= 0 {
+	if lmd.flags.flagDeadlock <= 0 {
 		deadlock.Opts.Disable = true
 	} else {
 		deadlock.Opts.Disable = false
-		deadlock.Opts.DeadlockTimeout = time.Duration(flagDeadlock) * time.Second
+		deadlock.Opts.DeadlockTimeout = time.Duration(lmd.flags.flagDeadlock) * time.Second
 		deadlock.Opts.LogBuf = NewLogWriter("Error")
 	}
 
-	if flagImport != "" && flagExport != "" {
+	if lmd.flags.flagImport != "" && lmd.flags.flagExport != "" {
 		fmt.Printf("ERROR: cannot use import and export at the same time.")
 		os.Exit(ExitCritical)
 	}
 
-	createPidFile(flagPidfile)
+	createPidFile(lmd.flags.flagPidfile)
 }
 
 func createPidFile(path string) {
@@ -561,16 +568,16 @@ func deletePidFile(f string) {
 	}
 }
 
-func onExit(qStat *QueryStats) {
-	deletePidFile(flagPidfile)
+func (lmd *LMDInstance) onExit(qStat *QueryStats) {
+	deletePidFile(lmd.flags.flagPidfile)
 	if qStat != nil {
 		close(qStat.In)
 		qStat = nil
 	}
-	if flagCPUProfile != "" {
+	if lmd.flags.flagCPUProfile != "" {
 		pprof.StopCPUProfile()
-		cpuProfileHandler.Close()
-		log.Warnf("cpu profile written to: %s", flagCPUProfile)
+		lmd.cpuProfileHandler.Close()
+		log.Warnf("cpu profile written to: %s", lmd.flags.flagCPUProfile)
 	}
 }
 
@@ -668,44 +675,44 @@ func NewLMDHTTPClient(tlsConfig *tls.Config, proxy string) *http.Client {
 	return netClient
 }
 
-func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers *sync.WaitGroup, waitGroupListener *sync.WaitGroup, prometheusListener io.Closer, qStat *QueryStats) (exitCode int) {
+func (lmd *LMDInstance) mainSignalHandler(sig os.Signal, prometheusListener io.Closer, qStat *QueryStats) (exitCode int) {
 	switch sig {
 	case syscall.SIGTERM:
 		log.Infof("got sigterm, quiting gracefully")
-		close(shutdownChannel)
-		ListenersLock.Lock()
-		for con, l := range Listeners {
-			delete(Listeners, con)
-			l.Connection.Close()
+		close(lmd.shutdownChannel)
+		lmd.ListenersLock.Lock()
+		for con, l := range lmd.Listeners {
+			delete(lmd.Listeners, con)
+			l.Stop()
 		}
-		ListenersLock.Unlock()
+		lmd.ListenersLock.Unlock()
 		if prometheusListener != nil {
 			prometheusListener.Close()
 		}
-		waitGroupListener.Wait()
-		waitGroupPeers.Wait()
-		onExit(qStat)
+		lmd.waitGroupListener.Wait()
+		lmd.waitGroupPeers.Wait()
+		lmd.onExit(qStat)
 		return (0)
 	case syscall.SIGINT:
 		fallthrough
 	case os.Interrupt:
 		log.Infof("got sigint, quitting")
-		close(shutdownChannel)
-		ListenersLock.Lock()
-		for con, l := range Listeners {
-			delete(Listeners, con)
-			l.Connection.Close()
+		close(lmd.shutdownChannel)
+		lmd.ListenersLock.Lock()
+		for con, l := range lmd.Listeners {
+			delete(lmd.Listeners, con)
+			l.Stop()
 		}
-		ListenersLock.Unlock()
+		lmd.ListenersLock.Unlock()
 		if prometheusListener != nil {
 			prometheusListener.Close()
 		}
 		// wait one second which should be enough for the listeners
-		if waitGroupListener != nil {
-			waitTimeout(waitGroupListener, time.Second)
+		if lmd.waitGroupListener != nil {
+			waitTimeout(lmd.waitGroupListener, time.Second)
 		}
 		if qStat != nil {
-			onExit(qStat)
+			lmd.onExit(qStat)
 		}
 		return (1)
 	case syscall.SIGHUP:
@@ -719,11 +726,11 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		logThreaddump()
 		return (0)
 	case syscall.SIGUSR2:
-		if flagMemProfile == "" {
+		if lmd.flags.flagMemProfile == "" {
 			log.Errorf("requested memory profile, but flag -memprofile missing")
 			return (0)
 		}
-		f, err := os.Create(flagMemProfile)
+		f, err := os.Create(lmd.flags.flagMemProfile)
 		if err != nil {
 			log.Errorf("could not create memory profile: %s", err.Error())
 		}
@@ -732,7 +739,7 @@ func mainSignalHandler(sig os.Signal, shutdownChannel chan bool, waitGroupPeers 
 		if err := pprof.WriteHeapProfile(f); err != nil {
 			log.Errorf("could not write memory profile: %s", err.Error())
 		}
-		log.Warnf("memory profile written to: %s", flagMemProfile)
+		log.Warnf("memory profile written to: %s", lmd.flags.flagMemProfile)
 		return (0)
 	default:
 		log.Warnf("Signal not handled: %v", sig)
@@ -771,16 +778,16 @@ func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 }
 
 // PrintVersion prints the version
-func PrintVersion() {
-	fmt.Printf("%s - version %s started with config %s\n", NAME, Version(), flagConfigFile)
+func (lmd *LMDInstance) PrintVersion() {
+	fmt.Printf("%s - version %s started with config %s\n", NAME, Version(), lmd.flags.flagConfigFile)
 }
 
-func logPanicExit() {
+func (lmd *LMDInstance) logPanicExit() {
 	if r := recover(); r != nil {
 		log.Errorf("Panic: %s", r)
 		log.Errorf("Version: %s", Version())
 		log.Errorf("%s", debug.Stack())
-		deletePidFile(flagPidfile)
+		deletePidFile(lmd.flags.flagPidfile)
 		os.Exit(ExitCritical)
 	}
 }
@@ -793,15 +800,15 @@ func timeOrNever(timestamp int64) string {
 }
 
 // PeerMapRemove deletes a peer from PeerMap and PeerMapOrder
-func PeerMapRemove(peerID string) {
+func (lmd *LMDInstance) PeerMapRemove(peerID string) {
 	// find id in order array
-	for i, id := range PeerMapOrder {
+	for i, id := range lmd.PeerMapOrder {
 		if id == peerID {
-			PeerMapOrder = append(PeerMapOrder[:i], PeerMapOrder[i+1:]...)
+			lmd.PeerMapOrder = append(lmd.PeerMapOrder[:i], lmd.PeerMapOrder[i+1:]...)
 			break
 		}
 	}
-	delete(PeerMap, peerID)
+	delete(lmd.PeerMap, peerID)
 }
 
 // completePeerHTTPAddr returns autocompleted address for peer
@@ -857,15 +864,15 @@ func fmtHTTPerr(req *http.Request, err error) string {
 	return (fmt.Sprintf("%v", err))
 }
 
-func finalFlagsConfig(stdoutLogging bool) *Config {
-	localConfig := NewConfig(flagConfigFile)
+func (lmd *LMDInstance) finalFlagsConfig(stdoutLogging bool) *Config {
+	localConfig := NewConfig(lmd.flags.flagConfigFile)
 	if stdoutLogging {
 		localConfig.LogLevel = "info"
 		localConfig.LogFile = "stdout"
 	}
-	applyArgFlags(flagCfgOption, localConfig)
+	applyArgFlags(lmd.flags.flagCfgOption, localConfig)
 	localConfig.ValidateConfig()
-	ApplyFlags(localConfig)
+	lmd.ApplyFlags(localConfig)
 	InitLogging(localConfig)
 	localConfig.SetServiceAuthorization()
 	localConfig.SetGroupAuthorization()

@@ -9,9 +9,6 @@ type ObjectsType struct {
 	StatusTables []TableName
 }
 
-// Objects contains the static definition of all available tables and columns
-var Objects *ObjectsType
-
 // InitObjects creates the initial table object structures.
 func InitObjects() {
 	if Objects != nil {

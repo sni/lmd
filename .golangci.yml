@@ -31,7 +31,6 @@ linters:
   disable:
     - maligned
     - nakedret
-    - gochecknoglobals
     - lll
     - gochecknoinits
     - wsl
@@ -100,6 +99,18 @@ issues:
     - "func .*noCopy.* is unused"
     - "Use of weak random number generator"
     - "Error return value of `log.Output` is not checked"
+    - "prom.* is a global variable"
+    - "Build is a global variable"
+    - "log is a global variable"
+    - "once is a global variable"
+    - "empty.* is a global variable"
+    - "Objects is a global variable"
+    - "CompressionLevel is a global variable"
+    - "CompressionMinimumSize is a global variable"
+    - "defaultParseOptimizer is a global variable"
+    - "VirtualColumnMap is a global variable"
+    - "VirtualColumnList is a global variable"
+    - "OptionalFlagsStrings is a global variable"
   exclude-rules:
     # Exclude some linters from running on tests files.
     - path: _test\.go

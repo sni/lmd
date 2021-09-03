@@ -33,6 +33,7 @@ type Nodes struct {
 	assignedBackends []string
 	nodeBackends     map[string][]string
 	stopChannel      chan bool
+	lmd              *LMDInstance
 }
 
 // NodeAddress contains the ip of a node (plus url/port, if necessary)
@@ -68,17 +69,18 @@ func (a *NodeAddressList) String() string {
 }
 
 // NewNodes creates a new cluster manager.
-func NewNodes(localConfig *Config, addresses []string, listen string, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool) *Nodes {
+func NewNodes(lmd *LMDInstance, addresses []string, listen string) *Nodes {
 	n := &Nodes{
-		WaitGroupInit:   waitGroupInit,
-		ShutdownChannel: shutdownChannel,
+		WaitGroupInit:   lmd.waitGroupInit,
+		ShutdownChannel: lmd.shutdownChannel,
 		stopChannel:     make(chan bool),
 		nodeBackends:    make(map[string][]string),
+		lmd:             lmd,
 	}
-	tlsConfig := getMinimalTLSConfig(localConfig)
+	tlsConfig := getMinimalTLSConfig(lmd.Config)
 	n.HTTPClient = NewLMDHTTPClient(tlsConfig, "")
-	for i := range localConfig.Connections {
-		n.backends = append(n.backends, localConfig.Connections[i].ID)
+	for i := range lmd.Config.Connections {
+		n.backends = append(n.backends, lmd.Config.Connections[i].ID)
 	}
 	partsListen := reNodeAddress.FindStringSubmatch(listen)
 	for _, address := range addresses {
@@ -163,14 +165,14 @@ func (n *Nodes) Initialize() {
 
 	// Start all peers in single mode
 	if !n.IsClustered() {
-		PeerMapLock.RLock()
-		for id := range PeerMap {
-			peer := PeerMap[id]
+		n.lmd.PeerMapLock.RLock()
+		for id := range n.lmd.PeerMap {
+			peer := n.lmd.PeerMap[id]
 			if peer.StatusGet(Paused).(bool) {
 				peer.Start()
 			}
 		}
-		PeerMapLock.RUnlock()
+		n.lmd.PeerMapLock.RUnlock()
 	}
 
 	// Send first ping (detect own ip) and wait for it to finish
@@ -190,7 +192,7 @@ func (n *Nodes) Start() {
 
 	// Start loop in background
 	go func() {
-		defer logPanicExit()
+		defer n.lmd.logPanicExit()
 		n.loop()
 	}()
 }
@@ -246,7 +248,7 @@ func (n *Nodes) checkNodeAvailability() {
 		log.Tracef("pinging node %s...", node)
 		wg.Add(1)
 		go func(wg *sync.WaitGroup, node *NodeAddress) {
-			defer logPanicExit()
+			defer n.lmd.logPanicExit()
 			isOnline, forceRedistribute := n.sendPing(node, initializing, requestData)
 			if forceRedistribute {
 				redistribute = true
@@ -339,9 +341,9 @@ func (n *Nodes) redistribute() {
 
 func (n *Nodes) updateBackends(ourBackends []string) {
 	// append sub peers
-	PeerMapLock.RLock()
-	for id := range PeerMap {
-		p := PeerMap[id]
+	n.lmd.PeerMapLock.RLock()
+	for id := range n.lmd.PeerMap {
+		p := n.lmd.PeerMap[id]
 		if p.ParentID == "" {
 			continue
 		}
@@ -352,7 +354,7 @@ func (n *Nodes) updateBackends(ourBackends []string) {
 			}
 		}
 	}
-	PeerMapLock.RUnlock()
+	n.lmd.PeerMapLock.RUnlock()
 
 	// Determine backends this node is now (not anymore) responsible for
 	var addBackends []string
@@ -386,17 +388,17 @@ func (n *Nodes) updateBackends(ourBackends []string) {
 	n.assignedBackends = ourBackends
 
 	// Start/stop backends
-	PeerMapLock.RLock()
+	n.lmd.PeerMapLock.RLock()
 	for _, oldBackend := range rmvBackends {
-		peer := PeerMap[oldBackend]
+		peer := n.lmd.PeerMap[oldBackend]
 		peer.Stop()
 		peer.ClearData(true)
 	}
 	for _, newBackend := range addBackends {
-		peer := PeerMap[newBackend]
+		peer := n.lmd.PeerMap[newBackend]
 		peer.Start()
 	}
-	PeerMapLock.RUnlock()
+	n.lmd.PeerMapLock.RUnlock()
 }
 
 func (n *Nodes) getOnlineNodes() (ownIndex int, nodeOnline []bool, numberAllNodes int, numberAvailableNodes int) {
@@ -425,7 +427,7 @@ func (n *Nodes) getOnlineNodes() (ownIndex int, nodeOnline []bool, numberAllNode
 
 // IsOurBackend checks if backend is managed by this node.
 func (n *Nodes) IsOurBackend(backend string) bool {
-	if !nodeAccessor.IsClustered() {
+	if !n.lmd.nodeAccessor.IsClustered() {
 		return true
 	}
 	ourBackends := n.assignedBackends
@@ -494,7 +496,7 @@ func (n *Nodes) SendQuery(node *NodeAddress, name string, parameters map[string]
 
 	// Trigger callback
 	go func() {
-		defer logPanicExit()
+		defer n.lmd.logPanicExit()
 		log.Tracef("calling callback for query (%s)", name)
 		callback(responseData)
 	}()

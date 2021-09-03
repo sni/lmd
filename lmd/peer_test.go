@@ -5,15 +5,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"sync"
 	"testing"
 )
 
 func TestPeerSource(t *testing.T) {
-	waitGroup := &sync.WaitGroup{}
-	shutdownChannel := make(chan bool)
+	lmd := createTestLMDInstance()
 	connection := Connection{Name: "Test", Source: []string{"http://localhost/test/", "http://clusternode/test"}}
-	peer := NewPeer(&Config{}, &connection, waitGroup, shutdownChannel)
+	peer := NewPeer(lmd, &connection)
 
 	if err := assertEq("http://localhost/test/", peer.Source[0]); err != nil {
 		t.Error(err)
@@ -49,7 +47,8 @@ func TestPeerHTTPComplete(t *testing.T) {
 }
 
 func TestParseResultJSON(t *testing.T) {
-	req, _, err := NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
+	lmd := createTestLMDInstance()
+	req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -78,7 +77,8 @@ func TestParseResultJSON(t *testing.T) {
 }
 
 func TestParseResultWrappedJSON(t *testing.T) {
-	req, _, err := NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: wrapped_json\n")), ParseOptimize)
+	lmd := createTestLMDInstance()
+	req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: wrapped_json\n")), ParseOptimize)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -111,7 +111,8 @@ func TestParseResultWrappedJSON(t *testing.T) {
 }
 
 func TestParseResultJSONBroken(t *testing.T) {
-	req, _, err := NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
+	lmd := createTestLMDInstance()
+	req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -134,7 +135,8 @@ func TestParseResultJSONBroken(t *testing.T) {
 }
 
 func TestParseResultJSONBroken2(t *testing.T) {
-	req, _, err := NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
+	lmd := createTestLMDInstance()
+	req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -157,7 +159,8 @@ func TestParseResultJSONBroken2(t *testing.T) {
 }
 
 func TestParseResultJSONEscapeSequences(t *testing.T) {
-	req, _, err := NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name\nOutputFormat: json\n")), ParseOptimize)
+	lmd := createTestLMDInstance()
+	req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name\nOutputFormat: json\n")), ParseOptimize)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -181,7 +184,7 @@ func TestParseResultJSONEscapeSequences(t *testing.T) {
 }
 
 func TestPeerUpdate(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	err := peer.data.UpdateFull(Objects.UpdateTables)
@@ -224,13 +227,13 @@ func TestPeerUpdate(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestPeerDeltaUpdate(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	err := peer.data.UpdateDelta(0, 0)
@@ -238,13 +241,13 @@ func TestPeerDeltaUpdate(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestPeerUpdateResume(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	err := peer.ResumeFromIdle()
@@ -252,13 +255,13 @@ func TestPeerUpdateResume(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestPeerInitSerial(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	err := peer.initAllTablesSerial(peer.data)
@@ -266,13 +269,13 @@ func TestPeerInitSerial(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestLMDPeerUpdate(t *testing.T) {
-	peer := StartTestPeer(3, 10, 10)
+	peer, cleanup, _ := StartTestPeer(3, 10, 10)
 	PauseTestPeers(peer)
 
 	peer.StatusSet(LastUpdate, int64(0))
@@ -291,13 +294,13 @@ func TestLMDPeerUpdate(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestPeerLog(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	peer.setBroken("test")
@@ -310,7 +313,7 @@ func TestPeerLog(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }

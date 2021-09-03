@@ -9,10 +9,10 @@ import (
 )
 
 func TestRequestStatsTac(t *testing.T) {
-	peer := StartTestPeer(4, 10, 10)
+	peer, cleanup, _ := StartTestPeer(4, 10, 10)
 	PauseTestPeers(peer)
 
-	if err := assertEq(4, len(PeerMap)); err != nil {
+	if err := assertEq(4, len(peer.lmd.PeerMap)); err != nil {
 		t.Error(err)
 	}
 
@@ -59,7 +59,7 @@ func TestRequestStatsTac(t *testing.T) {
 	}
 
 	defaultParseOptimizer = oldParser
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }

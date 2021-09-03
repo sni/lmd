@@ -170,7 +170,7 @@ func (ds *DataStoreSet) UpdateDelta(from, to int64) (err error) {
 		return
 	}
 
-	updateOffset := ds.peer.GlobalConfig.UpdateOffset
+	updateOffset := ds.peer.lmd.Config.UpdateOffset
 
 	filterStr := ""
 	if from > 0 {
@@ -181,7 +181,7 @@ func (ds *DataStoreSet) UpdateDelta(from, to int64) (err error) {
 			filterStr = fmt.Sprintf("Filter: last_update >= %v\nFilter: last_update < %v\nAnd: 2\n", from-updateOffset, to-updateOffset)
 		default:
 			filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: last_check < %v\nAnd: 2\n", from-updateOffset, to-updateOffset)
-			if ds.peer.GlobalConfig.SyncIsExecuting && !ds.peer.HasFlag(Shinken) {
+			if ds.peer.lmd.Config.SyncIsExecuting && !ds.peer.HasFlag(Shinken) {
 				filterStr += "\nFilter: is_executing = 1\nOr: 2\n"
 			}
 		}
@@ -478,7 +478,7 @@ func (ds *DataStoreSet) getMissingTimestamps(store *DataStore, res ResultSet, co
 	}
 
 	missedUnique := make(map[int64]bool)
-	updateThreshold := time.Now().Unix() - ds.peer.GlobalConfig.UpdateOffset
+	updateThreshold := time.Now().Unix() - ds.peer.lmd.Config.UpdateOffset
 	for i, row := range res {
 		if data[i].CheckChangedIntValues(0, row, columns) {
 			ts := interface2int64(row[0])

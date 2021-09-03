@@ -17,27 +17,30 @@ type Exporter struct {
 	group      *user.Group
 	tar        *tar.Writer
 	exportTime time.Time
-	config     *Config
+	lmd        *LMDInstance
 }
 
 // export peer data to tarball containing json files
-func exportData(file string) (err error) {
-	localConfig := finalFlagsConfig(true)
+func exportData(lmd *LMDInstance) (err error) {
+	file := lmd.flags.flagExport
+	localConfig := lmd.finalFlagsConfig(true)
+	lmd.Config = localConfig
 	log.Infof("starting export to %s", file)
 
 	if len(localConfig.Connections) == 0 {
 		return fmt.Errorf("no connections defined")
 	}
 
-	ex := &Exporter{}
-	err = ex.Export(file, localConfig)
+	ex := &Exporter{
+		lmd: lmd,
+	}
+	err = ex.Export(file)
 
 	return
 }
 
-func (ex *Exporter) Export(file string, localConfig *Config) (err error) {
-	ex.config = localConfig
-	ex.initPeers(ex.config)
+func (ex *Exporter) Export(file string) (err error) {
+	ex.initPeers()
 
 	userinfo, err := user.Current()
 	if err != nil {
@@ -79,10 +82,10 @@ func (ex *Exporter) exportPeers() (err error) {
 	if err != nil {
 		return
 	}
-	PeerMapLock.RLock()
-	defer PeerMapLock.RUnlock()
-	for _, id := range PeerMapOrder {
-		p := PeerMap[id]
+	ex.lmd.PeerMapLock.RLock()
+	defer ex.lmd.PeerMapLock.RUnlock()
+	for _, id := range ex.lmd.PeerMapOrder {
+		p := ex.lmd.PeerMap[id]
 		if p.HasFlag(MultiBackend) {
 			continue
 		}
@@ -145,6 +148,7 @@ func (ex *Exporter) addTable(p *Peer, t *Table) (written int64, err error) {
 		ResponseFixed16: true,
 		OutputFormat:    OutputFormatJSON,
 		Backends:        []string{p.ID},
+		lmd:             ex.lmd,
 	}
 	err = req.ExpandRequestedBackends()
 	if err != nil {
@@ -183,21 +187,21 @@ func (ex *Exporter) addTable(p *Peer, t *Table) (written int64, err error) {
 	return
 }
 
-func (ex *Exporter) initPeers(localConfig *Config) {
+func (ex *Exporter) initPeers() {
 	log.Debugf("starting peers")
 	waitGroupPeers := &sync.WaitGroup{}
 	shutdownChannel := make(chan bool)
 	defer close(shutdownChannel)
-	nodeAccessor = NewNodes(localConfig, []string{}, "", waitGroupPeers, shutdownChannel)
+	ex.lmd.nodeAccessor = NewNodes(ex.lmd, []string{}, "")
 
-	for i := range localConfig.Connections {
-		c := localConfig.Connections[i]
-		p := NewPeer(localConfig, &c, nil, shutdownChannel)
+	for i := range ex.lmd.Config.Connections {
+		c := ex.lmd.Config.Connections[i]
+		p := NewPeer(ex.lmd, &c)
 		log.Debugf("creating peer: %s", p.Name)
-		PeerMapLock.Lock()
-		PeerMap[p.ID] = p
-		PeerMapOrder = append(PeerMapOrder, p.ID)
-		PeerMapLock.Unlock()
+		ex.lmd.PeerMapLock.Lock()
+		ex.lmd.PeerMap[p.ID] = p
+		ex.lmd.PeerMapOrder = append(ex.lmd.PeerMapOrder, p.ID)
+		ex.lmd.PeerMapLock.Unlock()
 		waitGroupPeers.Add(1)
 		go func() {
 			// make sure we log panics properly
@@ -214,11 +218,11 @@ func (ex *Exporter) initPeers(localConfig *Config) {
 	log.Infof("waiting for all peers to connect and initialize")
 	waitGroupPeers.Wait()
 
-	PeerMapLock.RLock()
-	defer PeerMapLock.RUnlock()
+	ex.lmd.PeerMapLock.RLock()
+	defer ex.lmd.PeerMapLock.RUnlock()
 	hasSubPeers := false
-	for _, id := range PeerMapOrder {
-		p := PeerMap[id]
+	for _, id := range ex.lmd.PeerMapOrder {
+		p := ex.lmd.PeerMap[id]
 		if p.ParentID == "" {
 			continue
 		}

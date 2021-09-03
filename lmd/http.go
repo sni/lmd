@@ -11,6 +11,7 @@ import (
 
 // HTTPServerController is the container object for the rest interface's server.
 type HTTPServerController struct {
+	lmd *LMDInstance
 }
 
 func (c *HTTPServerController) errorOutput(err error, w http.ResponseWriter) {
@@ -111,10 +112,10 @@ func (c *HTTPServerController) ping(w http.ResponseWriter, request *http.Request
 func (c *HTTPServerController) queryPing(w http.ResponseWriter, _ map[string]interface{}) {
 	// Response data
 	w.Header().Set("Content-Type", "application/json")
-	id := nodeAccessor.ID
+	id := c.lmd.nodeAccessor.ID
 	j := make(map[string]interface{})
 	j["identifier"] = id
-	j["peers"] = nodeAccessor.assignedBackends
+	j["peers"] = c.lmd.nodeAccessor.assignedBackends
 	j["version"] = Version()
 
 	// Send data
@@ -267,11 +268,13 @@ func parseHTTPFilterRequestData(req *Request, val interface{}, prefix string) (e
 	return
 }
 
-func initializeHTTPRouter() (handler http.Handler) {
+func initializeHTTPRouter(lmd *LMDInstance) (handler http.Handler) {
 	router := httprouter.New()
 
 	// Controller
-	controller := &HTTPServerController{}
+	controller := &HTTPServerController{
+		lmd: lmd,
+	}
 
 	// Routes
 	router.GET("/", controller.index)

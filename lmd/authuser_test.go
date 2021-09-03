@@ -8,12 +8,8 @@ import (
  * Tests that only one host entry is returned when setting the AuthUser
  */
 func TestAuthuserHost(t *testing.T) {
-	peer := StartTestPeer(1, 2, 2)
+	peer, cleanup, _ := StartTestPeer(1, 2, 2)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	// Authuser should only see it's own hosts
 	res, _, err := peer.QueryString("GET hosts\nColumns: name state contacts\nAuthUser: authuser\n\n")
@@ -24,7 +20,7 @@ func TestAuthuserHost(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
@@ -33,12 +29,8 @@ func TestAuthuserHost(t *testing.T) {
  * Tests that only two host stats are returned with AuthUser is set
  */
 func TestAuthuserHostStats(t *testing.T) {
-	peer := StartTestPeer(1, 2, 2)
+	peer, cleanup, _ := StartTestPeer(1, 2, 2)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	res, _, err := peer.QueryString("GET hosts\nStats: state = 0\nAuthUser: authuser\n\n")
 	if err != nil {
@@ -48,7 +40,7 @@ func TestAuthuserHostStats(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
@@ -57,12 +49,8 @@ func TestAuthuserHostStats(t *testing.T) {
  * Tests that only one service entries is returned when setting the AuthUser
  */
 func TestAuthuserService(t *testing.T) {
-	peer := StartTestPeer(1, 2, 2)
+	peer, cleanup, _ := StartTestPeer(1, 2, 2)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	// Authuser should only see it's own services
 	res, _, err := peer.QueryString("GET services\nColumns: host_name description state\nAuthUser: authuser\n\n")
@@ -74,7 +62,7 @@ func TestAuthuserService(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
@@ -83,12 +71,8 @@ func TestAuthuserService(t *testing.T) {
  * Tests that only two services stats are returned with AuthUser is set
  */
 func TestAuthuserServiceStats(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	res, _, err := peer.QueryString("GET services\nStats: state = 0\nAuthUser: authuser\n\n")
 	if err != nil {
@@ -98,7 +82,7 @@ func TestAuthuserServiceStats(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
@@ -110,12 +94,8 @@ func TestAuthuserHostgroupsLoose(t *testing.T) {
 	extraConfig := `
 		GroupAuthorization = "loose"
 	`
-	peer := StartTestPeerExtra(1, 2, 2, extraConfig)
+	peer, cleanup, _ := StartTestPeerExtra(1, 2, 2, extraConfig)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	res, _, err := peer.QueryString("GET hostgroups\nColumns: name\nAuthUser: authuser\n\n")
 	if err != nil {
@@ -125,7 +105,7 @@ func TestAuthuserHostgroupsLoose(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
@@ -137,12 +117,8 @@ func TestAuthuserHostgroupsStrict(t *testing.T) {
 	extraConfig := `
 		GroupAuthorization = "strict"
 	`
-	peer := StartTestPeerExtra(1, 2, 2, extraConfig)
+	peer, cleanup, _ := StartTestPeerExtra(1, 2, 2, extraConfig)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	res, _, err := peer.QueryString("GET hostgroups\nColumns: name\nAuthUser: authuser\n\n")
 	if err != nil {
@@ -152,7 +128,7 @@ func TestAuthuserHostgroupsStrict(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
@@ -162,12 +138,8 @@ func TestAuthuserHostgroupsStrict(t *testing.T) {
  * test that when setting the AuthUser header, no servicegroups are returned.
  */
 func TestAuthuserServicegroups(t *testing.T) {
-	peer := StartTestPeer(1, 2, 2)
+	peer, cleanup, _ := StartTestPeer(1, 2, 2)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	res, _, err := peer.QueryString("GET servicegroups\nColumns: name members\nAuthUser: authuser\n\n")
 	if err != nil {
@@ -177,7 +149,7 @@ func TestAuthuserServicegroups(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
@@ -186,12 +158,8 @@ func TestAuthuserServicegroups(t *testing.T) {
  * Tests that only one comment entry is returned when setting the AuthUser
  */
 func TestAuthuserComments(t *testing.T) {
-	peer := StartTestPeer(1, 2, 2)
+	peer, cleanup, _ := StartTestPeer(1, 2, 2)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	res, _, err := peer.QueryString("GET comments\nColumns: author comment\nAuthUser: authuser\n\n")
 	if err != nil {
@@ -201,7 +169,7 @@ func TestAuthuserComments(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
@@ -213,12 +181,8 @@ func TestAuthuserServiceAuth(t *testing.T) {
 	extraConfig := `
 		ServiceAuthorization = "strict"
 	`
-	peer := StartTestPeerExtra(1, 2, 10, extraConfig)
+	peer, cleanup, _ := StartTestPeerExtra(1, 2, 10, extraConfig)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	res, _, err := peer.QueryString("GET services\nColumns: host_name description state contacts\nAuthUser: authuser\n\n")
 	if err != nil {
@@ -228,7 +192,7 @@ func TestAuthuserServiceAuth(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
@@ -237,12 +201,8 @@ func TestAuthuserServiceAuth(t *testing.T) {
  * Tests that only one host entry is returned when setting the AuthUser
  */
 func TestAuthuserHostsbygroup(t *testing.T) {
-	peer := StartTestPeer(1, 2, 2)
+	peer, cleanup, _ := StartTestPeer(1, 2, 2)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	// Authuser should only see it's own hosts
 	res, _, err := peer.QueryString("GET hostsbygroup\nColumns: name state\nAuthUser: authuser\n\n")
@@ -253,7 +213,7 @@ func TestAuthuserHostsbygroup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
@@ -263,12 +223,8 @@ func TestAuthuserHostsbygroup(t *testing.T) {
  * test that when setting the AuthUser header, no servicegroups are returned.
  */
 func TestAuthuserServicesbygroup(t *testing.T) {
-	peer := StartTestPeer(1, 2, 10)
+	peer, cleanup, _ := StartTestPeer(1, 2, 10)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	// Authuser should only see it's own services
 	res, _, err := peer.QueryString("GET servicesbygroup\nColumns: host_name description servicegroup_name\nAuthuser: authuser\n\n")
@@ -279,7 +235,7 @@ func TestAuthuserServicesbygroup(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
@@ -288,12 +244,8 @@ func TestAuthuserServicesbygroup(t *testing.T) {
  * Tests that only one service entries is returned when setting the AuthUser
  */
 func TestAuthuserServicesbyhostgroup(t *testing.T) {
-	peer := StartTestPeer(1, 2, 2)
+	peer, cleanup, _ := StartTestPeer(1, 2, 2)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	// Authuser should only see it's own services
 	res, _, err := peer.QueryString("GET servicesbyhostgroup\nColumns: host_name description state\nAuthUser: authuser\n\n")
@@ -305,7 +257,7 @@ func TestAuthuserServicesbyhostgroup(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }

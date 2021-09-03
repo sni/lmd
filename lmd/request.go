@@ -25,6 +25,7 @@ import (
 type Request struct {
 	noCopy              noCopy
 	id                  string
+	lmd                 *LMDInstance
 	Table               TableName
 	Command             string
 	Columns             []string  // parsed columns field
@@ -163,22 +164,22 @@ var defaultParseOptimizer = ParseOptimize
 
 // ParseRequest reads from a connection and returns a single requests.
 // It returns a the requests and any errors encountered.
-func ParseRequest(ctx context.Context, c net.Conn) (req *Request, err error) {
+func ParseRequest(ctx context.Context, lmd *LMDInstance, c net.Conn) (req *Request, err error) {
 	b := bufio.NewReader(c)
 	localAddr := c.LocalAddr().String()
-	req, size, err := NewRequest(ctx, b, defaultParseOptimizer)
+	req, size, err := NewRequest(ctx, lmd, b, defaultParseOptimizer)
 	promFrontendBytesReceived.WithLabelValues(localAddr).Add(float64(size))
 	return
 }
 
 // ParseRequests reads from a connection and returns all requests read.
 // It returns a list of requests and any errors encountered.
-func ParseRequests(ctx context.Context, c net.Conn) (reqs []*Request, err error) {
+func ParseRequests(ctx context.Context, lmd *LMDInstance, c net.Conn) (reqs []*Request, err error) {
 	b := bufio.NewReader(c)
 	localAddr := c.LocalAddr().String()
 	eof := false
 	for {
-		req, size, err := NewRequest(ctx, b, defaultParseOptimizer)
+		req, size, err := NewRequest(ctx, lmd, b, defaultParseOptimizer)
 		promFrontendBytesReceived.WithLabelValues(localAddr).Add(float64(size))
 		if err != nil {
 			if errors.Is(err, io.EOF) {
@@ -277,7 +278,7 @@ func (req *Request) String() (str string) {
 
 // NewRequest reads a buffer and creates a new request object.
 // It returns the request as long with the number of bytes read and any error.
-func NewRequest(ctx context.Context, b *bufio.Reader, options ParseOptions) (req *Request, size int, err error) {
+func NewRequest(ctx context.Context, lmd *LMDInstance, b *bufio.Reader, options ParseOptions) (req *Request, size int, err error) {
 	firstLine, err := b.ReadString('\n')
 	if err == io.EOF {
 		if firstLine == "" {
@@ -291,7 +292,7 @@ func NewRequest(ctx context.Context, b *bufio.Reader, options ParseOptions) (req
 		return
 	}
 
-	req = &Request{ColumnsHeaders: false, KeepAlive: false}
+	req = &Request{lmd: lmd, ColumnsHeaders: false, KeepAlive: false}
 	ctx = context.WithValue(ctx, CtxRequest, req.ID())
 	size += len(firstLine)
 	firstLine = strings.TrimSpace(firstLine)
@@ -397,7 +398,7 @@ func (req *Request) ParseRequestAction(firstLine *string) (valid bool, err error
 // It returns the Response object and any error encountered.
 func (req *Request) GetResponse() (*Response, error) {
 	// Run single request if possible
-	if nodeAccessor == nil || !nodeAccessor.IsClustered() {
+	if req.lmd.nodeAccessor == nil || !req.lmd.nodeAccessor.IsClustered() {
 		// Single mode (send request and return response)
 		return NewResponse(req)
 	}
@@ -408,7 +409,7 @@ func (req *Request) GetResponse() (*Response, error) {
 	if !allBackendsRequested {
 		isForOurBackends = true
 		for _, backend := range req.Backends {
-			isOurs := nodeAccessor.IsOurBackend(backend)
+			isOurs := req.lmd.nodeAccessor.IsOurBackend(backend)
 			isForOurBackends = isForOurBackends && isOurs
 		}
 	}
@@ -429,10 +430,10 @@ func (req *Request) getDistributedResponse() (*Response, error) {
 
 	// Cluster mode (don't send this request; send sub-requests, build response)
 	var wg sync.WaitGroup
-	collectedDatasets := make(chan ResultSet, len(nodeAccessor.nodeBackends))
-	collectedFailedHashes := make(chan map[string]string, len(nodeAccessor.nodeBackends))
-	for nodeID, nodeBackends := range nodeAccessor.nodeBackends {
-		node := nodeAccessor.Node(nodeID)
+	collectedDatasets := make(chan ResultSet, len(req.lmd.nodeAccessor.nodeBackends))
+	collectedFailedHashes := make(chan map[string]string, len(req.lmd.nodeAccessor.nodeBackends))
+	for nodeID, nodeBackends := range req.lmd.nodeAccessor.nodeBackends {
+		node := req.lmd.nodeAccessor.Node(nodeID)
 		// limit to requested backends if necessary
 		// nodeBackends: all backends handled by current node
 		subBackends := req.getSubBackends(allBackendsRequested, nodeBackends)
@@ -463,7 +464,7 @@ func (req *Request) getDistributedResponse() (*Response, error) {
 		requestData := req.buildDistributedRequestData(subBackends)
 		wg.Add(1)
 		// Send query to remote node
-		err := nodeAccessor.SendQuery(node, "table", requestData, func(responseData interface{}) {
+		err := req.lmd.nodeAccessor.SendQuery(node, "table", requestData, func(responseData interface{}) {
 			defer wg.Done()
 
 			// Hash containing metadata in addition to rows
@@ -514,8 +515,8 @@ func (req *Request) getDistributedResponse() (*Response, error) {
 	close(collectedDatasets)
 
 	// Double-check that we have the right number of datasets
-	if len(collectedDatasets) != len(nodeAccessor.nodeBackends) {
-		err := fmt.Errorf("got %d instead of %d datasets", len(collectedDatasets), len(nodeAccessor.nodeBackends))
+	if len(collectedDatasets) != len(req.lmd.nodeAccessor.nodeBackends) {
+		err := fmt.Errorf("got %d instead of %d datasets", len(collectedDatasets), len(req.lmd.nodeAccessor.nodeBackends))
 		return nil, err
 	}
 

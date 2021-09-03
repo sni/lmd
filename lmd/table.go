@@ -39,32 +39,6 @@ const (
 	TableServicesbyhostgroup
 )
 
-// TableNameMapping contains TableName to string mapping
-var TableNameMapping = map[TableName]string{
-	TableBackends:            "backends",
-	TableSites:               "sites",
-	TableColumns:             "columns",
-	TableTables:              "tables",
-	TableStatus:              "status",
-	TableTimeperiods:         "timeperiods",
-	TableContacts:            "contacts",
-	TableContactgroups:       "contactgroups",
-	TableCommands:            "commands",
-	TableHosts:               "hosts",
-	TableHostgroups:          "hostgroups",
-	TableServices:            "services",
-	TableServicegroups:       "servicegroups",
-	TableComments:            "comments",
-	TableDowntimes:           "downtimes",
-	TableLog:                 "log",
-	TableHostsbygroup:        "hostsbygroup",
-	TableServicesbygroup:     "servicesbygroup",
-	TableServicesbyhostgroup: "servicesbyhostgroup",
-}
-
-// TableNameLookup is a hash map of string to Table object
-var TableNameLookup = map[string]TableName{}
-
 // PeerLockMode sets full or simple lock mode
 type PeerLockMode int
 
@@ -76,26 +50,94 @@ const (
 	PeerLockModeFull
 )
 
-// InitTableNames initializes the table name lookup map
-func InitTableNames() {
-	for t, s := range TableNameMapping {
-		TableNameLookup[s] = t
-	}
-}
-
 // NewTableName returns a table for given name or an error
 func NewTableName(name string) (TableName, error) {
-	if v, ok := TableNameLookup[strings.ToLower(name)]; ok {
-		return v, nil
+	switch strings.ToLower(name) {
+	case "backends":
+		return TableBackends, nil
+	case "sites":
+		return TableSites, nil
+	case "columns":
+		return TableColumns, nil
+	case "tables":
+		return TableTables, nil
+	case "status":
+		return TableStatus, nil
+	case "timeperiods":
+		return TableTimeperiods, nil
+	case "contacts":
+		return TableContacts, nil
+	case "contactgroups":
+		return TableContactgroups, nil
+	case "commands":
+		return TableCommands, nil
+	case "hosts":
+		return TableHosts, nil
+	case "hostgroups":
+		return TableHostgroups, nil
+	case "services":
+		return TableServices, nil
+	case "servicegroups":
+		return TableServicegroups, nil
+	case "comments":
+		return TableComments, nil
+	case "downtimes":
+		return TableDowntimes, nil
+	case "log":
+		return TableLog, nil
+	case "hostsbygroup":
+		return TableHostsbygroup, nil
+	case "servicesbygroup":
+		return TableServicesbygroup, nil
+	case "servicesbyhostgroup":
+		return TableServicesbyhostgroup, nil
 	}
 	return TableNone, fmt.Errorf("table %s does not exist", name)
 }
 
 // String returns the name of this table as String
 func (t *TableName) String() string {
-	if s, ok := TableNameMapping[*t]; ok {
-		return s
+	switch *t {
+	case TableBackends:
+		return "backends"
+	case TableSites:
+		return "sites"
+	case TableColumns:
+		return "columns"
+	case TableTables:
+		return "tables"
+	case TableStatus:
+		return "status"
+	case TableTimeperiods:
+		return "timeperiods"
+	case TableContacts:
+		return "contacts"
+	case TableContactgroups:
+		return "contactgroups"
+	case TableCommands:
+		return "commands"
+	case TableHosts:
+		return "hosts"
+	case TableHostgroups:
+		return "hostgroups"
+	case TableServices:
+		return "services"
+	case TableServicegroups:
+		return "servicegroups"
+	case TableComments:
+		return "comments"
+	case TableDowntimes:
+		return "downtimes"
+	case TableLog:
+		return "log"
+	case TableHostsbygroup:
+		return "hostsbygroup"
+	case TableServicesbygroup:
+		return "servicesbygroup"
+	case TableServicesbyhostgroup:
+		return "servicesbyhostgroup"
 	}
+
 	log.Panicf("unsupported tablename: %v", t)
 	return ""
 }

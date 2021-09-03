@@ -1350,7 +1350,7 @@ func (d *DataRow) isAuthorizedFor(authUser string, host string, service string) 
 
 	// get contacts for host, if we are checking a host or
 	// if this is a service and ServiceAuthorization is loose
-	if (service != "" && p.GlobalConfig.ServiceAuthorization == AuthLoose) || service == "" {
+	if (service != "" && p.lmd.Config.ServiceAuthorization == AuthLoose) || service == "" {
 		hostObj, ok := ds.tables[TableHosts].Index[host]
 		contactsColumn := ds.tables[TableHosts].GetColumn("contacts")
 		// Make sure the host we found is actually valid
@@ -1403,7 +1403,7 @@ func (d *DataRow) isAuthorizedForHostGroup(authUser string, hostgroup string) (c
 		 * and then on the last iteration return true if the contact is a contact
 		 * on the final host
 		 */
-		switch p.GlobalConfig.GroupAuthorization {
+		switch p.lmd.Config.GroupAuthorization {
 		case AuthLoose:
 			if d.isAuthorizedFor(authUser, hostname, "") {
 				canView = true
@@ -1443,7 +1443,7 @@ func (d *DataRow) isAuthorizedForServiceGroup(authUser string, servicegroup stri
 		 * and then on the last iteration return true if the contact is a contact
 		 * on the final host
 		 */
-		switch p.GlobalConfig.GroupAuthorization {
+		switch p.lmd.Config.GroupAuthorization {
 		case AuthLoose:
 			if d.isAuthorizedFor(authUser, members[i][0], members[i][1]) {
 				canView = true

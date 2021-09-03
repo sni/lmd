@@ -14,6 +14,7 @@ import (
 // ClientConnection handles a single client connection
 type ClientConnection struct {
 	noCopy                noCopy
+	lmd                   *LMDInstance
 	connection            net.Conn
 	localAddr             string
 	remoteAddr            string
@@ -25,8 +26,9 @@ type ClientConnection struct {
 }
 
 // NewClientConnection creates a new client connection object
-func NewClientConnection(c net.Conn, listenTimeout int, logSlowQueryThreshold int, logHugeQueryThreshold int, qStat *QueryStats) *ClientConnection {
+func NewClientConnection(lmd *LMDInstance, c net.Conn, listenTimeout int, logSlowQueryThreshold int, logHugeQueryThreshold int, qStat *QueryStats) *ClientConnection {
 	cl := &ClientConnection{
+		lmd:                   lmd,
 		connection:            c,
 		localAddr:             c.LocalAddr().String(),
 		remoteAddr:            c.RemoteAddr().String(),
@@ -47,7 +49,7 @@ func (cl *ClientConnection) Handle() {
 	ch := make(chan error, 1)
 	go func() {
 		// make sure we log panics properly
-		defer logPanicExit()
+		defer cl.lmd.logPanicExit()
 
 		ch <- cl.answer(ctx)
 	}()
@@ -74,7 +76,7 @@ func (cl *ClientConnection) answer(ctx context.Context) error {
 			LogErrors(cl.connection.SetDeadline(time.Now().Add(RequestReadTimeout)))
 		}
 
-		reqs, err := ParseRequests(ctx, cl.connection)
+		reqs, err := ParseRequests(ctx, cl.lmd, cl.connection)
 		if err != nil {
 			return cl.sendErrorResponse(err)
 		}
@@ -194,7 +196,7 @@ func (cl *ClientConnection) sendRemainingCommands(ctx context.Context, commandsB
 		return
 	}
 	t1 := time.Now()
-	code, msg := SendCommands(ctx, *commandsByPeer)
+	code, msg := cl.SendCommands(ctx, *commandsByPeer)
 	// clear the commands queue
 	*commandsByPeer = make(map[string][]string)
 	if code != 200 {
@@ -207,10 +209,10 @@ func (cl *ClientConnection) sendRemainingCommands(ctx context.Context, commandsB
 
 // SendCommands sends commands for this request to all selected remote sites.
 // It returns any error encountered.
-func SendCommands(ctx context.Context, commandsByPeer map[string][]string) (code int, msg string) {
+func (cl *ClientConnection) SendCommands(ctx context.Context, commandsByPeer map[string][]string) (code int, msg string) {
 	code = 200
 	msg = "OK"
-	if flagImport != "" {
+	if cl.lmd.flags.flagImport != "" {
 		code = 500
 		msg = "lmd started with -import from file, cannot send commands without real backend connection."
 		return
@@ -218,9 +220,9 @@ func SendCommands(ctx context.Context, commandsByPeer map[string][]string) (code
 	resultChan := make(chan error, len(commandsByPeer))
 	wg := &sync.WaitGroup{}
 	for pID := range commandsByPeer {
-		PeerMapLock.RLock()
-		p := PeerMap[pID]
-		PeerMapLock.RUnlock()
+		cl.lmd.PeerMapLock.RLock()
+		p := cl.lmd.PeerMap[pID]
+		cl.lmd.PeerMapLock.RUnlock()
 		wg.Add(1)
 		go func(peer *Peer) {
 			defer logPanicExitPeer(peer)

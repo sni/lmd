@@ -229,16 +229,16 @@ var (
 		})
 )
 
-func initPrometheus(localConfig *Config) (prometheusListener io.Closer) {
-	if localConfig.ListenPrometheus != "" {
-		l, err := net.Listen("tcp", localConfig.ListenPrometheus)
+func initPrometheus(lmd *LMDInstance) (prometheusListener io.Closer) {
+	if lmd.Config.ListenPrometheus != "" {
+		l, err := net.Listen("tcp", lmd.Config.ListenPrometheus)
 		if err != nil {
 			log.Errorf("prometheus failed to listen: %s", err.Error())
 		}
 		prometheusListener = l
 		go func() {
 			// make sure we log panics properly
-			defer logPanicExit()
+			defer lmd.logPanicExit()
 
 			if err != nil {
 				log.Fatalf("starting prometheus exporter failed: %s", err)
@@ -250,7 +250,7 @@ func initPrometheus(localConfig *Config) (prometheusListener io.Closer) {
 				log.Debugf("prometheus listener serve finished: %e", err)
 			}
 		}()
-		log.Infof("serving prometheus metrics at %s/metrics", localConfig.ListenPrometheus)
+		log.Infof("serving prometheus metrics at %s/metrics", lmd.Config.ListenPrometheus)
 	}
 	if prometheusRegistered {
 		return prometheusListener

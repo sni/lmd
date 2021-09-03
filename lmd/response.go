@@ -61,13 +61,13 @@ func NewResponse(req *Request) (res *Response, err error) {
 	res.SelectedPeers = make([]*Peer, 0)
 	spinUpPeers := make([]*Peer, 0)
 	// iterate over PeerMap instead of BackendsMap to retain backend order
-	PeerMapLock.RLock()
-	for _, id := range PeerMapOrder {
-		p := PeerMap[id]
+	req.lmd.PeerMapLock.RLock()
+	for _, id := range req.lmd.PeerMapOrder {
+		p := req.lmd.PeerMap[id]
 		if _, ok := req.BackendsMap[p.ID]; !ok {
 			continue
 		}
-		if nodeAccessor == nil || !nodeAccessor.IsOurBackend(p.ID) {
+		if req.lmd.nodeAccessor == nil || !req.lmd.nodeAccessor.IsOurBackend(p.ID) {
 			continue
 		}
 		if p.HasFlag(MultiBackend) {
@@ -81,11 +81,11 @@ func NewResponse(req *Request) (res *Response, err error) {
 			spinUpPeers = append(spinUpPeers, p)
 		}
 	}
-	PeerMapLock.RUnlock()
+	req.lmd.PeerMapLock.RUnlock()
 
 	// only use the first backend when requesting table or columns table
 	if table.Name == TableTables || table.Name == TableColumns {
-		res.SelectedPeers = []*Peer{PeerMap[PeerMapOrder[0]]}
+		res.SelectedPeers = []*Peer{req.lmd.PeerMap[req.lmd.PeerMapOrder[0]]}
 	}
 
 	if !table.PassthroughOnly && len(spinUpPeers) > 0 {
@@ -189,18 +189,18 @@ func (req *Request) ExpandRequestedBackends() (err error) {
 	req.BackendErrors = make(map[string]string)
 
 	// no backends selected means all backends
-	PeerMapLock.RLock()
-	defer PeerMapLock.RUnlock()
+	req.lmd.PeerMapLock.RLock()
+	defer req.lmd.PeerMapLock.RUnlock()
 	if len(req.Backends) == 0 {
-		for id := range PeerMap {
-			p := PeerMap[id]
+		for id := range req.lmd.PeerMap {
+			p := req.lmd.PeerMap[id]
 			req.BackendsMap[p.ID] = p.ID
 		}
 		return
 	}
 
 	for _, b := range req.Backends {
-		_, Ok := PeerMap[b]
+		_, Ok := req.lmd.PeerMap[b]
 		if !Ok {
 			req.BackendErrors[b] = fmt.Sprintf("bad request: backend %s does not exist", b)
 			continue

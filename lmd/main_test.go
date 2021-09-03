@@ -15,7 +15,7 @@ import (
 )
 
 func TestMainFunc(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET backends\n\n")
@@ -81,29 +81,30 @@ func TestMainFunc(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestMainReload(_ *testing.T) {
-	StartMockMainLoop([]string{"mock0.sock"}, "")
-	mainSignalChannel <- syscall.SIGHUP
-	waitTimeout(TestPeerWaitGroup, 5*time.Second)
+	lmd := createTestLMDInstance()
+	StartMockMainLoop(lmd, []string{"mock0.sock"}, "")
+	lmd.mainSignalChannel <- syscall.SIGHUP
+	waitTimeout(lmd.waitGroupPeers, 5*time.Second)
 	// shutdown all peers
-	for id := range PeerMap {
-		p := PeerMap[id]
+	for id := range lmd.PeerMap {
+		p := lmd.PeerMap[id]
 		p.Stop()
 		close(p.shutdownChannel)
-		PeerMapRemove(p.ID)
+		lmd.PeerMapRemove(p.ID)
 	}
 	// shutdown all listeners
-	ListenersLock.Lock()
-	for _, l := range Listeners {
-		l.Connection.Close()
+	lmd.ListenersLock.Lock()
+	for _, l := range lmd.Listeners {
+		l.Stop()
 	}
-	ListenersLock.Unlock()
-	waitTimeout(TestPeerWaitGroup, 5*time.Second)
+	lmd.ListenersLock.Unlock()
+	waitTimeout(lmd.waitGroupPeers, 5*time.Second)
 	retries := 0
 	for {
 		// recheck every 100ms
@@ -112,10 +113,10 @@ func TestMainReload(_ *testing.T) {
 		if retries > 100 {
 			panic("listener/peers did not stop after reload")
 		}
-		ListenersLock.Lock()
-		numListener := len(Listeners)
-		ListenersLock.Unlock()
-		if len(PeerMap)+numListener == 0 {
+		lmd.ListenersLock.Lock()
+		numListener := len(lmd.Listeners)
+		lmd.ListenersLock.Unlock()
+		if len(lmd.PeerMap)+numListener == 0 {
 			break
 		}
 	}
@@ -125,7 +126,7 @@ func TestAllOps(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping all ops test in short mode")
 	}
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	ops := []string{"=", "!=", "=~", "!=~", "~", "!~", "~~", "!~~", "<", "<=", ">", ">=", "!>="}
@@ -156,13 +157,14 @@ func TestAllOps(t *testing.T) {
 		}
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func testqueryCol(t *testing.T, peer *Peer, table TableName, column string) {
 	t.Helper()
+	lmd := createTestLMDInstance()
 	query := fmt.Sprintf("GET %s\nColumns: %s\nSort: %s asc\n\n",
 		table.String(),
 		column,
@@ -175,7 +177,7 @@ func testqueryCol(t *testing.T, peer *Peer, table TableName, column string) {
 		}
 	}()
 	buf := bufio.NewReader(bytes.NewBufferString(query))
-	req, _, err := NewRequest(context.TODO(), buf, ParseDefault)
+	req, _, err := NewRequest(context.TODO(), lmd, buf, ParseDefault)
 	if err == nil {
 		if err = assertEq(query, req.String()); err != nil {
 			t.Fatal(err)
@@ -189,6 +191,7 @@ func testqueryCol(t *testing.T, peer *Peer, table TableName, column string) {
 
 func testqueryFilter(t *testing.T, peer *Peer, table TableName, column, op, value string) {
 	t.Helper()
+	lmd := createTestLMDInstance()
 	query := fmt.Sprintf("GET %s\nColumns: %s\nFilter: %s %s%s\n\n",
 		table.String(),
 		column,
@@ -203,7 +206,7 @@ func testqueryFilter(t *testing.T, peer *Peer, table TableName, column, op, valu
 		}
 	}()
 	buf := bufio.NewReader(bytes.NewBufferString(query))
-	req, _, err := NewRequest(context.TODO(), buf, ParseDefault)
+	req, _, err := NewRequest(context.TODO(), lmd, buf, ParseDefault)
 	if err == nil {
 		if err = assertEq(query, req.String()); err != nil {
 			t.Fatal(err)
@@ -217,6 +220,7 @@ func testqueryFilter(t *testing.T, peer *Peer, table TableName, column, op, valu
 
 func testqueryGroup(t *testing.T, peer *Peer, table TableName, column, op, value string) {
 	t.Helper()
+	lmd := createTestLMDInstance()
 	query := fmt.Sprintf("GET %s\nColumns: %s\nStats: %s %s%s\n\n",
 		table.String(),
 		column,
@@ -231,7 +235,7 @@ func testqueryGroup(t *testing.T, peer *Peer, table TableName, column, op, value
 		}
 	}()
 	buf := bufio.NewReader(bytes.NewBufferString(query))
-	req, _, err := NewRequest(context.TODO(), buf, ParseDefault)
+	req, _, err := NewRequest(context.TODO(), lmd, buf, ParseDefault)
 	if err == nil {
 		if err = assertEq(query, req.String()); err != nil {
 			t.Fatal(err)
@@ -247,7 +251,7 @@ func TestAllTables(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping all ops test in short mode")
 	}
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	for table := range Objects.Tables {
@@ -267,7 +271,7 @@ func TestAllTables(t *testing.T) {
 		}
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }

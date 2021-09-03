@@ -18,7 +18,6 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
-	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -26,22 +25,16 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-var testLogLevel = "Error"
-var testLogTarget = "stderr"
-
-// GlobalTestConfig contains the global configuration (after config files have been parsed)
-var GlobalTestConfig *Config
+const testLogLevel = "Error"
+const testLogTarget = "stderr"
 
 func init() {
-	GlobalTestConfig = NewConfig([]string{})
-	GlobalTestConfig.ValidateConfig()
+	lmd := createTestLMDInstance()
 	InitLogging(&Config{LogLevel: testLogLevel, LogFile: testLogTarget})
-	flagDeadlock = 15
 
-	TestPeerWaitGroup = &sync.WaitGroup{}
+	once.Do(lmd.PrintVersion)
 
-	once.Do(PrintVersion)
-
+	// make ctrl+c work
 	osSignalChannel := make(chan os.Signal, 1)
 	signal.Notify(osSignalChannel, syscall.SIGTERM)
 	signal.Notify(osSignalChannel, os.Interrupt)
@@ -77,10 +70,9 @@ func assertLike(exp string, got string) error {
 	return nil
 }
 
-func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen string) {
+func StartMockLivestatusSource(lmd *LMDInstance, nr int, numHosts int, numServices int) (listen string) {
 	startedChannel := make(chan bool)
 	listen = fmt.Sprintf("mock%d_%d.sock", nr, time.Now().Nanosecond())
-	TestPeerWaitGroup.Add(1)
 
 	// prepare data files
 	dataFolder := prepareTmpData("../t/data", nr, numHosts, numServices)
@@ -95,7 +87,6 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 			os.Remove(listen)
 			l.Close()
 			os.RemoveAll(dataFolder)
-			TestPeerWaitGroup.Done()
 		}()
 		startedChannel <- true
 		for {
@@ -104,7 +95,7 @@ func StartMockLivestatusSource(nr int, numHosts int, numServices int) (listen st
 				panic(err.Error())
 			}
 
-			req, err := ParseRequest(context.TODO(), conn)
+			req, err := ParseRequest(context.TODO(), lmd, conn)
 			if err != nil {
 				panic(err.Error())
 			}
@@ -271,10 +262,7 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 	_checkErr(ioutil.WriteFile(fmt.Sprintf("%s/%s.map", tempFolder, name.String()), buf.Bytes(), 0644))
 }
 
-var TestPeerWaitGroup *sync.WaitGroup
-
-func StartMockMainLoop(sockets []string, extraConfig string) {
-	nodeAccessor = nil
+func StartMockMainLoop(lmd *LMDInstance, sockets []string, extraConfig string) {
 	var testConfig = `
 Loglevel       = "` + testLogLevel + `"
 LogFile        = "` + testLogTarget + `"
@@ -296,23 +284,19 @@ LogLockTimeout = 10
 		panic(err.Error())
 	}
 
-	_checkErr2(toml.DecodeFile("test.ini", &GlobalTestConfig))
-	mainSignalChannel = make(chan os.Signal)
-	startedChannel := make(chan bool)
+	_checkErr2(toml.DecodeFile("test.ini", lmd.Config))
 
+	lmd.initChannel = make(chan bool)
 	go func() {
-		flagConfigFile = configFiles{"test.ini"}
-		TestPeerWaitGroup.Add(1)
-		mainLoop(mainSignalChannel, startedChannel)
-		os.Remove("test.ini")
-		TestPeerWaitGroup.Done()
+		lmd.flags.flagConfigFile = configFiles{"test.ini"}
+		lmd.mainLoop()
 	}()
-	<-startedChannel
+	<-lmd.initChannel
 }
 
 // StartTestPeer just call StartTestPeerExtra
 // if numServices is  0, empty test data will be used
-func StartTestPeer(numPeers int, numHosts int, numServices int) *Peer {
+func StartTestPeer(numPeers int, numHosts int, numServices int) (*Peer, func() error, *LMDInstance) {
 	return (StartTestPeerExtra(numPeers, numHosts, numServices, ""))
 }
 
@@ -321,16 +305,17 @@ func StartTestPeer(numPeers int, numHosts int, numServices int) *Peer {
 //  - a main loop which has the mock server(s) as backend
 // It returns a peer with the "mainloop" connection configured
 // if numServices is  0, empty test data will be used
-func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig string) (peer *Peer) {
+func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig string) (peer *Peer, cleanup func() error, mocklmd *LMDInstance) {
+	mocklmd = createTestLMDInstance()
 	sockets := []string{}
 	for i := 0; i < numPeers; i++ {
-		listen := StartMockLivestatusSource(i, numHosts, numServices)
+		listen := StartMockLivestatusSource(mocklmd, i, numHosts, numServices)
 		sockets = append(sockets, listen)
 	}
-	StartMockMainLoop(sockets, extraConfig)
+	StartMockMainLoop(mocklmd, sockets, extraConfig)
 
-	testPeerShutdownChannel := make(chan bool)
-	peer = NewPeer(GlobalTestConfig, &Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
+	lmd := createTestLMDInstance()
+	peer = NewPeer(lmd, &Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "Test", ID: "testid"})
 
 	// wait till backend is available
 	waitUntil := time.Now().Add(10 * time.Second)
@@ -357,32 +342,40 @@ func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig
 		}
 	}
 
-	return
-}
+	cleanup = func() (err error) {
+		os.Remove("test.ini")
 
-func StopTestPeer(peer *Peer) (err error) {
-	// stop the mock servers
-	_, _, err = peer.QueryString("COMMAND [0] MOCK_EXIT")
-	if err != nil {
-		// may fail if already stopped
-		log.Debugf("send query failed: %e", err)
-		err = nil
+		// stop the mock servers
+		_, _, err = peer.QueryString("COMMAND [0] MOCK_EXIT")
+		if err != nil {
+			// may fail if already stopped
+			log.Debugf("send query failed: %e", err)
+			err = nil
+		}
+		// stop the mainloop
+		mocklmd.mainSignalChannel <- syscall.SIGTERM
+		// stop the test peer
+		peer.Stop()
+		// wait till all has stoped
+		if waitTimeout(peer.lmd.waitGroupPeers, 10*time.Second) {
+			err = fmt.Errorf("timeout while waiting for peers to stop")
+		}
+		if waitTimeout(mocklmd.waitGroupPeers, 10*time.Second) {
+			err = fmt.Errorf("timeout while waiting for mock peers to stop")
+		}
+		if waitTimeout(mocklmd.waitGroupListener, 10*time.Second) {
+			err = fmt.Errorf("timeout while waiting for mock listenern to stop")
+		}
+		return
 	}
-	// stop the mainloop
-	mainSignalChannel <- syscall.SIGTERM
-	// stop the test peer
-	peer.Stop()
-	// wait till all has stoped
-	if waitTimeout(TestPeerWaitGroup, 10*time.Second) {
-		err = fmt.Errorf("timeout while waiting for peers to stop")
-	}
+
 	return
 }
 
 func PauseTestPeers(peer *Peer) {
 	peer.Stop()
-	for id := range PeerMap {
-		p := PeerMap[id]
+	for id := range peer.lmd.PeerMap {
+		p := peer.lmd.PeerMap[id]
 		p.Stop()
 	}
 }
@@ -399,7 +392,7 @@ func CheckOpenFilesLimit(b *testing.B, minimum uint64) {
 	}
 }
 
-func StartHTTPMockServer(t *testing.T) (*httptest.Server, func()) {
+func StartHTTPMockServer(t *testing.T, lmd *LMDInstance) (*httptest.Server, func()) {
 	t.Helper()
 	nr := 0
 	numHosts := 5
@@ -419,7 +412,7 @@ func StartHTTPMockServer(t *testing.T) (*httptest.Server, func()) {
 			t.Fatalf("failed to parse request: %s", err.Error())
 		}
 		if data.Options.Sub == "_raw_query" {
-			req, _, err := NewRequest(context.TODO(), bufio.NewReader(strings.NewReader(data.Options.Args[0])), ParseDefault)
+			req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(strings.NewReader(data.Options.Args[0])), ParseDefault)
 			if err != nil {
 				t.Fatalf("failed to parse request: %s", err.Error())
 			}
@@ -465,11 +458,10 @@ func StartHTTPMockServer(t *testing.T) (*httptest.Server, func()) {
 	return ts, cleanup
 }
 
-func GetHTTPMockServerPeer(t *testing.T) (peer *Peer, cleanup func()) {
+func GetHTTPMockServerPeer(t *testing.T, lmd *LMDInstance) (peer *Peer, cleanup func()) {
 	t.Helper()
-	ts, cleanup := StartHTTPMockServer(t)
-	testPeerShutdownChannel := make(chan bool)
-	peer = NewPeer(GlobalTestConfig, &Connection{Source: []string{ts.URL}, Name: "Test", ID: "testid"}, TestPeerWaitGroup, testPeerShutdownChannel)
+	ts, cleanup := StartHTTPMockServer(t, lmd)
+	peer = NewPeer(lmd, &Connection{Source: []string{ts.URL}, Name: "Test", ID: "testid"})
 	return
 }
 
@@ -565,4 +557,13 @@ func _checkErr2(_ interface{}, err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func createTestLMDInstance() *LMDInstance {
+	lmd := NewLMDInstance()
+	lmd.Config = NewConfig([]string{})
+	lmd.Config.ValidateConfig()
+	lmd.flags.flagDeadlock = 15
+	lmd.nodeAccessor = NewNodes(lmd, []string{}, "")
+	return lmd
 }

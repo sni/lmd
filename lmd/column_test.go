@@ -1,15 +1,13 @@
 package main
 
 import (
-	"sync"
 	"testing"
 )
 
 func TestColumnFlag(t *testing.T) {
-	waitGroup := &sync.WaitGroup{}
-	shutdownChannel := make(chan bool)
+	lmd := createTestLMDInstance()
 	connection := Connection{Name: "Test", Source: []string{"http://localhost/test/"}}
-	peer := NewPeer(&Config{}, &connection, waitGroup, shutdownChannel)
+	peer := NewPeer(lmd, &connection)
 
 	if err := assertEq(uint32(NoFlags), peer.Flags); err != nil {
 		t.Error(err)

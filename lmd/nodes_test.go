@@ -12,19 +12,19 @@ func TestNodeManager(t *testing.T) {
 		Listen = ['test.sock', 'http://127.0.0.1:8901']
 		Nodes = ['http://127.0.0.1:8901', 'http://127.0.0.2:8902']
 	`
-	peer := StartTestPeerExtra(4, 10, 10, extraConfig)
+	peer, cleanup, mocklmd := StartTestPeerExtra(4, 10, 10, extraConfig)
 	PauseTestPeers(peer)
 
-	if nodeAccessor == nil {
+	if mocklmd.nodeAccessor == nil {
 		t.Fatalf("nodeAccessor should not be nil")
 	}
-	if err := assertEq(nodeAccessor.IsClustered(), true); err != nil {
+	if err := assertEq(mocklmd.nodeAccessor.IsClustered(), true); err != nil {
 		t.Fatalf("Nodes are not clustered")
 	}
-	if nodeAccessor.thisNode == nil {
+	if mocklmd.nodeAccessor.thisNode == nil {
 		t.Fatalf("thisNode should not be nil")
 	}
-	if !(nodeAccessor.thisNode.String() != "") {
+	if !(mocklmd.nodeAccessor.thisNode.String() != "") {
 		t.Fatalf("got a name")
 	}
 
@@ -83,7 +83,7 @@ func TestNodeManager(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }

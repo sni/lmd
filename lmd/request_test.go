@@ -12,6 +12,7 @@ import (
 )
 
 func TestRequestHeader(t *testing.T) {
+	lmd := createTestLMDInstance()
 	testRequestStrings := []string{
 		"GET hosts\n\n",
 		"GET hosts\nColumns: name state\n\n",
@@ -43,7 +44,7 @@ func TestRequestHeader(t *testing.T) {
 	}
 	for _, str := range testRequestStrings {
 		buf := bufio.NewReader(bytes.NewBufferString(str))
-		req, _, err := NewRequest(context.TODO(), buf, ParseDefault)
+		req, _, err := NewRequest(context.TODO(), lmd, buf, ParseDefault)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -54,39 +55,44 @@ func TestRequestHeader(t *testing.T) {
 }
 
 func TestRequestHeaderTable(t *testing.T) {
+	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\n"))
-	req, _, _ := NewRequest(context.TODO(), buf, ParseOptimize)
+	req, _, _ := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
 	if err := assertEq("hosts", req.Table.String()); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestRequestHeaderLimit(t *testing.T) {
+	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nLimit: 10\n"))
-	req, _, _ := NewRequest(context.TODO(), buf, ParseOptimize)
+	req, _, _ := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
 	if err := assertEq(10, *req.Limit); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestRequestHeaderOffset(t *testing.T) {
+	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nOffset: 3\n"))
-	req, _, _ := NewRequest(context.TODO(), buf, ParseOptimize)
+	req, _, _ := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
 	if err := assertEq(3, req.Offset); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestRequestHeaderColumns(t *testing.T) {
+	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name state\n"))
-	req, _, _ := NewRequest(context.TODO(), buf, ParseOptimize)
+	req, _, _ := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
 	if err := assertEq([]string{"name", "state"}, req.Columns); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestRequestHeaderSort(t *testing.T) {
-	req, _, _ := NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: latency state name\nSort: name desc\nSort: state asc\n")), ParseOptimize)
+	lmd := createTestLMDInstance()
+	req, _, _ := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: latency state name\nSort: name desc\nSort: state asc\n")), ParseOptimize)
 	if err := assertEq(&SortField{Name: "name", Direction: Desc, Index: 0, Column: Objects.Tables[TableHosts].GetColumn("name")}, req.Sort[0]); err != nil {
 		t.Fatal(err)
 	}
@@ -96,15 +102,17 @@ func TestRequestHeaderSort(t *testing.T) {
 }
 
 func TestRequestHeaderSortCust(t *testing.T) {
-	req, _, _ := NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name custom_variables\nSort: custom_variables TEST asc\n")), ParseOptimize)
+	lmd := createTestLMDInstance()
+	req, _, _ := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name custom_variables\nSort: custom_variables TEST asc\n")), ParseOptimize)
 	if err := assertEq(&SortField{Name: "custom_variables", Direction: Asc, Index: 0, Args: "TEST", Column: Objects.Tables[TableHosts].GetColumn("custom_variables")}, req.Sort[0]); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestRequestHeaderFilter1(t *testing.T) {
+	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: name != test\n"))
-	req, _, _ := NewRequest(context.TODO(), buf, ParseOptimize)
+	req, _, _ := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
 	if err := assertEq(len(req.Filter), 1); err != nil {
 		t.Fatal(err)
 	}
@@ -114,8 +122,9 @@ func TestRequestHeaderFilter1(t *testing.T) {
 }
 
 func TestRequestHeaderFilter2(t *testing.T) {
+	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces \n"))
-	req, _, _ := NewRequest(context.TODO(), buf, ParseOptimize)
+	req, _, _ := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
 	if err := assertEq(len(req.Filter), 2); err != nil {
 		t.Fatal(err)
 	}
@@ -131,8 +140,9 @@ func TestRequestHeaderFilter2(t *testing.T) {
 }
 
 func TestRequestHeaderFilter3(t *testing.T) {
+	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces\nOr: 2"))
-	req, _, _ := NewRequest(context.TODO(), buf, ParseOptimize)
+	req, _, _ := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
 	if err := assertEq(len(req.Filter), 1); err != nil {
 		t.Fatal(err)
 	}
@@ -145,8 +155,9 @@ func TestRequestHeaderFilter3(t *testing.T) {
 }
 
 func TestRequestHeaderFilter4(t *testing.T) {
+	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces\nAnd: 2"))
-	req, _, _ := NewRequest(context.TODO(), buf, ParseOptimize)
+	req, _, _ := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
 	if err := assertEq(len(req.Filter), 2); err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +170,7 @@ func TestRequestHeaderFilter4(t *testing.T) {
 }
 
 func TestRequestListFilter(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= example\nSort: name asc")
@@ -170,13 +181,13 @@ func TestRequestListFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestRequestRegexIntFilter(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: name state\nFilter: state ~~ 0|1|2")
@@ -195,17 +206,18 @@ func TestRequestRegexIntFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestRequestHeaderMultipleCommands(t *testing.T) {
+	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString(`COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web1;1473627610
 Backends: mockid0
 
 COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web2;1473627610`))
-	req, size, err := NewRequest(context.TODO(), buf, ParseOptimize)
+	req, size, err := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +230,7 @@ COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web2;1473627610`))
 	if err = assertEq(req.Backends[0], "mockid0"); err != nil {
 		t.Fatal(err)
 	}
-	req, size, err = NewRequest(context.TODO(), buf, ParseOptimize)
+	req, size, err = NewRequest(context.TODO(), lmd, buf, ParseOptimize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +248,7 @@ type ErrorRequest struct {
 }
 
 func TestResponseErrorsFunc(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	testRequestStrings := []ErrorRequest{
@@ -273,18 +285,14 @@ func TestResponseErrorsFunc(t *testing.T) {
 		}
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestRequestNestedFilter(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	query := `GET services
 Columns: host_name description state peer_key
@@ -317,18 +325,14 @@ ResponseHeader: fixed16
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestRequestStats(t *testing.T) {
-	peer := StartTestPeer(4, 10, 10)
+	peer, cleanup, _ := StartTestPeer(4, 10, 10)
 	PauseTestPeers(peer)
-
-	if err := assertEq(4, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: name latency\n\n")
 	if err != nil {
@@ -359,18 +363,14 @@ func TestRequestStats(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestRequestStatsGroupBy(t *testing.T) {
-	peer := StartTestPeer(4, 10, 10)
+	peer, cleanup, _ := StartTestPeer(4, 10, 10)
 	PauseTestPeers(peer)
-
-	if err := assertEq(4, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: name\nStats: avg latency\n\n")
 	if err != nil {
@@ -403,13 +403,13 @@ func TestRequestStatsGroupBy(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestRequestStatsEmpty(t *testing.T) {
-	peer := StartTestPeer(2, 0, 0)
+	peer, cleanup, _ := StartTestPeer(2, 0, 0)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hosts\nFilter: check_type = 15\nStats: sum percent_state_change\nStats: min percent_state_change\n\n")
@@ -423,13 +423,13 @@ func TestRequestStatsEmpty(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestRequestStatsBroken(t *testing.T) {
-	peer := StartTestPeer(1, 0, 0)
+	peer, cleanup, _ := StartTestPeer(1, 0, 0)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hosts\nStats: sum name\nStats: avg contacts\nStats: min plugin_output\n")
@@ -440,18 +440,14 @@ func TestRequestStatsBroken(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestRequestStatsFilter(t *testing.T) {
-	peer := StartTestPeer(4, 10, 10)
+	peer, cleanup, _ := StartTestPeer(4, 10, 10)
 	PauseTestPeers(peer)
-
-	if err := assertEq(4, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: name latency\n\n")
 	if err != nil {
@@ -494,13 +490,13 @@ Stats: avg latency
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestRequestRefs(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res1, _, err := peer.QueryString("GET hosts\nColumns: name latency check_command\nLimit: 1\n\n")
@@ -520,13 +516,13 @@ func TestRequestRefs(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestRequestBrokenColumns(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: host_name alias\nFilter: host_name = testhost_1\n\n")
@@ -543,13 +539,13 @@ func TestRequestBrokenColumns(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestRequestGroupByTable(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET servicesbyhostgroup\nColumns: host_name description host_groups groups host_alias host_address\n\n")
@@ -566,13 +562,13 @@ func TestRequestGroupByTable(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestRequestBlocking(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	start := time.Now()
@@ -604,13 +600,13 @@ func TestRequestBlocking(t *testing.T) {
 	default:
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestRequestSort(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: name latency\nSort: latency asc\nLimit: 5\n\n")
@@ -624,13 +620,13 @@ func TestRequestSort(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestRequestSortColumnNotRequested(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: name state alias\nSort: latency asc\nSort: name asc\nLimit: 5\n\n")
@@ -647,13 +643,13 @@ func TestRequestSortColumnNotRequested(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestRequestNoColumns(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET status\n\n")
@@ -673,13 +669,13 @@ func TestRequestNoColumns(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestRequestUnknownOptionalColumns(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: name is_impact\nLimit: 1\n\n")
@@ -696,13 +692,13 @@ func TestRequestUnknownOptionalColumns(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestRequestUnknownOptionalRefsColumns(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET services\nColumns: host_name host_is_impact\nLimit: 1\n\n")
@@ -735,13 +731,13 @@ func TestRequestUnknownOptionalRefsColumns(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestRequestColumnsWrappedJson(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: name state alias\nOutputFormat: wrapped_json\n\n")
@@ -755,7 +751,7 @@ func TestRequestColumnsWrappedJson(t *testing.T) {
 		t.Error(err)
 	}
 
-	peer.GlobalConfig.SaveTempRequests = true
+	peer.lmd.Config.SaveTempRequests = true
 	res, meta, err := peer.QueryString("GET hosts\nColumns: name state alias\nOutputFormat: wrapped_json\nColumnHeaders: on\nLimit: 5\n\n")
 	if err != nil {
 		t.Fatal(err)
@@ -793,13 +789,13 @@ func TestRequestColumnsWrappedJson(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestCommands(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("COMMAND [0] test_ok\n\n")
@@ -832,13 +828,14 @@ func TestCommands(t *testing.T) {
 		t.Error(err2)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestHTTPCommands(t *testing.T) {
-	peer, cleanup := GetHTTPMockServerPeer(t)
+	lmd := createTestLMDInstance()
+	peer, cleanup := GetHTTPMockServerPeer(t, lmd)
 	defer cleanup()
 
 	res, _, err := peer.QueryString("COMMAND [0] test_ok")
@@ -897,7 +894,8 @@ func TestHTTPCommands(t *testing.T) {
 }
 
 func TestHTTPPeer(t *testing.T) {
-	peer, cleanup := GetHTTPMockServerPeer(t)
+	lmd := createTestLMDInstance()
+	peer, cleanup := GetHTTPMockServerPeer(t, lmd)
 	defer cleanup()
 
 	if err := peer.InitAllTables(); err != nil {
@@ -906,7 +904,7 @@ func TestHTTPPeer(t *testing.T) {
 }
 
 func TestRequestPassthrough(t *testing.T) {
-	peer := StartTestPeer(5, 10, 10)
+	peer, cleanup, _ := StartTestPeer(5, 10, 10)
 	PauseTestPeers(peer)
 
 	// query without virtual columns
@@ -942,7 +940,7 @@ func TestRequestPassthrough(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
@@ -961,7 +959,7 @@ func TestRequestSites(t *testing.T) {
     id     = 'offline2'
     source = ['/does/not/exist.sock']
     `
-	peer := StartTestPeerExtra(4, 10, 10, extraConfig)
+	peer, cleanup, _ := StartTestPeerExtra(4, 10, 10, extraConfig)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET sites\nColumns: name status last_error\nSort: name")
@@ -981,19 +979,15 @@ func TestRequestSites(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 /* Tests that getting columns based on <table>_<colum-name> works */
 func TestTableNameColName(t *testing.T) {
-	peer := StartTestPeer(1, 2, 2)
+	peer, cleanup, _ := StartTestPeer(1, 2, 2)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: host_name\n\n")
 	if err != nil {
@@ -1035,18 +1029,14 @@ func TestTableNameColName(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestMembersWithState(t *testing.T) {
-	peer := StartTestPeer(1, 2, 9)
+	peer, cleanup, _ := StartTestPeer(1, 2, 9)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	res, _, err := peer.QueryString("GET hostgroups\nColumns: members_with_state\nFilter: name = host_1\n\n")
 	if err != nil {
@@ -1081,18 +1071,14 @@ func TestMembersWithState(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestCustomVarCol(t *testing.T) {
-	peer := StartTestPeer(1, 2, 9)
+	peer, cleanup, _ := StartTestPeer(1, 2, 9)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: custom_variables custom_variable_names custom_variable_values\n\n")
 	if err != nil {
@@ -1111,18 +1097,14 @@ func TestCustomVarCol(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestCustomVarColContacts(t *testing.T) {
-	peer := StartTestPeer(1, 2, 9)
+	peer, cleanup, _ := StartTestPeer(1, 2, 9)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	res, _, err := peer.QueryString("GET contacts\nColumns: custom_variables custom_variable_names custom_variable_values\n\n")
 	if err != nil {
@@ -1145,18 +1127,14 @@ func TestCustomVarColContacts(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestServiceHardStateColumns(t *testing.T) {
-	peer := StartTestPeer(1, 2, 9)
+	peer, cleanup, _ := StartTestPeer(1, 2, 9)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	testQueries := []struct {
 		query    string
@@ -1188,18 +1166,14 @@ func TestServiceHardStateColumns(t *testing.T) {
 		}
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestWorstServiceState(t *testing.T) {
-	peer := StartTestPeer(1, 2, 9)
+	peer, cleanup, _ := StartTestPeer(1, 2, 9)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	testQueries := []struct {
 		query    string
@@ -1220,18 +1194,14 @@ func TestWorstServiceState(t *testing.T) {
 		}
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestShouldBeScheduled(t *testing.T) {
-	peer := StartTestPeer(1, 2, 9)
+	peer, cleanup, _ := StartTestPeer(1, 2, 9)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: should_be_scheduled\n\n")
 	if err != nil {
@@ -1251,13 +1221,13 @@ func TestShouldBeScheduled(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestNegate(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: name\nFilter: host_name = testhost_1\nNegate:\n\n")
@@ -1293,13 +1263,13 @@ func TestNegate(t *testing.T) {
 		}
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestComments(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET comments\nColumns: id host_name service_description\n\n")
@@ -1330,13 +1300,13 @@ func TestComments(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err = StopTestPeer(peer); err != nil {
+	if err = cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestServicesWithInfo(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: services_with_info\n\n")
@@ -1366,18 +1336,14 @@ func TestServicesWithInfo(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err = StopTestPeer(peer); err != nil {
+	if err = cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestRequestLowercaseFilter(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
-
-	if err := assertEq(1, len(PeerMap)); err != nil {
-		t.Error(err)
-	}
 
 	query := `GET hosts
 Columns: name state peer_key
@@ -1386,7 +1352,7 @@ OutputFormat: wrapped_json
 ResponseHeader: fixed16
 `
 
-	req, _, err := NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	req, _, err := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1411,7 +1377,7 @@ ResponseHeader: fixed16
 	OutputFormat: wrapped_json
 	ResponseHeader: fixed16
 	`
-	req, _, err = NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1435,7 +1401,7 @@ ResponseHeader: fixed16
 	OutputFormat: wrapped_json
 	ResponseHeader: fixed16
 	`
-	req, _, err = NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1459,7 +1425,7 @@ ResponseHeader: fixed16
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
@@ -1468,12 +1434,12 @@ func TestRequestKeepalive(t *testing.T) {
 	extraConfig := `
         ListenPrometheus = "127.0.0.1:50999"
 	`
-	peer := StartTestPeerExtra(1, 10, 10, extraConfig)
+	peer, cleanup, mocklmd := StartTestPeerExtra(1, 10, 10, extraConfig)
 	PauseTestPeers(peer)
 
 	getOpenListeners := func() int64 {
 		time.Sleep(KeepAliveWaitInterval)
-		l := Listeners["test.sock"]
+		l := mocklmd.Listeners["test.sock"]
 		l.Lock.RLock()
 		num := l.openConnections
 		l.Lock.RUnlock()
@@ -1491,7 +1457,7 @@ func TestRequestKeepalive(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req, _, _ := NewRequest(context.TODO(), bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name\n")), ParseOptimize)
+	req, _, _ := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name\n")), ParseOptimize)
 	req.ResponseFixed16 = true
 
 	// send request without keepalive
@@ -1602,13 +1568,13 @@ func TestRequestKeepalive(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestIndexedHost(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, meta, err := peer.QueryString("GET hosts\nColumns: name state alias\nOutputFormat: wrapped_json\nColumnHeaders: on\nFilter: name = testhost_1\n\n")
@@ -1624,10 +1590,13 @@ func TestIndexedHost(t *testing.T) {
 	if err = assertEq(int64(1), meta.RowsScanned); err != nil {
 		t.Error(err)
 	}
+	if err = cleanup(); err != nil {
+		t.Error(err)
+	}
 }
 
 func TestIndexedService(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, meta, err := peer.QueryString("GET services\nColumns: host_name description state\nOutputFormat: wrapped_json\nColumnHeaders: on\nFilter: host_name = testhost_1\n\n")
@@ -1643,10 +1612,13 @@ func TestIndexedService(t *testing.T) {
 	if err = assertEq(int64(1), meta.RowsScanned); err != nil {
 		t.Error(err)
 	}
+	if err = cleanup(); err != nil {
+		t.Error(err)
+	}
 }
 
 func TestIndexedServiceByHostRegex(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, meta, err := peer.QueryString("GET services\nColumns: host_name description state\nOutputFormat: wrapped_json\nColumnHeaders: on\nFilter: host_name ~~ Test.*1$\n\n")
@@ -1662,10 +1634,13 @@ func TestIndexedServiceByHostRegex(t *testing.T) {
 	if err = assertEq(int64(1), meta.RowsScanned); err != nil {
 		t.Error(err)
 	}
+	if err = cleanup(); err != nil {
+		t.Error(err)
+	}
 }
 
 func TestIndexedHostByHostgroup(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, meta, err := peer.QueryString("GET hosts\nColumns: name state\nOutputFormat: wrapped_json\nColumnHeaders: on\nFilter: groups >= Everything\n\n")
@@ -1681,10 +1656,13 @@ func TestIndexedHostByHostgroup(t *testing.T) {
 	if err = assertEq(int64(1), meta.RowsScanned); err != nil {
 		t.Error(err)
 	}
+	if err = cleanup(); err != nil {
+		t.Error(err)
+	}
 }
 
 func TestIndexedServiceByHostgroup(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, meta, err := peer.QueryString("GET services\nColumns: host_name description state\nOutputFormat: wrapped_json\nColumnHeaders: on\nFilter: host_groups >= Everything\n\n")
@@ -1700,10 +1678,13 @@ func TestIndexedServiceByHostgroup(t *testing.T) {
 	if err = assertEq(int64(1), meta.RowsScanned); err != nil {
 		t.Error(err)
 	}
+	if err = cleanup(); err != nil {
+		t.Error(err)
+	}
 }
 
 func TestIndexedServiceByServicegroup(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, meta, err := peer.QueryString("GET services\nColumns: host_name description state\nOutputFormat: wrapped_json\nColumnHeaders: on\nFilter: groups >= Http Check\n\n")
@@ -1719,10 +1700,13 @@ func TestIndexedServiceByServicegroup(t *testing.T) {
 	if err = assertEq(int64(1), meta.RowsScanned); err != nil {
 		t.Error(err)
 	}
+	if err = cleanup(); err != nil {
+		t.Error(err)
+	}
 }
 
 func TestIndexedServiceByNestedHosts(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, meta, err := peer.QueryString(`GET services
@@ -1750,6 +1734,9 @@ Or: 2
 	if err = assertEq(int64(2), meta.RowsScanned); err != nil {
 		t.Error(err)
 	}
+	if err = cleanup(); err != nil {
+		t.Error(err)
+	}
 }
 
 func TestStatsQueryOptimizer(t *testing.T) {
@@ -1767,8 +1754,9 @@ Stats: has_been_checked = 1
 Stats: state = 2
 StatsAnd: 2
 `
+	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString(query))
-	req, _, err := NewRequest(context.TODO(), buf, ParseOptimize)
+	req, _, err := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1790,7 +1778,7 @@ StatsAnd: 2
 }
 
 func TestQueryWrappedJSON(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, meta, err := peer.QueryString(`GET services
@@ -1806,10 +1794,13 @@ ColumnHeaders: on
 	if err = assertEq(10, len(res)); err != nil {
 		t.Error(err)
 	}
+	if err = cleanup(); err != nil {
+		t.Error(err)
+	}
 }
 
 func TestServiceCustVarFilter(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, meta, err := peer.QueryString("GET services\nColumns: host_name description custom_variables\nOutputFormat: wrapped_json\nFilter: custom_variables = TEST 1\n\n")
@@ -1825,10 +1816,13 @@ func TestServiceCustVarFilter(t *testing.T) {
 	if err = assertEq(int64(10), meta.RowsScanned); err != nil {
 		t.Error(err)
 	}
+	if err = cleanup(); err != nil {
+		t.Error(err)
+	}
 }
 
 func TestServiceCustVarRegexFilter(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, meta, err := peer.QueryString("GET services\nColumns: host_name description custom_variables\nOutputFormat: wrapped_json\nFilter: custom_variables ~~ TEST2 ^cust\n\n")
@@ -1842,6 +1836,9 @@ func TestServiceCustVarRegexFilter(t *testing.T) {
 		t.Error(err)
 	}
 	if err = assertEq(int64(10), meta.RowsScanned); err != nil {
+		t.Error(err)
+	}
+	if err = cleanup(); err != nil {
 		t.Error(err)
 	}
 }

@@ -11,20 +11,19 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"sync"
 )
 
 var reImportFileTable = regexp.MustCompile(`/([a-z]+)\.json$`)
 
-func initializePeersWithImport(localConfig *Config, waitGroupPeers *sync.WaitGroup, waitGroupInit *sync.WaitGroup, shutdownChannel chan bool, importFile string) (err error) {
+func initializePeersWithImport(lmd *LMDInstance, importFile string) (err error) {
 	stat, err := os.Stat(importFile)
 	if err != nil {
 		return fmt.Errorf("cannot read %s: %s", importFile, err)
 	}
 
-	PeerMapLock.RLock()
-	peerSize := len(PeerMapOrder)
-	PeerMapLock.RUnlock()
+	lmd.PeerMapLock.RLock()
+	peerSize := len(lmd.PeerMapOrder)
+	lmd.PeerMapLock.RUnlock()
 	if peerSize > 0 {
 		log.Warnf("reload from import file is not possible")
 		return
@@ -33,9 +32,9 @@ func initializePeersWithImport(localConfig *Config, waitGroupPeers *sync.WaitGro
 	var peers []*Peer
 	switch mode := stat.Mode(); {
 	case mode.IsDir():
-		peers, err = importPeersFromDir(localConfig, waitGroupPeers, shutdownChannel, importFile)
+		peers, err = importPeersFromDir(lmd, importFile)
 	case mode.IsRegular():
-		peers, err = importPeersFromTar(localConfig, waitGroupPeers, shutdownChannel, importFile)
+		peers, err = importPeersFromTar(lmd, importFile)
 	}
 	if err != nil {
 		return fmt.Errorf("import failed: %s", err)
@@ -56,19 +55,19 @@ func initializePeersWithImport(localConfig *Config, waitGroupPeers *sync.WaitGro
 		PeerMapOrderNew = append(PeerMapOrderNew, p.ID)
 	}
 
-	PeerMapLock.Lock()
-	PeerMapOrder = PeerMapOrderNew
-	PeerMap = PeerMapNew
-	PeerMapLock.Unlock()
+	lmd.PeerMapLock.Lock()
+	lmd.PeerMapOrder = PeerMapOrderNew
+	lmd.PeerMap = PeerMapNew
+	lmd.PeerMapLock.Unlock()
 
 	log.Infof("imported %d peers successfully", len(PeerMapOrderNew))
 
-	nodeAccessor = NewNodes(localConfig, []string{}, "", waitGroupInit, shutdownChannel)
+	lmd.nodeAccessor = NewNodes(lmd, []string{}, "")
 	return
 }
 
 // importPeersFromDir imports all peers recursively for given folder
-func importPeersFromDir(localConfig *Config, waitGroupPeers *sync.WaitGroup, shutdownChannel chan bool, folder string) (peers []*Peer, err error) {
+func importPeersFromDir(lmd *LMDInstance, folder string) (peers []*Peer, err error) {
 	folder = strings.TrimRight(folder, "/")
 	files, err := ioutil.ReadDir(folder)
 	if err != nil {
@@ -76,11 +75,11 @@ func importPeersFromDir(localConfig *Config, waitGroupPeers *sync.WaitGroup, shu
 		return
 	}
 	if _, err := os.Stat(folder + "/sites.json"); err == nil {
-		return importPeerFromDir(peers, folder, localConfig, waitGroupPeers, shutdownChannel)
+		return importPeerFromDir(peers, folder, lmd)
 	}
 	for _, f := range files {
 		if f.IsDir() {
-			peer, err := importPeersFromDir(localConfig, waitGroupPeers, shutdownChannel, fmt.Sprintf("%s/%s", folder, f.Name()))
+			peer, err := importPeersFromDir(lmd, fmt.Sprintf("%s/%s", folder, f.Name()))
 			if err != nil {
 				return nil, err
 			}
@@ -91,14 +90,14 @@ func importPeersFromDir(localConfig *Config, waitGroupPeers *sync.WaitGroup, shu
 }
 
 // importPeerFromDir imports single peer from folder which must contain all required json files
-func importPeerFromDir(peers []*Peer, folder string, localConfig *Config, waitGroupPeers *sync.WaitGroup, shutdownChannel chan bool) ([]*Peer, error) {
+func importPeerFromDir(peers []*Peer, folder string, lmd *LMDInstance) ([]*Peer, error) {
 	folder = strings.TrimRight(folder, "/")
 	files, err := ioutil.ReadDir(folder)
 	if err != nil {
 		err = fmt.Errorf("cannot read %s: %s", folder, err)
 		return nil, err
 	}
-	peers, err = importPeerFromFile(peers, folder+"/sites.json", localConfig, waitGroupPeers, shutdownChannel)
+	peers, err = importPeerFromFile(peers, folder+"/sites.json", lmd)
 	if err != nil {
 		return nil, fmt.Errorf("import error in file %s: %s", folder+"/sites.json", err)
 	}
@@ -107,7 +106,7 @@ func importPeerFromDir(peers []*Peer, folder string, localConfig *Config, waitGr
 			if strings.Contains(f.Name(), "sites.json") {
 				continue
 			}
-			peers, err = importPeerFromFile(peers, folder+"/"+f.Name(), localConfig, waitGroupPeers, shutdownChannel)
+			peers, err = importPeerFromFile(peers, folder+"/"+f.Name(), lmd)
 			if err != nil {
 				return nil, fmt.Errorf("import error in file %s: %s", folder+"/"+f.Name(), err)
 			}
@@ -117,7 +116,7 @@ func importPeerFromDir(peers []*Peer, folder string, localConfig *Config, waitGr
 }
 
 // importPeerFromFile imports next file
-func importPeerFromFile(peers []*Peer, filename string, localConfig *Config, waitGroupPeers *sync.WaitGroup, shutdownChannel chan bool) ([]*Peer, error) {
+func importPeerFromFile(peers []*Peer, filename string, lmd *LMDInstance) ([]*Peer, error) {
 	log.Debugf("reading %s", filename)
 	matches := reImportFileTable.FindStringSubmatch(filename)
 	if len(matches) != 2 {
@@ -135,11 +134,11 @@ func importPeerFromFile(peers []*Peer, filename string, localConfig *Config, wai
 	if err != nil {
 		return nil, fmt.Errorf("import error: %s", err)
 	}
-	return importData(peers, table, rows, columns, localConfig, waitGroupPeers, shutdownChannel)
+	return importData(peers, table, rows, columns, lmd)
 }
 
 // importPeersFromTar imports all peers from tarball
-func importPeersFromTar(localConfig *Config, waitGroupPeers *sync.WaitGroup, shutdownChannel chan bool, tarFile string) (peers []*Peer, err error) {
+func importPeersFromTar(lmd *LMDInstance, tarFile string) (peers []*Peer, err error) {
 	f, err := os.Open(tarFile)
 	if err != nil {
 		err = fmt.Errorf("cannot read %s: %s", tarFile, err)
@@ -168,7 +167,7 @@ func importPeersFromTar(localConfig *Config, waitGroupPeers *sync.WaitGroup, shu
 		switch header.Typeflag {
 		case tar.TypeDir:
 		case tar.TypeReg:
-			peers, err = importPeerFromTar(peers, header, tarReader, localConfig, waitGroupPeers, shutdownChannel)
+			peers, err = importPeerFromTar(peers, header, tarReader, lmd)
 			if err != nil {
 				return nil, fmt.Errorf("gzip/tarball error %s in file %s: %s", tarFile, header.Name, err)
 			}
@@ -181,7 +180,7 @@ func importPeersFromTar(localConfig *Config, waitGroupPeers *sync.WaitGroup, shu
 }
 
 // importPeerFromTar imports next file from tarball
-func importPeerFromTar(peers []*Peer, header *tar.Header, tarReader io.Reader, localConfig *Config, waitGroupPeers *sync.WaitGroup, shutdownChannel chan bool) ([]*Peer, error) {
+func importPeerFromTar(peers []*Peer, header *tar.Header, tarReader io.Reader, lmd *LMDInstance) ([]*Peer, error) {
 	filename := header.Name
 	log.Debugf("reading %s", filename)
 	matches := reImportFileTable.FindStringSubmatch(filename)
@@ -192,11 +191,11 @@ func importPeerFromTar(peers []*Peer, header *tar.Header, tarReader io.Reader, l
 	if err != nil {
 		return nil, fmt.Errorf("import error: %s", err)
 	}
-	return importData(peers, table, rows, columns, localConfig, waitGroupPeers, shutdownChannel)
+	return importData(peers, table, rows, columns, lmd)
 }
 
 // importData creates/extends peer from given table data
-func importData(peers []*Peer, table *Table, rows ResultSet, columns ColumnList, localConfig *Config, waitGroupPeers *sync.WaitGroup, shutdownChannel chan bool) ([]*Peer, error) {
+func importData(peers []*Peer, table *Table, rows ResultSet, columns ColumnList, lmd *LMDInstance) ([]*Peer, error) {
 	colIndex := make(map[string]int)
 	for i, col := range columns {
 		colIndex[col.Name] = i
@@ -218,7 +217,7 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns ColumnList,
 			Section: interface2stringNoDedup(rows[0][colIndex["section"]]),
 			Flags:   interface2stringlist(rows[0][colIndex["flags"]]),
 		}
-		p = NewPeer(localConfig, con, waitGroupPeers, shutdownChannel)
+		p = NewPeer(lmd, con)
 		peers = append(peers, p)
 		logWith(p).Infof("restoring peer id %s", p.ID)
 

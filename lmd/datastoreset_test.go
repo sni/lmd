@@ -42,7 +42,7 @@ func TestComposeTimestamp3(t *testing.T) {
 }
 
 func TestDSHasChanged(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	err := peer.data.reloadIfNumberOfObjectsChanged()
@@ -50,13 +50,13 @@ func TestDSHasChanged(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestDSFullUpdate(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	peer.StatusSet(LastUpdate, int64(0))
@@ -73,13 +73,13 @@ func TestDSFullUpdate(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
 
 func TestDSDowntimesComments(t *testing.T) {
-	peer := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	err := peer.data.buildDowntimeCommentsList(TableComments)
@@ -92,7 +92,7 @@ func TestDSDowntimesComments(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }

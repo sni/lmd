@@ -33,27 +33,30 @@ const (
 type Listener struct {
 	noCopy           noCopy
 	Lock             *deadlock.RWMutex // must be used for when changing config
-	GlobalConfig     *Config
+	lmd              *LMDInstance
 	connectionString string
 	Connection       net.Listener
 	waitGroupDone    *sync.WaitGroup
 	waitGroupInit    *sync.WaitGroup
 	openConnections  int64
 	queryStats       *QueryStats
+	cleanup          func()
 }
 
 // NewListener creates a new Listener object
-func NewListener(localConfig *Config, listen string, waitGroupInit *sync.WaitGroup, waitGroupDone *sync.WaitGroup, qStat *QueryStats) *Listener {
+func NewListener(lmd *LMDInstance, listen string, qStat *QueryStats) *Listener {
 	l := Listener{
 		Lock:             new(deadlock.RWMutex),
-		GlobalConfig:     localConfig,
+		lmd:              lmd,
 		connectionString: listen,
-		waitGroupDone:    waitGroupDone,
-		waitGroupInit:    waitGroupInit,
+		waitGroupDone:    lmd.waitGroupListener,
+		waitGroupInit:    lmd.waitGroupInit,
+		Connection:       nil,
 		queryStats:       qStat,
+		cleanup:          nil,
 	}
 	go func() {
-		defer logPanicExit()
+		defer lmd.logPanicExit()
 		l.handle()
 	}()
 	return &l
@@ -62,9 +65,9 @@ func NewListener(localConfig *Config, listen string, waitGroupInit *sync.WaitGro
 // handle starts listening on the actual connection
 func (l *Listener) handle() {
 	defer func() {
-		ListenersLock.Lock()
-		delete(Listeners, l.connectionString)
-		ListenersLock.Unlock()
+		l.lmd.ListenersLock.Lock()
+		delete(l.lmd.Listeners, l.connectionString)
+		l.lmd.ListenersLock.Unlock()
 		l.waitGroupDone.Done()
 	}()
 	l.waitGroupDone.Add(1)
@@ -85,7 +88,8 @@ func (l *Listener) handle() {
 		l.localListenerLivestatus("tcp", listen)
 	default:
 		// remove stale sockets on start
-		if _, err := os.Stat(listen); err == nil {
+		_, err := os.Stat(listen)
+		if os.IsExist(err) {
 			log.Warnf("removing stale socket: %s", listen)
 			os.Remove(listen)
 		}
@@ -99,7 +103,7 @@ func (l *Listener) localListenerLivestatus(connType string, listen string) {
 	var c net.Listener
 	if connType == "tls" {
 		l.Lock.RLock()
-		tlsConfig, tErr := GetTLSListenerConfig(l.GlobalConfig)
+		tlsConfig, tErr := GetTLSListenerConfig(l.lmd.Config)
 		l.Lock.RUnlock()
 		if tErr != nil {
 			log.Fatalf("failed to initialize tls %s", tErr.Error())
@@ -115,7 +119,9 @@ func (l *Listener) localListenerLivestatus(connType string, listen string) {
 	}
 	defer c.Close()
 	if connType == "unix" {
-		defer os.Remove(listen)
+		l.cleanup = func() {
+			os.Remove(listen)
+		}
 	}
 	defer log.Infof("%s listener %s shutdown complete", connType, listen)
 	log.Infof("listening for incoming queries on %s %s", connType, listen)
@@ -134,14 +140,14 @@ func (l *Listener) localListenerLivestatus(connType string, listen string) {
 
 		l.Lock.Lock()
 		l.openConnections++
-		cl := NewClientConnection(fd, l.GlobalConfig.ListenTimeout, l.GlobalConfig.LogSlowQueryThreshold, l.GlobalConfig.LogHugeQueryThreshold, l.queryStats)
+		cl := NewClientConnection(l.lmd, fd, l.lmd.Config.ListenTimeout, l.lmd.Config.LogSlowQueryThreshold, l.lmd.Config.LogHugeQueryThreshold, l.queryStats)
 		promFrontendOpenConnections.WithLabelValues(l.connectionString).Set(float64(l.openConnections))
 		l.Lock.Unlock()
 
 		// background waiting for query to finish/timeout
 		go func() {
 			// make sure we log panics properly
-			defer logPanicExit()
+			defer l.lmd.logPanicExit()
 
 			cl.Handle()
 			l.Lock.Lock()
@@ -161,7 +167,7 @@ func (l *Listener) localListenerHTTP(httpType string, listen string) {
 	var c net.Listener
 	if httpType == "https" {
 		l.Lock.RLock()
-		tlsConfig, err := GetTLSListenerConfig(l.GlobalConfig)
+		tlsConfig, err := GetTLSListenerConfig(l.lmd.Config)
 		l.Lock.RUnlock()
 		if err != nil {
 			log.Fatalf("failed to initialize https %s", err.Error())
@@ -183,7 +189,7 @@ func (l *Listener) localListenerHTTP(httpType string, listen string) {
 	l.Connection = c
 
 	// Initialize HTTP router
-	router := initializeHTTPRouter()
+	router := initializeHTTPRouter(l.lmd)
 	log.Infof("listening for rest queries on %s", listen)
 	l.waitGroupInit.Done()
 
@@ -196,6 +202,17 @@ func (l *Listener) localListenerHTTP(httpType string, listen string) {
 	if err := server.Serve(c); err != nil {
 		log.Infof("stopping listener on %s", listen)
 		log.Debugf("http listener finished with: %e", err)
+	}
+}
+
+func (l *Listener) Stop() {
+	if l.Connection != nil {
+		l.Connection.Close()
+		l.Connection = nil
+	}
+	if l.cleanup != nil {
+		l.cleanup()
+		l.cleanup = nil
 	}
 }
 

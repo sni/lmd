@@ -10,11 +10,11 @@ func TestPrometheus(t *testing.T) {
 	extraConfig := `
         ListenPrometheus = "127.0.0.1:50999"
 	`
-	peer := StartTestPeerExtra(2, 10, 10, extraConfig)
+	peer, cleanup, _ := StartTestPeerExtra(2, 10, 10, extraConfig)
 	PauseTestPeers(peer)
 
 	ctx := context.Background()
-	tlsconfig := getMinimalTLSConfig(peer.GlobalConfig)
+	tlsconfig := getMinimalTLSConfig(peer.lmd.Config)
 	netClient := NewLMDHTTPClient(tlsconfig, "")
 	req, _ := http.NewRequestWithContext(ctx, "GET", "http://127.0.0.1:50999/metrics", nil)
 	response, err := netClient.Do(req)
@@ -29,7 +29,7 @@ func TestPrometheus(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := StopTestPeer(peer); err != nil {
+	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
