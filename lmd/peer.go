@@ -2538,6 +2538,7 @@ func (p *Peer) addSubPeer(subFlag OptionalFlags, key string, subName string, dat
 			return
 		}
 
+		// create dummy peer which is disabled and only shows this error
 		duplicate = fmt.Sprintf("federate site %s/%s id clash %s already taken", p.Name, subName, subID)
 		subID += "dup"
 		_, ok = p.lmd.PeerMap[subID]
