@@ -82,26 +82,22 @@ func (l *Listener) handle() {
 	case strings.HasPrefix(listen, "tls://"):
 		listen = strings.TrimPrefix(listen, "tls://")
 		listen = strings.TrimPrefix(listen, "*") // * means all interfaces
-		l.localListenerLivestatus("tls", listen)
+		l.localListenerLivestatus(ConnTypeTLS, listen)
 	case strings.Contains(listen, ":"):
 		listen = strings.TrimPrefix(listen, "*") // * means all interfaces
-		l.localListenerLivestatus("tcp", listen)
+		l.localListenerLivestatus(ConnTypeTCP, listen)
 	default:
-		// remove stale sockets on start
-		_, err := os.Stat(listen)
-		if os.IsExist(err) {
-			log.Warnf("removing stale socket: %s", listen)
-			os.Remove(listen)
-		}
-		l.localListenerLivestatus("unix", listen)
+		l.localListenerLivestatus(ConnTypeUnix, listen)
 	}
 }
 
 // localListenerLivestatus starts a listening socket with livestatus protocol.
-func (l *Listener) localListenerLivestatus(connType string, listen string) {
+func (l *Listener) localListenerLivestatus(connType ConnectionType, listen string) {
 	var err error
 	var c net.Listener
-	if connType == "tls" {
+
+	switch connType {
+	case ConnTypeTLS:
 		l.Lock.RLock()
 		tlsConfig, tErr := GetTLSListenerConfig(l.lmd.Config)
 		l.Lock.RUnlock()
@@ -109,16 +105,30 @@ func (l *Listener) localListenerLivestatus(connType string, listen string) {
 			log.Fatalf("failed to initialize tls %s", tErr.Error())
 		}
 		c, err = tls.Listen("tcp", listen, tlsConfig)
-	} else {
-		c, err = net.Listen(connType, listen)
+	case ConnTypeTCP:
+		c, err = net.Listen("tcp", listen)
+	case ConnTypeUnix:
+		// remove stale sockets on start
+		_, sErr := os.Stat(listen)
+		if sErr == nil {
+			log.Warnf("removing stale socket: %s", listen)
+			sErr = os.Remove(listen)
+			if sErr != nil {
+				log.Warnf("removing stale socket failed: %s", sErr)
+			}
+		}
+		c, err = net.Listen("unix", listen)
+	default:
+		log.Panicf("not implemented: %#v", connType)
 	}
+
 	l.Connection = c
 	if err != nil {
 		log.Fatalf("listen error: %s", err.Error())
 		return
 	}
 	defer c.Close()
-	if connType == "unix" {
+	if connType == ConnTypeUnix {
 		l.cleanup = func() {
 			os.Remove(listen)
 		}

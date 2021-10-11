@@ -170,19 +170,6 @@ const (
 	ForceFull
 )
 
-// PeerConnType contains the different connection types
-type PeerConnType uint8
-
-// A peer can be up, warning, down and pending.
-// It is pending right after start and warning when the connection fails
-// but the stale timeout is not yet hit.
-const (
-	ConnTypeTCP PeerConnType = iota
-	ConnTypeUnix
-	ConnTypeTLS
-	ConnTypeHTTP
-)
-
 // HTTPResult contains the livestatus result as long with some meta data.
 type HTTPResult struct {
 	Rc      int
@@ -1034,7 +1021,7 @@ func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 	return data, meta, nil
 }
 
-func (p *Peer) getQueryResponse(req *Request, query string, peerAddr string, conn net.Conn, connType PeerConnType) ([]byte, error) {
+func (p *Peer) getQueryResponse(req *Request, query string, peerAddr string, conn net.Conn, connType ConnectionType) ([]byte, error) {
 	// http connections
 	if connType == ConnTypeHTTP {
 		return p.getHTTPQueryResponse(req, query, peerAddr)
@@ -1235,7 +1222,7 @@ func (p *Peer) validateResponseHeader(resBytes []byte, req *Request, code int, e
 // In case of a http connection, it just tries a tcp connect, but does not
 // return anything.
 // It returns the connection object and any error encountered.
-func (p *Peer) GetConnection() (conn net.Conn, connType PeerConnType, err error) {
+func (p *Peer) GetConnection() (conn net.Conn, connType ConnectionType, err error) {
 	numSources := len(p.Source)
 
 	for x := 0; x < numSources; x++ {
@@ -1318,7 +1305,7 @@ func (p *Peer) GetCachedConnection() (conn net.Conn) {
 	}
 }
 
-func extractConnType(rawAddr string) (string, PeerConnType) {
+func extractConnType(rawAddr string) (string, ConnectionType) {
 	connType := ConnTypeUnix
 	switch {
 	case strings.HasPrefix(rawAddr, "http"):

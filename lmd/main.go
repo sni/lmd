@@ -96,6 +96,32 @@ type noCopy struct{}
 func (*noCopy) Lock()   {}
 func (*noCopy) Unlock() {}
 
+// ConnectionType contains the different connection types
+type ConnectionType uint8
+
+// sets available connection types
+const (
+	ConnTypeTCP ConnectionType = iota
+	ConnTypeUnix
+	ConnTypeTLS
+	ConnTypeHTTP
+)
+
+func (c ConnectionType) String() string {
+	switch c {
+	case ConnTypeTCP:
+		return "tcp"
+	case ConnTypeUnix:
+		return "unix"
+	case ConnTypeTLS:
+		return "tls"
+	case ConnTypeHTTP:
+		return "http"
+	}
+	log.Panicf("not implemented: %#v", c)
+	return ""
+}
+
 type LMDInstance struct {
 	Config            *Config              // reference to global config object
 	PeerMap           map[string]*Peer     // PeerMap contains a map of available remote peers.
