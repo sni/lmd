@@ -12,10 +12,14 @@ import (
 	"github.com/kdar/factorlog"
 )
 
-const (
-	// LogFormat sets the log format
-	LogFormat = `[%{Date} %{Time "15:04:05.000"}][%{Severity}][%{File}:%{Line}] %{Message}`
+// LogFormat sets the log format
+var LogFormat string
 
+func init() {
+	LogFormat = `[%{Date} %{Time "15:04:05.000"}][%{Severity}][pid:` + fmt.Sprintf("%d", os.Getpid()) + `][%{ShortFile}:%{Line}] %{Message}`
+}
+
+const (
 	// LogColors sets colors for some log levels
 	LogColors = `%{Color "yellow" "WARN"}%{Color "red" "ERROR"}%{Color "red" "FATAL"}`
 
@@ -36,7 +40,7 @@ const (
 )
 
 // initialize standard logger which will be configured later from the configuration file options
-var log = factorlog.New(os.Stdout, factorlog.NewStdFormatter(`%{Date} %{Time "15:04:05.000"} %{File}:%{Line} %{Message}`))
+var log = factorlog.New(os.Stdout, factorlog.NewStdFormatter(LogFormat))
 
 // InitLogging initializes the logging system.
 func InitLogging(conf *Config) {

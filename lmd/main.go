@@ -207,8 +207,8 @@ func main() {
 
 	for {
 		exitCode := lmd.mainLoop()
-		defer log.Debugf("lmd shutdown complete")
 		if exitCode > 0 {
+			log.Infof("lmd shutdown complete")
 			os.Exit(exitCode)
 		}
 		// make it possible to call main() from tests without exiting the tests
@@ -255,6 +255,7 @@ func (lmd *LMDInstance) mainLoop() (exitCode int) {
 	}
 
 	once.Do(lmd.PrintVersion)
+	log.Infof("%s - version %s started with config %s", NAME, Version(), lmd.flags.flagConfigFile)
 	localConfig.LogConfig()
 
 	// initialize prometheus

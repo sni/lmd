@@ -111,6 +111,7 @@ issues:
     - "VirtualColumnMap is a global variable"
     - "VirtualColumnList is a global variable"
     - "OptionalFlagsStrings is a global variable"
+    - "LogFormat is a global variable"
   exclude-rules:
     # Exclude some linters from running on tests files.
     - path: _test\.go
