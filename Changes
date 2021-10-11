@@ -1,5 +1,10 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
+next:
+          - add process pid to log
+          - improve handling of duplicate or conflicting backend ids
+          - fix removing stale sockets on startup
+
 2.0.2    Tue Aug 31 17:26:18 CEST 2021
           - rework comment/downtime id handling
           - improve error logging on clock errors
