@@ -9,15 +9,14 @@ import (
 )
 
 func TestRequestStatsTac(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(4, 10, 10)
+	peer, cleanup, lmd := StartTestPeer(4, 10, 10)
 	PauseTestPeers(peer)
 
-	if err := assertEq(4, len(peer.lmd.PeerMap)); err != nil {
+	if err := assertEq(4, len(lmd.PeerMap)); err != nil {
 		t.Error(err)
 	}
 
-	oldParser := defaultParseOptimizer
-	defaultParseOptimizer = ParseDefault
+	lmd.defaultReqestParseOption = ParseDefault
 	query := strings.ReplaceAll(tacPageStatsQuery, "OutputFormat: json", "OutputFormat: wrapped_json")
 	res, meta, err := peer.QueryString(query)
 	if err != nil {
@@ -42,9 +41,8 @@ func TestRequestStatsTac(t *testing.T) {
 		t.Error(err)
 	}
 
-	defaultParseOptimizer = ParseOptimize
+	lmd.defaultReqestParseOption = ParseOptimize
 	res2, meta2, err2 := peer.QueryString(query)
-	defaultParseOptimizer = ParseDefault
 	if err2 != nil {
 		t.Fatal(err2)
 	}
@@ -58,7 +56,6 @@ func TestRequestStatsTac(t *testing.T) {
 		t.Error(err)
 	}
 
-	defaultParseOptimizer = oldParser
 	if err := cleanup(); err != nil {
 		panic(err.Error())
 	}

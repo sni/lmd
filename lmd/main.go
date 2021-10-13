@@ -150,10 +150,11 @@ type LMDInstance struct {
 		flagExport       string
 		flagImport       string
 	}
-	mainSignalChannel chan os.Signal
-	initChannel       chan bool
-	lastMainRestart   int64
-	cpuProfileHandler *os.File
+	mainSignalChannel        chan os.Signal
+	initChannel              chan bool
+	lastMainRestart          int64
+	cpuProfileHandler        *os.File
+	defaultReqestParseOption ParseOptions
 }
 
 type arrayFlags struct {
@@ -182,18 +183,19 @@ func init() {
 
 func NewLMDInstance() (lmd *LMDInstance) {
 	lmd = &LMDInstance{
-		lastMainRestart:   time.Now().Unix(),
-		mainSignalChannel: make(chan os.Signal),
-		initChannel:       nil,
-		PeerMapLock:       new(deadlock.RWMutex),
-		PeerMap:           make(map[string]*Peer),
-		PeerMapOrder:      make([]string, 0),
-		Listeners:         make(map[string]*Listener),
-		ListenersLock:     new(deadlock.RWMutex),
-		waitGroupInit:     &sync.WaitGroup{},
-		waitGroupListener: &sync.WaitGroup{},
-		waitGroupPeers:    &sync.WaitGroup{},
-		shutdownChannel:   make(chan bool),
+		lastMainRestart:          time.Now().Unix(),
+		mainSignalChannel:        make(chan os.Signal),
+		initChannel:              nil,
+		PeerMapLock:              new(deadlock.RWMutex),
+		PeerMap:                  make(map[string]*Peer),
+		PeerMapOrder:             make([]string, 0),
+		Listeners:                make(map[string]*Listener),
+		ListenersLock:            new(deadlock.RWMutex),
+		waitGroupInit:            &sync.WaitGroup{},
+		waitGroupListener:        &sync.WaitGroup{},
+		waitGroupPeers:           &sync.WaitGroup{},
+		shutdownChannel:          make(chan bool),
+		defaultReqestParseOption: ParseOptimize,
 	}
 	return
 }

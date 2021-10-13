@@ -160,14 +160,13 @@ type ResultMetaData struct {
 
 var reRequestAction = regexp.MustCompile(`^GET +([a-z]+)$`)
 var reRequestCommand = regexp.MustCompile(`^COMMAND +(\[\d+\].*)$`)
-var defaultParseOptimizer = ParseOptimize
 
 // ParseRequest reads from a connection and returns a single requests.
 // It returns a the requests and any errors encountered.
 func ParseRequest(ctx context.Context, lmd *LMDInstance, c net.Conn) (req *Request, err error) {
 	b := bufio.NewReader(c)
 	localAddr := c.LocalAddr().String()
-	req, size, err := NewRequest(ctx, lmd, b, defaultParseOptimizer)
+	req, size, err := NewRequest(ctx, lmd, b, lmd.defaultReqestParseOption)
 	promFrontendBytesReceived.WithLabelValues(localAddr).Add(float64(size))
 	return
 }
@@ -179,7 +178,7 @@ func ParseRequests(ctx context.Context, lmd *LMDInstance, c net.Conn) (reqs []*R
 	localAddr := c.LocalAddr().String()
 	eof := false
 	for {
-		req, size, err := NewRequest(ctx, lmd, b, defaultParseOptimizer)
+		req, size, err := NewRequest(ctx, lmd, b, lmd.defaultReqestParseOption)
 		promFrontendBytesReceived.WithLabelValues(localAddr).Add(float64(size))
 		if err != nil {
 			if errors.Is(err, io.EOF) {
