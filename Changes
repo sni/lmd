@@ -1,5 +1,8 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
+next:
+          - fix reading connections from multiple config files
+
 2.0.3    Wed Oct 13 11:47:03 CEST 2021
           - add process pid to log
           - improve handling of duplicate or conflicting backend ids
