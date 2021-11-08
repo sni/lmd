@@ -1459,7 +1459,7 @@ func (p *Peer) checkAvailableTables() (err error) {
 		}
 		if !p.HasFlag(optFlag.Flag) {
 			if _, ok := availableTables[optFlag.Table][optFlag.Column]; ok {
-				logWith(p).Debugf("remote connection supports %s.%s column", &optFlag.Table, &optFlag.Column)
+				logWith(p).Debugf("remote connection supports %s.%s column", optFlag.Table.String(), optFlag.Column)
 				p.SetFlag(optFlag.Flag)
 			}
 		}
