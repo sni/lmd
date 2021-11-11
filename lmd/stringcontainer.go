@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
-	"io/ioutil"
+	"io"
 )
 
 const DefaultCompressionMinimumSize = 500
@@ -77,7 +77,7 @@ func (s *StringContainer) StringRef() *string {
 		str := ""
 		return &str
 	}
-	b, err := ioutil.ReadAll(r)
+	b, err := io.ReadAll(r)
 	r.Close()
 	if err != nil {
 		log.Errorf("failed to read compressed data: %s", err.Error())

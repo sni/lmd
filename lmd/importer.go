@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"regexp"
 	"strings"
@@ -69,7 +68,7 @@ func initializePeersWithImport(lmd *LMDInstance, importFile string) (err error) 
 // importPeersFromDir imports all peers recursively for given folder
 func importPeersFromDir(lmd *LMDInstance, folder string) (peers []*Peer, err error) {
 	folder = strings.TrimRight(folder, "/")
-	files, err := ioutil.ReadDir(folder)
+	files, err := os.ReadDir(folder)
 	if err != nil {
 		err = fmt.Errorf("cannot read %s: %s", folder, err)
 		return
@@ -92,7 +91,7 @@ func importPeersFromDir(lmd *LMDInstance, folder string) (peers []*Peer, err err
 // importPeerFromDir imports single peer from folder which must contain all required json files
 func importPeerFromDir(peers []*Peer, folder string, lmd *LMDInstance) ([]*Peer, error) {
 	folder = strings.TrimRight(folder, "/")
-	files, err := ioutil.ReadDir(folder)
+	files, err := os.ReadDir(folder)
 	if err != nil {
 		err = fmt.Errorf("cannot read %s: %s", folder, err)
 		return nil, err
@@ -102,7 +101,11 @@ func importPeerFromDir(peers []*Peer, folder string, lmd *LMDInstance) ([]*Peer,
 		return nil, fmt.Errorf("import error in file %s: %s", folder+"/sites.json", err)
 	}
 	for _, f := range files {
-		if f.Mode().IsRegular() {
+		fInfo, err := f.Info()
+		if err != nil {
+			return nil, fmt.Errorf("import error in file %s: %s", f.Name(), err)
+		}
+		if fInfo.Mode().IsRegular() {
 			if strings.Contains(f.Name(), "sites.json") {
 				continue
 			}

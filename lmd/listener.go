@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -239,9 +238,9 @@ func GetTLSListenerConfig(localConfig *Config) (config *tls.Config, err error) {
 	if len(localConfig.TLSClientPems) > 0 {
 		caCertPool := x509.NewCertPool()
 		for _, file := range localConfig.TLSClientPems {
-			caCert, err := ioutil.ReadFile(file)
+			caCert, err := os.ReadFile(file)
 			if err != nil {
-				return nil, fmt.Errorf("ioutil.ReadFile: %w", err)
+				return nil, fmt.Errorf("os.ReadFile: %w", err)
 			}
 			caCertPool.AppendCertsFromPEM(caCert)
 		}

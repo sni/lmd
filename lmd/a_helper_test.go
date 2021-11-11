@@ -116,7 +116,7 @@ func StartMockLivestatusSource(lmd *LMDInstance, nr int, numHosts int, numServic
 			if req.Table == TableColumns {
 				// make the peer detect dependency columns
 				b, _ := json.Marshal(getTestDataColumns(dataFolder))
-				_checkErr2(conn.Write([]byte(fmt.Sprintf("200 %11d\n", len(b)+1))))
+				_checkErr2(fmt.Fprintf(conn, "200 %11d\n", len(b)+1))
 				_checkErr2(conn.Write(b))
 				_checkErr2(conn.Write([]byte("\n")))
 				_checkErr(conn.Close())
@@ -131,7 +131,7 @@ func StartMockLivestatusSource(lmd *LMDInstance, nr int, numHosts int, numServic
 
 			filename := fmt.Sprintf("%s/%s", dataFolder, req.Table.String())
 			dat := readTestData(filename, req.Columns)
-			_checkErr2(conn.Write([]byte(fmt.Sprintf("%d %11d\n", 200, len(dat)))))
+			_checkErr2(fmt.Fprintf(conn, "%d %11d\n", 200, len(dat)))
 			_checkErr2(conn.Write(dat))
 			_checkErr(conn.Close())
 		}
@@ -162,7 +162,7 @@ func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (t
 		}
 		switch {
 		case numServices == 0 && name != TableStatus:
-			_checkErr2(io.WriteString(file, "[]\n"))
+			_checkErr2(file.WriteString("[]\n"))
 			err = file.Close()
 		case name == TableHosts || name == TableServices:
 			err = file.Close()
@@ -180,7 +180,7 @@ func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (t
 
 func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Table, numHosts int, numServices int) {
 	name := table.Name
-	dat, _ := ioutil.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, name.String()))
+	dat, _ := os.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, name.String()))
 	var raw = make([]map[string]interface{}, 0)
 	err := json.Unmarshal(dat, &raw)
 	if err != nil {
@@ -250,16 +250,16 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 	}
 
 	buf := new(bytes.Buffer)
-	_checkErr2(buf.Write([]byte("[")))
+	_checkErr2(buf.WriteString("["))
 	for i, row := range newData {
 		enc, _ := json.Marshal(row)
 		_checkErr2(buf.Write(enc))
 		if i < len(newData)-1 {
-			_checkErr2(buf.Write([]byte(",\n")))
+			_checkErr2(buf.WriteString(",\n"))
 		}
 	}
-	_checkErr2(buf.Write([]byte("]\n")))
-	_checkErr(ioutil.WriteFile(fmt.Sprintf("%s/%s.map", tempFolder, name.String()), buf.Bytes(), 0644))
+	_checkErr2(buf.WriteString("]\n"))
+	_checkErr(os.WriteFile(fmt.Sprintf("%s/%s.map", tempFolder, name.String()), buf.Bytes(), 0o644))
 }
 
 func StartMockMainLoop(lmd *LMDInstance, sockets []string, extraConfig string) {
@@ -276,10 +276,10 @@ LogLockTimeout = 10
 	}
 
 	for i, socket := range sockets {
-		testConfig += fmt.Sprintf("[[Connections]]\nname = \"MockCon-%s\"\nid   = \"mockid%d\"\nsource = [\"%s\"]\n\n", socket, i, socket)
+		testConfig += fmt.Sprintf("[[Connections]]\nname = \"MockCon-%s\"\nid   = \"mockid%d\"\nsource = [%q]\n\n", socket, i, socket)
 	}
 
-	err := ioutil.WriteFile("test.ini", []byte(testConfig), 0644)
+	err := os.WriteFile("test.ini", []byte(testConfig), 0o644)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -398,64 +398,70 @@ func StartHTTPMockServer(t *testing.T, lmd *LMDInstance) (*httptest.Server, func
 	numHosts := 5
 	numServices := 10
 	dataFolder := prepareTmpData("../t/data", nr, numHosts, numServices)
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var data struct {
-			// Credential string  // unused
-			Options struct {
-				// Action string // unused
-				Args []string
-				Sub  string
-			}
-		}
-		err := json.Unmarshal([]byte(r.PostFormValue("data")), &data)
-		if err != nil {
-			t.Fatalf("failed to parse request: %s", err.Error())
-		}
-		if data.Options.Sub == "_raw_query" {
-			req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(strings.NewReader(data.Options.Args[0])), ParseDefault)
-			if err != nil {
-				t.Fatalf("failed to parse request: %s", err.Error())
-			}
-			switch {
-			case req.Table == TableColumns:
-				// make the peer detect dependency columns
-				b, _ := json.Marshal(getTestDataColumns(dataFolder))
-				fmt.Fprintf(w, "%d %11d\n", 200, len(b))
-				fmt.Fprint(w, string(b))
-				return
-			case req.Table != TableNone:
-				filename := fmt.Sprintf("%s/%s", dataFolder, req.Table.String())
-				dat := readTestData(filename, req.Columns)
-				fmt.Fprintf(w, "%d %11d\n", 200, len(dat))
-				fmt.Fprint(w, string(dat))
-				return
-			case req.Command == "COMMAND [0] test_ok":
-				if v, ok := r.Header["Accept"]; ok && v[0] == "application/livestatus" {
-					fmt.Fprintln(w, "")
-				} else {
-					fmt.Fprintln(w, "{\"rc\":0,\"version \":\"2.20\",\"branch\":\"1\",\"output\":[null,0,\"\",null]}")
-				}
-				return
-			case req.Command == "COMMAND [0] test_broken":
-				if v, ok := r.Header["Accept"]; ok && v[0] == "application/livestatus" {
-					fmt.Fprintln(w, "400: command broken")
-				} else {
-					fmt.Fprintln(w, "{\"rc\":0,\"version\":\"2.20\",\"branch\":\"1\",\"output\":[null,0,\"400: command broken\",null]}")
-				}
-				return
-			}
-		}
-		if data.Options.Sub == "get_processinfo" {
-			fmt.Fprintln(w, "{\"rc\":0, \"version\":\"2.20\", \"output\":[]}")
-			return
-		}
-		t.Fatalf("unknown test request: %v", r)
-	}))
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { httpMockHandler(t, w, r, lmd, dataFolder) }))
 	cleanup := func() {
 		ts.Close()
 		os.RemoveAll(dataFolder)
 	}
 	return ts, cleanup
+}
+
+func httpMockHandler(t *testing.T, w io.Writer, r *http.Request, lmd *LMDInstance, dataFolder string) {
+	t.Helper()
+	var data struct {
+		// Credential string  // unused
+		Options struct {
+			// Action string // unused
+			Args []string
+			Sub  string
+		}
+	}
+	err := json.Unmarshal([]byte(r.PostFormValue("data")), &data)
+	if err != nil {
+		t.Fatalf("failed to parse request: %s", err.Error())
+	}
+	if data.Options.Sub == "_raw_query" {
+		req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(strings.NewReader(data.Options.Args[0])), ParseDefault)
+		if err != nil {
+			t.Fatalf("failed to parse request: %s", err.Error())
+		}
+		httpMockHandlerRaw(t, w, r, dataFolder, req)
+		return
+	}
+	if data.Options.Sub == "get_processinfo" {
+		fmt.Fprintln(w, "{\"rc\":0, \"version\":\"2.20\", \"output\":[]}")
+		return
+	}
+	t.Fatalf("unknown test request: %v", r)
+}
+
+func httpMockHandlerRaw(t *testing.T, w io.Writer, r *http.Request, dataFolder string, req *Request) {
+	t.Helper()
+
+	switch {
+	case req.Table == TableColumns:
+		// make the peer detect dependency columns
+		b, _ := json.Marshal(getTestDataColumns(dataFolder))
+		fmt.Fprintf(w, "%d %11d\n", 200, len(b))
+		fmt.Fprint(w, string(b))
+	case req.Table != TableNone:
+		filename := fmt.Sprintf("%s/%s", dataFolder, req.Table.String())
+		dat := readTestData(filename, req.Columns)
+		fmt.Fprintf(w, "%d %11d\n", 200, len(dat))
+		fmt.Fprint(w, string(dat))
+	case req.Command == "COMMAND [0] test_ok":
+		if v, ok := r.Header["Accept"]; ok && v[0] == "application/livestatus" {
+			fmt.Fprintln(w, "")
+		} else {
+			fmt.Fprintln(w, "{\"rc\":0,\"version \":\"2.20\",\"branch\":\"1\",\"output\":[null,0,\"\",null]}")
+		}
+	case req.Command == "COMMAND [0] test_broken":
+		if v, ok := r.Header["Accept"]; ok && v[0] == "application/livestatus" {
+			fmt.Fprintln(w, "400: command broken")
+		} else {
+			fmt.Fprintln(w, "{\"rc\":0,\"version\":\"2.20\",\"branch\":\"1\",\"output\":[null,0,\"400: command broken\",null]}")
+		}
+	}
 }
 
 func GetHTTPMockServerPeer(t *testing.T, lmd *LMDInstance) (peer *Peer, cleanup func()) {
@@ -466,7 +472,7 @@ func GetHTTPMockServerPeer(t *testing.T, lmd *LMDInstance) (peer *Peer, cleanup 
 }
 
 func convertTestDataMapToList(filename string, columns []string) []byte {
-	dat, err := ioutil.ReadFile(filename + ".map")
+	dat, err := os.ReadFile(filename + ".map")
 	if err != nil {
 		panic("could not read file: " + err.Error())
 	}
@@ -515,7 +521,7 @@ func convertTestDataMapToList(filename string, columns []string) []byte {
 }
 
 func readTestData(filename string, columns []string) []byte {
-	dat, err := ioutil.ReadFile(filename + ".json")
+	dat, err := os.ReadFile(filename + ".json")
 	if os.IsNotExist(err) {
 		dat = convertTestDataMapToList(filename, columns)
 	} else if err != nil {
@@ -528,7 +534,7 @@ func getTestDataColumns(dataFolder string) (columns [][]string) {
 	matches, _ := filepath.Glob(dataFolder + "/*.map")
 	for _, match := range matches {
 		tableName := strings.TrimSuffix(path.Base(match), ".map")
-		raw, err := ioutil.ReadFile(match)
+		raw, err := os.ReadFile(match)
 		if err != nil {
 			panic("failed to read json file: " + err.Error())
 		}

@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"sync"
@@ -283,15 +282,15 @@ func TestMainConfig(t *testing.T) {
 		"Listen = [\"test2.sock\"]\nSkipSSLCheck = 0",
 	}
 
-	err := ioutil.WriteFile("test1.ini", []byte(testConfig[0]), 0644)
+	err := os.WriteFile("test1.ini", []byte(testConfig[0]), 0o644)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = ioutil.WriteFile("test2.ini", []byte(testConfig[1]), 0644)
+	err = os.WriteFile("test2.ini", []byte(testConfig[1]), 0o644)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = ioutil.WriteFile("test3.ini", []byte(testConfig[2]), 0644)
+	err = os.WriteFile("test3.ini", []byte(testConfig[2]), 0o644)
 	if err != nil {
 		t.Fatal(err)
 	}

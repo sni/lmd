@@ -874,8 +874,9 @@ func parseOnOff(field *bool, value []byte) (err error) {
 }
 
 func parseAuthUser(field *string, value []byte) (err error) {
-	if string(value) != "" {
-		*field = string(value)
+	user := string(value)
+	if user != "" {
+		*field = user
 	} else {
 		err = fmt.Errorf("bad request: AuthUser should not be empty")
 	}

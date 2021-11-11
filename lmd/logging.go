@@ -56,7 +56,7 @@ func InitLogging(conf *Config) {
 		targetWriter = os.Stderr
 	default:
 		logFormatter = factorlog.NewStdFormatter(LogFormat)
-		targetWriter, err = os.OpenFile(conf.LogFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+		targetWriter, err = os.OpenFile(conf.LogFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644)
 	}
 	if err != nil {
 		panic(fmt.Sprintf("failed to initialize logger: %s", err.Error()))

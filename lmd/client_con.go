@@ -200,7 +200,7 @@ func (cl *ClientConnection) sendRemainingCommands(ctx context.Context, commandsB
 	// clear the commands queue
 	*commandsByPeer = make(map[string][]string)
 	if code != 200 {
-		_, err = cl.connection.Write([]byte(fmt.Sprintf("%d: %s\n", code, msg)))
+		_, err = fmt.Fprintf(cl.connection, "%d: %s\n", code, msg)
 		return
 	}
 	logWith(ctx).Infof("incoming command request finished in %s", time.Since(t1))

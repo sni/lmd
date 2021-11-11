@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"net"
 	"net/http"
@@ -1501,7 +1500,7 @@ func (p *Peer) fetchThrukExtrasFromAddr(peerAddr string) (conf map[string]interf
 	}
 	optionStr, _ := json.Marshal(options)
 	output, _, err := p.HTTPPostQuery(nil, peerAddr, url.Values{
-		"data": {fmt.Sprintf("{\"credential\": \"%s\", \"options\": %s}", p.Config.Auth, optionStr)},
+		"data": {fmt.Sprintf("{\"credential\": %q, \"options\": %s}", p.Config.Auth, optionStr)},
 	}, nil)
 	if err != nil {
 		return
@@ -1776,7 +1775,7 @@ func (p *Peer) HTTPQuery(req *Request, peerAddr string, query string) (res []byt
 	}
 
 	output, result, err := p.HTTPPostQuery(req, peerAddr, url.Values{
-		"data": {fmt.Sprintf("{\"credential\": \"%s\", \"options\": %s}", p.Config.Auth, optionStr)},
+		"data": {fmt.Sprintf("{\"credential\": %q, \"options\": %s}", p.Config.Auth, optionStr)},
 	}, headers)
 	if err != nil {
 		return
@@ -1902,7 +1901,7 @@ func (p *Peer) HTTPRestQuery(peerAddr string, uri string) (output interface{}, r
 	options["commandoptions"] = []string{uri}
 	optionStr, _ := json.Marshal(options)
 	result, err = p.HTTPPostQueryResult(nil, peerAddr, url.Values{
-		"data": {fmt.Sprintf("{\"credential\": \"%s\", \"options\": %s}", p.Config.Auth, optionStr)},
+		"data": {fmt.Sprintf("{\"credential\": %q, \"options\": %s}", p.Config.Auth, optionStr)},
 	}, map[string]string{"Accept": "application/json"})
 	if err != nil {
 		return
@@ -1929,12 +1928,12 @@ func (p *Peer) HTTPRestQuery(peerAddr string, uri string) (output interface{}, r
 
 // ExtractHTTPResponse returns the content of a HTTP request.
 func ExtractHTTPResponse(response *http.Response) (contents []byte, err error) {
-	contents, err = ioutil.ReadAll(response.Body)
+	contents, err = io.ReadAll(response.Body)
 	if err != nil {
 		return
 	}
 
-	_, err = io.Copy(ioutil.Discard, response.Body)
+	_, err = io.Copy(io.Discard, response.Body)
 	if err != nil {
 		return
 	}
@@ -2149,7 +2148,7 @@ func (p *Peer) getTLSClientConfig() (*tls.Config, error) {
 	}
 
 	if p.Config.TLSCA != "" {
-		caCert, err := ioutil.ReadFile(p.Config.TLSCA)
+		caCert, err := os.ReadFile(p.Config.TLSCA)
 		if err != nil {
 			return nil, fmt.Errorf("readfile %s: %w", p.Config.TLSCA, err)
 		}
