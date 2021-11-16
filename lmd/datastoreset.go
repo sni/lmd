@@ -182,7 +182,7 @@ func (ds *DataStoreSet) UpdateDelta(from, to int64) (err error) {
 		default:
 			filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: last_check < %v\nAnd: 2\n", from-updateOffset, to-updateOffset)
 			if ds.peer.lmd.Config.SyncIsExecuting && !ds.peer.HasFlag(Shinken) {
-				filterStr += "\nFilter: is_executing = 1\nOr: 2\n"
+				filterStr += "Filter: is_executing = 1\nOr: 2\n"
 			}
 		}
 	}
