@@ -848,7 +848,7 @@ func (ds *DataStoreSet) buildDowntimeCommentsList(name TableName) (err error) {
 
 	// store updated lists
 	for d, ids := range list {
-		switch d.DataStore.Table.Name {
+		switch name {
 		case TableHosts:
 			d.dataInt64List[hostIdx] = ids
 		case TableServices:
