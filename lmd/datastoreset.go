@@ -817,7 +817,8 @@ func (ds *DataStoreSet) buildDowntimeCommentsList(name TableName) (err error) {
 	}
 	serviceIdx := serviceStore.Table.GetColumn(name.String()).Index
 
-	list := make(map[*DataRow][]int64)
+	hostResult := make(map[*DataRow][]int64)
+	serviceResult := make(map[*DataRow][]int64)
 	idIndex := store.Table.GetColumn("id").Index
 	hostNameIndex := store.Table.GetColumn("host_name").Index
 	serviceDescIndex := store.Table.GetColumn("service_description").Index
@@ -827,14 +828,15 @@ func (ds *DataStoreSet) buildDowntimeCommentsList(name TableName) (err error) {
 		row := store.Data[i]
 		key := row.dataString[hostNameIndex]
 		serviceName := row.dataString[serviceDescIndex]
+		id := row.dataInt64[idIndex]
 		var obj *DataRow
 		if serviceName != "" {
 			obj = serviceIndex[key][serviceName]
+			serviceResult[obj] = append(serviceResult[obj], id)
 		} else {
 			obj = hostIndex[key]
+			hostResult[obj] = append(hostResult[obj], id)
 		}
-		id := row.dataInt64[idIndex]
-		list[obj] = append(list[obj], id)
 	}
 	promObjectCount.WithLabelValues(ds.peer.Name, name.String()).Set(float64(len(store.Data)))
 
@@ -847,13 +849,11 @@ func (ds *DataStoreSet) buildDowntimeCommentsList(name TableName) (err error) {
 	}
 
 	// store updated lists
-	for d, ids := range list {
-		switch name {
-		case TableHosts:
-			d.dataInt64List[hostIdx] = ids
-		case TableServices:
-			d.dataInt64List[serviceIdx] = ids
-		}
+	for d, ids := range serviceResult {
+		d.dataInt64List[serviceIdx] = ids
+	}
+	for d, ids := range hostResult {
+		d.dataInt64List[hostIdx] = ids
 	}
 
 	return
