@@ -1,6 +1,7 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
 next:
+          - add MaxQueryFilter option to prevent to complex queries
           - fix reading connections from multiple config files
           - fix synchronization by is_executing flag
 

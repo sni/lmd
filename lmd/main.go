@@ -75,6 +75,9 @@ const (
 	// DefaultDirPerm set default permissions for new folders
 	DefaultDirPerm = 0o755
 
+	// DefaultMaxQueryFilter sets the default number of max query filters
+	DefaultMaxQueryFilter = 1000
+
 	// ThrukMultiBackendMinVersion is the minimum required thruk version
 	ThrukMultiBackendMinVersion = 2.23
 )

@@ -98,6 +98,7 @@ type Config struct {
 	UpdateOffset               int64
 	TLSMinVersion              string
 	MaxParallelPeerConnections int
+	MaxQueryFilter             int
 }
 
 // NewConfig reads all config files.
@@ -126,6 +127,7 @@ func NewConfig(files []string) *Config {
 		UpdateOffset:               3,
 		TLSMinVersion:              "tls1.1",
 		MaxParallelPeerConnections: 3,
+		MaxQueryFilter:             DefaultMaxQueryFilter,
 	}
 
 	// combine listeners from all files

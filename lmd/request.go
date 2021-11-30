@@ -32,6 +32,7 @@ type Request struct {
 	RequestColumns      []*Column // calculated/expanded columns list
 	Filter              []*Filter
 	FilterStr           string
+	NumFilter           int
 	Stats               []*Filter
 	StatsGrouped        []*Filter // optimized stats groups
 	StatsResult         *ResultSetStats
@@ -322,6 +323,10 @@ func NewRequest(ctx context.Context, lmd *LMDInstance, b *bufio.Reader, options 
 		perr := req.ParseRequestHeaderLine(line, options)
 		if perr != nil {
 			err = fmt.Errorf("bad request: %s in: %s", perr.Error(), line)
+			return
+		}
+		if lmd.Config.MaxQueryFilter > 0 && req.NumFilter > lmd.Config.MaxQueryFilter {
+			err = fmt.Errorf("bad request: maximum number of query filter reached")
 			return
 		}
 		if errors.Is(berr, io.EOF) {
@@ -694,6 +699,7 @@ func (req *Request) ParseRequestHeaderLine(line []byte, options ParseOptions) (e
 	switch string(bytes.ToLower(matched[0])) {
 	case "filter":
 		err = ParseFilter(args, req.Table, &req.Filter, options)
+		req.NumFilter++
 		return
 	case "and":
 		err = ParseFilterOp(And, args, &req.Filter)
@@ -703,6 +709,7 @@ func (req *Request) ParseRequestHeaderLine(line []byte, options ParseOptions) (e
 		return
 	case "stats":
 		err = ParseStats(args, req.Table, &req.Stats, options)
+		req.NumFilter++
 		return
 	case "statsand":
 		err = parseStatsOp(And, args, req.Table, &req.Stats, options)
@@ -743,6 +750,7 @@ func (req *Request) ParseRequestHeaderLine(line []byte, options ParseOptions) (e
 		return
 	case "waitcondition":
 		err = ParseFilter(args, req.Table, &req.WaitCondition, options)
+		req.NumFilter++
 		return
 	case "waitconditionand":
 		err = parseStatsOp(And, args, req.Table, &req.WaitCondition, options)
