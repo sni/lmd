@@ -2179,6 +2179,9 @@ func (p *Peer) SendCommandsWithRetry(ctx context.Context, commands []string) (er
 		case PeerStatusDown:
 			logWith(ctx).Debugf("cannot send command, peer is down")
 			return fmt.Errorf("%s", p.StatusGet(LastError))
+		case PeerStatusBroken:
+			logWith(ctx).Debugf("cannot send command, peer is broken")
+			return fmt.Errorf("%s", p.StatusGet(LastError))
 		case PeerStatusWarning, PeerStatusPending:
 			// wait till we get either a up or down
 			time.Sleep(1 * time.Second)
