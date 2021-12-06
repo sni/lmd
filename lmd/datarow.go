@@ -476,12 +476,17 @@ func (d *DataRow) GetCustomVarValue(col *Column, name string) string {
 		return ref.GetCustomVarValue(col.RefCol, name)
 	}
 	namesCol := d.DataStore.Table.GetColumn("custom_variable_names")
+	valuesCol := d.DataStore.Table.GetColumn("custom_variable_values")
 	names := d.dataStringList[namesCol.Index]
+	values := d.dataStringList[valuesCol.Index]
 	for i, n := range names {
-		if n == name {
-			valuesCol := d.DataStore.Table.GetColumn("custom_variable_values")
-			return (d.dataStringList[valuesCol.Index][i])
+		if n != name {
+			continue
 		}
+		if i >= len(values) {
+			return ""
+		}
+		return values[i]
 	}
 	return ""
 }
