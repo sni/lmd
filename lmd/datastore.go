@@ -274,8 +274,17 @@ func (d *DataStore) tryFilterIndexData(filter []*Filter, fn getPreFilteredDataFi
 		for _, name := range hostlist {
 			services, ok := d.Index2[name]
 			if ok {
-				for _, row := range services {
-					indexedData = append(indexedData, row)
+				// Sort services by description, asc
+				keys := make([]string, 0)
+				for key := range services {
+					keys = append(keys, key)
+				}
+				sort.Strings(keys)
+				for _, key := range keys {
+					row := services[key]
+					if row != nil {
+						indexedData = append(indexedData, row)
+					}
 				}
 			}
 		}
