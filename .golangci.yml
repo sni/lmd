@@ -49,6 +49,9 @@ linters:
     - wastedassign
     - varnamelen
     - contextcheck
+    - interfacer
+    - golint
+    - scopelint
   fast: false
 issues:
   max-same-issues: 0
