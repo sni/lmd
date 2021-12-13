@@ -1,6 +1,6 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
-next:
+2.0.4    Mon Dec 13 12:52:23 CET 2021
           - add MaxQueryFilter option to prevent to complex queries
           - fix panic while accessing none-existing custom variable
           - fix reading connections from multiple config files
