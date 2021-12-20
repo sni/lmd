@@ -179,7 +179,7 @@ func (l *LogPrefixer) prefix() (prefix string) {
 			continue
 		}
 
-		if reflect.ValueOf(p).IsNil() {
+		if p == nil || reflect.ValueOf(p).Pointer() == 0 {
 			prefix = fmt.Sprintf("%s[%T(nil)]", prefix, p)
 			continue
 		}
