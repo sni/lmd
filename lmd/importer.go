@@ -137,6 +137,7 @@ func importPeerFromFile(peers []*Peer, filename string, lmd *LMDInstance) ([]*Pe
 	if err != nil {
 		return nil, fmt.Errorf("import error: %s", err)
 	}
+	log.Debugf("adding %d %s rows", len(rows), table.Name.String())
 	return importData(peers, table, rows, columns, lmd)
 }
 
