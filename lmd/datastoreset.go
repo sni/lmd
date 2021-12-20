@@ -829,13 +829,14 @@ func (ds *DataStoreSet) buildDowntimeCommentsList(name TableName) (err error) {
 		key := row.dataString[hostNameIndex]
 		serviceName := row.dataString[serviceDescIndex]
 		id := row.dataInt64[idIndex]
-		var obj *DataRow
 		if serviceName != "" {
-			obj = serviceIndex[key][serviceName]
-			serviceResult[obj] = append(serviceResult[obj], id)
+			if obj, ok := serviceIndex[key][serviceName]; ok {
+				serviceResult[obj] = append(serviceResult[obj], id)
+			}
 		} else {
-			obj = hostIndex[key]
-			hostResult[obj] = append(hostResult[obj], id)
+			if obj, ok := hostIndex[key]; ok {
+				hostResult[obj] = append(hostResult[obj], id)
+			}
 		}
 	}
 	promObjectCount.WithLabelValues(ds.peer.Name, name.String()).Set(float64(len(store.Data)))
