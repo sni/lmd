@@ -253,17 +253,18 @@ func TestAllTables(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
+	query := ""
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Recovered in f", r)
+			t.Fatalf("paniced for query:\n%s", query)
+		}
+	}()
 	for table := range Objects.Tables {
 		if Objects.Tables[table].PassthroughOnly {
 			continue
 		}
-		query := fmt.Sprintf("GET %s\n\n", table.String())
-		defer func() {
-			if r := recover(); r != nil {
-				fmt.Println("Recovered in f", r)
-				t.Fatalf("paniced for query:\n%s", query)
-			}
-		}()
+		query = fmt.Sprintf("GET %s\n\n", table.String())
 		_, _, err := peer.QueryString(query)
 		if err != nil {
 			t.Fatal(err)

@@ -486,7 +486,7 @@ func (n *Nodes) SendQuery(node *NodeAddress, name string, parameters map[string]
 		var err error
 		m, _ := responseData.(map[string]interface{})
 		if v, ok := m["error"]; ok {
-			err = fmt.Errorf(v.(string))
+			err = fmt.Errorf("%s", v.(string))
 		} else {
 			err = fmt.Errorf("node request failed: %s (code %d)", name, res.StatusCode)
 		}

@@ -981,9 +981,9 @@ func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 			tmp := strings.SplitN(strings.TrimSpace(string(resBytes)), ":", 2)
 			if len(tmp) == 2 {
 				code, _ := strconv.Atoi(tmp[0])
-				return nil, nil, &PeerCommandError{err: fmt.Errorf(strings.TrimSpace(tmp[1])), code: code, peer: p}
+				return nil, nil, &PeerCommandError{err: fmt.Errorf("%s", strings.TrimSpace(tmp[1])), code: code, peer: p}
 			}
-			return nil, nil, fmt.Errorf(tmp[0])
+			return nil, nil, fmt.Errorf("%s", tmp[0])
 		}
 		return nil, nil, nil
 	}
@@ -1498,7 +1498,10 @@ func (p *Peer) fetchThrukExtrasFromAddr(peerAddr string) (conf map[string]interf
 	if p.Config.RemoteName != "" {
 		options["remote_name"] = p.Config.RemoteName
 	}
-	optionStr, _ := json.Marshal(options)
+	optionStr, err := json.Marshal(options)
+	if err != nil {
+		return
+	}
 	output, _, err := p.HTTPPostQuery(nil, peerAddr, url.Values{
 		"data": {fmt.Sprintf("{\"credential\": %q, \"options\": %s}", p.Config.Auth, optionStr)},
 	}, nil)
@@ -1767,7 +1770,10 @@ func (p *Peer) HTTPQuery(req *Request, peerAddr string, query string) (res []byt
 		options["remote_name"] = p.Config.RemoteName
 	}
 	options["args"] = []string{strings.TrimSpace(query) + "\n"}
-	optionStr, _ := json.Marshal(options)
+	optionStr, err := json.Marshal(options)
+	if err != nil {
+		return
+	}
 
 	headers := make(map[string]string)
 	if p.StatusGet(ThrukVersion).(float64) >= ThrukMultiBackendMinVersion {
@@ -1899,7 +1905,10 @@ func (p *Peer) HTTPRestQuery(peerAddr string, uri string) (output interface{}, r
 	options := make(map[string]interface{})
 	options["action"] = "url"
 	options["commandoptions"] = []string{uri}
-	optionStr, _ := json.Marshal(options)
+	optionStr, err := json.Marshal(options)
+	if err != nil {
+		return
+	}
 	result, err = p.HTTPPostQueryResult(nil, peerAddr, url.Values{
 		"data": {fmt.Sprintf("{\"credential\": %q, \"options\": %s}", p.Config.Auth, optionStr)},
 	}, map[string]string{"Accept": "application/json"})

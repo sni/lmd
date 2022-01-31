@@ -115,7 +115,10 @@ func StartMockLivestatusSource(lmd *LMDInstance, nr int, numHosts int, numServic
 
 			if req.Table == TableColumns {
 				// make the peer detect dependency columns
-				b, _ := json.Marshal(getTestDataColumns(dataFolder))
+				b, err := json.Marshal(getTestDataColumns(dataFolder))
+				if err != nil {
+					panic(err)
+				}
 				_checkErr2(fmt.Fprintf(conn, "200 %11d\n", len(b)+1))
 				_checkErr2(conn.Write(b))
 				_checkErr2(conn.Write([]byte("\n")))
@@ -252,7 +255,10 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 	buf := new(bytes.Buffer)
 	_checkErr2(buf.WriteString("["))
 	for i, row := range newData {
-		enc, _ := json.Marshal(row)
+		enc, err := json.Marshal(row)
+		if err != nil {
+			panic(err)
+		}
 		_checkErr2(buf.Write(enc))
 		if i < len(newData)-1 {
 			_checkErr2(buf.WriteString(",\n"))
@@ -441,7 +447,10 @@ func httpMockHandlerRaw(t *testing.T, w io.Writer, r *http.Request, dataFolder s
 	switch {
 	case req.Table == TableColumns:
 		// make the peer detect dependency columns
-		b, _ := json.Marshal(getTestDataColumns(dataFolder))
+		b, err := json.Marshal(getTestDataColumns(dataFolder))
+		if err != nil {
+			panic(err)
+		}
 		fmt.Fprintf(w, "%d %11d\n", 200, len(b))
 		fmt.Fprint(w, string(b))
 	case req.Table != TableNone:
