@@ -18,6 +18,6 @@ require (
 	github.com/prometheus/client_golang v1.12.1
 	github.com/sasha-s/go-deadlock v0.3.1
 	github.com/stretchr/objx v0.2.0 // indirect
-	golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27 // indirect
+	golang.org/x/sys v0.0.0-20220204135822-1c1b9b1eba6a // indirect
 	golang.org/x/tools v0.1.9
 )
