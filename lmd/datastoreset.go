@@ -67,10 +67,8 @@ func (ds *DataStoreSet) CreateObjectByType(table *Table) (store *DataStore, err 
 
 	t1 := time.Now()
 
-	// icinga2 returns hosts and services in random order but we assume ordered results later
-	if p.HasFlag(Icinga2) {
-		res = res.SortByPrimaryKey(table, req)
-	}
+	// make sure all backends are sorted the same way
+	res = res.SortByPrimaryKey(table, req)
 
 	now := time.Now().Unix()
 	err = store.InsertData(res, columns, false)
@@ -401,10 +399,8 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, filterStr string) 
 		"active_checks_enabled",
 		"notifications_enabled",
 	}
-	// icinga2 returns hosts and services, append primary keys to sort later
-	if p.HasFlag(Icinga2) {
-		scanColumns = append(scanColumns, store.Table.PrimaryKey...)
-	}
+	// used to sort result later
+	scanColumns = append(scanColumns, store.Table.PrimaryKey...)
 	req := &Request{
 		Table:   store.Table.Name,
 		Columns: scanColumns,
@@ -415,10 +411,8 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, filterStr string) 
 		return
 	}
 
-	// icinga2 returns hosts and services in random order but we assume ordered results later
-	if p.HasFlag(Icinga2) {
-		res = res.SortByPrimaryKey(store.Table, req)
-	}
+	// make sure all backends are sorted the same way
+	res = res.SortByPrimaryKey(store.Table, req)
 
 	columns := make(ColumnList, len(scanColumns))
 	for i, name := range scanColumns {
@@ -649,10 +643,6 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 	columns := store.DynamicColumnNamesCache
 	// primary keys are not required, we fetch everything anyway
 	primaryKeysLen := len(store.Table.PrimaryKey)
-	if primaryKeysLen > 0 && !p.HasFlag(Icinga2) {
-		columns = columns[primaryKeysLen:]
-		primaryKeysLen = 0
-	}
 
 	req := &Request{
 		Table:   store.Table.Name,
@@ -664,10 +654,8 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 		return
 	}
 
-	// icinga2 returns hosts and services in random order but we assume ordered results later
-	if p.HasFlag(Icinga2) {
-		res = res.SortByPrimaryKey(store.Table, req)
-	}
+	// make sure all backends are sorted the same way
+	res = res.SortByPrimaryKey(store.Table, req)
 
 	ds.Lock.RLock()
 	data := store.Data

@@ -609,14 +609,40 @@ func TestRequestSort(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	res, _, err := peer.QueryString("GET hosts\nColumns: name latency\nSort: latency asc\nLimit: 5\n\n")
+	res, _, err := peer.QueryString("GET hosts\nColumns: name latency\nSort: latency asc\nSort: name asc\nLimit: 5\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err = assertEq(5, len(res)); err != nil {
 		t.Error(err)
 	}
-	if err = assertEq("testhost_4", res[0][0]); err != nil {
+	if err = assertEq("testhost_1", res[0][0]); err != nil {
+		t.Error(err)
+	}
+
+	if err := cleanup(); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestRequestSort2(t *testing.T) {
+	peer, cleanup, _ := StartTestPeer(1, 20, 20)
+	PauseTestPeers(peer)
+
+	res, _, err := peer.QueryString("GET hosts\nColumns: name\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(20, len(res)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq("testhost_1", res[0][0]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq("testhost_10", res[1][0]); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq("testhost_11", res[2][0]); err != nil {
 		t.Error(err)
 	}
 
@@ -1367,7 +1393,7 @@ ResponseHeader: fixed16
 	if err = assertEq(int64(9), meta.Total); err != nil {
 		t.Fatal(err)
 	}
-	if err = assertEq("testhost_10", res[8][0]); err != nil {
+	if err = assertEq("testhost_9", res[8][0]); err != nil {
 		t.Error(err)
 	}
 
