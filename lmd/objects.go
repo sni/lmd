@@ -211,6 +211,12 @@ func NewContactsTable() (t *Table) {
 	t.AddColumn("host_notifications_enabled", Static, IntCol, "Wether the contact will be notified about host problems in general (0/1)")
 	t.AddColumn("name", Static, StringCol, "The login name of the contact person")
 	t.AddColumn("pager", Static, StringCol, "The pager address of the contact")
+	t.AddColumn("address1", Static, StringCol, "Additional address information for the contact")
+	t.AddColumn("address2", Static, StringCol, "Additional address information for the contact")
+	t.AddColumn("address3", Static, StringCol, "Additional address information for the contact")
+	t.AddColumn("address4", Static, StringCol, "Additional address information for the contact")
+	t.AddColumn("address5", Static, StringCol, "Additional address information for the contact")
+	t.AddColumn("address6", Static, StringCol, "Additional address information for the contact")
 	t.AddColumn("service_notification_period", Static, StringCol, "The time period in which the contact will be notified about service problems")
 	t.AddColumn("service_notifications_enabled", Static, IntCol, "Wether the contact will be notified about service problems in general (0/1)")
 
