@@ -1,5 +1,9 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
+2.0.6    Tue Feb 22 16:07:38 CET 2022
+          - fix installing v2 version with go install
+          - fix data corruption with overlapping optional attributes
+
 2.0.5    Tue Feb 22 10:33:47 CET 2022
           - add address1 to address6 fields to contacts (#122)
           - always sort incoming data
