@@ -1,6 +1,6 @@
-module github.com/sni/lmd
+module github.com/sni/lmd/v2
 
-go 1.14
+go 1.16
 
 require (
 	github.com/BurntSushi/toml v1.0.0
