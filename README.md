@@ -61,7 +61,7 @@ Installation
 ============
 
 ```
-    %> go get -u github.com/sni/lmd/lmd
+    %> go install github.com/sni/lmd/v2/lmd@latest
 ```
 
 Quick start with command line parameters:
