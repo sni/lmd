@@ -243,31 +243,17 @@ func (t *Table) AddRefColumns(tableName TableName, prefix string, localName []st
 
 // SetColumnIndex sets index for all columns
 func (t *Table) SetColumnIndex() {
-	flagCombos := make(map[OptionalFlags]bool)
+	indexes := make(map[DataType]int)
 	for i := range t.Columns {
 		col := t.Columns[i]
-		flagCombos[col.Optional] = true
-	}
-	for flags := range flagCombos {
-		indexes := make(map[DataType]int)
-		for i := range t.Columns {
-			col := t.Columns[i]
-			if col.Optional != NoFlags && !flags.HasFlag(col.Optional) {
-				continue
-			}
-			if col.StorageType == LocalStore {
-				_, ok := indexes[col.DataType]
-				if !ok {
-					indexes[col.DataType] = 0
-				}
-				if col.Index != indexes[col.DataType] && col.Index > 0 {
-					// overlapping indexes would break data storage, make sure that columns for flags that include
-					// other flags come last, ex.: first set columns for flag Naemon, then add columns for Naemon1_10
-					log.Panicf("index overlap with flags in column %s of table %s: %v / %d != %d", col.Name, t.Name, flags.String(), col.Index, indexes[col.DataType])
-				}
-				col.Index = indexes[col.DataType]
-				indexes[col.DataType]++
-			}
+		if col.StorageType != LocalStore {
+			continue
 		}
+		_, ok := indexes[col.DataType]
+		if !ok {
+			indexes[col.DataType] = 0
+		}
+		col.Index = indexes[col.DataType]
+		indexes[col.DataType]++
 	}
 }
