@@ -63,6 +63,9 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 			continue
 		}
 		if col.StorageType == LocalStore {
+			if col.Index != dataSizes[col.DataType] {
+				col.Index = dataSizes[col.DataType]
+			}
 			dataSizes[col.DataType]++
 			if col.FetchType == Dynamic {
 				d.DynamicColumnNamesCache = append(d.DynamicColumnNamesCache, col.Name)
