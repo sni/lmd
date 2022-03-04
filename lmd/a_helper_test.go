@@ -272,7 +272,6 @@ func StartMockMainLoop(lmd *LMDInstance, sockets []string, extraConfig string) {
 	var testConfig = `
 Loglevel       = "` + testLogLevel + `"
 LogFile        = "` + testLogTarget + `"
-LogLockTimeout = 10
 
 `
 	testConfig += extraConfig
