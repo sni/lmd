@@ -60,6 +60,9 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 	for i := range table.Columns {
 		col := table.Columns[i]
 		if col.Optional != NoFlags && !d.Peer.HasFlag(col.Optional) {
+			if col.Index != -1 {
+				col.Index = -1
+			}
 			continue
 		}
 		if col.StorageType == LocalStore {

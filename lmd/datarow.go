@@ -760,6 +760,9 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 		if col.StorageType != LocalStore {
 			continue
 		}
+		if col.Index == -1 {
+			continue
+		}
 		if col.Optional != NoFlags && !d.DataStore.Peer.HasFlag(col.Optional) {
 			continue
 		}
@@ -806,6 +809,9 @@ func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, col
 	}
 	for i := range columns {
 		col := columns[i]
+		if col.Index == -1 {
+			continue
+		}
 		i += dataOffset
 		switch col.DataType {
 		case IntCol:
