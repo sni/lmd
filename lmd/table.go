@@ -240,20 +240,3 @@ func (t *Table) AddRefColumns(tableName TableName, prefix string, localName []st
 		NewColumn(t, refColName, RefStore, None, col.DataType, col.Optional, col, col.Description)
 	}
 }
-
-// SetColumnIndex sets index for all columns
-func (t *Table) SetColumnIndex() {
-	indexes := make(map[DataType]int)
-	for i := range t.Columns {
-		col := t.Columns[i]
-		if col.StorageType != LocalStore {
-			continue
-		}
-		_, ok := indexes[col.DataType]
-		if !ok {
-			indexes[col.DataType] = 0
-		}
-		col.Index = indexes[col.DataType]
-		indexes[col.DataType]++
-	}
-}

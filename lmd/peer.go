@@ -2285,7 +2285,7 @@ func (p *Peer) HasFlag(flag OptionalFlags) bool {
 		return true
 	}
 	f := OptionalFlags(atomic.LoadUint32(&p.Flags))
-	return f&flag != 0
+	return f.HasFlag(flag)
 }
 
 // SetFlag set a flag

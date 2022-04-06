@@ -12,17 +12,19 @@ type DataStore struct {
 	noCopy                  noCopy
 	DynamicColumnCache      ColumnList                     // contains list of columns used to run periodic update
 	DynamicColumnNamesCache []string                       // contains list of keys used to run periodic update
+	ColumnsIndex            map[*Column]int                // contains the data index for local stored columns
 	DataSizes               map[DataType]int               // contains the sizes for each data type
 	Peer                    *Peer                          // reference to our peer
 	PeerName                string                         // cached peer name
 	PeerKey                 string                         // cached peer key
+	PeerLockMode            PeerLockMode                   // flag wether datarow have to set PeerLock when accessing status
 	DataSet                 *DataStoreSet                  // reference to parent DataSet
 	Data                    []*DataRow                     // the actual data rows
 	Index                   map[string]*DataRow            // access data rows from primary key, ex.: hostname or comment id
 	Index2                  map[string]map[string]*DataRow // access data rows from 2 primary keys, ex.: host and service
 	Table                   *Table                         // reference to table definition
+	Columns                 ColumnList                     // reference to the used columns
 	dupStringList           map[[32]byte][]string          // lookup pointer to other stringlists during initialization
-	PeerLockMode            PeerLockMode                   // flag wether datarow have to set PeerLock when accessing status
 	LowerCaseColumns        map[int]int                    // list of string column indexes with their coresponding lower case index
 }
 
@@ -34,6 +36,7 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 		Index2:                  make(map[string]map[string]*DataRow),
 		DynamicColumnCache:      make(ColumnList, 0),
 		DynamicColumnNamesCache: make([]string, 0),
+		ColumnsIndex:            make(map[*Column]int, 0),
 		dupStringList:           make(map[[32]byte][]string),
 		Table:                   table,
 		PeerLockMode:            table.PeerLockMode,
@@ -60,15 +63,10 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 	for i := range table.Columns {
 		col := table.Columns[i]
 		if col.Optional != NoFlags && !d.Peer.HasFlag(col.Optional) {
-			if col.Index != -1 {
-				col.Index = -1
-			}
 			continue
 		}
 		if col.StorageType == LocalStore {
-			if col.Index != dataSizes[col.DataType] {
-				col.Index = dataSizes[col.DataType]
-			}
+			d.ColumnsIndex[col] = dataSizes[col.DataType]
 			dataSizes[col.DataType]++
 			if col.FetchType == Dynamic {
 				d.DynamicColumnNamesCache = append(d.DynamicColumnNamesCache, col.Name)
@@ -76,7 +74,7 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 			}
 			if strings.HasSuffix(col.Name, "_lc") {
 				refCol := table.GetColumn(strings.TrimSuffix(col.Name, "_lc"))
-				d.LowerCaseColumns[refCol.Index] = col.Index
+				d.LowerCaseColumns[d.ColumnsIndex[refCol]] = d.ColumnsIndex[col]
 			}
 		}
 	}

@@ -250,7 +250,6 @@ type Column struct {
 	FetchType       FetchType              // flag wether this columns needs to be updated
 	StorageType     StorageType            // flag how this column is stored
 	Optional        OptionalFlags          // flags if this column is used for certain backends only
-	Index           int                    // position in the DataRow data* fields
 	RefCol          *Column                // reference to column in other table, ex.: host_alias
 	RefColTableName TableName              // shortcut to Column.RefCol.Table.Name
 	Table           *Table                 // reference to the table holding this column
@@ -294,6 +293,11 @@ func NewColumn(table *Table, name string, storage StorageType, update FetchType,
 // String returns the string representation of a column list
 func (c *Column) String() string {
 	return c.Name
+}
+
+// Index returns the index (based on the datastore)
+func (c *Column) Index(d *DataRow) int {
+	return (d.DataStore.ColumnsIndex[c])
 }
 
 // GetEmptyValue returns an empty placeholder representation for the given column type

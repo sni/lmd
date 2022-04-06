@@ -65,7 +65,6 @@ func (o *ObjectsType) AddTable(name TableName, table *Table) {
 	if table.PrimaryKey == nil {
 		table.PrimaryKey = make([]string, 0)
 	}
-	table.SetColumnIndex()
 	o.Tables[name] = table
 	o.Order = append(o.Order, name)
 	if !table.PassthroughOnly && table.Virtual == nil {

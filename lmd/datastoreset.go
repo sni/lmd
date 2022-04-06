@@ -797,19 +797,19 @@ func (ds *DataStoreSet) buildDowntimeCommentsList(name TableName) (err error) {
 	if hostStore == nil {
 		return fmt.Errorf("cannot build id list, peer is down: %s", ds.peer.getError())
 	}
-	hostIdx := hostStore.Table.GetColumn(name.String()).Index
+	hostIdx := hostStore.ColumnsIndex[hostStore.Table.GetColumn(name.String())]
 
 	serviceStore := ds.tables[TableServices]
 	if serviceStore == nil {
 		return fmt.Errorf("cannot build id list, peer is down: %s", ds.peer.getError())
 	}
-	serviceIdx := serviceStore.Table.GetColumn(name.String()).Index
+	serviceIdx := serviceStore.ColumnsIndex[serviceStore.Table.GetColumn(name.String())]
 
 	hostResult := make(map[*DataRow][]int64)
 	serviceResult := make(map[*DataRow][]int64)
-	idIndex := store.Table.GetColumn("id").Index
-	hostNameIndex := store.Table.GetColumn("host_name").Index
-	serviceDescIndex := store.Table.GetColumn("service_description").Index
+	idIndex := store.ColumnsIndex[store.Table.GetColumn("id")]
+	hostNameIndex := store.ColumnsIndex[store.Table.GetColumn("host_name")]
+	serviceDescIndex := store.ColumnsIndex[store.Table.GetColumn("service_description")]
 	hostIndex := hostStore.Index
 	serviceIndex := serviceStore.Index2
 	for i := range store.Data {
