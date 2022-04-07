@@ -315,7 +315,7 @@ func (ds *DataStoreSet) prepareDataUpdateSet(dataOffset int, res ResultSet, tabl
 	// prepare list of large strings
 	stringlistIndexes := make([]int, 0)
 	for i := range table.DynamicColumnCache {
-		col := table.DynamicColumnCache[i]
+		col := table.DynamicColumnCache[i].Column
 		if col.DataType == StringLargeCol {
 			stringlistIndexes = append(stringlistIndexes, i+dataOffset)
 		}
@@ -414,9 +414,10 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, filterStr string) 
 	// make sure all backends are sorted the same way
 	res = res.SortByPrimaryKey(store.Table, req)
 
-	columns := make(ColumnList, len(scanColumns))
+	columns := make(ColumnIndexedList, len(scanColumns))
 	for i, name := range scanColumns {
-		columns[i] = store.Table.ColumnsIndex[name]
+		col := store.Table.ColumnsIndex[name]
+		columns[i] = ColumnIndex{Column: col, Index: store.ColumnsIndex[col]}
 	}
 
 	missing, err := ds.getMissingTimestamps(store, res, columns)
@@ -455,7 +456,7 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, filterStr string) 
 }
 
 // getMissingTimestamps returns list of last_check dates which can be used to delta update
-func (ds *DataStoreSet) getMissingTimestamps(store *DataStore, res ResultSet, columns ColumnList) (missing []int64, err error) {
+func (ds *DataStoreSet) getMissingTimestamps(store *DataStore, res ResultSet, columns ColumnIndexedList) (missing []int64, err error) {
 	ds.Lock.RLock()
 	p := ds.peer
 	data := store.Data
@@ -728,7 +729,7 @@ func (ds *DataStoreSet) skipTableUpdate(store *DataStore, table TableName) (bool
 	return false, nil
 }
 
-func (ds *DataStoreSet) updateTimeperiodsData(dataOffset int, store *DataStore, res ResultSet, columns ColumnList) (err error) {
+func (ds *DataStoreSet) updateTimeperiodsData(dataOffset int, store *DataStore, res ResultSet, columns ColumnIndexedList) (err error) {
 	changedTimeperiods := make(map[string]bool)
 	ds.Lock.Lock()
 	data := store.Data

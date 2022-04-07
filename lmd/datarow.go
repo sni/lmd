@@ -33,7 +33,7 @@ type DataRow struct {
 }
 
 // NewDataRow creates a new DataRow
-func NewDataRow(store *DataStore, raw []interface{}, columns ColumnList, timestamp int64, setReferences bool) (d *DataRow, err error) {
+func NewDataRow(store *DataStore, raw []interface{}, columns ColumnIndexedList, timestamp int64, setReferences bool) (d *DataRow, err error) {
 	d = &DataRow{
 		LastUpdate: timestamp,
 		DataStore:  store,
@@ -101,7 +101,7 @@ func (d *DataRow) GetID2() (string, string) {
 }
 
 // SetData creates initial data
-func (d *DataRow) SetData(raw []interface{}, columns ColumnList, timestamp int64) error {
+func (d *DataRow) SetData(raw []interface{}, columns ColumnIndexedList, timestamp int64) error {
 	d.dataString = make([]string, d.DataStore.DataSizes[StringCol])
 	d.dataStringList = make([][]string, d.DataStore.DataSizes[StringListCol])
 	d.dataInt = make([]int, d.DataStore.DataSizes[IntCol])
@@ -752,39 +752,41 @@ func (d *DataRow) getStatsKey(res *Response) string {
 }
 
 // UpdateValues updates this datarow with new values
-func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns ColumnList, timestamp int64) error {
+func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns ColumnIndexedList, timestamp int64) error {
 	if len(columns) != len(data)-dataOffset {
 		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.DataStore.Table.Name.String(), len(columns), len(data))
 	}
-	for i, col := range columns {
+	for i, colindexed := range columns {
+		col := colindexed.Column
+		index := colindexed.Index
 		if col.StorageType != LocalStore {
 			continue
 		}
 		i += dataOffset
 		switch col.DataType {
 		case StringCol:
-			d.dataString[col.Index(d)] = *(interface2string(data[i]))
+			d.dataString[index] = *(interface2string(data[i]))
 		case StringListCol:
 			if col.FetchType == Static {
 				// deduplicate string lists
-				d.dataStringList[col.Index(d)] = d.deduplicateStringlist(interface2stringlist(data[i]))
+				d.dataStringList[index] = d.deduplicateStringlist(interface2stringlist(data[i]))
 			} else {
-				d.dataStringList[col.Index(d)] = interface2stringlist(data[i])
+				d.dataStringList[index] = interface2stringlist(data[i])
 			}
 		case StringLargeCol:
-			d.dataStringLarge[col.Index(d)] = *interface2stringlarge(data[i])
+			d.dataStringLarge[index] = *interface2stringlarge(data[i])
 		case IntCol:
-			d.dataInt[col.Index(d)] = interface2int(data[i])
+			d.dataInt[index] = interface2int(data[i])
 		case Int64Col:
-			d.dataInt64[col.Index(d)] = interface2int64(data[i])
+			d.dataInt64[index] = interface2int64(data[i])
 		case Int64ListCol:
-			d.dataInt64List[col.Index(d)] = interface2int64list(data[i])
+			d.dataInt64List[index] = interface2int64list(data[i])
 		case FloatCol:
-			d.dataFloat[col.Index(d)] = interface2float64(data[i])
+			d.dataFloat[index] = interface2float64(data[i])
 		case ServiceMemberListCol:
-			d.dataServiceMemberList[col.Index(d)] = interface2servicememberlist(data[i])
+			d.dataServiceMemberList[index] = interface2servicememberlist(data[i])
 		case InterfaceListCol:
-			d.dataInterfaceList[col.Index(d)] = interface2interfacelist(data[i])
+			d.dataInterfaceList[index] = interface2interfacelist(data[i])
 		default:
 			log.Panicf("unsupported column %s (type %d) in table %s", col.Name, col.DataType, d.DataStore.Table.Name)
 		}
@@ -797,24 +799,25 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 }
 
 // UpdateValuesNumberOnly updates this datarow with new values but skips strings
-func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, columns ColumnList, timestamp int64) error {
+func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, columns ColumnIndexedList, timestamp int64) error {
 	if len(columns) != len(data)-dataOffset {
 		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.DataStore.Table.Name.String(), len(columns), len(data))
 	}
-	for i := range columns {
-		col := columns[i]
+	for i, colindexed := range columns {
+		col := colindexed.Column
+		index := colindexed.Index
 		i += dataOffset
 		switch col.DataType {
 		case IntCol:
-			d.dataInt[col.Index(d)] = interface2int(data[i])
+			d.dataInt[index] = interface2int(data[i])
 		case Int64Col:
-			d.dataInt64[col.Index(d)] = interface2int64(data[i])
+			d.dataInt64[index] = interface2int64(data[i])
 		case Int64ListCol:
-			d.dataInt64List[col.Index(d)] = interface2int64list(data[i])
+			d.dataInt64List[index] = interface2int64list(data[i])
 		case FloatCol:
-			d.dataFloat[col.Index(d)] = interface2float64(data[i])
+			d.dataFloat[index] = interface2float64(data[i])
 		case InterfaceListCol:
-			d.dataInterfaceList[col.Index(d)] = interface2interfacelist(data[i])
+			d.dataInterfaceList[index] = interface2interfacelist(data[i])
 		}
 	}
 	d.LastUpdate = timestamp
@@ -822,15 +825,17 @@ func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, col
 }
 
 // CheckChangedIntValues returns true if the given data results in an update
-func (d *DataRow) CheckChangedIntValues(dataOffset int, data []interface{}, columns ColumnList) bool {
-	for j, col := range columns {
+func (d *DataRow) CheckChangedIntValues(dataOffset int, data []interface{}, columns ColumnIndexedList) bool {
+	for j, colindexed := range columns {
+		col := colindexed.Column
+		index := colindexed.Index
 		switch col.DataType {
 		case IntCol:
-			if interface2int(data[j+dataOffset]) != d.dataInt[columns[j].Index(d)] {
+			if interface2int(data[j+dataOffset]) != d.dataInt[index] {
 				return true
 			}
 		case Int64Col:
-			if interface2int64(data[j+dataOffset]) != d.dataInt64[columns[j].Index(d)] {
+			if interface2int64(data[j+dataOffset]) != d.dataInt64[index] {
 				return true
 			}
 		}

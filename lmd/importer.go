@@ -236,10 +236,17 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns ColumnList,
 	if table.Virtual != nil {
 		return peers, nil
 	}
+
 	if p != nil && p.isOnline() {
 		store := NewDataStore(table, p)
 		store.DataSet = p.data
-		err := store.InsertData(rows, columns, false)
+
+		indexedColumns := make(ColumnIndexedList, 0)
+		for _, col := range columns {
+			indexedColumns = append(indexedColumns, ColumnIndex{Column: col, Index: store.ColumnsIndex[col]})
+		}
+
+		err := store.InsertData(rows, indexedColumns, false)
 		if err != nil {
 			return peers, fmt.Errorf("failed to insert data: %s", err)
 		}

@@ -6,10 +6,15 @@ type VirtualStoreResolveFunc func(table *Table, peer *Peer) *DataStore
 func GetTableBackendsStore(table *Table, peer *Peer) *DataStore {
 	// simply return a new DataStore with a single row, since all columns are virtual anyway
 	store := NewDataStore(table, peer)
-	store.DataSet = peer.data
+	ds, err := peer.GetDataStoreSet()
+	if err != nil {
+		log.Debugf("DataStoreSet error: %s", err.Error())
+	} else {
+		store.DataSet = ds
+	}
 	rows := make(ResultSet, 1)
 	_, columns := store.GetInitialColumns()
-	err := store.InsertData(rows, columns, true)
+	err = store.InsertData(rows, columns, true)
 	if err != nil {
 		log.Errorf("store error: %s", err.Error())
 	}
@@ -20,6 +25,7 @@ func GetTableBackendsStore(table *Table, peer *Peer) *DataStore {
 func GetTableColumnsStore(table *Table, _ *Peer) *DataStore {
 	store := NewDataStore(table, nil)
 	data := make(ResultSet, 0)
+	columns := make(ColumnIndexedList, 0)
 	for _, t := range Objects.Tables {
 		for i := range t.Columns {
 			c := t.Columns[i]
@@ -52,7 +58,13 @@ func GetTableColumnsStore(table *Table, _ *Peer) *DataStore {
 			data = append(data, row)
 		}
 	}
-	err := store.InsertData(data, table.Columns, true)
+	for _, col := range table.Columns {
+		if col.StorageType == RefStore {
+			continue
+		}
+		columns = append(columns, ColumnIndex{Column: col, Index: store.ColumnsIndex[col]})
+	}
+	err := store.InsertData(data, columns, true)
 	if err != nil {
 		log.Errorf("store error: %s", err.Error())
 	}
