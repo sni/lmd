@@ -758,35 +758,35 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 	}
 	for i, colindexed := range columns {
 		col := colindexed.Column
-		index := colindexed.Index
+		localIndex := colindexed.Index
 		if col.StorageType != LocalStore {
 			continue
 		}
-		i += dataOffset
+		resIndex := i + dataOffset
 		switch col.DataType {
 		case StringCol:
-			d.dataString[index] = *(interface2string(data[i]))
+			d.dataString[localIndex] = *(interface2string(data[resIndex]))
 		case StringListCol:
 			if col.FetchType == Static {
 				// deduplicate string lists
-				d.dataStringList[index] = d.deduplicateStringlist(interface2stringlist(data[i]))
+				d.dataStringList[localIndex] = d.deduplicateStringlist(interface2stringlist(data[resIndex]))
 			} else {
-				d.dataStringList[index] = interface2stringlist(data[i])
+				d.dataStringList[localIndex] = interface2stringlist(data[resIndex])
 			}
 		case StringLargeCol:
-			d.dataStringLarge[index] = *interface2stringlarge(data[i])
+			d.dataStringLarge[localIndex] = *interface2stringlarge(data[resIndex])
 		case IntCol:
-			d.dataInt[index] = interface2int(data[i])
+			d.dataInt[localIndex] = interface2int(data[resIndex])
 		case Int64Col:
-			d.dataInt64[index] = interface2int64(data[i])
+			d.dataInt64[localIndex] = interface2int64(data[resIndex])
 		case Int64ListCol:
-			d.dataInt64List[index] = interface2int64list(data[i])
+			d.dataInt64List[localIndex] = interface2int64list(data[resIndex])
 		case FloatCol:
-			d.dataFloat[index] = interface2float64(data[i])
+			d.dataFloat[localIndex] = interface2float64(data[resIndex])
 		case ServiceMemberListCol:
-			d.dataServiceMemberList[index] = interface2servicememberlist(data[i])
+			d.dataServiceMemberList[localIndex] = interface2servicememberlist(data[resIndex])
 		case InterfaceListCol:
-			d.dataInterfaceList[index] = interface2interfacelist(data[i])
+			d.dataInterfaceList[localIndex] = interface2interfacelist(data[resIndex])
 		default:
 			log.Panicf("unsupported column %s (type %d) in table %s", col.Name, col.DataType, d.DataStore.Table.Name)
 		}
@@ -805,19 +805,19 @@ func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, col
 	}
 	for i, colindexed := range columns {
 		col := colindexed.Column
-		index := colindexed.Index
-		i += dataOffset
+		localIndex := colindexed.Index
+		resIndex := i + dataOffset
 		switch col.DataType {
 		case IntCol:
-			d.dataInt[index] = interface2int(data[i])
+			d.dataInt[localIndex] = interface2int(data[resIndex])
 		case Int64Col:
-			d.dataInt64[index] = interface2int64(data[i])
+			d.dataInt64[localIndex] = interface2int64(data[resIndex])
 		case Int64ListCol:
-			d.dataInt64List[index] = interface2int64list(data[i])
+			d.dataInt64List[localIndex] = interface2int64list(data[resIndex])
 		case FloatCol:
-			d.dataFloat[index] = interface2float64(data[i])
+			d.dataFloat[localIndex] = interface2float64(data[resIndex])
 		case InterfaceListCol:
-			d.dataInterfaceList[index] = interface2interfacelist(data[i])
+			d.dataInterfaceList[localIndex] = interface2interfacelist(data[resIndex])
 		}
 	}
 	d.LastUpdate = timestamp

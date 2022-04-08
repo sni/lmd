@@ -310,7 +310,7 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 }
 
 func (ds *DataStoreSet) prepareDataUpdateSet(dataOffset int, res ResultSet, table *DataStore) (updateSet []ResultPrepared, err error) {
-	updateSet = make([]ResultPrepared, len(res))
+	updateSet = make([]ResultPrepared, 0, len(res))
 
 	// prepare list of large strings
 	stringlistIndexes := make([]int, 0)
@@ -323,7 +323,8 @@ func (ds *DataStoreSet) prepareDataUpdateSet(dataOffset int, res ResultSet, tabl
 
 	// compare last check date and only update large strings if the last check date has changed
 	lastCheckCol := table.GetColumn("last_check")
-	lastCheckIndex := table.DynamicColumnCache.GetColumnIndex("last_check") + dataOffset
+	lastCheckDataIndex := table.ColumnsIndex[lastCheckCol]
+	lastCheckResIndex := table.DynamicColumnCache.GetColumnIndex("last_check") + dataOffset
 
 	// prepare update
 	ds.Lock.RLock()
@@ -347,7 +348,9 @@ func (ds *DataStoreSet) prepareDataUpdateSet(dataOffset int, res ResultSet, tabl
 				}
 				prepared.DataRow = dataRow
 			case TableServices:
-				dataRow := nameIndex2[interface2stringNoDedup(resRow[0])][interface2stringNoDedup(resRow[1])]
+				hostName := interface2stringNoDedup(resRow[0])
+				serviceName := interface2stringNoDedup(resRow[1])
+				dataRow := nameIndex2[hostName][serviceName]
 				if dataRow == nil {
 					return updateSet, fmt.Errorf("cannot update service, no service named '%s' - '%s' found", interface2stringNoDedup(resRow[0]), interface2stringNoDedup(resRow[1]))
 				}
@@ -357,13 +360,13 @@ func (ds *DataStoreSet) prepareDataUpdateSet(dataOffset int, res ResultSet, tabl
 		}
 
 		// compare last check date and prepare large strings if the last check date has changed
-		if interface2int64(resRow[lastCheckIndex]) != prepared.DataRow.GetInt64(lastCheckCol) {
+		if interface2int64(resRow[lastCheckResIndex]) != prepared.DataRow.dataInt64[lastCheckDataIndex] {
 			prepared.FullUpdate = true
 			for _, j := range stringlistIndexes {
 				res[i][j] = interface2stringlarge(res[i][j])
 			}
 		}
-		updateSet[i] = prepared
+		updateSet = append(updateSet, prepared)
 	}
 	return updateSet, nil
 }
