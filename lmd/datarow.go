@@ -33,7 +33,7 @@ type DataRow struct {
 }
 
 // NewDataRow creates a new DataRow
-func NewDataRow(store *DataStore, raw []interface{}, columns ColumnIndexedList, timestamp int64, setReferences bool) (d *DataRow, err error) {
+func NewDataRow(store *DataStore, raw []interface{}, columns ColumnList, timestamp int64, setReferences bool) (d *DataRow, err error) {
 	d = &DataRow{
 		LastUpdate: timestamp,
 		DataStore:  store,
@@ -101,16 +101,16 @@ func (d *DataRow) GetID2() (string, string) {
 }
 
 // SetData creates initial data
-func (d *DataRow) SetData(raw []interface{}, columns ColumnIndexedList, timestamp int64) error {
-	d.dataString = make([]string, d.DataStore.DataSizes[StringCol])
-	d.dataStringList = make([][]string, d.DataStore.DataSizes[StringListCol])
-	d.dataInt = make([]int, d.DataStore.DataSizes[IntCol])
-	d.dataInt64 = make([]int64, d.DataStore.DataSizes[Int64Col])
-	d.dataInt64List = make([][]int64, d.DataStore.DataSizes[Int64ListCol])
-	d.dataFloat = make([]float64, d.DataStore.DataSizes[FloatCol])
-	d.dataServiceMemberList = make([][]ServiceMember, d.DataStore.DataSizes[ServiceMemberListCol])
-	d.dataInterfaceList = make([][]interface{}, d.DataStore.DataSizes[InterfaceListCol])
-	d.dataStringLarge = make([]StringContainer, d.DataStore.DataSizes[StringLargeCol])
+func (d *DataRow) SetData(raw []interface{}, columns ColumnList, timestamp int64) error {
+	d.dataString = make([]string, d.DataStore.Table.DataSizes[StringCol])
+	d.dataStringList = make([][]string, d.DataStore.Table.DataSizes[StringListCol])
+	d.dataInt = make([]int, d.DataStore.Table.DataSizes[IntCol])
+	d.dataInt64 = make([]int64, d.DataStore.Table.DataSizes[Int64Col])
+	d.dataInt64List = make([][]int64, d.DataStore.Table.DataSizes[Int64ListCol])
+	d.dataFloat = make([]float64, d.DataStore.Table.DataSizes[FloatCol])
+	d.dataServiceMemberList = make([][]ServiceMember, d.DataStore.Table.DataSizes[ServiceMemberListCol])
+	d.dataInterfaceList = make([][]interface{}, d.DataStore.Table.DataSizes[InterfaceListCol])
+	d.dataStringLarge = make([]StringContainer, d.DataStore.Table.DataSizes[StringLargeCol])
 	return d.UpdateValues(0, raw, columns, timestamp)
 }
 
@@ -158,28 +158,28 @@ func (d *DataRow) GetString(col *Column) string {
 	case LocalStore:
 		switch col.DataType {
 		case StringCol:
-			return d.dataString[col.Index(d)]
+			return d.dataString[col.Index]
 		case IntCol:
-			val := fmt.Sprintf("%d", d.dataInt[col.Index(d)])
+			val := fmt.Sprintf("%d", d.dataInt[col.Index])
 			return val
 		case Int64Col:
-			val := strconv.FormatInt(d.dataInt64[col.Index(d)], 10)
+			val := strconv.FormatInt(d.dataInt64[col.Index], 10)
 			return val
 		case FloatCol:
-			val := fmt.Sprintf("%v", d.dataFloat[col.Index(d)])
+			val := fmt.Sprintf("%v", d.dataFloat[col.Index])
 			return val
 		case StringLargeCol:
-			return d.dataStringLarge[col.Index(d)].String()
+			return d.dataStringLarge[col.Index].String()
 		case StringListCol:
-			return joinStringlist(d.dataStringList[col.Index(d)], ListSepChar1)
+			return joinStringlist(d.dataStringList[col.Index], ListSepChar1)
 		case ServiceMemberListCol:
-			val := fmt.Sprintf("%v", d.dataServiceMemberList[col.Index(d)])
+			val := fmt.Sprintf("%v", d.dataServiceMemberList[col.Index])
 			return val
 		case InterfaceListCol:
-			val := fmt.Sprintf("%v", d.dataInterfaceList[col.Index(d)])
+			val := fmt.Sprintf("%v", d.dataInterfaceList[col.Index])
 			return val
 		case Int64ListCol:
-			val := strings.Join(strings.Fields(fmt.Sprint(d.dataInt64List[col.Index(d)])), ListSepChar1)
+			val := strings.Join(strings.Fields(fmt.Sprint(d.dataInt64List[col.Index])), ListSepChar1)
 			return val
 		default:
 			log.Panicf("unsupported type: %s", col.DataType)
@@ -206,7 +206,7 @@ func (d *DataRow) GetStringList(col *Column) []string {
 	switch col.StorageType {
 	case LocalStore:
 		if col.DataType == StringListCol {
-			return d.dataStringList[col.Index(d)]
+			return d.dataStringList[col.Index]
 		}
 		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
@@ -232,11 +232,11 @@ func (d *DataRow) GetFloat(col *Column) float64 {
 	case LocalStore:
 		switch col.DataType {
 		case FloatCol:
-			return d.dataFloat[col.Index(d)]
+			return d.dataFloat[col.Index]
 		case IntCol:
-			return float64(d.dataInt[col.Index(d)])
+			return float64(d.dataInt[col.Index])
 		case Int64Col:
-			return float64(d.dataInt64[col.Index(d)])
+			return float64(d.dataInt64[col.Index])
 		default:
 			log.Panicf("unsupported type: %s", col.DataType)
 		}
@@ -258,9 +258,9 @@ func (d *DataRow) GetInt(col *Column) int {
 	case LocalStore:
 		switch col.DataType {
 		case IntCol:
-			return d.dataInt[col.Index(d)]
+			return d.dataInt[col.Index]
 		case FloatCol:
-			return int(d.dataFloat[col.Index(d)])
+			return int(d.dataFloat[col.Index])
 		default:
 			log.Panicf("unsupported type: %s", col.DataType)
 		}
@@ -282,11 +282,11 @@ func (d *DataRow) GetInt64(col *Column) int64 {
 	case LocalStore:
 		switch col.DataType {
 		case Int64Col:
-			return d.dataInt64[col.Index(d)]
+			return d.dataInt64[col.Index]
 		case IntCol:
-			return int64(d.dataInt[col.Index(d)])
+			return int64(d.dataInt[col.Index])
 		case FloatCol:
-			return int64(d.dataFloat[col.Index(d)])
+			return int64(d.dataFloat[col.Index])
 		default:
 			log.Panicf("unsupported type: %s", col.DataType)
 		}
@@ -317,7 +317,7 @@ func (d *DataRow) GetInt64List(col *Column) []int64 {
 	switch col.StorageType {
 	case LocalStore:
 		if col.DataType == Int64ListCol {
-			return d.dataInt64List[col.Index(d)]
+			return d.dataInt64List[col.Index]
 		}
 		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
@@ -359,7 +359,7 @@ func (d *DataRow) GetServiceMemberList(col *Column) []ServiceMember {
 	switch col.StorageType {
 	case LocalStore:
 		if col.DataType == ServiceMemberListCol {
-			return d.dataServiceMemberList[col.Index(d)]
+			return d.dataServiceMemberList[col.Index]
 		}
 		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
@@ -384,7 +384,7 @@ func (d *DataRow) GetInterfaceList(col *Column) []interface{} {
 	switch col.StorageType {
 	case LocalStore:
 		if col.DataType == InterfaceListCol {
-			return d.dataInterfaceList[col.Index(d)]
+			return d.dataInterfaceList[col.Index]
 		}
 		log.Panicf("unsupported type: %s", col.DataType)
 	case RefStore:
@@ -408,23 +408,23 @@ func (d *DataRow) GetValueByColumn(col *Column) interface{} {
 	case LocalStore:
 		switch col.DataType {
 		case StringCol:
-			return d.dataString[col.Index(d)]
+			return d.dataString[col.Index]
 		case StringListCol:
-			return d.dataStringList[col.Index(d)]
+			return d.dataStringList[col.Index]
 		case StringLargeCol:
-			return d.dataStringLarge[col.Index(d)].StringRef()
+			return d.dataStringLarge[col.Index].StringRef()
 		case IntCol:
-			return d.dataInt[col.Index(d)]
+			return d.dataInt[col.Index]
 		case Int64ListCol:
-			return d.dataInt64List[col.Index(d)]
+			return d.dataInt64List[col.Index]
 		case Int64Col:
-			return d.dataInt64[col.Index(d)]
+			return d.dataInt64[col.Index]
 		case FloatCol:
-			return d.dataFloat[col.Index(d)]
+			return d.dataFloat[col.Index]
 		case InterfaceListCol:
-			return d.dataInterfaceList[col.Index(d)]
+			return d.dataInterfaceList[col.Index]
 		case ServiceMemberListCol:
-			return d.dataServiceMemberList[col.Index(d)]
+			return d.dataServiceMemberList[col.Index]
 		default:
 			log.Panicf("unsupported column %s (type %s) in table %s", col.Name, col.DataType.String(), d.DataStore.Table.Name.String())
 		}
@@ -475,14 +475,14 @@ func (d *DataRow) GetCustomVarValue(col *Column, name string) string {
 		ref := d.Refs[col.RefColTableName]
 		return ref.GetCustomVarValue(col.RefCol, name)
 	}
-	namesCol := d.DataStore.Table.GetColumn("custom_variable_names")
-	valuesCol := d.DataStore.Table.GetColumn("custom_variable_values")
-	names := d.dataStringList[namesCol.Index(d)]
-	values := d.dataStringList[valuesCol.Index(d)]
+	namesCol := d.DataStore.GetColumn("custom_variable_names")
+	names := d.dataStringList[namesCol.Index]
 	for i, n := range names {
 		if n != name {
 			continue
 		}
+		valuesCol := d.DataStore.GetColumn("custom_variable_values")
+		values := d.dataStringList[valuesCol.Index]
 		if i >= len(values) {
 			return ""
 		}
@@ -643,10 +643,10 @@ func VirtualColDowntimesWithInfo(d *DataRow, col *Column) interface{} {
 
 // VirtualColCustomVariables returns a custom variables hash
 func VirtualColCustomVariables(d *DataRow, col *Column) interface{} {
-	namesCol := d.DataStore.Table.GetColumn("custom_variable_names")
-	valuesCol := d.DataStore.Table.GetColumn("custom_variable_values")
-	names := d.dataStringList[namesCol.Index(d)]
-	values := d.dataStringList[valuesCol.Index(d)]
+	namesCol := d.DataStore.GetColumn("custom_variable_names")
+	valuesCol := d.DataStore.GetColumn("custom_variable_values")
+	names := d.dataStringList[namesCol.Index]
+	values := d.dataStringList[valuesCol.Index]
 	res := make(map[string]string, len(names))
 	for i := range names {
 		res[names[i]] = values[i]
@@ -752,13 +752,12 @@ func (d *DataRow) getStatsKey(res *Response) string {
 }
 
 // UpdateValues updates this datarow with new values
-func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns ColumnIndexedList, timestamp int64) error {
+func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns ColumnList, timestamp int64) error {
 	if len(columns) != len(data)-dataOffset {
 		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.DataStore.Table.Name.String(), len(columns), len(data))
 	}
-	for i, colindexed := range columns {
-		col := colindexed.Column
-		localIndex := colindexed.Index
+	for i, col := range columns {
+		localIndex := col.Index
 		if col.StorageType != LocalStore {
 			continue
 		}
@@ -799,13 +798,12 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 }
 
 // UpdateValuesNumberOnly updates this datarow with new values but skips strings
-func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, columns ColumnIndexedList, timestamp int64) error {
+func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, columns ColumnList, timestamp int64) error {
 	if len(columns) != len(data)-dataOffset {
 		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.DataStore.Table.Name.String(), len(columns), len(data))
 	}
-	for i, colindexed := range columns {
-		col := colindexed.Column
-		localIndex := colindexed.Index
+	for i, col := range columns {
+		localIndex := col.Index
 		resIndex := i + dataOffset
 		switch col.DataType {
 		case IntCol:
@@ -825,10 +823,9 @@ func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, col
 }
 
 // CheckChangedIntValues returns true if the given data results in an update
-func (d *DataRow) CheckChangedIntValues(dataOffset int, data []interface{}, columns ColumnIndexedList) bool {
-	for j, colindexed := range columns {
-		col := colindexed.Column
-		index := colindexed.Index
+func (d *DataRow) CheckChangedIntValues(dataOffset int, data []interface{}, columns ColumnList) bool {
+	for j, col := range columns {
+		index := col.Index
 		switch col.DataType {
 		case IntCol:
 			if interface2int(data[j+dataOffset]) != d.dataInt[index] {
@@ -1211,12 +1208,12 @@ func (d *DataRow) WriteJSONColumn(jsonwriter *jsoniter.Stream, col *Column) {
 func (d *DataRow) WriteJSONLocalColumn(jsonwriter *jsoniter.Stream, col *Column) {
 	switch col.DataType {
 	case StringCol:
-		jsonwriter.WriteString(d.dataString[col.Index(d)])
+		jsonwriter.WriteString(d.dataString[col.Index])
 	case StringLargeCol:
-		jsonwriter.WriteString(d.dataStringLarge[col.Index(d)].String())
+		jsonwriter.WriteString(d.dataStringLarge[col.Index].String())
 	case StringListCol:
 		jsonwriter.WriteArrayStart()
-		for i, s := range d.dataStringList[col.Index(d)] {
+		for i, s := range d.dataStringList[col.Index] {
 			if i > 0 {
 				jsonwriter.WriteMore()
 			}
@@ -1224,14 +1221,14 @@ func (d *DataRow) WriteJSONLocalColumn(jsonwriter *jsoniter.Stream, col *Column)
 		}
 		jsonwriter.WriteArrayEnd()
 	case IntCol:
-		jsonwriter.WriteInt(d.dataInt[col.Index(d)])
+		jsonwriter.WriteInt(d.dataInt[col.Index])
 	case Int64Col:
-		jsonwriter.WriteInt64(d.dataInt64[col.Index(d)])
+		jsonwriter.WriteInt64(d.dataInt64[col.Index])
 	case FloatCol:
-		jsonwriter.WriteFloat64(d.dataFloat[col.Index(d)])
+		jsonwriter.WriteFloat64(d.dataFloat[col.Index])
 	case Int64ListCol:
 		jsonwriter.WriteArrayStart()
-		for i, v := range d.dataInt64List[col.Index(d)] {
+		for i, v := range d.dataInt64List[col.Index] {
 			if i > 0 {
 				jsonwriter.WriteMore()
 			}
@@ -1240,7 +1237,7 @@ func (d *DataRow) WriteJSONLocalColumn(jsonwriter *jsoniter.Stream, col *Column)
 		jsonwriter.WriteArrayEnd()
 	case ServiceMemberListCol:
 		jsonwriter.WriteArrayStart()
-		members := d.dataServiceMemberList[col.Index(d)]
+		members := d.dataServiceMemberList[col.Index]
 		for i := range members {
 			if i > 0 {
 				jsonwriter.WriteMore()
@@ -1254,7 +1251,7 @@ func (d *DataRow) WriteJSONLocalColumn(jsonwriter *jsoniter.Stream, col *Column)
 		jsonwriter.WriteArrayEnd()
 	case InterfaceListCol:
 		jsonwriter.WriteArrayStart()
-		list := d.dataInterfaceList[col.Index(d)]
+		list := d.dataInterfaceList[col.Index]
 		for i := range list {
 			if i > 0 {
 				jsonwriter.WriteMore()
@@ -1324,14 +1321,14 @@ func (d *DataRow) WriteJSONVirtualColumn(jsonwriter *jsoniter.Stream, col *Colum
 		}
 		jsonwriter.WriteArrayEnd()
 	case CustomVarCol:
-		namesCol := d.DataStore.Table.GetColumn("custom_variable_names")
-		valuesCol := d.DataStore.Table.GetColumn("custom_variable_values")
+		namesCol := d.DataStore.GetColumn("custom_variable_names")
+		valuesCol := d.DataStore.GetColumn("custom_variable_values")
 		if namesCol.Optional != NoFlags && !d.DataStore.Peer.HasFlag(namesCol.Optional) {
 			jsonwriter.WriteObjectStart()
 			jsonwriter.WriteObjectEnd()
 		} else {
-			names := d.dataStringList[namesCol.Index(d)]
-			values := d.dataStringList[valuesCol.Index(d)]
+			names := d.dataStringList[namesCol.Index]
+			values := d.dataStringList[valuesCol.Index]
 			jsonwriter.WriteObjectStart()
 			for i := range names {
 				if i > 0 {
@@ -1481,48 +1478,48 @@ func (d *DataRow) checkAuth(authUser string) (canView bool) {
 
 	switch table.Name {
 	case TableHosts:
-		hostNameIndex := table.GetColumn("name").Index(d)
+		hostNameIndex := table.GetColumn("name").Index
 		hostName := d.dataString[hostNameIndex]
 		canView = d.isAuthorizedFor(authUser, hostName, "")
 	case TableServices:
-		hostNameIndex := table.GetColumn("host_name").Index(d)
+		hostNameIndex := table.GetColumn("host_name").Index
 		hostName := d.dataString[hostNameIndex]
-		serviceIndex := table.GetColumn("description").Index(d)
+		serviceIndex := table.GetColumn("description").Index
 		serviceDescription := d.dataString[serviceIndex]
 		canView = d.isAuthorizedFor(authUser, hostName, serviceDescription)
 	case TableHostgroups:
-		nameIndex := table.GetColumn("name").Index(d)
+		nameIndex := table.GetColumn("name").Index
 		hostgroupName := d.dataString[nameIndex]
 		canView = d.isAuthorizedForHostGroup(authUser, hostgroupName)
 	case TableServicegroups:
-		nameIndex := table.GetColumn("name").Index(d)
+		nameIndex := table.GetColumn("name").Index
 		servicegroupName := d.dataString[nameIndex]
 		canView = d.isAuthorizedForServiceGroup(authUser, servicegroupName)
 	case TableHostsbygroup:
-		hostNameIndex := table.GetColumn("name").Index(d)
+		hostNameIndex := table.GetColumn("name").Index
 		hostName := d.dataString[hostNameIndex]
-		hostGroupIndex := table.GetColumn("hostgroup_name").Index(d)
+		hostGroupIndex := table.GetColumn("hostgroup_name").Index
 		hostGroupName := d.dataString[hostGroupIndex]
 		canView = d.isAuthorizedFor(authUser, hostName, "") &&
 			d.isAuthorizedForHostGroup(authUser, hostGroupName)
 	case TableServicesbygroup, TableServicesbyhostgroup:
-		hostNameIndex := table.GetColumn("host_name").Index(d)
+		hostNameIndex := table.GetColumn("host_name").Index
 		hostName := d.dataString[hostNameIndex]
-		serviceIndex := table.GetColumn("description").Index(d)
+		serviceIndex := table.GetColumn("description").Index
 		serviceDescription := d.dataString[serviceIndex]
 
 		if table.Name == TableServicesbygroup {
-			servicegroupIndex := table.GetColumn("servicegroup_name").Index(d)
+			servicegroupIndex := table.GetColumn("servicegroup_name").Index
 			servicegroupName := d.dataString[servicegroupIndex]
 			canView = d.isAuthorizedFor(authUser, hostName, serviceDescription) && d.isAuthorizedForServiceGroup(authUser, servicegroupName)
 		} else {
-			hostgroupIndex := table.GetColumn("hostgroup_name").Index(d)
+			hostgroupIndex := table.GetColumn("hostgroup_name").Index
 			hostgroupName := d.dataString[hostgroupIndex]
 			canView = d.isAuthorizedFor(authUser, hostName, serviceDescription) && d.isAuthorizedForHostGroup(authUser, hostgroupName)
 		}
 	case TableDowntimes, TableComments:
-		hostIndex := table.GetColumn("host_name").Index(d)
-		serviceIndex := table.GetColumn("service_description").Index(d)
+		hostIndex := table.GetColumn("host_name").Index
+		serviceIndex := table.GetColumn("service_description").Index
 		hostName := d.dataString[hostIndex]
 		serviceDescription := d.dataString[serviceIndex]
 		canView = d.isAuthorizedFor(authUser, hostName, serviceDescription)

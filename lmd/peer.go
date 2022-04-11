@@ -2479,7 +2479,7 @@ func (p *Peer) LogErrors(v ...interface{}) {
 	logWith(p).LogErrors(v...)
 }
 
-func (p *Peer) CheckBackendRestarted(primaryKeysLen int, res ResultSet, columns ColumnIndexedList) (err error) {
+func (p *Peer) CheckBackendRestarted(primaryKeysLen int, res ResultSet, columns ColumnList) (err error) {
 	if p.HasFlag(MultiBackend) {
 		return
 	}
@@ -2502,7 +2502,7 @@ func (p *Peer) CheckBackendRestarted(primaryKeysLen int, res ResultSet, columns 
 	newProgramStart := int64(0)
 	newCorePid := 0
 	for i, col := range columns {
-		switch col.Column.Name {
+		switch col.Name {
 		case "program_start":
 			newProgramStart = interface2int64(res[0][i+primaryKeysLen])
 		case "nagios_pid":

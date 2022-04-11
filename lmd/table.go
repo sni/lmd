@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	"github.com/sasha-s/go-deadlock"
 )
 
 // TableRef contains data for referenced tables
@@ -153,8 +155,10 @@ type Table struct {
 	PrimaryKey      []string
 	RefTables       []TableRef // referenced tables
 	Virtual         VirtualStoreResolveFunc
-	DefaultSort     []string     // columns used to sort if nothing is specified
-	PeerLockMode    PeerLockMode // should the peer be locked once for the complete result or on each access
+	DefaultSort     []string          // columns used to sort if nothing is specified
+	PeerLockMode    PeerLockMode      // should the peer be locked once for the complete result or on each access
+	Lock            *deadlock.RWMutex // must be used for DataSizes access
+	DataSizes       map[DataType]int  // contains size used for the datastore
 }
 
 // GetColumn returns a column for given name or nil if not found

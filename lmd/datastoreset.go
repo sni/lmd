@@ -315,7 +315,7 @@ func (ds *DataStoreSet) prepareDataUpdateSet(dataOffset int, res ResultSet, tabl
 	// prepare list of large strings
 	stringlistIndexes := make([]int, 0)
 	for i := range table.DynamicColumnCache {
-		col := table.DynamicColumnCache[i].Column
+		col := table.DynamicColumnCache[i]
 		if col.DataType == StringLargeCol {
 			stringlistIndexes = append(stringlistIndexes, i+dataOffset)
 		}
@@ -323,7 +323,7 @@ func (ds *DataStoreSet) prepareDataUpdateSet(dataOffset int, res ResultSet, tabl
 
 	// compare last check date and only update large strings if the last check date has changed
 	lastCheckCol := table.GetColumn("last_check")
-	lastCheckDataIndex := table.ColumnsIndex[lastCheckCol]
+	lastCheckDataIndex := lastCheckCol.Index
 	lastCheckResIndex := table.DynamicColumnCache.GetColumnIndex("last_check") + dataOffset
 
 	// prepare update
@@ -423,10 +423,10 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, statusKey PeerStat
 	// make sure all backends are sorted the same way
 	res = res.SortByPrimaryKey(store.Table, req)
 
-	columns := make(ColumnIndexedList, len(scanColumns))
+	columns := make(ColumnList, len(scanColumns))
 	for i, name := range scanColumns {
 		col := store.Table.ColumnsIndex[name]
-		columns[i] = NewColumnIndex(col, store)
+		columns[i] = col
 	}
 
 	missing, err := ds.getMissingTimestamps(store, res, columns)
@@ -466,7 +466,7 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, statusKey PeerStat
 }
 
 // getMissingTimestamps returns list of last_check dates which can be used to delta update
-func (ds *DataStoreSet) getMissingTimestamps(store *DataStore, res ResultSet, columns ColumnIndexedList) (missing []int64, err error) {
+func (ds *DataStoreSet) getMissingTimestamps(store *DataStore, res ResultSet, columns ColumnList) (missing []int64, err error) {
 	ds.Lock.RLock()
 	p := ds.peer
 	data := store.Data
@@ -739,7 +739,7 @@ func (ds *DataStoreSet) skipTableUpdate(store *DataStore, table TableName) (bool
 	return false, nil
 }
 
-func (ds *DataStoreSet) updateTimeperiodsData(dataOffset int, store *DataStore, res ResultSet, columns ColumnIndexedList) (err error) {
+func (ds *DataStoreSet) updateTimeperiodsData(dataOffset int, store *DataStore, res ResultSet, columns ColumnList) (err error) {
 	changedTimeperiods := make(map[string]bool)
 	ds.Lock.Lock()
 	data := store.Data
@@ -808,19 +808,19 @@ func (ds *DataStoreSet) buildDowntimeCommentsList(name TableName) (err error) {
 	if hostStore == nil {
 		return fmt.Errorf("cannot build id list, peer is down: %s", ds.peer.getError())
 	}
-	hostIdx := hostStore.ColumnsIndex[hostStore.Table.GetColumn(name.String())]
+	hostIdx := hostStore.Table.GetColumn(name.String()).Index
 
 	serviceStore := ds.tables[TableServices]
 	if serviceStore == nil {
 		return fmt.Errorf("cannot build id list, peer is down: %s", ds.peer.getError())
 	}
-	serviceIdx := serviceStore.ColumnsIndex[serviceStore.Table.GetColumn(name.String())]
+	serviceIdx := serviceStore.Table.GetColumn(name.String()).Index
 
 	hostResult := make(map[*DataRow][]int64)
 	serviceResult := make(map[*DataRow][]int64)
-	idIndex := store.ColumnsIndex[store.Table.GetColumn("id")]
-	hostNameIndex := store.ColumnsIndex[store.Table.GetColumn("host_name")]
-	serviceDescIndex := store.ColumnsIndex[store.Table.GetColumn("service_description")]
+	idIndex := store.Table.GetColumn("id").Index
+	hostNameIndex := store.Table.GetColumn("host_name").Index
+	serviceDescIndex := store.Table.GetColumn("service_description").Index
 	hostIndex := hostStore.Index
 	serviceIndex := serviceStore.Index2
 	for i := range store.Data {

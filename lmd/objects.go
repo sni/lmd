@@ -1,10 +1,11 @@
 package main
 
+import "github.com/sasha-s/go-deadlock"
+
 // ObjectsType is a map of tables with a given order.
 type ObjectsType struct {
 	noCopy       noCopy
 	Tables       map[TableName]*Table
-	Order        []TableName
 	UpdateTables []TableName // list of tables which need to be regularly updated
 	StatusTables []TableName
 }
@@ -33,9 +34,9 @@ func InitObjects() {
 	Objects.Tables = make(map[TableName]*Table)
 	// add complete virtual tables first
 	Objects.AddTable(TableBackends, NewBackendsTable())
-	Objects.AddTable(TableSites, NewBackendsTable())
+	Objects.Tables[TableSites] = Objects.Tables[TableBackends]
 	Objects.AddTable(TableColumns, NewColumnsTable())
-	Objects.AddTable(TableTables, NewColumnsTable())
+	Objects.Tables[TableTables] = Objects.Tables[TableColumns]
 
 	// add remaining tables in an order where they can resolve the inter-table dependencies
 	Objects.AddTable(TableStatus, NewStatusTable())
@@ -65,8 +66,16 @@ func (o *ObjectsType) AddTable(name TableName, table *Table) {
 	if table.PrimaryKey == nil {
 		table.PrimaryKey = make([]string, 0)
 	}
+	table.DataSizes = map[DataType]int{
+		StringCol:     0,
+		StringListCol: 0,
+		IntCol:        0,
+		Int64ListCol:  0,
+		FloatCol:      0,
+		CustomVarCol:  0,
+	}
+	table.Lock = new(deadlock.RWMutex)
 	o.Tables[name] = table
-	o.Order = append(o.Order, name)
 	if !table.PassthroughOnly && table.Virtual == nil {
 		o.UpdateTables = append(o.UpdateTables, name)
 	}

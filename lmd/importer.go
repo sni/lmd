@@ -241,12 +241,7 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns ColumnList,
 		store := NewDataStore(table, p)
 		store.DataSet = p.data
 
-		indexedColumns := make(ColumnIndexedList, 0)
-		for _, col := range columns {
-			indexedColumns = append(indexedColumns, NewColumnIndex(col, store))
-		}
-
-		err := store.InsertData(rows, indexedColumns, false)
+		err := store.InsertData(rows, columns, false)
 		if err != nil {
 			return peers, fmt.Errorf("failed to insert data: %s", err)
 		}

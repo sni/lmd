@@ -25,7 +25,6 @@ func GetTableBackendsStore(table *Table, peer *Peer) *DataStore {
 func GetTableColumnsStore(table *Table, _ *Peer) *DataStore {
 	store := NewDataStore(table, nil)
 	data := make(ResultSet, 0)
-	columns := make(ColumnIndexedList, 0)
 	for _, t := range Objects.Tables {
 		for i := range t.Columns {
 			c := t.Columns[i]
@@ -58,11 +57,12 @@ func GetTableColumnsStore(table *Table, _ *Peer) *DataStore {
 			data = append(data, row)
 		}
 	}
+	columns := make(ColumnList, 0)
 	for _, col := range table.Columns {
 		if col.StorageType == RefStore {
 			continue
 		}
-		columns = append(columns, NewColumnIndex(col, store))
+		columns = append(columns, col)
 	}
 	err := store.InsertData(data, columns, true)
 	if err != nil {

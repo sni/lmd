@@ -10,10 +10,8 @@ import (
 // DataStore contains the actual data rows with a reference to the table and peer.
 type DataStore struct {
 	noCopy                  noCopy
-	DynamicColumnCache      ColumnIndexedList              // contains list of columns used to run periodic update
+	DynamicColumnCache      ColumnList                     // contains list of columns used to run periodic update
 	DynamicColumnNamesCache []string                       // contains list of keys used to run periodic update
-	ColumnsIndex            map[*Column]int                // contains the data index for local stored columns
-	DataSizes               map[DataType]int               // contains the sizes for each data type
 	Peer                    *Peer                          // reference to our peer
 	PeerName                string                         // cached peer name
 	PeerKey                 string                         // cached peer key
@@ -34,9 +32,8 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 		Data:                    make([]*DataRow, 0),
 		Index:                   make(map[string]*DataRow),
 		Index2:                  make(map[string]map[string]*DataRow),
-		DynamicColumnCache:      make(ColumnIndexedList, 0),
+		DynamicColumnCache:      make(ColumnList, 0),
 		DynamicColumnNamesCache: make([]string, 0),
-		ColumnsIndex:            make(map[*Column]int, 0),
 		dupStringList:           make(map[[32]byte][]string),
 		Table:                   table,
 		PeerLockMode:            table.PeerLockMode,
@@ -52,33 +49,31 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 	}
 
 	// create columns list
-	dataSizes := map[DataType]int{
-		StringCol:     0,
-		StringListCol: 0,
-		IntCol:        0,
-		Int64ListCol:  0,
-		FloatCol:      0,
-		CustomVarCol:  0,
-	}
+	table.Lock.Lock()
+	defer table.Lock.Unlock()
+	dataSizes := table.DataSizes
+
 	for i := range table.Columns {
 		col := table.Columns[i]
 		if col.Optional != NoFlags && !d.Peer.HasFlag(col.Optional) {
 			continue
 		}
 		if col.StorageType == LocalStore {
-			d.ColumnsIndex[col] = dataSizes[col.DataType]
-			dataSizes[col.DataType]++
+			if col.Index == -1 {
+				col.Index = dataSizes[col.DataType]
+				dataSizes[col.DataType]++
+			}
 			if col.FetchType == Dynamic {
 				d.DynamicColumnNamesCache = append(d.DynamicColumnNamesCache, col.Name)
-				d.DynamicColumnCache = append(d.DynamicColumnCache, NewColumnIndex(col, d))
+				d.DynamicColumnCache = append(d.DynamicColumnCache, col)
 			}
 			if strings.HasSuffix(col.Name, "_lc") {
 				refCol := table.GetColumn(strings.TrimSuffix(col.Name, "_lc"))
-				d.LowerCaseColumns[d.ColumnsIndex[refCol]] = d.ColumnsIndex[col]
+				d.LowerCaseColumns[refCol.Index] = col.Index
 			}
 		}
 	}
-	d.DataSizes = dataSizes
+
 	// prepend primary keys to dynamic keys, since they are required to map the results back to specific items
 	if len(d.DynamicColumnNamesCache) > 0 {
 		d.DynamicColumnNamesCache = append(d.Table.PrimaryKey, d.DynamicColumnNamesCache...)
@@ -87,7 +82,7 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 }
 
 // InsertData adds a list of results and initializes the store table
-func (d *DataStore) InsertData(rows ResultSet, columns ColumnIndexedList, setReferences bool) error {
+func (d *DataStore) InsertData(rows ResultSet, columns ColumnList, setReferences bool) error {
 	now := time.Now().Unix()
 	switch len(d.Table.PrimaryKey) {
 	case 0:
@@ -98,6 +93,8 @@ func (d *DataStore) InsertData(rows ResultSet, columns ColumnIndexedList, setRef
 	default:
 		panic("not supported number of primary keys")
 	}
+	d.Table.Lock.RLock()
+	defer d.Table.Lock.RUnlock()
 	d.Data = make([]*DataRow, len(rows))
 	for i, data := range rows {
 		row, err := NewDataRow(d, data, columns, now, setReferences)
@@ -113,10 +110,11 @@ func (d *DataStore) InsertData(rows ResultSet, columns ColumnIndexedList, setRef
 }
 
 // AppendData append a list of results and initializes the store table
-func (d *DataStore) AppendData(data ResultSet, columns ColumnIndexedList) error {
+func (d *DataStore) AppendData(data ResultSet, columns ColumnList) error {
 	d.DataSet.Lock.Lock()
 	defer d.DataSet.Lock.Unlock()
-
+	d.Table.Lock.RLock()
+	defer d.Table.Lock.RUnlock()
 	if d.Index == nil {
 		// should not happen but might indicate a recent restart or backend issue
 		return fmt.Errorf("index not ready, cannot append data")
@@ -204,8 +202,8 @@ func (d *DataStore) GetColumn(name string) *Column {
 }
 
 // GetInitialColumns returns list of columns required to fill initial dataset
-func (d *DataStore) GetInitialColumns() ([]string, ColumnIndexedList) {
-	columns := make(ColumnIndexedList, 0)
+func (d *DataStore) GetInitialColumns() ([]string, ColumnList) {
+	columns := make(ColumnList, 0)
 	keys := make([]string, 0)
 	for i := range d.Table.Columns {
 		col := d.Table.Columns[i]
@@ -218,7 +216,7 @@ func (d *DataStore) GetInitialColumns() ([]string, ColumnIndexedList) {
 		if col.FetchType == None {
 			continue
 		}
-		columns = append(columns, NewColumnIndex(col, d))
+		columns = append(columns, col)
 		keys = append(keys, col.Name)
 	}
 	return keys, columns

@@ -246,6 +246,7 @@ type Column struct {
 	noCopy          noCopy
 	Name            string                 // name and primary key
 	Description     string                 // human description
+	Index           int                    // position in datastore
 	DataType        DataType               // Type of this column
 	FetchType       FetchType              // flag wether this columns needs to be updated
 	StorageType     StorageType            // flag how this column is stored
@@ -261,6 +262,7 @@ func NewColumn(table *Table, name string, storage StorageType, update FetchType,
 	col := &Column{
 		Table:       table,
 		Name:        name,
+		Index:       -1,
 		Description: description,
 		StorageType: storage,
 		FetchType:   update,
@@ -293,11 +295,6 @@ func NewColumn(table *Table, name string, storage StorageType, update FetchType,
 // String returns the string representation of a column list
 func (c *Column) String() string {
 	return c.Name
-}
-
-// Index returns the index (based on the datastore)
-func (c *Column) Index(d *DataRow) int {
-	return (d.DataStore.ColumnsIndex[c])
 }
 
 // GetEmptyValue returns an empty placeholder representation for the given column type
