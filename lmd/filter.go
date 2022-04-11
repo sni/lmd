@@ -70,6 +70,8 @@ type Filter struct {
 
 	// copy of Column.Optional
 	ColumnOptional OptionalFlags
+	// copy of Column.Index if Column is of type LocalStore
+	ColumnIndex int
 }
 
 // Operator defines a filter operator.
@@ -302,14 +304,14 @@ func ParseFilter(value []byte, table TableName, stack *[]*Filter, options ParseO
 		return
 	}
 
-	columnName := string(tmp[0])
-
 	// convert value to type of column
-	col := Objects.Tables[table].GetColumnWithFallback(columnName)
+	col := Objects.Tables[table].GetColumnWithFallback(string(tmp[0]))
 	filter := &Filter{
-		Operator: op,
-		Column:   col,
-		Negate:   false,
+		Operator:       op,
+		Column:         col,
+		Negate:         false,
+		ColumnIndex:    -1,
+		ColumnOptional: col.Optional,
 	}
 
 	err = filter.setFilterValue(string(tmp[2]))
@@ -328,7 +330,10 @@ func ParseFilter(value []byte, table TableName, stack *[]*Filter, options ParseO
 		}
 	}
 
-	filter.ColumnOptional = col.Optional
+	if !filter.IsEmpty && col.Optional == NoFlags && col.StorageType == LocalStore {
+		filter.ColumnIndex = col.Index
+	}
+
 	*stack = append(*stack, filter)
 	return
 }
@@ -544,18 +549,19 @@ func ParseStats(value []byte, table TableName, stack *[]*Filter, options ParseOp
 		return
 	}
 
-	columnName := string(tmp[1])
-	col := Objects.Tables[table].ColumnsIndex[columnName]
-	if col == nil {
-		t := Objects.Tables[table]
-		col = t.GetColumnWithFallback(columnName)
-	}
+	col := Objects.Tables[table].GetColumnWithFallback(string(tmp[1]))
 	stats := &Filter{
-		Column:     col,
-		StatsType:  op,
-		Stats:      startWith,
-		StatsCount: 0,
+		Column:         col,
+		StatsType:      op,
+		Stats:          startWith,
+		StatsCount:     0,
+		ColumnIndex:    -1,
+		ColumnOptional: col.Optional,
 	}
+	if !stats.IsEmpty && col.Optional == NoFlags && col.StorageType == LocalStore {
+		stats.ColumnIndex = col.Index
+	}
+
 	*stack = append(*stack, stats)
 	return
 }
@@ -602,21 +608,35 @@ func ParseFilterNegate(stack []*Filter) (err error) {
 // Match returns true if the given filter matches the given value.
 func (f *Filter) Match(row *DataRow) bool {
 	switch f.Column.DataType {
-	case StringCol, StringLargeCol, JSONCol:
+	case StringCol:
+		if f.ColumnIndex != -1 {
+			return f.MatchString(row.dataString[f.ColumnIndex])
+		}
+		return f.MatchString(row.GetString(f.Column))
+	case StringLargeCol, JSONCol:
 		return f.MatchString(row.GetString(f.Column))
 	case StringListCol:
 		return f.MatchStringList(row.GetStringList(f.Column))
 	case IntCol:
+		if f.ColumnIndex != -1 {
+			return f.MatchInt(row.dataInt[f.ColumnIndex])
+		}
 		if f.IsEmpty {
 			return matchEmptyFilter(f.Operator)
 		}
 		return f.MatchInt(row.GetInt(f.Column))
 	case Int64Col:
+		if f.ColumnIndex != -1 {
+			return f.MatchInt64(row.dataInt64[f.ColumnIndex])
+		}
 		if f.IsEmpty {
 			return matchEmptyFilter(f.Operator)
 		}
 		return f.MatchInt64(row.GetInt64(f.Column))
 	case FloatCol:
+		if f.ColumnIndex != -1 {
+			return f.MatchFloat(row.dataFloat[f.ColumnIndex])
+		}
 		if f.IsEmpty {
 			return matchEmptyFilter(f.Operator)
 		}

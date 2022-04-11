@@ -717,16 +717,17 @@ func (d *DataRow) MatchFilter(filter *Filter) bool {
 	}
 
 	// if this is a optional column and we do not meet the requirements, match against an empty default column
-	if filter.ColumnOptional != NoFlags && !d.DataStore.Peer.HasFlag(filter.Column.Optional) {
+	if filter.ColumnOptional != NoFlags && !d.DataStore.Peer.HasFlag(filter.ColumnOptional) {
 		// duplicate filter, but use the empty column
 		f := &Filter{
-			Column:    d.DataStore.Table.GetEmptyColumn(),
-			Operator:  filter.Operator,
-			StrValue:  filter.StrValue,
-			Regexp:    filter.Regexp,
-			IsEmpty:   filter.IsEmpty,
-			CustomTag: filter.CustomTag,
-			Negate:    filter.Negate,
+			Column:      d.DataStore.Table.GetEmptyColumn(),
+			Operator:    filter.Operator,
+			StrValue:    filter.StrValue,
+			Regexp:      filter.Regexp,
+			IsEmpty:     filter.IsEmpty,
+			CustomTag:   filter.CustomTag,
+			Negate:      filter.Negate,
+			ColumnIndex: -1,
 		}
 		f.Column.DataType = filter.Column.DataType
 		if f.Negate {
