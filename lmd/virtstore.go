@@ -62,7 +62,7 @@ func GetTableColumnsStore(table *Table, _ *Peer) *DataStore {
 		if col.StorageType == RefStore {
 			continue
 		}
-		columns = append(columns, ColumnIndex{Column: col, Index: store.ColumnsIndex[col]})
+		columns = append(columns, NewColumnIndex(col, store))
 	}
 	err := store.InsertData(data, columns, true)
 	if err != nil {

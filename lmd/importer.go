@@ -243,7 +243,7 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns ColumnList,
 
 		indexedColumns := make(ColumnIndexedList, 0)
 		for _, col := range columns {
-			indexedColumns = append(indexedColumns, ColumnIndex{Column: col, Index: store.ColumnsIndex[col]})
+			indexedColumns = append(indexedColumns, NewColumnIndex(col, store))
 		}
 
 		err := store.InsertData(rows, indexedColumns, false)

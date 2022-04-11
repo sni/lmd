@@ -70,7 +70,7 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 			dataSizes[col.DataType]++
 			if col.FetchType == Dynamic {
 				d.DynamicColumnNamesCache = append(d.DynamicColumnNamesCache, col.Name)
-				d.DynamicColumnCache = append(d.DynamicColumnCache, ColumnIndex{Column: col, Index: d.ColumnsIndex[col]})
+				d.DynamicColumnCache = append(d.DynamicColumnCache, NewColumnIndex(col, d))
 			}
 			if strings.HasSuffix(col.Name, "_lc") {
 				refCol := table.GetColumn(strings.TrimSuffix(col.Name, "_lc"))
@@ -218,7 +218,7 @@ func (d *DataStore) GetInitialColumns() ([]string, ColumnIndexedList) {
 		if col.FetchType == None {
 			continue
 		}
-		columns = append(columns, ColumnIndex{Column: col, Index: d.ColumnsIndex[col]})
+		columns = append(columns, NewColumnIndex(col, d))
 		keys = append(keys, col.Name)
 	}
 	return keys, columns

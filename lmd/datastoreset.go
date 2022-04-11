@@ -426,7 +426,7 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, statusKey PeerStat
 	columns := make(ColumnIndexedList, len(scanColumns))
 	for i, name := range scanColumns {
 		col := store.Table.ColumnsIndex[name]
-		columns[i] = ColumnIndex{Column: col, Index: store.ColumnsIndex[col]}
+		columns[i] = NewColumnIndex(col, store)
 	}
 
 	missing, err := ds.getMissingTimestamps(store, res, columns)
