@@ -249,7 +249,7 @@ func (ds *DataStoreSet) updateDeltaHostsServices(tableName TableName, filterStr 
 
 	if tryFullScan {
 		// run regular delta update and lets check if all last_check dates match
-		updated, uErr := ds.UpdateDeltaFullScan(table, filterStr)
+		updated, uErr := ds.UpdateDeltaFullScanHostsServices(table, filterStr)
 		if updated || uErr != nil {
 			return uErr
 		}
@@ -371,24 +371,30 @@ func (ds *DataStoreSet) prepareDataUpdateSet(dataOffset int, res ResultSet, tabl
 	return updateSet, nil
 }
 
+// UpdateDeltaFullScanHostsServices is a table independent wrapper for UpdateDeltaFullScan
+// It returns true if an update was done and any error encountered.
+func (ds *DataStoreSet) UpdateDeltaFullScanHostsServices(store *DataStore, filterStr string) (updated bool, err error) {
+	switch store.Table.Name {
+	case TableServices:
+		updated, err = ds.UpdateDeltaFullScan(store, LastFullServiceUpdate, filterStr, ds.UpdateDeltaServices)
+	case TableHosts:
+		updated, err = ds.UpdateDeltaFullScan(store, LastFullHostUpdate, filterStr, ds.UpdateDeltaHosts)
+	default:
+		p := ds.peer
+		logWith(p).Panicf("not implemented for: " + store.Table.Name.String())
+	}
+
+	return
+}
+
 // UpdateDeltaFullScan updates hosts and services tables by fetching some key indicator fields like last_check
 // downtimes or acknowledged status. If an update is required, the last_check timestamp is used as filter for a
 // delta update.
-// The full scan just returns false without any update if the last update was less then MinFullScanInterval seconds
-// ago.
+// The full scan just returns false without any update if the last update was less then MinFullScanInterval seconds ago.
 // It returns true if an update was done and any error encountered.
-func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, filterStr string) (updated bool, err error) {
-	updated = false
+func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, statusKey PeerStatusKey, filterStr string, updateFn func(string, bool) error) (updated bool, err error) {
 	p := ds.peer
-	var lastUpdate int64
-	switch store.Table.Name {
-	case TableServices:
-		lastUpdate = p.StatusGet(LastFullServiceUpdate).(int64)
-	case TableHosts:
-		lastUpdate = p.StatusGet(LastFullHostUpdate).(int64)
-	default:
-		logWith(p).Panicf("not implemented for: " + store.Table.Name.String())
-	}
+	lastUpdate := p.StatusGet(statusKey).(int64)
 
 	// do not do a full scan more often than every 30 seconds
 	if lastUpdate > time.Now().Unix()-MinFullScanInterval {
@@ -428,33 +434,34 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, filterStr string) 
 		return
 	}
 
-	if len(missing) > 0 {
-		logWith(ds, req).Debugf("%s delta scan going to update %d timestamps", store.Table.Name.String(), len(missing))
-		filter := []string{filterStr}
-		filter = append(filter, composeTimestampFilter(missing, "last_check")...)
-		if len(filterStr) > 0 {
-			filter = append(filter, "Or: 2\n")
-		}
-		switch {
-		case len(filter) > 100:
-			logWith(ds, req).Warnf("%s delta scan timestamp filter too complex: %d", store.Table.Name.String(), len(missing))
-		case store.Table.Name == TableServices:
-			err = ds.UpdateDeltaServices(strings.Join(filter, ""), false)
-			updated = true
-		case store.Table.Name == TableHosts:
-			err = ds.UpdateDeltaHosts(strings.Join(filter, ""), false)
-			updated = true
-		}
-	} else {
+	if len(missing) == 0 {
 		logWith(ds, req).Debugf("%s delta scan did not find any timestamps", store.Table.Name.String())
+		return
 	}
 
-	switch store.Table.Name {
-	case TableServices:
-		p.StatusSet(LastFullServiceUpdate, time.Now().Unix())
-	case TableHosts:
-		p.StatusSet(LastFullHostUpdate, time.Now().Unix())
+	logWith(ds, req).Debugf("%s delta scan going to update %d timestamps", store.Table.Name.String(), len(missing))
+	filter := []string{filterStr}
+	filter = append(filter, composeTimestampFilter(missing, "last_check")...)
+	if len(filterStr) > 0 {
+		filter = append(filter, "Or: 2\n")
 	}
+	if len(filter) > 100 {
+		msg := fmt.Sprintf("%s delta scan timestamp filter too complex: %d", store.Table.Name.String(), len(missing))
+		if p.HasFlag(HasLastUpdateColumn) {
+			logWith(ds, req).Warnf("%s", msg)
+		} else {
+			logWith(ds, req).Debugf("%s", msg)
+		}
+		return
+	}
+	err = updateFn(strings.Join(filter, ""), false)
+	if err != nil {
+		return
+	}
+
+	updated = true
+	p.StatusSet(statusKey, time.Now().Unix())
+
 	return
 }
 
