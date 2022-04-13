@@ -70,7 +70,7 @@ func (ds *DataStoreSet) CreateObjectByType(table *Table) (store *DataStore, err 
 	// make sure all backends are sorted the same way
 	res = res.SortByPrimaryKey(table, req)
 
-	now := time.Now().Unix()
+	now := currentUnixTime()
 	err = store.InsertData(res, columns, false)
 	if err != nil {
 		return
@@ -136,8 +136,8 @@ func (ds *DataStoreSet) UpdateFull(tables []TableName) (err error) {
 	p.Lock.Lock()
 	p.resetErrors()
 	p.Status[ResponseTime] = duration.Seconds()
-	p.Status[LastUpdate] = time.Now().Unix()
-	p.Status[LastFullUpdate] = time.Now().Unix()
+	p.Status[LastUpdate] = currentUnixTime()
+	p.Status[LastFullUpdate] = currentUnixTime()
 	p.Lock.Unlock()
 	logWith(p).Debugf("full update complete in: %s", duration.String())
 	promPeerUpdates.WithLabelValues(p.Name).Inc()
@@ -160,7 +160,7 @@ func (ds *DataStoreSet) UpdateFullTablesList(tables []TableName) (err error) {
 
 // UpdateDelta runs a delta update on all status, hosts, services, comments and downtimes table.
 // It returns true if the update was successful or false otherwise.
-func (ds *DataStoreSet) UpdateDelta(from, to int64) (err error) {
+func (ds *DataStoreSet) UpdateDelta(from, to float64) (err error) {
 	t1 := time.Now()
 
 	err = ds.UpdateFullTablesList(Objects.StatusTables)
@@ -168,17 +168,17 @@ func (ds *DataStoreSet) UpdateDelta(from, to int64) (err error) {
 		return
 	}
 
-	updateOffset := ds.peer.lmd.Config.UpdateOffset
+	updateOffset := float64(ds.peer.lmd.Config.UpdateOffset)
 
 	filterStr := ""
 	if from > 0 {
 		switch {
 		case ds.peer.HasFlag(HasLMDLastCacheUpdateColumn):
-			filterStr = fmt.Sprintf("Filter: lmd_last_cache_update >= %v\nFilter: lmd_last_cache_update < %v\nAnd: 2\n", from-updateOffset, to-updateOffset)
+			filterStr = fmt.Sprintf("Filter: lmd_last_cache_update >= %v\nFilter: lmd_last_cache_update < %v\nAnd: 2\n", int64(from-updateOffset), int64(to-updateOffset))
 		case ds.peer.HasFlag(HasLastUpdateColumn):
-			filterStr = fmt.Sprintf("Filter: last_update >= %v\nFilter: last_update < %v\nAnd: 2\n", from-updateOffset, to-updateOffset)
+			filterStr = fmt.Sprintf("Filter: last_update >= %v\nFilter: last_update < %v\nAnd: 2\n", int64(from-updateOffset), int64(to-updateOffset))
 		default:
-			filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: last_check < %v\nAnd: 2\n", from-updateOffset, to-updateOffset)
+			filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: last_check < %v\nAnd: 2\n", int64(from-updateOffset), int64(to-updateOffset))
 			if ds.peer.lmd.Config.SyncIsExecuting && !ds.peer.HasFlag(Shinken) {
 				filterStr += "Filter: is_executing = 1\nOr: 2\n"
 			}
@@ -283,7 +283,7 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 	if err != nil {
 		return
 	}
-	now := time.Now().Unix()
+	now := currentUnixTime()
 
 	ds.Lock.Lock()
 	defer ds.Lock.Unlock()
@@ -394,10 +394,10 @@ func (ds *DataStoreSet) UpdateDeltaFullScanHostsServices(store *DataStore, filte
 // It returns true if an update was done and any error encountered.
 func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, statusKey PeerStatusKey, filterStr string, updateFn func(string, bool) error) (updated bool, err error) {
 	p := ds.peer
-	lastUpdate := p.StatusGet(statusKey).(int64)
+	lastUpdate := p.StatusGet(statusKey).(float64)
 
 	// do not do a full scan more often than every 30 seconds
-	if lastUpdate > time.Now().Unix()-MinFullScanInterval {
+	if lastUpdate > float64(time.Now().Unix()-MinFullScanInterval) {
 		return
 	}
 
@@ -462,7 +462,7 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, statusKey PeerStat
 	}
 
 	updated = true
-	p.StatusSet(statusKey, time.Now().Unix())
+	p.StatusSet(statusKey, currentUnixTime())
 
 	return
 }
@@ -701,7 +701,7 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 		fallthrough
 	default:
 		ds.Lock.Lock()
-		now := time.Now().Unix()
+		now := currentUnixTime()
 		for i, row := range res {
 			err = data[i].UpdateValues(primaryKeysLen, row, store.DynamicColumnCache, now)
 			if err != nil {
@@ -745,7 +745,7 @@ func (ds *DataStoreSet) updateTimeperiodsData(dataOffset int, store *DataStore, 
 	changedTimeperiods := make(map[string]bool)
 	ds.Lock.Lock()
 	data := store.Data
-	now := time.Now().Unix()
+	now := currentUnixTime()
 	nameCol := store.GetColumn("name")
 	ds.Lock.Unlock()
 	for i := range res {

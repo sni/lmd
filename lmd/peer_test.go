@@ -192,20 +192,20 @@ func TestPeerUpdate(t *testing.T) {
 		t.Error(err)
 	}
 
-	peer.StatusSet(LastUpdate, int64(0))
+	peer.StatusSet(LastUpdate, float64(0))
 	err = peer.periodicUpdate()
 	if err != nil {
 		t.Error(err)
 	}
 
-	peer.StatusSet(LastUpdate, int64(0))
+	peer.StatusSet(LastUpdate, float64(0))
 	peer.StatusSet(PeerState, PeerStatusWarning)
 	err = peer.periodicUpdate()
 	if err != nil {
 		t.Error(err)
 	}
 
-	peer.StatusSet(LastUpdate, int64(0))
+	peer.StatusSet(LastUpdate, float64(0))
 	peer.StatusSet(PeerState, PeerStatusDown)
 	err = peer.periodicUpdate()
 	if err != nil {
@@ -217,7 +217,7 @@ func TestPeerUpdate(t *testing.T) {
 		t.Error(err)
 	}
 
-	peer.StatusSet(LastUpdate, int64(0))
+	peer.StatusSet(LastUpdate, float64(0))
 	peer.StatusSet(PeerState, PeerStatusBroken)
 	err = peer.periodicUpdate()
 	if err == nil {
@@ -278,7 +278,7 @@ func TestLMDPeerUpdate(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(3, 10, 10)
 	PauseTestPeers(peer)
 
-	peer.StatusSet(LastUpdate, int64(0))
+	peer.StatusSet(LastUpdate, float64(0))
 	peer.SetFlag(LMD)
 	peer.SetFlag(MultiBackend)
 	err := peer.periodicUpdateLMD(nil, true)
@@ -286,7 +286,7 @@ func TestLMDPeerUpdate(t *testing.T) {
 		t.Error(err)
 	}
 
-	peer.StatusSet(LastUpdate, int64(0))
+	peer.StatusSet(LastUpdate, float64(0))
 	peer.ResetFlags()
 	peer.SetFlag(MultiBackend)
 	err = peer.periodicUpdateMultiBackends(nil, true)

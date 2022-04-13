@@ -94,8 +94,8 @@ func NewBackendsTable() (t *Table) {
 	t.AddPeerInfoColumn("bytes_received", Int64Col, "Bytes received from this peer")
 	t.AddPeerInfoColumn("queries", IntCol, "Number of queries sent to this peer")
 	t.AddPeerInfoColumn("last_error", StringCol, "Last error message or empty if up")
-	t.AddPeerInfoColumn("last_update", Int64Col, "Timestamp of last update")
-	t.AddPeerInfoColumn("last_online", Int64Col, "Timestamp when peer was last online")
+	t.AddPeerInfoColumn("last_update", FloatCol, "Timestamp of last update")
+	t.AddPeerInfoColumn("last_online", FloatCol, "Timestamp when peer was last online")
 	t.AddPeerInfoColumn("response_time", FloatCol, "Duration of last update in seconds")
 	t.AddPeerInfoColumn("idling", IntCol, "Idle status of this backend (0 - Not idling, 1 - idling)")
 	t.AddPeerInfoColumn("last_query", Int64Col, "Timestamp of the last incoming request")
@@ -166,7 +166,7 @@ func NewStatusTable() (t *Table) {
 	t.AddColumn("service_checks", Dynamic, Int64Col, "The number of completed service checks since program start")
 	t.AddColumn("service_checks_rate", Dynamic, FloatCol, "The number of completed service checks since program start")
 
-	t.AddPeerInfoColumn("lmd_last_cache_update", Int64Col, "Timestamp of the last LMD update of this object")
+	t.AddPeerInfoColumn("lmd_last_cache_update", FloatCol, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
 	t.AddPeerInfoColumn("peer_section", StringCol, "Section information when having cascaded LMDs")
@@ -203,7 +203,7 @@ func NewTimeperiodsTable() (t *Table) {
 	t.AddExtraColumn("exclusions", LocalStore, Static, StringListCol, Naemon, "exclusions")
 	t.AddExtraColumn("id", LocalStore, Static, IntCol, Naemon, "The id of the timeperiods")
 
-	t.AddPeerInfoColumn("lmd_last_cache_update", Int64Col, "Timestamp of the last LMD update of this object")
+	t.AddPeerInfoColumn("lmd_last_cache_update", FloatCol, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
 	return
@@ -233,7 +233,7 @@ func NewContactsTable() (t *Table) {
 	t.AddExtraColumn("custom_variable_values", LocalStore, Dynamic, StringListCol, Naemon, "A list of the values of all custom variables of the contact")
 	t.AddExtraColumn("custom_variables", VirtualStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
 
-	t.AddPeerInfoColumn("lmd_last_cache_update", Int64Col, "Timestamp of the last LMD update of this object")
+	t.AddPeerInfoColumn("lmd_last_cache_update", FloatCol, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
 	return
@@ -395,7 +395,7 @@ func NewHostsTable() (t *Table) {
 	t.AddExtraColumn("services_with_state", VirtualStore, None, InterfaceListCol, NoFlags, "The services, including state info, that is associated with the host")
 	t.AddExtraColumn("comments_with_info", VirtualStore, None, InterfaceListCol, NoFlags, "A list of all comments of the host with id, author and comment")
 	t.AddExtraColumn("downtimes_with_info", VirtualStore, None, InterfaceListCol, NoFlags, "A list of all downtimes of the host with id, author and comment")
-	t.AddPeerInfoColumn("lmd_last_cache_update", Int64Col, "Timestamp of the last LMD update of this object")
+	t.AddPeerInfoColumn("lmd_last_cache_update", FloatCol, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
 	t.AddExtraColumn("last_state_change_order", VirtualStore, None, Int64Col, NoFlags, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked")
@@ -432,7 +432,7 @@ func NewHostgroupsTable() (t *Table) {
 	t.AddColumn("worst_service_hard_state", Dynamic, IntCol, "The worst state of all services that belong to a host of this group (OK <= WARN <= UNKNOWN <= CRIT)")
 	t.AddColumn("worst_service_state", Dynamic, IntCol, "The worst service state of the hostgroup")
 
-	t.AddPeerInfoColumn("lmd_last_cache_update", Int64Col, "Timestamp of the last LMD update of this object")
+	t.AddPeerInfoColumn("lmd_last_cache_update", FloatCol, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
 
@@ -555,7 +555,7 @@ func NewServicesTable() (t *Table) {
 	t.AddExtraColumn("custom_variables", VirtualStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
 	t.AddExtraColumn("comments_with_info", VirtualStore, None, InterfaceListCol, NoFlags, "A list of all comments of the host with id, author and comment")
 	t.AddExtraColumn("downtimes_with_info", VirtualStore, None, InterfaceListCol, NoFlags, "A list of all downtimes of the service with id, author and comment")
-	t.AddPeerInfoColumn("lmd_last_cache_update", Int64Col, "Timestamp of the last LMD update of this object")
+	t.AddPeerInfoColumn("lmd_last_cache_update", FloatCol, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
 	t.AddExtraColumn("last_state_change_order", VirtualStore, None, Int64Col, NoFlags, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked")
@@ -585,7 +585,7 @@ func NewServicegroupsTable() (t *Table) {
 	t.AddColumn("num_services_hard_warn", Dynamic, IntCol, "The number of services in the group that are WARN")
 	t.AddColumn("worst_service_state", Dynamic, IntCol, "The worst service state of the service group")
 
-	t.AddPeerInfoColumn("lmd_last_cache_update", Int64Col, "Timestamp of the last LMD update of this object")
+	t.AddPeerInfoColumn("lmd_last_cache_update", FloatCol, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
 

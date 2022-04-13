@@ -226,9 +226,9 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns ColumnList,
 		logWith(p).Infof("restoring peer id %s", p.ID)
 
 		p.Status[PeerState] = PeerStatus(interface2int(rows[0][colIndex["status"]]))
-		p.Status[LastUpdate] = interface2int64(rows[0][colIndex["last_update"]])
+		p.Status[LastUpdate] = interface2float64(rows[0][colIndex["last_update"]])
 		p.Status[LastError] = interface2stringNoDedup(rows[0][colIndex["last_error"]])
-		p.Status[LastOnline] = interface2int64(rows[0][colIndex["last_online"]])
+		p.Status[LastOnline] = interface2float64(rows[0][colIndex["last_online"]])
 		p.Status[Queries] = interface2int64(rows[0][colIndex["queries"]])
 		p.Status[ResponseTime] = interface2float64(rows[0][colIndex["response_time"]])
 		p.data = NewDataStoreSet(p)

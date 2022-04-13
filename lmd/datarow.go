@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lkarlslund/stringdedup"
@@ -20,7 +19,7 @@ type DataRow struct {
 	noCopy                noCopy                 // we don't want to make copies, use references
 	DataStore             *DataStore             // reference to the datastore itself
 	Refs                  map[TableName]*DataRow // contains references to other objects, ex.: hosts from the services table
-	LastUpdate            int64                  // timestamp when this row has been updated
+	LastUpdate            float64                // timestamp when this row has been updated
 	dataString            []string               // stores string data
 	dataInt               []int                  // stores integers
 	dataInt64             []int64                // stores large integers
@@ -33,7 +32,7 @@ type DataRow struct {
 }
 
 // NewDataRow creates a new DataRow
-func NewDataRow(store *DataStore, raw []interface{}, columns ColumnList, timestamp int64, setReferences bool) (d *DataRow, err error) {
+func NewDataRow(store *DataStore, raw []interface{}, columns ColumnList, timestamp float64, setReferences bool) (d *DataRow, err error) {
 	d = &DataRow{
 		LastUpdate: timestamp,
 		DataStore:  store,
@@ -101,7 +100,7 @@ func (d *DataRow) GetID2() (string, string) {
 }
 
 // SetData creates initial data
-func (d *DataRow) SetData(raw []interface{}, columns ColumnList, timestamp int64) error {
+func (d *DataRow) SetData(raw []interface{}, columns ColumnList, timestamp float64) error {
 	d.dataString = make([]string, d.DataStore.Table.DataSizes[StringCol])
 	d.dataStringList = make([][]string, d.DataStore.Table.DataSizes[StringListCol])
 	d.dataInt = make([]int, d.DataStore.Table.DataSizes[IntCol])
@@ -493,7 +492,7 @@ func (d *DataRow) GetCustomVarValue(col *Column, name string) string {
 
 // VirtualColLocaltime returns current unix timestamp
 func VirtualColLocaltime(d *DataRow, col *Column) interface{} {
-	return float64(time.Now().UnixNano()) / float64(time.Second)
+	return currentUnixTime()
 }
 
 // VirtualColLastStateChangeOrder returns sortable state
@@ -753,7 +752,7 @@ func (d *DataRow) getStatsKey(res *Response) string {
 }
 
 // UpdateValues updates this datarow with new values
-func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns ColumnList, timestamp int64) error {
+func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns ColumnList, timestamp float64) error {
 	if len(columns) != len(data)-dataOffset {
 		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.DataStore.Table.Name.String(), len(columns), len(data))
 	}
@@ -792,14 +791,14 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 		}
 	}
 	if timestamp == 0 {
-		timestamp = time.Now().Unix()
+		timestamp = currentUnixTime()
 	}
 	d.LastUpdate = timestamp
 	return nil
 }
 
 // UpdateValuesNumberOnly updates this datarow with new values but skips strings
-func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, columns ColumnList, timestamp int64) error {
+func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, columns ColumnList, timestamp float64) error {
 	if len(columns) != len(data)-dataOffset {
 		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.DataStore.Table.Name.String(), len(columns), len(data))
 	}

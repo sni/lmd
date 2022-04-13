@@ -14,6 +14,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -154,7 +155,7 @@ type LMDInstance struct {
 	}
 	mainSignalChannel        chan os.Signal
 	initChannel              chan bool
-	lastMainRestart          int64
+	lastMainRestart          float64
 	cpuProfileHandler        *os.File
 	defaultReqestParseOption ParseOptions
 }
@@ -185,7 +186,7 @@ func init() {
 
 func NewLMDInstance() (lmd *LMDInstance) {
 	lmd = &LMDInstance{
-		lastMainRestart:          time.Now().Unix(),
+		lastMainRestart:          currentUnixTime(),
 		mainSignalChannel:        make(chan os.Signal),
 		initChannel:              nil,
 		PeerMapLock:              new(deadlock.RWMutex),
@@ -270,7 +271,7 @@ func (lmd *LMDInstance) mainLoop() (exitCode int) {
 	signal.Notify(osSignalUsrChannel, syscall.SIGUSR1)
 	signal.Notify(osSignalUsrChannel, syscall.SIGUSR2)
 
-	lmd.lastMainRestart = time.Now().Unix()
+	lmd.lastMainRestart = currentUnixTime()
 	lmd.shutdownChannel = make(chan bool)
 	lmd.waitGroupInit = &sync.WaitGroup{}
 	lmd.waitGroupListener = &sync.WaitGroup{}
@@ -823,9 +824,10 @@ func (lmd *LMDInstance) logPanicExit() {
 	}
 }
 
-func timeOrNever(timestamp int64) string {
+func timeOrNever(timestamp float64) string {
 	if timestamp > 0 {
-		return (time.Unix(timestamp, 0).String())
+		sec, dec := math.Modf(timestamp)
+		return (time.Unix(int64(sec), int64(dec*float64(time.Second))).String())
 	}
 	return "never"
 }
@@ -908,4 +910,9 @@ func (lmd *LMDInstance) finalFlagsConfig(stdoutLogging bool) *Config {
 	localConfig.SetServiceAuthorization()
 	localConfig.SetGroupAuthorization()
 	return localConfig
+}
+
+// returns the current unix time with sub second precision
+func currentUnixTime() float64 {
+	return float64(time.Now().UnixNano()) / float64(time.Second)
 }

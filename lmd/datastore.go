@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 )
 
 // DataStore contains the actual data rows with a reference to the table and peer.
@@ -83,7 +82,7 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 
 // InsertData adds a list of results and initializes the store table
 func (d *DataStore) InsertData(rows ResultSet, columns ColumnList, setReferences bool) error {
-	now := time.Now().Unix()
+	now := currentUnixTime()
 	switch len(d.Table.PrimaryKey) {
 	case 0:
 	case 1:
