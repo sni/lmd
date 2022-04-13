@@ -403,10 +403,12 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, statusKey PeerStat
 
 	scanColumns := []string{
 		"last_check",
+		"next_check",
 		"scheduled_downtime_depth",
 		"acknowledged",
 		"active_checks_enabled",
 		"notifications_enabled",
+		"modified_attributes",
 	}
 	// used to sort result later
 	scanColumns = append(scanColumns, store.Table.PrimaryKey...)
