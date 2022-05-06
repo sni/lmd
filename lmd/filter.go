@@ -321,6 +321,7 @@ func ParseFilter(value []byte, table TableName, stack *[]*Filter, options ParseO
 
 	if options&ParseOptimize != 0 {
 		filter.setLowerCaseColumn()
+		col = filter.Column // might have changed
 	}
 
 	if isRegex {

@@ -2,6 +2,7 @@ This file documents the revision history for the Livestatus Multitool Daemon (LM
 
 next:
           - use sub second precision timestamps
+          - fix regex search if host name contains uppercase characters
 
 2.0.7    Tue Mar  1 10:50:46 CET 2022
           - fix crash when using wrong data index

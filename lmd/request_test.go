@@ -1456,6 +1456,38 @@ ResponseHeader: fixed16
 	}
 }
 
+func TestRequestLowercaseHostFilter(t *testing.T) {
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+	query := `GET hosts
+	Columns: alias
+	Filter: alias ~~ .*host_1_ALIAS
+	OutputFormat: wrapped_json
+	ResponseHeader: fixed16
+	`
+	req, _, err := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("alias_lc", req.Filter[0].Column.Name); err != nil {
+		t.Error(err)
+	}
+	res, meta, err := peer.QueryString(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(int64(1), meta.Total); err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq("testhost_1_ALIAS", res[0][0]); err != nil {
+		t.Error(err)
+	}
+
+	if err := cleanup(); err != nil {
+		panic(err.Error())
+	}
+}
+
 func TestRequestKeepalive(t *testing.T) {
 	extraConfig := `
         ListenPrometheus = "127.0.0.1:50999"
