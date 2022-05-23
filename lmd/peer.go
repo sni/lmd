@@ -2446,7 +2446,7 @@ func (p *Peer) requestLocaltime() (err error) {
 	if err != nil {
 		return
 	}
-	if res == nil || len(res) == 0 || len(res[0]) == 0 {
+	if len(res) == 0 || len(res[0]) == 0 {
 		return
 	}
 	unix := interface2float64(res[0][0])

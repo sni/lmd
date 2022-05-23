@@ -38,6 +38,7 @@ linters:
     - gofumpt
     - nlreturn
     - exhaustivestruct
+    - exhaustruct
     - errorlint
     - paralleltest
     - godot
@@ -52,6 +53,7 @@ linters:
     - interfacer
     - golint
     - scopelint
+    - nonamedreturns
   fast: false
 issues:
   max-same-issues: 0

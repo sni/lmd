@@ -393,7 +393,7 @@ func CheckOpenFilesLimit(b *testing.B, minimum uint64) {
 		b.Skip("skipping test, cannot fetch open files limit.")
 	}
 	if rLimit.Cur < minimum {
-		b.Skip(fmt.Sprintf("skipping test, open files limit too low, need at least %d, current: %d", minimum, rLimit.Cur))
+		b.Skipf("skipping test, open files limit too low, need at least %d, current: %d", minimum, rLimit.Cur)
 	}
 }
 
