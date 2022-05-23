@@ -8,8 +8,8 @@ GOVERSION:=$(shell \
     awk -F'go| ' '{ split($$5, a, /\./); printf ("%04d%04d", a[1], a[2]); exit; }' \
 )
 # also update README.md when changing minumum version
-MINGOVERSION:=00010016
-MINGOVERSIONSTR:=1.16
+MINGOVERSION:=00010017
+MINGOVERSIONSTR:=1.17
 BUILD:=$(shell git rev-parse --short HEAD)
 # see https://github.com/go-modules-by-example/index/blob/master/010_tools/README.md
 # and https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module
