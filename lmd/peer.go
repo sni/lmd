@@ -1635,14 +1635,7 @@ func (p *Peer) WaitCondition(req *Request) {
 		// timed out
 	}
 
-	// close channel safely
-	select {
-	case <-c:
-		// already closed
-		return
-	default:
-	}
-	close(c)
+	safeCloseWaitChannel(c)
 }
 
 func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
@@ -1660,7 +1653,7 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
 			curUpdate := p.StatusGet(LastUpdate).(float64)
 			// wait up to WaitTimeout till the update is complete
 			if curUpdate > lastUpdate {
-				close(c)
+				safeCloseWaitChannel(c)
 				return nil
 			}
 			time.Sleep(WaitTimeoutCheckInterval)
@@ -1685,7 +1678,7 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
 			obj, ok := store.GetWaitObject(req)
 			if !ok {
 				logWith(p, req).Warnf("WaitObject did not match any object: %s", req.WaitObject)
-				close(c)
+				safeCloseWaitChannel(c)
 				return nil
 			}
 
@@ -1721,7 +1714,7 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
 			tmp := strings.SplitN(req.WaitObject, ";", 2)
 			if len(tmp) < 2 {
 				logWith(p, req).Errorf("unsupported service wait object: %s", req.WaitObject)
-				close(c)
+				safeCloseWaitChannel(c)
 				return nil
 			}
 			err = data.UpdateDeltaServices(fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", tmp[0], tmp[1]), false)
@@ -1733,11 +1726,22 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
 				// backend is going to restart, wait a bit and try again
 				time.Sleep(WaitTimeoutCheckInterval)
 			} else {
-				close(c)
+				safeCloseWaitChannel(c)
 				return err
 			}
 		}
 	}
+}
+
+// close channel and catch errors of already close channels
+func safeCloseWaitChannel(ch chan struct{}) {
+	defer func() {
+		if recover() != nil {
+			log.Debug("close of closed channel")
+		}
+	}()
+
+	close(ch)
 }
 
 // HTTPQueryWithRetries calls HTTPQuery with given amount of retries.
