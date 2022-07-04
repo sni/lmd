@@ -1,6 +1,6 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
-next:
+2.0.8    Mon Jul  4 08:59:06 CEST 2022
           - use sub second precision timestamps
           - fix regex search if host name contains uppercase characters
 
