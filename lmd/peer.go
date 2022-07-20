@@ -1700,8 +1700,9 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
 		if found {
 			// trigger update for all, wait conditions are run against the last object
 			// but multiple commands may have been sent
-			p.ScheduleImmediateUpdate()
 			lastUpdate = p.StatusGet(LastUpdate).(float64)
+			p.ScheduleImmediateUpdate()
+			time.Sleep(WaitTimeoutCheckInterval)
 			continue
 		}
 
