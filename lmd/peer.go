@@ -1652,7 +1652,7 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
 		if lastUpdate > 0 {
 			curUpdate := p.StatusGet(LastUpdate).(float64)
 			// wait up to WaitTimeout till the update is complete
-			if curUpdate > lastUpdate {
+			if curUpdate > 0 {
 				safeCloseWaitChannel(c)
 				return nil
 			}
