@@ -1,6 +1,6 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
-next:
+2.0.9    Thu Jul 21 14:29:20 CEST 2022
           - fix wait condition queries always waiting 10seconds
 
 2.0.8    Mon Jul  4 08:59:06 CEST 2022
