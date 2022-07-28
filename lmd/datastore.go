@@ -48,8 +48,8 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 	}
 
 	// create columns list
-	table.Lock.Lock()
-	defer table.Lock.Unlock()
+	table.Lock.RLock()
+	defer table.Lock.RUnlock()
 	dataSizes := table.DataSizes
 
 	for i := range table.Columns {
@@ -59,8 +59,13 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 		}
 		if col.StorageType == LocalStore {
 			if col.Index == -1 {
+				// require write lock and update table column
+				table.Lock.RUnlock()
+				table.Lock.Lock()
 				col.Index = dataSizes[col.DataType]
 				dataSizes[col.DataType]++
+				table.Lock.Unlock()
+				table.Lock.RLock()
 			}
 			if col.FetchType == Dynamic {
 				d.DynamicColumnNamesCache = append(d.DynamicColumnNamesCache, col.Name)
@@ -75,7 +80,7 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 
 	// prepend primary keys to dynamic keys, since they are required to map the results back to specific items
 	if len(d.DynamicColumnNamesCache) > 0 {
-		d.DynamicColumnNamesCache = append(d.Table.PrimaryKey, d.DynamicColumnNamesCache...)
+		d.DynamicColumnNamesCache = append(table.PrimaryKey, d.DynamicColumnNamesCache...)
 	}
 	return
 }
