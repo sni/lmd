@@ -1628,10 +1628,12 @@ func (p *Peer) WaitCondition(req *Request) {
 
 		p.LogErrors(p.waitcondition(c, req))
 	}(p, c, req)
+	timeout := time.NewTimer(time.Duration(req.WaitTimeout) * time.Millisecond)
 	select {
 	case <-c:
 		// finished with condition met
-	case <-time.After(time.Duration(req.WaitTimeout) * time.Millisecond):
+		timeout.Stop()
+	case <-timeout.C:
 		// timed out
 	}
 
