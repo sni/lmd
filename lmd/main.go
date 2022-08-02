@@ -282,7 +282,7 @@ func (lmd *LMDInstance) mainLoop() (exitCode int) {
 	}
 
 	if lmd.flags.flagProfile != "" {
-		log.Warnf("pprof profiler listening at %s", lmd.flags.flagProfile)
+		log.Warnf("pprof profiler listening at http://%s/debug/pprof/", lmd.flags.flagProfile)
 	}
 
 	once.Do(lmd.PrintVersion)
