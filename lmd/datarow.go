@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 
 	jsoniter "github.com/json-iterator/go"
-	"github.com/lkarlslund/stringdedup"
 )
 
 const ListSepChar1 = "\x00"
@@ -908,7 +907,13 @@ func interface2int64(in interface{}) int64 {
 func interface2string(in interface{}) *string {
 	switch v := in.(type) {
 	case string:
-		dedupedstring := stringdedup.S(v)
+		dedupedstring := dedup.S(v)
+		return &dedupedstring
+	case []byte:
+		dedupedstring := dedup.BS(v)
+		return &dedupedstring
+	case *[]byte:
+		dedupedstring := dedup.BS(*v)
 		return &dedupedstring
 	case *string:
 		return v
@@ -916,8 +921,8 @@ func interface2string(in interface{}) *string {
 		val := ""
 		return &val
 	}
-	str := fmt.Sprintf("%v", in)
-	return &str
+	dedupedstring := dedup.S(fmt.Sprintf("%v", in))
+	return &dedupedstring
 }
 
 func interface2stringNoDedup(in interface{}) string {

@@ -32,6 +32,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/OneOfOne/xxhash"
 	"github.com/lkarlslund/stringdedup"
 	"github.com/sasha-s/go-deadlock"
 )
@@ -124,6 +125,10 @@ func (c ConnectionType) String() string {
 	log.Panicf("not implemented: %#v", c)
 	return ""
 }
+
+var dedup = stringdedup.New(func(in []byte) uint32 {
+	return xxhash.Checksum32(in)
+})
 
 type LMDInstance struct {
 	Config            *Config              // reference to global config object
@@ -869,9 +874,9 @@ func ByteCountBinary(b int64) string {
 }
 
 func updateStatistics(qStat *QueryStats) {
-	size := stringdedup.Size()
+	size := dedup.Size()
 	promStringDedupCount.Set(float64(size))
-	promStringDedupBytes.Set(float64(stringdedup.ByteCount()))
+	promStringDedupBytes.Set(float64(dedup.Statistics().BytesInMemory))
 	promStringDedupIndexBytes.Set(float64(32 * size))
 	if qStat != nil {
 		qStat.LogTrigger <- true
