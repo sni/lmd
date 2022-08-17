@@ -204,9 +204,10 @@ func (l *Listener) localListenerHTTP(httpType string, listen string) {
 
 	// Wait for and handle http requests
 	server := &http.Server{
-		Handler:      router,
-		ReadTimeout:  HTTPServerRequestTimeout,
-		WriteTimeout: HTTPServerRequestTimeout,
+		Handler:           router,
+		ReadTimeout:       HTTPServerRequestTimeout,
+		WriteTimeout:      HTTPServerRequestTimeout,
+		ReadHeaderTimeout: HTTPServerRequestTimeout,
 	}
 	if err := server.Serve(c); err != nil {
 		log.Infof("stopping listener on %s", listen)

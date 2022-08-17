@@ -126,9 +126,7 @@ func (c ConnectionType) String() string {
 	return ""
 }
 
-var dedup = stringdedup.New(func(in []byte) uint32 {
-	return xxhash.Checksum32(in)
-})
+var dedup = stringdedup.New(xxhash.Checksum32)
 
 type LMDInstance struct {
 	Config            *Config              // reference to global config object

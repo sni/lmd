@@ -26,6 +26,9 @@ linters-settings:
     min-complexity: 35
   exhaustive:
     default-signifies-exhaustive: true
+  asasalint:
+    exclude:
+      - append
 linters:
   enable-all: true
   disable:
@@ -119,6 +122,10 @@ issues:
     - "VirtualColumnList is a global variable"
     - "OptionalFlagsStrings is a global variable"
     - "LogFormat is a global variable"
+    - "_checkErr contains underscore"
+    - "_checkErr2 contains underscore"
+    - "(RLIMIT_NOFILE|O_APPEND|O_WRONLY|O_CREATE) contains underscore"
+    - "dedup is a global variable"
   exclude-rules:
     # Exclude some linters from running on tests files.
     - path: _test\.go

@@ -463,7 +463,7 @@ func (n *Nodes) SendQuery(node *NodeAddress, name string, parameters map[string]
 	}
 	url := node.url + "query"
 	ctx := context.Background()
-	req, _ := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(rawRequest))
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(rawRequest))
 	req.Header.Set("Content-Type", contentType)
 	res, err := n.HTTPClient.Do(req)
 	if err != nil {

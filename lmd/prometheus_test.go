@@ -16,7 +16,7 @@ func TestPrometheus(t *testing.T) {
 	ctx := context.Background()
 	tlsconfig := getMinimalTLSConfig(peer.lmd.Config)
 	netClient := NewLMDHTTPClient(tlsconfig, "")
-	req, _ := http.NewRequestWithContext(ctx, "GET", "http://127.0.0.1:50999/metrics", http.NoBody)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:50999/metrics", http.NoBody)
 	response, err := netClient.Do(req)
 	if err != nil {
 		t.Fatal(err)

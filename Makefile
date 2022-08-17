@@ -59,7 +59,7 @@ build-linux-amd64: vendor
 	cd $(LAMPDDIR) && GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.Build=$(BUILD)" -o lmd.linux.amd64
 
 debugbuild: fmt dump vendor
-	cd $(LAMPDDIR) && go build -race -ldflags "-X main.Build=$(BUILD)"
+	cd $(LAMPDDIR) && go build -race -ldflags "-X main.Build=$(BUILD)" -gcflags "-d=checkptr=0"
 
 devbuild: debugbuild
 
@@ -117,7 +117,7 @@ benchmark: fmt
 	cd $(LAMPDDIR) && go test -ldflags "-s -w -X main.Build=$(BUILD)" -v -bench=B\* -benchtime 10s -run=^$$ . -benchmem
 
 racetest: fmt
-	cd $(LAMPDDIR) && go test -race -short -v
+	cd $(LAMPDDIR) && go test -race -short -v -gcflags "-d=checkptr=0"
 
 covertest: fmt
 	cd $(LAMPDDIR) && go test -v -coverprofile=cover.out
