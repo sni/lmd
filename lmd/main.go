@@ -2,7 +2,7 @@
 LMD - Livestatus Multitool daemon
 A livestatus in/out converter and caching daemon.
 
-Help
+# Help
 
 Use `lmd -h` to get help on command line parameters.
 */

@@ -1041,19 +1041,22 @@ func (req *Request) optimizeFilterIndentation() {
 	}
 }
 
-/* optimizeStatsGroups combines similar StatsAnd: to nested stats
-   for example with a query like:
+/*
+	optimizeStatsGroups combines similar StatsAnd: to nested stats
+	  for example with a query like:
 
 ```
-    Stats: has_been_checked = 1
-    Stats: state = 0
-    StatsAnd: 2
-    Stats: has_been_checked = 1
-    Stats: state = 1
-    StatsAnd: 2
+
+	Stats: has_been_checked = 1
+	Stats: state = 0
+	StatsAnd: 2
+	Stats: has_been_checked = 1
+	Stats: state = 1
+	StatsAnd: 2
+
 ```
 
-    those two counters can be combined, so the has_been_checked has only to be checked once
+	those two counters can be combined, so the has_been_checked has only to be checked once
 */
 func (req *Request) optimizeStatsGroups(stats []*Filter, renumber bool) []*Filter {
 	if len(stats) <= 1 {

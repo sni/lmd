@@ -306,8 +306,9 @@ func StartTestPeer(numPeers int, numHosts int, numServices int) (*Peer, func() e
 }
 
 // StartTestPeerExtra starts:
-//  - a mock livestatus server which responds from status json
-//  - a main loop which has the mock server(s) as backend
+//   - a mock livestatus server which responds from status json
+//   - a main loop which has the mock server(s) as backend
+//
 // It returns a peer with the "mainloop" connection configured
 // if numServices is  0, empty test data will be used
 func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig string) (peer *Peer, cleanup func() error, mocklmd *LMDInstance) {
