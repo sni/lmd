@@ -15,7 +15,8 @@ require (
 	github.com/lkarlslund/stringdedup v0.6.1
 	github.com/prometheus/client_golang v1.13.0
 	github.com/sasha-s/go-deadlock v0.3.1
-	golang.org/x/tools v0.1.12
+	golang.org/x/tools v0.1.13-0.20220803210227-8b9a1fbdf5c3
+	golang.org/x/vuln v0.0.0-20220902211423-27dd78d2ca39
 )
 
 require (
@@ -169,6 +170,7 @@ require (
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.17.0 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20220617031537-928513b29760 // indirect
+	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e // indirect
 	golang.org/x/exp/typeparams v0.0.0-20220613132600-b0d781184e0d // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4 // indirect

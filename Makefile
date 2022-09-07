@@ -95,6 +95,7 @@ citest: vendor
 	# Run other subtests
 	#
 	$(MAKE) golangci
+	$(MAKE) govulncheck
 	$(MAKE) fmt
 	#
 	# Normal test cases
@@ -159,6 +160,9 @@ golangci: tools
 	# See https://github.com/golangci/golangci-lint
 	#
 	golangci-lint run $(LAMPDDIR)/...
+
+govulncheck: tools
+	govulncheck $(LAMPDDIR)/...
 
 version:
 	OLDVERSION="$(shell grep "VERSION =" $(LAMPDDIR)/main.go | awk '{print $$3}' | tr -d '"')"; \
