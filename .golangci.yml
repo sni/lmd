@@ -73,6 +73,7 @@ issues:
     - "cyclomatic complexity .* of func `TestRequestKeepalive` is high"
     - "cyclomatic complexity .* of func `appendIndexHostsFromServiceColumns` is high"
     - "G108: Profiling endpoint is automatically exposed"
+    - "G114: Use of net/http serve function that has no support for setting timeouts"
     - "ptrToRefParam: consider `commandsByPeer' to be of non-pointer type"
     - "cognitive complexity .* of func `ProcessRequests` is high"
     - "cognitive complexity .* of func `.*Request..getDistributedResponse` is high"

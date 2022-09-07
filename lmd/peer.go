@@ -1960,7 +1960,7 @@ func ExtractHTTPResponse(response *http.Response) (contents []byte, err error) {
 		return
 	}
 
-	if response.StatusCode != 200 {
+	if response.StatusCode != http.StatusOK {
 		matched := reHTTPOMDError.FindStringSubmatch(string(contents))
 		if len(matched) > 1 {
 			err = &PeerError{msg: fmt.Sprintf("http request failed: %s - %s", response.Status, matched[1]), kind: ResponseError}

@@ -482,7 +482,7 @@ func (n *Nodes) SendQuery(node *NodeAddress, name string, parameters map[string]
 	}
 
 	// Abort on error
-	if res.StatusCode != 200 {
+	if res.StatusCode != http.StatusOK {
 		var err error
 		m, _ := responseData.(map[string]interface{})
 		if v, ok := m["error"]; ok {
