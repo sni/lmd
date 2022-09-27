@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -146,7 +145,7 @@ func StartMockLivestatusSource(lmd *LMDInstance, nr int, numHosts int, numServic
 // prepareTmpData creates static json files which will be used to generate mocked backend response
 // if numServices is  0, empty test data will be used
 func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (tempFolder string) {
-	tempFolder, err := ioutil.TempDir("", fmt.Sprintf("mockdata%d_", nr))
+	tempFolder, err := os.MkdirTemp("", fmt.Sprintf("mockdata%d_", nr))
 	if err != nil {
 		panic("failed to create temp data folder: " + err.Error())
 	}
