@@ -396,7 +396,7 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, statusKey PeerStat
 	p := ds.peer
 	lastUpdate := p.StatusGet(statusKey).(float64)
 
-	// do not do a full scan more often than every 30 seconds
+	// do not do a full scan more often than every 60 seconds
 	if lastUpdate > float64(time.Now().Unix()-MinFullScanInterval) {
 		return
 	}
