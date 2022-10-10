@@ -450,7 +450,8 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, statusKey PeerStat
 		} else {
 			logWith(ds, req).Debugf("%s", msg)
 		}
-		timestampFilter = []string{}
+		// sync at least a few to get back on track
+		timestampFilter = timestampFilter[0:99]
 	}
 
 	filter := []string{}
