@@ -571,7 +571,6 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 	// No header row
 	requestData["sendcolumnsheader"] = false
 
-	// Columns
 	// Columns need to be defined or else response will add them
 	isStatsRequest := len(req.Stats) != 0
 	if len(req.Columns) != 0 {
