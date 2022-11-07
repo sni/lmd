@@ -19,7 +19,7 @@ jobs:
       uses: actions/setup-go@v2
       with:
         go-version: ${{ matrix.go-version }}
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - run: make clean
     #- run: make updatedeps
     #  if: github.event_name != 'pull_request'
