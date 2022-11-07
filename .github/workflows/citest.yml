@@ -26,7 +26,7 @@ jobs:
     - run: make citest
     - run: make
     - name: extract built binary
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: lmd-go${{ matrix.go-version }}
         path: lmd/lmd
