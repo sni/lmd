@@ -457,8 +457,10 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, statusKey PeerStat
 	filter := []string{}
 	if filterStr != "" {
 		filter = append(filter, filterStr)
-		filter = append(filter, timestampFilter...)
-		filter = append(filter, "Or: 2\n")
+		if len(timestampFilter) > 0 {
+			filter = append(filter, timestampFilter...)
+			filter = append(filter, "Or: 2\n")
+		}
 	} else {
 		filter = append(filter, timestampFilter...)
 	}
