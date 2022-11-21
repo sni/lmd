@@ -25,7 +25,7 @@ func BenchmarkParseResultJSON(b *testing.B) {
 	if err != nil {
 		panic(err.Error())
 	}
-	conn, connType, err := peer.GetConnection()
+	conn, connType, err := peer.GetConnection(req)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -70,7 +70,7 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 	if err != nil {
 		panic(err.Error())
 	}
-	conn, connType, err := peer.GetConnection()
+	conn, connType, err := peer.GetConnection(req)
 	if err != nil {
 		panic(err.Error())
 	}

@@ -928,8 +928,9 @@ func (p *Peer) resetErrors() {
 // query sends the request to a remote livestatus.
 // It returns the unmarshaled result and any error encountered.
 func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
-	conn, connType, err := p.GetConnection()
+	conn, connType, err := p.GetConnection(req)
 	if err != nil {
+		logWith(p, req).Tracef("query: %s", req.String())
 		logWith(p, req).Debugf("connection failed: %s", err)
 		return nil, nil, err
 	}
@@ -1143,7 +1144,7 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) ([]byte,
 func (p *Peer) Query(req *Request) (result ResultSet, meta *ResultMetaData, err error) {
 	result, meta, err = p.query(req)
 	if err != nil {
-		p.setNextAddrFromErr(err)
+		p.setNextAddrFromErr(err, req)
 	}
 	return
 }
@@ -1222,13 +1223,13 @@ func (p *Peer) validateResponseHeader(resBytes []byte, req *Request, code int, e
 // In case of a http connection, it just tries a tcp connect, but does not
 // return anything.
 // It returns the connection object and any error encountered.
-func (p *Peer) GetConnection() (conn net.Conn, connType ConnectionType, err error) {
+func (p *Peer) GetConnection(req *Request) (conn net.Conn, connType ConnectionType, err error) {
 	numSources := len(p.Source)
 
 	for x := 0; x < numSources; x++ {
 		var peerAddr string
 		peerAddr, connType = extractConnType(p.StatusGet(PeerAddr).(string))
-		conn = p.GetCachedConnection()
+		conn = p.GetCachedConnection(req)
 		if conn != nil {
 			// make sure it is still useable
 			_, err = conn.Read(make([]byte, 0))
@@ -1287,20 +1288,20 @@ func (p *Peer) GetConnection() (conn net.Conn, connType ConnectionType, err erro
 		}
 
 		// connection error
-		p.setNextAddrFromErr(err)
+		p.setNextAddrFromErr(err, req)
 	}
 
 	return nil, ConnTypeUnix, &PeerError{msg: err.Error(), kind: ConnectionError}
 }
 
 // GetCachedConnection returns the next free cached connection or nil of none found
-func (p *Peer) GetCachedConnection() (conn net.Conn) {
+func (p *Peer) GetCachedConnection(req *Request) (conn net.Conn) {
 	select {
 	case conn = <-p.cache.connection:
-		logWith(p).Tracef("using cached connection")
+		logWith(p, req).Tracef("using cached connection")
 		return
 	default:
-		logWith(p).Tracef("no cached connection found")
+		logWith(p, req).Tracef("no cached connection found")
 		return nil
 	}
 }
@@ -1319,7 +1320,7 @@ func extractConnType(rawAddr string) (string, ConnectionType) {
 	return rawAddr, connType
 }
 
-func (p *Peer) setNextAddrFromErr(err error) {
+func (p *Peer) setNextAddrFromErr(err error, req *Request) {
 	if _, ok := err.(*PeerCommandError); ok {
 		// client errors do not affect remote site status
 		return
@@ -1330,7 +1331,11 @@ func (p *Peer) setNextAddrFromErr(err error) {
 	defer p.Lock.Unlock()
 
 	peerAddr := p.Status[PeerAddr].(string)
-	logWith(p).Debugf("connection error %s: %s", peerAddr, err)
+	logContext := []interface{}{p}
+	if req != nil {
+		logContext = append(logContext, req)
+	}
+	logWith(logContext...).Debugf("connection error %s: %s", peerAddr, err)
 	p.Status[LastError] = strings.TrimSpace(err.Error())
 	p.ErrorCount++
 
@@ -1364,10 +1369,10 @@ cache:
 	}
 	now := currentUnixTime()
 	lastOnline := p.Status[LastOnline].(float64)
-	logWith(p).Debugf("last online: %s", timeOrNever(lastOnline))
+	logWith(logContext...).Debugf("last online: %s", timeOrNever(lastOnline))
 	if lastOnline < now-float64(p.lmd.Config.StaleBackendTimeout) || (p.ErrorCount > numSources && lastOnline <= 0) {
 		if p.Status[PeerState].(PeerStatus) != PeerStatusDown {
-			logWith(p).Infof("site went offline: %s", err.Error())
+			logWith(logContext...).Infof("site went offline: %s", err.Error())
 		}
 		// clear existing data from memory
 		p.Status[PeerState] = PeerStatusDown
@@ -1375,7 +1380,7 @@ cache:
 	}
 
 	if numSources > 1 {
-		logWith(p).Debugf("trying next one: %s", peerAddr)
+		logWith(logContext...).Debugf("trying next one: %s", peerAddr)
 	}
 }
 
@@ -1532,7 +1537,7 @@ func (p *Peer) extractThrukExtrasFromResult(output []interface{}) (map[string]in
 		if ts, ok2 := processinfo["localtime"]; ok2 {
 			err := p.CheckLocaltime(interface2float64(ts))
 			if err != nil {
-				p.setNextAddrFromErr(err)
+				p.setNextAddrFromErr(err, nil)
 				return nil, nil, err
 			}
 		}
@@ -1981,7 +1986,7 @@ func (p *Peer) PassThroughQuery(res *Response, passthroughRequest *Request, virt
 		if peerErr, ok := queryErr.(*PeerError); ok && peerErr.kind == ResponseError {
 			// no connection issue, no need to reset current connection
 		} else {
-			p.setNextAddrFromErr(queryErr)
+			p.setNextAddrFromErr(queryErr, passthroughRequest)
 		}
 		logWith(p, req).Tracef("passthrough req errored %s", queryErr.Error())
 		res.Lock.Lock()
@@ -2459,7 +2464,7 @@ func (p *Peer) requestLocaltime() (err error) {
 	unix := interface2float64(res[0][0])
 	err = p.CheckLocaltime(unix)
 	if err != nil {
-		p.setNextAddrFromErr(err)
+		p.setNextAddrFromErr(err, req)
 	}
 	return
 }
