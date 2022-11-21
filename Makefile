@@ -64,13 +64,13 @@ debugbuild: fmt dump vendor
 devbuild: debugbuild
 
 test: fmt dump vendor
-	cd $(LAMPDDIR) && go test -short -v | ../t/test_counter.sh
+	cd $(LAMPDDIR) && go test -timeout 300s -short -v | ../t/test_counter.sh
 	rm -f lmd/mock*.sock
 	if grep -rn TODO: lmd/; then exit 1; fi
 	if grep -rn Dump lmd/*.go | grep -v dump.go | grep -v httputil; then exit 1; fi
 
 longtest: fmt dump vendor
-	cd $(LAMPDDIR) && go test -v | ../t/test_counter.sh
+	cd $(LAMPDDIR) && go test -timeout 300s -v | ../t/test_counter.sh
 	rm -f lmd/mock*.sock
 
 citest: vendor
@@ -100,11 +100,11 @@ citest: vendor
 	#
 	# Normal test cases
 	#
-	cd $(LAMPDDIR) && go test -v | ../t/test_counter.sh
+	cd $(LAMPDDIR) && go test -timeout 300s -v | ../t/test_counter.sh
 	#
 	# Benchmark tests
 	#
-	cd $(LAMPDDIR) && go test -v -bench=B\* -run=^$$ . -benchmem
+	cd $(LAMPDDIR) && go test -timeout 300s -v -bench=B\* -run=^$$ . -benchmem
 	#
 	# Race rondition tests
 	#
@@ -115,18 +115,18 @@ citest: vendor
 	go mod tidy
 
 benchmark: fmt
-	cd $(LAMPDDIR) && go test -ldflags "-s -w -X main.Build=$(BUILD)" -v -bench=B\* -benchtime 10s -run=^$$ . -benchmem
+	cd $(LAMPDDIR) && go test -timeout 300s -ldflags "-s -w -X main.Build=$(BUILD)" -v -bench=B\* -benchtime 10s -run=^$$ . -benchmem
 
 racetest: fmt
-	cd $(LAMPDDIR) && go test -race -short -v -gcflags "-d=checkptr=0"
+	cd $(LAMPDDIR) && go test -timeout 300s -race -short -v -gcflags "-d=checkptr=0"
 
 covertest: fmt
-	cd $(LAMPDDIR) && go test -v -coverprofile=cover.out
+	cd $(LAMPDDIR) && go test -timeout 300s -v -coverprofile=cover.out
 	cd $(LAMPDDIR) && go tool cover -func=cover.out
 	cd $(LAMPDDIR) && go tool cover -html=cover.out -o coverage.html
 
 coverweb: fmt
-	cd $(LAMPDDIR) && go test -v -coverprofile=cover.out
+	cd $(LAMPDDIR) && go test -timeout 300s -v -coverprofile=cover.out
 	cd $(LAMPDDIR) && go tool cover -html=cover.out
 
 clean:
