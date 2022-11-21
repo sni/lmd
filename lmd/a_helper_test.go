@@ -339,11 +339,7 @@ func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig
 		// recheck every 50ms
 		time.Sleep(50 * time.Millisecond)
 		if time.Now().After(waitUntil) {
-			if err != nil {
-				panic("backend never came online: " + err.Error())
-			} else {
-				panic("backend never came online")
-			}
+			panicFailedStartup(peer, numPeers, err)
 		}
 	}
 
@@ -580,4 +576,25 @@ func createTestLMDInstance() *LMDInstance {
 	lmd.flags.flagDeadlock = 15
 	lmd.nodeAccessor = NewNodes(lmd, []string{}, "")
 	return lmd
+}
+
+func panicFailedStartup(peer *Peer, numPeers int, err error) {
+	info := []string{fmt.Sprintf("backend never came online, expected %d sites", numPeers)}
+	if err != nil {
+		info = append(info, err.Error())
+	}
+
+	data, _, err := peer.QueryString("GET sites\nColumns: name status last_error\n")
+	if err != nil {
+		info = append(info, err.Error())
+		panic(strings.Join(info, "\n"))
+	}
+	info = append(info, fmt.Sprintf("got %d sites", len(data)))
+	txt, err := json.Marshal(data)
+	if err != nil {
+		info = append(info, err.Error())
+	} else {
+		info = append(info, string(txt))
+	}
+	panic(strings.Join(info, "\n"))
 }
