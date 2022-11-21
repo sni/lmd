@@ -45,7 +45,7 @@ vendor:
 	go mod vendor
 
 dump:
-	if [ $(shell grep -rc Dump $(LAMPDDIR)/*.go | grep -v :0 | grep -v $(LAMPDDIR)/dump.go | wc -l) -ne 0 ]; then \
+	if [ $(shell grep -r Dump $(LAMPDDIR)/*.go | grep -v $(LAMPDDIR)/dump.go | grep -v httputil | wc -l) -ne 0 ]; then \
 		sed -i.bak -e 's/\/\/go:build.*/\/\/ :build with debug functions/' -e 's/\/\/ +build.*/\/\/ build with debug functions/' $(LAMPDDIR)/dump.go; \
 	else \
 		sed -i.bak -e 's/\/\/ :build.*/\/\/go:build ignore/' -e 's/\/\/ build.*/\/\/ +build ignore/' $(LAMPDDIR)/dump.go; \
@@ -67,7 +67,7 @@ test: fmt dump vendor
 	cd $(LAMPDDIR) && go test -short -v | ../t/test_counter.sh
 	rm -f lmd/mock*.sock
 	if grep -rn TODO: lmd/; then exit 1; fi
-	if grep -rn Dump lmd/*.go | grep -v dump.go; then exit 1; fi
+	if grep -rn Dump lmd/*.go | grep -v dump.go | grep -v httputil; then exit 1; fi
 
 longtest: fmt dump vendor
 	cd $(LAMPDDIR) && go test -v | ../t/test_counter.sh
@@ -90,7 +90,7 @@ citest: vendor
 	#
 	# Checking remaining debug calls
 	#
-	if grep -rn Dump lmd/*.go | grep -v dump.go; then exit 1; fi
+	if grep -rn Dump lmd/*.go | grep -v dump.go | grep -v httputil; then exit 1; fi
 	#
 	# Run other subtests
 	#

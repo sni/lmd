@@ -13,6 +13,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"regexp"
@@ -1827,12 +1828,15 @@ func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
+	p.logHTTPRequest(query, req)
 	response, err := p.cache.HTTPClient.Do(req)
 	if err != nil {
 		logWith(p, query).Debugf("http(s) error: %s", fmtHTTPerr(req, err))
+		p.logHTTPResponse(query, response)
 		return
 	}
 	contents, err := ExtractHTTPResponse(response)
+	p.logHTTPResponse(query, response)
 	if err != nil {
 		logWith(p, query).Debugf("http(s) error: %s", fmtHTTPerr(req, err))
 		return
@@ -2617,4 +2621,28 @@ func (p *Peer) addSubPeer(subFlag OptionalFlags, key string, subName string, dat
 		subPeer.setBroken(duplicate)
 	}
 	return
+}
+
+// trace log http request
+func (p *Peer) logHTTPRequest(query *Request, req *http.Request) {
+	if log.IsV(LogVerbosityTrace) {
+		requestBytes, err := httputil.DumpRequest(req, true)
+		if err != nil {
+			logWith(p, query).Debugf("failed to dump http request: %s", fmtHTTPerr(req, err))
+		}
+		logWith(p, query).Tracef("***************** HTTP Request *****************")
+		logWith(p, query).Tracef("%s", string(requestBytes))
+	}
+}
+
+// trace log http response
+func (p *Peer) logHTTPResponse(query *Request, res *http.Response) {
+	if log.IsV(LogVerbosityTrace) {
+		responseBytes, err := httputil.DumpResponse(res, true)
+		if err != nil {
+			logWith(p, query).Debugf("failed to dump http response: %s", err)
+		}
+		logWith(p, query).Tracef("***************** HTTP Response *****************")
+		logWith(p, query).Tracef("%s", string(responseBytes))
+	}
 }
