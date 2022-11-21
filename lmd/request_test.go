@@ -1494,6 +1494,7 @@ func TestRequestKeepalive(t *testing.T) {
 	`
 	peer, cleanup, mocklmd := StartTestPeerExtra(1, 10, 10, extraConfig)
 	PauseTestPeers(peer)
+	peer.closeConnectionPool()
 
 	getOpenListeners := func() int64 {
 		time.Sleep(KeepAliveWaitInterval)
@@ -1513,6 +1514,11 @@ func TestRequestKeepalive(t *testing.T) {
 	conn, err := net.DialTimeout("unix", "test.sock", 60*time.Second)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// there should be one connection now
+	if err := assertEq(int64(1), getOpenListeners()); err != nil {
+		t.Error(err)
 	}
 
 	req, _, _ := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name\n")), ParseOptimize)

@@ -598,3 +598,40 @@ func panicFailedStartup(peer *Peer, numPeers int, err error) {
 	}
 	panic(strings.Join(info, "\n"))
 }
+
+// make sure our test helpers are working correctly
+func TestMock1(t *testing.T) {
+	mocklmd := createTestLMDInstance()
+	listen := StartMockLivestatusSource(mocklmd, 1, 1, 1)
+	peer := NewPeer(mocklmd, &Connection{
+		Source: []string{listen},
+	})
+
+	err := peer.InitAllTables()
+	if err != nil {
+		t.Fatalf("init tables failed: %s", err.Error())
+	}
+
+	// tear down
+	_, _, err = peer.QueryString("COMMAND [0] MOCK_EXIT")
+	if err != nil {
+		t.Fatalf("stopping mock livestatus source failed: %s", err.Error())
+	}
+}
+
+func TestMock2(t *testing.T) {
+	peer, cleanup, _ := StartTestPeer(1, 1, 1)
+	PauseTestPeers(peer)
+
+	res, _, err := peer.QueryString("GET status\nColumns: program_start\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := assertEq(1, len(res)); err != nil {
+		t.Error(err)
+	}
+
+	if err := cleanup(); err != nil {
+		panic(err.Error())
+	}
+}

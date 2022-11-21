@@ -131,6 +131,7 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 	}
 	commandsByPeer := make(map[string][]string)
 	for _, req := range reqs {
+		cl.keepAlive = req.KeepAlive
 		reqctx := context.WithValue(ctx, CtxRequest, req.ID())
 		t1 := time.Now()
 		if req.Command != "" {
@@ -188,7 +189,6 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 		return
 	}
 
-	cl.keepAlive = reqs[len(reqs)-1].KeepAlive
 	return nil
 }
 

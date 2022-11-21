@@ -22,6 +22,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/sasha-s/go-deadlock"
@@ -39,9 +40,6 @@ const (
 	// MinFullScanInterval is the minimum interval between two full scans
 	MinFullScanInterval = 60
 
-	// ConnectionPoolCacheSize sets the number of cached connections per peer
-	ConnectionPoolCacheSize = 5
-
 	// UpdateLoopTickerInterval sets the interval for the peer to check if updates should be fetched
 	UpdateLoopTickerInterval = 500 * time.Millisecond
 
@@ -53,6 +51,9 @@ const (
 
 	// ErrorContentPreviewSize sets the number of bytes from the response to include in the error message
 	ErrorContentPreviewSize = 50
+
+	// TemporaryNetworkErrorRetryDelay sets the sleep time for temporary network issue retries
+	TemporaryNetworkErrorRetryDelay = 500 * time.Millisecond
 )
 
 // Peer is the object which handles collecting and updating data and connections.
@@ -78,8 +79,9 @@ type Peer struct {
 		Response []byte   // reference to last response
 	}
 	cache struct {
-		HTTPClient *http.Client  // cached http client for http backends
-		connection chan net.Conn // tcp connection get stored here for reuse
+		HTTPClient             *http.Client  // cached http client for http backends
+		connectionPool         chan net.Conn // tcp connection get stored here for reuse
+		maxParallelConnections chan bool     // limit max parallel connections
 	}
 }
 
@@ -237,7 +239,8 @@ func NewPeer(lmd *LMDInstance, config *Connection) *Peer {
 		lmd:             lmd,
 		Flags:           uint32(NoFlags),
 	}
-	p.cache.connection = make(chan net.Conn, ConnectionPoolCacheSize)
+	p.cache.connectionPool = make(chan net.Conn, lmd.Config.MaxParallelPeerConnections)
+	p.cache.maxParallelConnections = make(chan bool, lmd.Config.MaxParallelPeerConnections)
 	if len(p.Source) == 0 {
 		logWith(&p).Fatalf("peer requires at least one source")
 	}
@@ -793,7 +796,6 @@ func (p *Peer) initAllTablesParallel(data *DataStoreSet) (err error) {
 
 	// then fetch all others in parallel
 	results := make(chan error, len(Objects.UpdateTables)-1)
-	maxConnPerSite := make(chan bool, p.lmd.Config.MaxParallelPeerConnections) // limit max parallel connections
 	wait := &sync.WaitGroup{}
 	for _, n := range Objects.UpdateTables {
 		if n == TableStatus {
@@ -801,13 +803,11 @@ func (p *Peer) initAllTablesParallel(data *DataStoreSet) (err error) {
 		}
 		t := Objects.Tables[n]
 		wait.Add(1)
-		maxConnPerSite <- true // wait/reserve one connection slot, channel will block if full
 		go func(data *DataStoreSet, table *Table) {
 			// make sure we log panics properly
 			defer logPanicExitPeer(p)
 			defer func() {
 				wait.Done()
-				<-maxConnPerSite // free one connection slot
 			}()
 
 			err := p.initTable(data, table)
@@ -929,7 +929,31 @@ func (p *Peer) resetErrors() {
 // query sends the request to a remote livestatus.
 // It returns the unmarshaled result and any error encountered.
 func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
-	conn, connType, err := p.GetConnection(req)
+	p.cache.maxParallelConnections <- true // wait/reserve one connection slot, channel will block if full
+	var conn net.Conn
+	var connType ConnectionType
+	var err error
+	defer func() {
+		switch {
+		case conn == nil:
+		case req.KeepAlive:
+			// give back connection
+			logWith(p, req).Tracef("put connection back into pool")
+			p.cache.connectionPool <- conn
+		default:
+			conn.Close()
+		}
+		<-p.cache.maxParallelConnections // free one connection slot
+	}()
+
+	// add backends filter for lmd sub peers
+	if p.HasFlag(LMDSub) {
+		req.Backends = []string{p.ID}
+	}
+
+	logWith(p, req).Tracef("connection #%02d of max. %02d", len(p.cache.maxParallelConnections), p.lmd.Config.MaxParallelPeerConnections)
+
+	conn, connType, err = p.GetConnection(req)
 	if err != nil {
 		logWith(p, req).Tracef("query: %s", req.String())
 		logWith(p, req).Debugf("connection failed: %s", err)
@@ -938,25 +962,14 @@ func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 	if connType == ConnTypeHTTP {
 		req.KeepAlive = false
 	}
-	defer func() {
-		if req.KeepAlive && err != nil && connType != ConnTypeHTTP {
-			// give back connection
-			logWith(p, req).Tracef("put cached connection back")
-			p.cache.connection <- conn
-		} else if conn != nil {
-			conn.Close()
-		}
-	}()
-
-	if p.HasFlag(LMDSub) {
-		// add backends filter for lmd sub peers
-		req.Backends = []string{p.ID}
-	}
-
 	query := req.String()
 	if log.IsV(LogVerbosityTrace) {
 		logWith(p, req).Tracef("query: %s", query)
 	}
+
+	defer func() {
+
+	}()
 
 	p.Lock.Lock()
 	if p.lmd.Config.SaveTempRequests {
@@ -972,11 +985,14 @@ func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 	promPeerQueries.WithLabelValues(p.Name).Inc()
 
 	t1 := time.Now()
-	resBytes, err := p.getQueryResponse(req, query, peerAddr, conn, connType)
+	resBytes, newConn, err := p.getQueryResponse(req, query, peerAddr, conn, connType)
 	duration := time.Since(t1)
 	if err != nil {
-		logWith(p, req).Debugf("sending data/query failed: %s", err)
+		logWith(p, req).Debugf("backend query failed: %s", err)
 		return nil, nil, err
+	}
+	if newConn != nil {
+		conn = newConn
 	}
 	if req.Command != "" {
 		resBytes = bytes.TrimSpace(resBytes)
@@ -1023,7 +1039,7 @@ func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 	return data, meta, nil
 }
 
-func (p *Peer) getQueryResponse(req *Request, query string, peerAddr string, conn net.Conn, connType ConnectionType) ([]byte, error) {
+func (p *Peer) getQueryResponse(req *Request, query string, peerAddr string, conn net.Conn, connType ConnectionType) ([]byte, net.Conn, error) {
 	// http connections
 	if connType == ConnTypeHTTP {
 		return p.getHTTPQueryResponse(req, query, peerAddr)
@@ -1031,17 +1047,17 @@ func (p *Peer) getQueryResponse(req *Request, query string, peerAddr string, con
 	return p.getSocketQueryResponse(req, query, conn)
 }
 
-func (p *Peer) getHTTPQueryResponse(req *Request, query string, peerAddr string) ([]byte, error) {
+func (p *Peer) getHTTPQueryResponse(req *Request, query string, peerAddr string) ([]byte, net.Conn, error) {
 	res, err := p.HTTPQueryWithRetries(req, peerAddr, query, 2)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if req.ResponseFixed16 {
 		code, expSize, err := p.parseResponseHeader(&res)
 		if err != nil {
 			logWith(p, req).Debugf("LastQuery:")
 			logWith(p, req).Debugf("%s", req.String())
-			return nil, err
+			return nil, nil, err
 		}
 		res = res[16:]
 
@@ -1049,22 +1065,52 @@ func (p *Peer) getHTTPQueryResponse(req *Request, query string, peerAddr string)
 		if err != nil {
 			logWith(p, req).Debugf("LastQuery:")
 			logWith(p, req).Debugf("%s", req.String())
-			return nil, err
+			return nil, nil, err
 		}
 	}
-	return res, nil
+	return res, nil, nil
 }
 
-func (p *Peer) getSocketQueryResponse(req *Request, query string, conn net.Conn) ([]byte, error) {
+func (p *Peer) getSocketQueryResponse(req *Request, query string, conn net.Conn) ([]byte, net.Conn, error) {
 	// tcp/unix connections
 	// set read timeout
 	err := conn.SetDeadline(time.Now().Add(time.Duration(p.lmd.Config.NetTimeout) * time.Second))
 	if err != nil {
-		return nil, fmt.Errorf("conn.SetDeadline: %w", err)
+		return nil, nil, fmt.Errorf("conn.SetDeadline: %w", err)
 	}
 	_, err = fmt.Fprintf(conn, "%s", query)
 	if err != nil {
-		return nil, fmt.Errorf("conn write failed: %w", err)
+		// catch temporary errors
+		switch {
+		case errors.Is(err, syscall.EAGAIN):
+			// might be temporary filled send buffer, wait a couple of milliseconds and try again
+			time.Sleep(TemporaryNetworkErrorRetryDelay)
+			fallthrough
+		case errors.Is(err, syscall.ECONNRESET):
+			// might be temporary filled send buffer, wait a couple of milliseconds and try again
+			time.Sleep(TemporaryNetworkErrorRetryDelay)
+		case errors.Is(err, syscall.EPIPE):
+			logWith(p, req).Tracef("temporary write error (%s) retrying...", err)
+			// pipe usually means socket is closed, so reopen and try again, no wait needed
+			peerAddr, connType := extractConnType(p.StatusGet(PeerAddr).(string))
+			conn.Close()
+			var oErr error
+			conn, oErr = p.OpenConnection(peerAddr, connType)
+			if oErr != nil {
+				// return original error
+				return nil, nil, fmt.Errorf("conn write failed: %w, retry failed as well: %s", err, oErr.Error())
+			}
+			sErr := conn.SetDeadline(time.Now().Add(time.Duration(p.lmd.Config.NetTimeout) * time.Second))
+			if sErr != nil {
+				return nil, nil, fmt.Errorf("conn.SetDeadline: %w", sErr)
+			}
+			// resend query
+			_, err = fmt.Fprintf(conn, "%s", query)
+		}
+	}
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("conn write failed: %w", err)
 	}
 
 	// close write part of connection
@@ -1079,11 +1125,14 @@ func (p *Peer) getSocketQueryResponse(req *Request, query string, conn net.Conn)
 	}
 
 	// read result with fixed result size
+	var b []byte
 	if req.ResponseFixed16 {
-		return p.parseResponseFixedSize(req, conn)
+		b, err = p.parseResponseFixedSize(req, conn)
+		return b, conn, err
 	}
 
-	return p.parseResponseUndefinedSize(conn)
+	b, err = p.parseResponseUndefinedSize(conn)
+	return b, conn, err
 }
 
 func (p *Peer) parseResponseUndefinedSize(conn io.Reader) ([]byte, error) {
@@ -1122,11 +1171,12 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) ([]byte,
 	}
 	body := new(bytes.Buffer)
 	_, err = io.CopyN(body, conn, expSize)
-	if err != nil && !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("io.CopyN: %w", err)
+	if err != nil && errors.Is(err, io.EOF) {
+		err = nil
 	}
-	if !req.KeepAlive {
-		conn.Close()
+
+	if err != nil {
+		return nil, fmt.Errorf("io.CopyN: %w", err)
 	}
 
 	res := body.Bytes()
@@ -1232,52 +1282,11 @@ func (p *Peer) GetConnection(req *Request) (conn net.Conn, connType ConnectionTy
 		peerAddr, connType = extractConnType(p.StatusGet(PeerAddr).(string))
 		conn = p.GetCachedConnection(req)
 		if conn != nil {
-			// make sure it is still useable
-			_, err = conn.Read(make([]byte, 0))
-			if err == nil {
-				return
-			}
-			conn.Close()
+			return
 		}
-		switch connType {
-		case ConnTypeTCP:
-			conn, err = net.DialTimeout("tcp", peerAddr, time.Duration(p.lmd.Config.ConnectTimeout)*time.Second)
-		case ConnTypeUnix:
-			conn, err = net.DialTimeout("unix", peerAddr, time.Duration(p.lmd.Config.ConnectTimeout)*time.Second)
-		case ConnTypeTLS:
-			tlsConfig, cErr := p.getTLSClientConfig()
-			if cErr != nil {
-				err = cErr
-			} else {
-				dialer := new(net.Dialer)
-				dialer.Timeout = time.Duration(p.lmd.Config.ConnectTimeout) * time.Second
-				conn, err = tls.DialWithDialer(dialer, "tcp", peerAddr, tlsConfig)
-			}
-		case ConnTypeHTTP:
-			// test at least basic tcp connect
-			uri, uErr := url.Parse(peerAddr)
-			if uErr != nil {
-				err = uErr
-				return
-			}
-			host := uri.Host
-			if !strings.Contains(host, ":") {
-				switch uri.Scheme {
-				case "http":
-					host += ":80"
-				case "https":
-					host += ":443"
-				default:
-					err = &PeerError{msg: fmt.Sprintf("unknown scheme: %s", uri.Scheme), kind: ConnectionError}
-					return
-				}
-			}
-			conn, err = net.DialTimeout("tcp", host, time.Duration(p.lmd.Config.ConnectTimeout)*time.Second)
-			if conn != nil {
-				conn.Close()
-			}
-			conn = nil
-		}
+
+		conn, err = p.OpenConnection(peerAddr, connType)
+
 		// connection successful
 		if err == nil {
 			promPeerConnections.WithLabelValues(p.Name).Inc()
@@ -1295,10 +1304,53 @@ func (p *Peer) GetConnection(req *Request) (conn net.Conn, connType ConnectionTy
 	return nil, ConnTypeUnix, &PeerError{msg: err.Error(), kind: ConnectionError}
 }
 
+func (p *Peer) OpenConnection(peerAddr string, connType ConnectionType) (conn net.Conn, err error) {
+	switch connType {
+	case ConnTypeTCP:
+		conn, err = net.DialTimeout("tcp", peerAddr, time.Duration(p.lmd.Config.ConnectTimeout)*time.Second)
+	case ConnTypeUnix:
+		conn, err = net.DialTimeout("unix", peerAddr, time.Duration(p.lmd.Config.ConnectTimeout)*time.Second)
+	case ConnTypeTLS:
+		tlsConfig, cErr := p.getTLSClientConfig()
+		if cErr != nil {
+			err = cErr
+		} else {
+			dialer := new(net.Dialer)
+			dialer.Timeout = time.Duration(p.lmd.Config.ConnectTimeout) * time.Second
+			conn, err = tls.DialWithDialer(dialer, "tcp", peerAddr, tlsConfig)
+		}
+	case ConnTypeHTTP:
+		// test at least basic tcp connect
+		uri, uErr := url.Parse(peerAddr)
+		if uErr != nil {
+			err = uErr
+			return
+		}
+		host := uri.Host
+		if !strings.Contains(host, ":") {
+			switch uri.Scheme {
+			case "http":
+				host += ":80"
+			case "https":
+				host += ":443"
+			default:
+				err = &PeerError{msg: fmt.Sprintf("unknown scheme: %s", uri.Scheme), kind: ConnectionError}
+				return
+			}
+		}
+		conn, err = net.DialTimeout("tcp", host, time.Duration(p.lmd.Config.ConnectTimeout)*time.Second)
+		if conn != nil {
+			conn.Close()
+		}
+		conn = nil
+	}
+	return
+}
+
 // GetCachedConnection returns the next free cached connection or nil of none found
 func (p *Peer) GetCachedConnection(req *Request) (conn net.Conn) {
 	select {
-	case conn = <-p.cache.connection:
+	case conn = <-p.cache.connectionPool:
 		logWith(p, req).Tracef("using cached connection")
 		return
 	default:
@@ -1354,16 +1406,8 @@ func (p *Peer) setNextAddrFromErr(err error, req *Request) {
 	peerAddr = p.Source[nextNum]
 
 	// invalidate connection cache
-cache:
-	for {
-		select {
-		case conn := <-p.cache.connection:
-			conn.Close()
-		default:
-			break cache
-		}
-	}
-	p.cache.connection = make(chan net.Conn, ConnectionPoolCacheSize)
+	p.closeConnectionPool()
+	p.cache.connectionPool = make(chan net.Conn, p.lmd.Config.MaxParallelPeerConnections)
 
 	if p.Status[PeerState].(PeerStatus) == PeerStatusUp || p.Status[PeerState].(PeerStatus) == PeerStatusPending {
 		p.Status[PeerState] = PeerStatusWarning
@@ -1382,6 +1426,17 @@ cache:
 
 	if numSources > 1 {
 		logWith(logContext...).Debugf("trying next one: %s", peerAddr)
+	}
+}
+
+func (p *Peer) closeConnectionPool() {
+	for {
+		select {
+		case conn := <-p.cache.connectionPool:
+			conn.Close()
+		default:
+			return
+		}
 	}
 }
 
