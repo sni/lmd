@@ -216,6 +216,7 @@ func (lmd *LMDInstance) setFlags() {
 	flag.BoolVar(&lmd.flags.flagVeryVerbose, "vv", false, "enable very verbose output")
 	flag.BoolVar(&lmd.flags.flagTraceVerbose, "vvv", false, "enable trace output")
 	flag.BoolVar(&lmd.flags.flagVersion, "version", false, "print version and exit")
+	flag.BoolVar(&lmd.flags.flagVersion, "V", false, "print version and exit")
 	flag.StringVar(&lmd.flags.flagProfile, "debug-profiler", "", "start pprof profiler on this port, ex. :6060")
 	flag.StringVar(&lmd.flags.flagCPUProfile, "cpuprofile", "", "write cpu profile to `file`")
 	flag.StringVar(&lmd.flags.flagMemProfile, "memprofile", "", "write memory profile to `file`")
