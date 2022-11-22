@@ -170,6 +170,7 @@ const (
 	ConfigTool
 	ThrukExtras
 	ForceFull
+	LastHTTPRequestSuccessful
 )
 
 // HTTPResult contains the livestatus result as long with some meta data.
@@ -257,6 +258,7 @@ func NewPeer(lmd *LMDInstance, config *Connection) *Peer {
 	p.Status[LastError] = "connecting..."
 	p.Status[LastOnline] = float64(0)
 	p.Status[LastTimeperiodUpdateMinute] = 0
+	p.Status[LastHTTPRequestSuccessful] = false
 	p.Status[ForceFull] = false
 	p.Status[ProgramStart] = int64(0)
 	p.Status[LastPid] = 0
@@ -328,6 +330,7 @@ func (p *Peer) SetHTTPClient() {
 	client := NewLMDHTTPClient(tlsConfig, p.Config.Proxy)
 	client.Timeout = time.Duration(p.lmd.Config.NetTimeout) * time.Second
 
+	logWith(p).Debugf("set new http client cache")
 	p.cache.HTTPClient = client
 }
 
@@ -1280,6 +1283,12 @@ func (p *Peer) GetConnection(req *Request) (conn net.Conn, connType ConnectionTy
 	for x := 0; x < numSources; x++ {
 		var peerAddr string
 		peerAddr, connType = extractConnType(p.StatusGet(PeerAddr).(string))
+		if connType == ConnTypeHTTP {
+			// return ok if status is ok, don't create a new connection every time
+			if p.StatusGet(LastHTTPRequestSuccessful).(bool) {
+				return
+			}
+		}
 		conn = p.GetCachedConnection(req)
 		if conn != nil {
 			return
@@ -1307,8 +1316,10 @@ func (p *Peer) GetConnection(req *Request) (conn net.Conn, connType ConnectionTy
 func (p *Peer) OpenConnection(peerAddr string, connType ConnectionType) (conn net.Conn, err error) {
 	switch connType {
 	case ConnTypeTCP:
+		logWith(p).Tracef("doing tcp connection test: %s", peerAddr)
 		conn, err = net.DialTimeout("tcp", peerAddr, time.Duration(p.lmd.Config.ConnectTimeout)*time.Second)
 	case ConnTypeUnix:
+		logWith(p).Tracef("doing socket connection test: %s", peerAddr)
 		conn, err = net.DialTimeout("unix", peerAddr, time.Duration(p.lmd.Config.ConnectTimeout)*time.Second)
 	case ConnTypeTLS:
 		tlsConfig, cErr := p.getTLSClientConfig()
@@ -1317,6 +1328,7 @@ func (p *Peer) OpenConnection(peerAddr string, connType ConnectionType) (conn ne
 		} else {
 			dialer := new(net.Dialer)
 			dialer.Timeout = time.Duration(p.lmd.Config.ConnectTimeout) * time.Second
+			logWith(p).Tracef("doing tls connection test: %s", peerAddr)
 			conn, err = tls.DialWithDialer(dialer, "tcp", peerAddr, tlsConfig)
 		}
 	case ConnTypeHTTP:
@@ -1338,6 +1350,7 @@ func (p *Peer) OpenConnection(peerAddr string, connType ConnectionType) (conn ne
 				return
 			}
 		}
+		logWith(p).Tracef("doing http connection test: %s", host)
 		conn, err = net.DialTimeout("tcp", host, time.Duration(p.lmd.Config.ConnectTimeout)*time.Second)
 		if conn != nil {
 			conn.Close()
@@ -1886,10 +1899,12 @@ func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url
 	p.logHTTPRequest(query, req)
 	response, err := p.cache.HTTPClient.Do(req)
 	if err != nil {
+		p.StatusSet(LastHTTPRequestSuccessful, false)
 		logWith(p, query).Debugf("http(s) error: %s", fmtHTTPerr(req, err))
 		p.logHTTPResponse(query, response)
 		return
 	}
+	p.StatusSet(LastHTTPRequestSuccessful, true)
 	contents, err := ExtractHTTPResponse(response)
 	p.logHTTPResponse(query, response)
 	if err != nil {
