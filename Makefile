@@ -171,7 +171,8 @@ version:
 		if [ "v$$OLDVERSION" = "v$$NEWVERSION" -o "x$$NEWVERSION" = "x" ]; then echo "no changes"; exit 1; fi; \
 		sed -i -e 's/VERSION =.*/VERSION = "'$$NEWVERSION'"/g' $(LAMPDDIR)/main.go
 
-zip: build
+zip: clean
+	CGO_ENABLED=0 $(MAKE) build
 	VERSION="$(shell grep "VERSION =" $(LAMPDDIR)/main.go | awk '{print $$3}' | tr -d '"')"; \
 		COMMITS="$(shell git rev-list $$(git describe --tags --abbrev=0)..HEAD --count)"; \
 		DATE="$(shell LC_TIME=C date +%Y-%m-%d)"; \
