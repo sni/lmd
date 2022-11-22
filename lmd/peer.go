@@ -31,6 +31,7 @@ import (
 var reResponseHeader = regexp.MustCompile(`^(\d+)\s+(\d+)$`)
 var reHTTPTooOld = regexp.MustCompile(`Can.t locate object method`)
 var reHTTPOMDError = regexp.MustCompile(`<h1>(OMD:.*?)</h1>`)
+var reHTTPThrukError = regexp.MustCompile(`(?sm)<!--error:(.*?):error-->`)
 var reShinkenVersion = regexp.MustCompile(`\-shinken$`)
 var reIcinga2Version = regexp.MustCompile(`^(r[\d.-]+|.*\-icinga2)$`)
 var reNaemonVersion = regexp.MustCompile(`\-naemon$`)
@@ -2039,14 +2040,21 @@ func ExtractHTTPResponse(response *http.Response) (contents []byte, err error) {
 		return
 	}
 
-	if response.StatusCode != http.StatusOK {
-		matched := reHTTPOMDError.FindStringSubmatch(string(contents))
-		if len(matched) > 1 {
-			err = &PeerError{msg: fmt.Sprintf("http request failed: %s - %s", response.Status, matched[1]), kind: ResponseError}
-		} else {
-			err = &PeerError{msg: fmt.Sprintf("http request failed: %s", response.Status), kind: ResponseError}
-		}
+	if response.StatusCode == http.StatusOK {
+		return
 	}
+
+	matched := reHTTPOMDError.FindStringSubmatch(string(contents))
+	if len(matched) > 1 {
+		err = &PeerError{msg: fmt.Sprintf("http request failed: %s - %s", response.Status, matched[1]), kind: ResponseError}
+		return
+	}
+	matched = reHTTPThrukError.FindStringSubmatch(string(contents))
+	if len(matched) > 1 {
+		err = &PeerError{msg: fmt.Sprintf("http request failed: %s - %s", response.Status, matched[1]), kind: ResponseError}
+		return
+	}
+	err = &PeerError{msg: fmt.Sprintf("http request failed: %s", response.Status), kind: ResponseError}
 	return
 }
 
@@ -2436,7 +2444,9 @@ func (p *Peer) GetSupportedColumns() (tables map[TableName]map[string]bool, err 
 		if strings.Contains(err.Error(), "Table 'columns' does not exist") {
 			return tables, nil
 		}
-		return nil, err
+		// not a fatal error, we can assume safe defaults
+		logWith(p, req).Warnf("fetching available columns failed: %w", err)
+		return tables, nil
 	}
 	tables = make(map[TableName]map[string]bool)
 	for _, row := range res {
