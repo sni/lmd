@@ -41,6 +41,7 @@ while read file; do
     IFS="$SIFS"
     msg=$(git show -s --format="%s" $hash | tr -d '"')
     grep "ns/op" $file | grep "allocs/op" | \
+    grep -v "NaN" | \
         while read line; do
             test=$(echo "$line" | awk '{ print $1 }' | sed -e 's/\-[0-9]*$//g')
             LINE=($line)
