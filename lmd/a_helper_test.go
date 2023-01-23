@@ -72,74 +72,89 @@ func assertLike(exp string, got string) error {
 func StartMockLivestatusSource(lmd *LMDInstance, nr int, numHosts int, numServices int) (listen string) {
 	startedChannel := make(chan bool)
 	listen = fmt.Sprintf("mock%d_%d.sock", nr, time.Now().Nanosecond())
+	mockLog := logWith("mock_ls", listen)
 
 	// prepare data files
 	dataFolder := prepareTmpData("../t/data", nr, numHosts, numServices)
 
 	go func() {
+		mockLog.Debugf("starting listener on: %s", listen)
 		os.Remove(listen)
 		l, err := net.Listen("unix", listen)
 		if err != nil {
+			mockLog.Errorf("failed: %s", err)
 			panic(err.Error())
 		}
 		defer func() {
 			os.Remove(listen)
-			l.Close()
+			mockLog.Debugf("shuting down")
 			os.RemoveAll(dataFolder)
+			mockLog.Debugf("shutdown complete")
 		}()
 		startedChannel <- true
 		for {
 			conn, err := l.Accept()
 			if err != nil {
-				panic(err.Error())
+				// probably closed
+				return
 			}
+			go handleMockConnection(lmd, conn, l, dataFolder, mockLog)
 
-			req, err := ParseRequest(context.TODO(), lmd, conn)
-			if err != nil {
-				panic(err.Error())
-			}
-
-			if req.Command != "" {
-				switch req.Command {
-				case "COMMAND [0] MOCK_EXIT":
-					_checkErr(conn.Close())
-					return
-				case "COMMAND [0] test_ok":
-				case "COMMAND [0] test_broken":
-					_checkErr2(conn.Write([]byte("400: command broken\n")))
-				}
-				_checkErr(conn.Close())
-				continue
-			}
-
-			if req.Table == TableColumns {
-				// make the peer detect dependency columns
-				b, err := json.Marshal(getTestDataColumns(dataFolder))
-				if err != nil {
-					panic(err)
-				}
-				_checkErr2(fmt.Fprintf(conn, "200 %11d\n", len(b)+1))
-				_checkErr2(conn.Write(b))
-				_checkErr2(conn.Write([]byte("\n")))
-				_checkErr(conn.Close())
-				continue
-			}
-
-			if len(req.Filter) > 0 || len(req.Stats) > 0 {
-				_checkErr2(conn.Write([]byte("200           3\n[]\n")))
-				_checkErr(conn.Close())
-				continue
-			}
-
-			filename := fmt.Sprintf("%s/%s", dataFolder, req.Table.String())
-			dat := readTestData(filename, req.Columns)
-			_checkErr2(fmt.Fprintf(conn, "%d %11d\n", 200, len(dat)))
-			_checkErr2(conn.Write(dat))
-			_checkErr(conn.Close())
 		}
 	}()
 	<-startedChannel
+	mockLog.Debugf("ready")
 	return
+}
+
+func handleMockConnection(lmd *LMDInstance, conn net.Conn, l net.Listener, dataFolder string, mockLog *LogPrefixer) {
+	req, err := ParseRequest(context.TODO(), lmd, conn)
+	if err != nil {
+		mockLog.Errorf("failed: %s", err)
+		panic(err.Error())
+	}
+
+	if req.Command != "" {
+		switch req.Command {
+		case "COMMAND [0] MOCK_EXIT":
+			mockLog.Debugf("got exit command")
+			_checkErr(conn.Close())
+			l.Close()
+			return
+		case "COMMAND [0] test_ok":
+		case "COMMAND [0] test_broken":
+			_checkErr2(conn.Write([]byte("400: command broken\n")))
+		}
+		_checkErr(conn.Close())
+		return
+	}
+
+	mockLog.Debugf("request: %s", req.Table.String())
+	if req.Table == TableColumns {
+		// make the peer detect dependency columns
+		b, err := json.Marshal(getTestDataColumns(dataFolder))
+		if err != nil {
+			panic(err)
+		}
+		_checkErr2(fmt.Fprintf(conn, "200 %11d\n", len(b)+1))
+		_checkErr2(conn.Write(b))
+		_checkErr2(conn.Write([]byte("\n")))
+		_checkErr(conn.Close())
+		return
+	}
+
+	if len(req.Filter) > 0 || len(req.Stats) > 0 {
+		_checkErr2(conn.Write([]byte("200           3\n[]\n")))
+		_checkErr(conn.Close())
+		return
+	}
+
+	filename := fmt.Sprintf("%s/%s", dataFolder, req.Table.String())
+	dat := readTestData(filename, req.Columns)
+	_checkErr2(fmt.Fprintf(conn, "%d %11d\n", 200, len(dat)))
+	_checkErr2(conn.Write(dat))
+	_checkErr(conn.Close())
+	mockLog.Debugf("%s response written: %d bytes", req.Table.String(), len(dat))
 }
 
 // prepareTmpData creates static json files which will be used to generate mocked backend response
@@ -311,11 +326,14 @@ func StartTestPeer(numPeers int, numHosts int, numServices int) (*Peer, func() e
 // It returns a peer with the "mainloop" connection configured
 // if numServices is  0, empty test data will be used
 func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig string) (peer *Peer, cleanup func() error, mocklmd *LMDInstance) {
+	if testLogTarget != "stderr" {
+		os.Remove(testLogTarget)
+	}
+	InitLogging(&Config{LogLevel: testLogLevel, LogFile: testLogTarget})
 	mocklmd = createTestLMDInstance()
 	sockets := []string{}
 	for i := 0; i < numPeers; i++ {
-		listen := StartMockLivestatusSource(mocklmd, i, numHosts, numServices)
-		sockets = append(sockets, listen)
+		sockets = append(sockets, StartMockLivestatusSource(mocklmd, i, numHosts, numServices))
 	}
 	StartMockMainLoop(mocklmd, sockets, extraConfig)
 
@@ -339,7 +357,7 @@ func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig
 		// recheck every 50ms
 		time.Sleep(50 * time.Millisecond)
 		if time.Now().After(waitUntil) {
-			panicFailedStartup(peer, numPeers, err)
+			panicFailedStartup(lmd, mocklmd, peer, numPeers, err)
 		}
 	}
 
@@ -578,8 +596,8 @@ func createTestLMDInstance() *LMDInstance {
 	return lmd
 }
 
-func panicFailedStartup(peer *Peer, numPeers int, err error) {
-	info := []string{fmt.Sprintf("backend never came online, expected %d sites", numPeers)}
+func panicFailedStartup(lmd *LMDInstance, mocklmd *LMDInstance, peer *Peer, numPeers int, err error) {
+	info := []string{fmt.Sprintf("backend(s) never came online, expected %d sites", numPeers)}
 	if err != nil {
 		info = append(info, err.Error())
 	}
@@ -596,6 +614,15 @@ func panicFailedStartup(peer *Peer, numPeers int, err error) {
 	} else {
 		info = append(info, string(txt))
 	}
+
+	for _, peerKey := range mocklmd.PeerMapOrder {
+		log.Errorf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> mock lmd")
+		mocklmd.PeerMapLock.RLock()
+		p := mocklmd.PeerMap[peerKey]
+		mocklmd.PeerMapLock.RUnlock()
+		p.logPeerStatus(log.Errorf)
+	}
+
 	panic(strings.Join(info, "\n"))
 }
 
