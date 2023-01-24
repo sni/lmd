@@ -85,11 +85,10 @@ func TestMainFunc(t *testing.T) {
 	}
 }
 
-func TestMainReload(_ *testing.T) {
+func TestMainReload(t *testing.T) {
 	lmd := createTestLMDInstance()
 	StartMockMainLoop(lmd, []string{"mock0.sock"}, "")
 	lmd.mainSignalChannel <- syscall.SIGHUP
-	waitTimeout(lmd.waitGroupPeers, 5*time.Second)
 	// shutdown all peers
 	for id := range lmd.PeerMap {
 		p := lmd.PeerMap[id]
@@ -103,13 +102,15 @@ func TestMainReload(_ *testing.T) {
 		l.Stop()
 	}
 	lmd.ListenersLock.Unlock()
-	waitTimeout(lmd.waitGroupPeers, 5*time.Second)
+	if waitTimeout(lmd.waitGroupPeers, 5*time.Second) {
+		t.Errorf("timeout while waiting for peers to stop")
+	}
 	retries := 0
 	for {
 		// recheck every 100ms
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 		retries++
-		if retries > 100 {
+		if retries > 200 {
 			panic("listener/peers did not stop after reload")
 		}
 		lmd.ListenersLock.Lock()
