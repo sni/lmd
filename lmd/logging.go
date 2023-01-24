@@ -184,6 +184,8 @@ func (l *LogPrefixer) prefix() (prefix string) {
 			continue
 		}
 		switch v := p.(type) {
+		case string:
+			prefix = fmt.Sprintf("%s[%s]", prefix, v)
 		case *Peer:
 			prefix = fmt.Sprintf("%s[%s]", prefix, v.Name)
 		case *Request:
