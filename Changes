@@ -5,6 +5,7 @@ next:
           - retry on temporary network problems
           - improve error logging on http errors
           - reduce amount of connections
+          - add request duration histogram to prometheus metrics
           - drop golang 1.18 support
 
 2.1.2    Fri Nov 11 10:40:28 CET 2022

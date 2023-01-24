@@ -106,6 +106,14 @@ var (
 		},
 		[]string{"listen"},
 	)
+	promFrontendRequestDuration = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: NAME,
+			Subsystem: "frontend",
+			Name:      "request_duration_seconds",
+			Help:      "Request duration in seconds",
+		},
+	)
 
 	promPeerUpdateInterval = prometheus.NewGauge(
 		prometheus.GaugeOpts{
@@ -268,6 +276,7 @@ func initPrometheus(lmd *LMDInstance) (prometheusListener io.Closer) {
 	prometheus.MustRegister(promFrontendBytesSend)
 	prometheus.MustRegister(promFrontendBytesReceived)
 	prometheus.MustRegister(promFrontendOpenConnections)
+	prometheus.MustRegister(promFrontendRequestDuration)
 	prometheus.MustRegister(promPeerUpdateInterval)
 	prometheus.MustRegister(promPeerFullUpdateInterval)
 	prometheus.MustRegister(promPeerConnections)

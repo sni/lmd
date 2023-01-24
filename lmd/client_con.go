@@ -178,6 +178,7 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 				Duration: duration,
 			}
 		}
+		promFrontendRequestDuration.Observe(float64(duration / time.Second))
 		if err != nil || !req.KeepAlive {
 			return
 		}
