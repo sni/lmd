@@ -15,8 +15,8 @@ require (
 	github.com/lkarlslund/stringdedup v0.6.2
 	github.com/prometheus/client_golang v1.14.0
 	github.com/sasha-s/go-deadlock v0.3.1
-	golang.org/x/tools v0.5.0
-	golang.org/x/vuln v0.0.0-20230110180137-6ad3e3d07815
+	golang.org/x/tools v0.5.1-0.20230117180257-8aba49bb5ea2
+	golang.org/x/vuln v0.0.0-20230118164824-4ec8867cc0e6
 )
 
 require (
