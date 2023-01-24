@@ -569,7 +569,7 @@ func ParseStats(value []byte, table TableName, stack *[]*Filter, options ParseOp
 
 // ParseFilterOp parses a text line into a filter group operator like And: <nr>.
 // It returns any error encountered.
-func ParseFilterOp(op GroupOperator, value []byte, stack *[]*Filter) (err error) {
+func parseFilterGroupOp(op GroupOperator, value []byte, stack *[]*Filter) (err error) {
 	num, cerr := strconv.Atoi(string(value))
 	if cerr != nil || num < 0 {
 		err = fmt.Errorf("%s must be a positive number", op.String())

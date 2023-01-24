@@ -701,20 +701,20 @@ func (req *Request) ParseRequestHeaderLine(line []byte, options ParseOptions) (e
 		req.NumFilter++
 		return
 	case "and":
-		err = ParseFilterOp(And, args, &req.Filter)
+		err = parseFilterGroupOp(And, args, &req.Filter)
 		return
 	case "or":
-		err = ParseFilterOp(Or, args, &req.Filter)
+		err = parseFilterGroupOp(Or, args, &req.Filter)
 		return
 	case "stats":
 		err = ParseStats(args, req.Table, &req.Stats, options)
 		req.NumFilter++
 		return
 	case "statsand":
-		err = parseStatsOp(And, args, req.Table, &req.Stats, options)
+		err = parseStatsGroupOp(And, args, req.Table, &req.Stats, options)
 		return
 	case "statsor":
-		err = parseStatsOp(Or, args, req.Table, &req.Stats, options)
+		err = parseStatsGroupOp(Or, args, req.Table, &req.Stats, options)
 		return
 	case "sort":
 		err = parseSortHeader(&req.Sort, args)
@@ -752,10 +752,10 @@ func (req *Request) ParseRequestHeaderLine(line []byte, options ParseOptions) (e
 		req.NumFilter++
 		return
 	case "waitconditionand":
-		err = parseStatsOp(And, args, req.Table, &req.WaitCondition, options)
+		err = parseStatsGroupOp(And, args, req.Table, &req.WaitCondition, options)
 		return
 	case "waitconditionor":
-		err = parseStatsOp(Or, args, req.Table, &req.WaitCondition, options)
+		err = parseStatsGroupOp(Or, args, req.Table, &req.WaitCondition, options)
 		return
 	case "waitconditionnegate":
 		req.WaitConditionNegate = true
@@ -837,13 +837,13 @@ func parseSortHeader(field *[]*SortField, value []byte) (err error) {
 	return
 }
 
-func parseStatsOp(op GroupOperator, value []byte, table TableName, stats *[]*Filter, options ParseOptions) (err error) {
+func parseStatsGroupOp(op GroupOperator, value []byte, table TableName, stats *[]*Filter, options ParseOptions) (err error) {
 	num, cerr := strconv.Atoi(string(value))
 	if cerr == nil && num == 0 {
 		err = ParseStats([]byte("state != 9999"), table, stats, options)
 		return
 	}
-	err = ParseFilterOp(op, value, stats)
+	err = parseFilterGroupOp(op, value, stats)
 	if err != nil {
 		return
 	}
