@@ -53,6 +53,7 @@ type Filter struct {
 	Operator   Operator
 	StrValue   string
 	FloatValue float64
+	IntValue   int
 	Regexp     *regexp.Regexp
 	CustomTag  string
 	IsEmpty    bool
@@ -380,18 +381,17 @@ func (f *Filter) setFilterValue(strVal string) (err error) {
 	}
 	f.StrValue = strVal
 	switch colType {
-	case Int64ListCol:
-		fallthrough
-	case IntCol, Int64Col, FloatCol:
+	case IntCol, Int64Col, Int64ListCol, FloatCol:
 		switch f.Operator {
 		case Equal, Unequal, Greater, GreaterThan, Less, LessThan:
 			if !f.IsEmpty {
-				filtervalue, cerr := strconv.ParseFloat(strVal, 64)
+				filterValue, cerr := strconv.ParseFloat(strVal, 64)
 				if cerr != nil {
 					err = fmt.Errorf("could not convert %s to number in filter: %s", strVal, f.String(""))
 					return
 				}
-				f.FloatValue = filtervalue
+				f.FloatValue = filterValue
+				f.IntValue = int(filterValue)
 			}
 		default:
 		}
@@ -655,40 +655,38 @@ func (f *Filter) Match(row *DataRow) bool {
 }
 
 func (f *Filter) MatchInt(value int) bool {
-	intVal := int(f.FloatValue)
 	switch f.Operator {
 	case Equal:
-		return value == intVal
+		return value == f.IntValue
 	case Unequal:
-		return value != intVal
+		return value != f.IntValue
 	case Less:
-		return value < intVal
+		return value < f.IntValue
 	case LessThan:
-		return value <= intVal
+		return value <= f.IntValue
 	case Greater:
-		return value > intVal
+		return value > f.IntValue
 	case GreaterThan:
-		return value >= intVal
+		return value >= f.IntValue
 	}
 	strVal := fmt.Sprintf("%v", value)
 	return f.MatchString(strVal)
 }
 
 func (f *Filter) MatchInt64(value int64) bool {
-	intVal := int64(f.FloatValue)
 	switch f.Operator {
 	case Equal:
-		return value == intVal
+		return value == int64(f.IntValue)
 	case Unequal:
-		return value != intVal
+		return value != int64(f.IntValue)
 	case Less:
-		return value < intVal
+		return value < int64(f.IntValue)
 	case LessThan:
-		return value <= intVal
+		return value <= int64(f.IntValue)
 	case Greater:
-		return value > intVal
+		return value > int64(f.IntValue)
 	case GreaterThan:
-		return value >= intVal
+		return value >= int64(f.IntValue)
 	}
 	strVal := fmt.Sprintf("%v", value)
 	return f.MatchString(strVal)
@@ -819,7 +817,7 @@ func (f *Filter) MatchInt64List(list []int64) bool {
 	case Unequal:
 		return f.IsEmpty && len(list) != 0
 	case GreaterThan:
-		fVal := int64(f.FloatValue)
+		fVal := int64(f.IntValue)
 		for i := range list {
 			if fVal == list[i] {
 				return true
@@ -827,7 +825,7 @@ func (f *Filter) MatchInt64List(list []int64) bool {
 		}
 		return false
 	case GroupContainsNot:
-		fVal := int64(f.FloatValue)
+		fVal := int64(f.IntValue)
 		for i := range list {
 			if fVal == list[i] {
 				return false

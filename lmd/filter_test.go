@@ -46,10 +46,10 @@ func TestStringListNegatedFilter(t *testing.T) {
 
 func TestInt64ListFilter(t *testing.T) {
 	value := []int64{1, 2, 3, 4, 5}
-	if err := assertEq(true, (&Filter{Operator: GreaterThan, FloatValue: 5}).MatchInt64List(value)); err != nil {
+	if err := assertEq(true, (&Filter{Operator: GreaterThan, IntValue: 5}).MatchInt64List(value)); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq(false, (&Filter{Operator: GreaterThan, FloatValue: 6}).MatchInt64List(value)); err != nil {
+	if err := assertEq(false, (&Filter{Operator: GreaterThan, IntValue: 6}).MatchInt64List(value)); err != nil {
 		t.Error(err)
 	}
 }
@@ -68,10 +68,10 @@ func TestRegexpStringFilter(t *testing.T) {
 
 func TestRegexpListFilter(t *testing.T) {
 	value := []int64{1, 2, 3, 4, 5}
-	if err := assertEq(true, (&Filter{Operator: GreaterThan, FloatValue: 5}).MatchInt64List(value)); err != nil {
+	if err := assertEq(true, (&Filter{Operator: GreaterThan, IntValue: 5}).MatchInt64List(value)); err != nil {
 		t.Error(err)
 	}
-	if err := assertEq(false, (&Filter{Operator: GreaterThan, FloatValue: 6}).MatchInt64List(value)); err != nil {
+	if err := assertEq(false, (&Filter{Operator: GreaterThan, IntValue: 6}).MatchInt64List(value)); err != nil {
 		t.Error(err)
 	}
 }
