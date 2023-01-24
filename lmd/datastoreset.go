@@ -67,6 +67,21 @@ func (ds *DataStoreSet) CreateObjectByType(table *Table) (store *DataStore, err 
 
 	t1 := time.Now()
 
+	// verify result set
+	keyLen := len(keys)
+	for i, row := range res {
+		if len(row) != keyLen {
+			err = fmt.Errorf("%s result set verification failed: len mismatch in row %d, expected %d columns and got %d", store.Table.Name.String(), i, keyLen, len(row))
+			if p.ErrorCount > 0 {
+				// silently cancel, backend broke during initialization, should have been logged already
+				log.Debugf("error during %s initialization, but backend is already failed: %s", &table.Name, err.Error())
+			} else {
+				log.Errorf("error during %s initialization: %s", &table.Name, err.Error())
+			}
+			return
+		}
+	}
+
 	// make sure all backends are sorted the same way
 	res = res.SortByPrimaryKey(table, req)
 
