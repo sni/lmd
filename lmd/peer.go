@@ -55,6 +55,9 @@ const (
 
 	// TemporaryNetworkErrorRetryDelay sets the sleep time for temporary network issue retries
 	TemporaryNetworkErrorRetryDelay = 500 * time.Millisecond
+
+	// TemporaryNetworkErrorMaxRetries is the number of retries
+	TemporaryNetworkErrorMaxRetries = 3
 )
 
 // Peer is the object which handles collecting and updating data and connections.
@@ -193,6 +196,7 @@ type PeerError struct {
 	res      [][]interface{}
 	resBytes []byte
 	code     int
+	srcErr   error
 }
 
 // Error returns the error message as string.
@@ -942,8 +946,12 @@ func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 		case conn == nil:
 		case req.KeepAlive:
 			// give back connection
-			logWith(p, req).Tracef("put connection back into pool")
-			p.cache.connectionPool <- conn
+			if err == nil {
+				logWith(p, req).Tracef("put connection back into pool")
+				p.cache.connectionPool <- conn
+			} else {
+				p.cache.connectionPool <- nil
+			}
 		default:
 			conn.Close()
 		}
@@ -971,10 +979,6 @@ func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 		logWith(p, req).Tracef("query: %s", query)
 	}
 
-	defer func() {
-
-	}()
-
 	p.Lock.Lock()
 	if p.lmd.Config.SaveTempRequests {
 		p.last.Request = req
@@ -992,7 +996,7 @@ func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 	resBytes, newConn, err := p.getQueryResponse(req, query, peerAddr, conn, connType)
 	duration := time.Since(t1)
 	if err != nil {
-		logWith(p, req).Debugf("backend query failed: %s", err)
+		logWith(p, req).Debugf("backend query failed: %w", err)
 		return nil, nil, err
 	}
 	if newConn != nil {
@@ -1029,7 +1033,7 @@ func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 		logWith(p, req).Debugf("fetched table %20s time: %s, size: %d kB", req.Table.String(), duration, len(resBytes)/1024)
 		logWith(p, req).Errorf("result json string: %s", string(resBytes))
 		logWith(p, req).Errorf("result parse error: %s", err.Error())
-		return nil, nil, &PeerError{msg: err.Error(), kind: ResponseError}
+		return nil, nil, &PeerError{msg: err.Error(), kind: ResponseError, srcErr: err}
 	}
 
 	meta.Duration = duration
@@ -1048,7 +1052,7 @@ func (p *Peer) getQueryResponse(req *Request, query string, peerAddr string, con
 	if connType == ConnTypeHTTP {
 		return p.getHTTPQueryResponse(req, query, peerAddr)
 	}
-	return p.getSocketQueryResponse(req, query, conn)
+	return p.getSocketQueryResponseWithTemporaryRetries(req, query, conn)
 }
 
 func (p *Peer) getHTTPQueryResponse(req *Request, query string, peerAddr string) ([]byte, net.Conn, error) {
@@ -1075,68 +1079,123 @@ func (p *Peer) getHTTPQueryResponse(req *Request, query string, peerAddr string)
 	return res, nil, nil
 }
 
-func (p *Peer) getSocketQueryResponse(req *Request, query string, conn net.Conn) ([]byte, net.Conn, error) {
+func (p *Peer) getSocketQueryResponse(req *Request, query string, conn net.Conn) ([]byte, error) {
 	// tcp/unix connections
-	// set read timeout
-	err := conn.SetDeadline(time.Now().Add(time.Duration(p.lmd.Config.NetTimeout) * time.Second))
+	n, err := p.socketSendQuery(query, conn)
 	if err != nil {
-		return nil, nil, fmt.Errorf("conn.SetDeadline: %w", err)
-	}
-	_, err = fmt.Fprintf(conn, "%s", query)
-	if err != nil {
-		// catch temporary errors
-		switch {
-		case errors.Is(err, syscall.EAGAIN):
-			// might be temporary filled send buffer, wait a couple of milliseconds and try again
-			time.Sleep(TemporaryNetworkErrorRetryDelay)
-			fallthrough
-		case errors.Is(err, syscall.ECONNRESET):
-			// might be temporary filled send buffer, wait a couple of milliseconds and try again
-			time.Sleep(TemporaryNetworkErrorRetryDelay)
-		case errors.Is(err, syscall.EPIPE):
-			logWith(p, req).Tracef("temporary write error (%s) retrying...", err)
-			// pipe usually means socket is closed, so reopen and try again, no wait needed
-			peerAddr, connType := extractConnType(p.StatusGet(PeerAddr).(string))
-			conn.Close()
-			var oErr error
-			conn, oErr = p.OpenConnection(peerAddr, connType)
-			if oErr != nil {
-				// return original error
-				return nil, nil, fmt.Errorf("conn write failed: %w, retry failed as well: %s", err, oErr.Error())
-			}
-			sErr := conn.SetDeadline(time.Now().Add(time.Duration(p.lmd.Config.NetTimeout) * time.Second))
-			if sErr != nil {
-				return nil, nil, fmt.Errorf("conn.SetDeadline: %w", sErr)
-			}
-			// resend query
-			_, err = fmt.Fprintf(conn, "%s", query)
-		}
-	}
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("conn write failed: %w", err)
+		return nil, fmt.Errorf("connection error, send %d of %d bytes: %w", n, len(query), err)
 	}
 
 	// close write part of connection
 	// but only on commands, it'll breaks larger responses with stunnel / xinetd constructs
 	if req.Command != "" && !req.KeepAlive {
-		switch c := conn.(type) {
-		case *net.TCPConn:
-			p.LogErrors(c.CloseWrite())
-		case *net.UnixConn:
-			p.LogErrors(c.CloseWrite())
+		p.LogErrors(CloseWrite(conn))
+	}
+
+	b, err := p.parseResponse(req, conn)
+	return b, err
+}
+
+func (p *Peer) getSocketQueryResponseWithTemporaryRetries(req *Request, query string, conn net.Conn) ([]byte, net.Conn, error) {
+	// catch temporary errors
+	retries := 0
+	for {
+		b, err := p.getSocketQueryResponse(req, query, conn)
+		if err == nil {
+			return b, conn, err
+		}
+		if !isTemporary(err) {
+			return b, conn, err
+		}
+
+		retries++
+		if retries > TemporaryNetworkErrorMaxRetries {
+			return nil, nil, err
+		}
+		if retries > 1 {
+			time.Sleep(TemporaryNetworkErrorRetryDelay * time.Duration(retries-1))
+		}
+		peerAddr, connType := extractConnType(p.StatusGet(PeerAddr).(string))
+		conn.Close()
+		var oErr error
+		conn, oErr = p.OpenConnection(peerAddr, connType)
+		if oErr != nil {
+			// return both errors
+			return nil, conn, fmt.Errorf("connection failed: %w, retry failed as well: %s", err, oErr.Error())
 		}
 	}
+}
 
+func (p *Peer) parseResponse(req *Request, conn net.Conn) (b []byte, err error) {
 	// read result with fixed result size
-	var b []byte
 	if req.ResponseFixed16 {
 		b, err = p.parseResponseFixedSize(req, conn)
-		return b, conn, err
+		return
 	}
 
+	// read result with unknown result size
 	b, err = p.parseResponseUndefinedSize(conn)
-	return b, conn, err
+	if err != nil && req.Command != "" {
+		// ignore errors for commands, might close connection immediately (and sending did work already...)
+		logWith(p, req).Tracef("ignoring error while reading command response: %s", err.Error())
+		err = nil
+	}
+	return
+}
+
+func isTemporary(err error) bool {
+	switch {
+	case errors.Is(err, syscall.EAGAIN):
+		// might be temporary filled send buffer, wait a couple of milliseconds and try again
+		return true
+	case errors.Is(err, syscall.ECONNRESET):
+		// might be closed cached connection, wait and try again
+		return true
+	case errors.Is(err, syscall.EPIPE):
+		return true
+	}
+	if e, ok := err.(*PeerError); ok {
+		if e.srcErr != nil {
+			return isTemporary((e.srcErr))
+		}
+	}
+	return false
+}
+
+func CloseWrite(conn net.Conn) error {
+	switch c := conn.(type) {
+	case *net.TCPConn:
+		return c.CloseWrite()
+	case *net.UnixConn:
+		return c.CloseWrite()
+	}
+	return nil
+}
+
+func (p *Peer) socketSendQuery(query string, conn net.Conn) (int, error) {
+	// set read timeout
+	err := conn.SetDeadline(time.Now().Add(time.Duration(p.lmd.Config.NetTimeout) * time.Second))
+	if err != nil {
+		return 0, fmt.Errorf("conn.SetDeadline: %w", err)
+	}
+
+	if strings.HasSuffix(query, "\n\n") {
+		query = strings.TrimSuffix(query, "\n\n")
+		n, err := fmt.Fprintf(conn, "%s\n", query)
+		if err != nil {
+			return n, err
+		}
+		// send an extra newline to finish the query but ignore errors because the connection might have closed right after the query
+		n2, err2 := fmt.Fprintf(conn, "\n")
+		if err2 != nil {
+			log.Tracef("sending final newline failed: %s", err2.Error())
+		}
+		n += n2
+		return n, err
+	}
+
+	n, err := fmt.Fprintf(conn, "%s", query)
+	return n, err
 }
 
 func (p *Peer) parseResponseUndefinedSize(conn io.Reader) ([]byte, error) {
@@ -1160,7 +1219,7 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) ([]byte,
 	_, err := io.CopyN(header, conn, 16)
 	resBytes := header.Bytes()
 	if err != nil {
-		return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes}
+		return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes, srcErr: err}
 	}
 	if bytes.Contains(resBytes, []byte("No UNIX socket /")) {
 		p.LogErrors(io.CopyN(header, conn, ErrorContentPreviewSize))
@@ -1311,7 +1370,7 @@ func (p *Peer) GetConnection(req *Request) (conn net.Conn, connType ConnectionTy
 		p.setNextAddrFromErr(err, req)
 	}
 
-	return nil, ConnTypeUnix, &PeerError{msg: err.Error(), kind: ConnectionError}
+	return nil, ConnTypeUnix, &PeerError{msg: err.Error(), kind: ConnectionError, srcErr: err}
 }
 
 func (p *Peer) OpenConnection(peerAddr string, connType ConnectionType) (conn net.Conn, err error) {
@@ -1358,6 +1417,11 @@ func (p *Peer) OpenConnection(peerAddr string, connType ConnectionType) (conn ne
 		}
 		conn = nil
 	}
+	if err != nil {
+		logWith(p).Tracef("connection test failed: %s", err.Error())
+	} else {
+		logWith(p).Tracef("connection ok")
+	}
 	return
 }
 
@@ -1365,7 +1429,11 @@ func (p *Peer) OpenConnection(peerAddr string, connType ConnectionType) (conn ne
 func (p *Peer) GetCachedConnection(req *Request) (conn net.Conn) {
 	select {
 	case conn = <-p.cache.connectionPool:
-		logWith(p, req).Tracef("using cached connection")
+		if conn != nil {
+			logWith(p, req).Tracef("using cached connection")
+		} else {
+			logWith(p, req).Tracef("using new connection")
+		}
 		return
 	default:
 		logWith(p, req).Tracef("no cached connection found")
@@ -1447,7 +1515,9 @@ func (p *Peer) closeConnectionPool() {
 	for {
 		select {
 		case conn := <-p.cache.connectionPool:
-			conn.Close()
+			if conn != nil {
+				conn.Close()
+			}
 		default:
 			return
 		}
@@ -1684,7 +1754,7 @@ func (p *Peer) fetchRemotePeersFromAddr(peerAddr string) (sites []interface{}, e
 	if s, ok := data.([]interface{}); ok {
 		sites = s
 	} else {
-		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %v", res), kind: ResponseError}
+		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %v", res), kind: ResponseError, srcErr: err}
 	}
 	return
 }
@@ -2235,6 +2305,7 @@ func (p *Peer) logPeerStatus(logger func(string, ...interface{})) {
 	logger("Peerstatus:            %s", status.String())
 	logger("Flags:                 %s", peerflags.String())
 	logger("LastError:             %s", p.Status[LastError].(string))
+	logger("ErrorCount:            %d", p.ErrorCount)
 }
 
 func (p *Peer) getTLSClientConfig() (*tls.Config, error) {
