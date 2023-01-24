@@ -17,6 +17,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -85,26 +86,34 @@ func StartMockLivestatusSource(lmd *LMDInstance, nr int, numHosts int, numServic
 			mockLog.Errorf("failed: %s", err)
 			panic(err.Error())
 		}
+		clientConns := &sync.WaitGroup{}
 		defer func() {
+			if waitTimeout(clientConns, 5*time.Second) {
+				log.Errorf("timeout while for mock connections to finish")
+			}
 			os.Remove(listen)
 			mockLog.Debugf("shuting down")
 			os.RemoveAll(dataFolder)
 			mockLog.Debugf("shutdown complete")
 		}()
 		startedChannel <- true
+
 		for {
 			conn, err := l.Accept()
 			if err != nil {
 				// probably closed
 				return
 			}
+			clientConns.Add(1)
 			go func(conn net.Conn) {
+				defer func() {
+					clientConns.Done()
+				}()
 				if handleMockConnection(lmd, conn, dataFolder, mockLog) {
 					l.Close()
 					return
 				}
 			}(conn)
-
 		}
 	}()
 	<-startedChannel
@@ -362,7 +371,7 @@ func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig
 		// recheck every 50ms
 		time.Sleep(50 * time.Millisecond)
 		if time.Now().After(waitUntil) {
-			panicFailedStartup(lmd, mocklmd, peer, numPeers, err)
+			panicFailedStartup(mocklmd, peer, numPeers, err)
 		}
 	}
 
@@ -601,7 +610,7 @@ func createTestLMDInstance() *LMDInstance {
 	return lmd
 }
 
-func panicFailedStartup(lmd *LMDInstance, mocklmd *LMDInstance, peer *Peer, numPeers int, err error) {
+func panicFailedStartup(mocklmd *LMDInstance, peer *Peer, numPeers int, err error) {
 	info := []string{fmt.Sprintf("backend(s) never came online, expected %d sites", numPeers)}
 	if err != nil {
 		info = append(info, err.Error())

@@ -1102,7 +1102,7 @@ func (p *Peer) getSocketQueryResponseWithTemporaryRetries(req *Request, query st
 	for {
 		b, err := p.getSocketQueryResponse(req, query, conn)
 		if err == nil {
-			return b, conn, err
+			return b, conn, nil
 		}
 		if !isTemporary(err) {
 			return b, conn, err
@@ -1162,14 +1162,17 @@ func isTemporary(err error) bool {
 	return false
 }
 
-func CloseWrite(conn net.Conn) error {
+func CloseWrite(conn net.Conn) (err error) {
 	switch c := conn.(type) {
 	case *net.TCPConn:
-		return c.CloseWrite()
+		err = c.CloseWrite()
 	case *net.UnixConn:
-		return c.CloseWrite()
+		err = c.CloseWrite()
 	}
-	return nil
+	if err != nil {
+		err = fmt.Errorf("net.Conn.CloseWrite: %w", err)
+	}
+	return err
 }
 
 func (p *Peer) socketSendQuery(query string, conn net.Conn) (int, error) {
@@ -1183,7 +1186,7 @@ func (p *Peer) socketSendQuery(query string, conn net.Conn) (int, error) {
 		query = strings.TrimSuffix(query, "\n\n")
 		n, err := fmt.Fprintf(conn, "%s\n", query)
 		if err != nil {
-			return n, err
+			return n, fmt.Errorf("socket error: %w", err)
 		}
 		// send an extra newline to finish the query but ignore errors because the connection might have closed right after the query
 		n2, err2 := fmt.Fprintf(conn, "\n")
@@ -1191,10 +1194,13 @@ func (p *Peer) socketSendQuery(query string, conn net.Conn) (int, error) {
 			log.Tracef("sending final newline failed: %s", err2.Error())
 		}
 		n += n2
-		return n, err
+		return n, nil
 	}
 
 	n, err := fmt.Fprintf(conn, "%s", query)
+	if err != nil {
+		err = fmt.Errorf("socket error: %w", err)
+	}
 	return n, err
 }
 
