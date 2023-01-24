@@ -41,7 +41,7 @@ cd $FOLDER
 for hash in $(comm -13 <(git show -s --format="%h" -9999999 | sort) <(find $FOLDER -name bench\* | cut -d '.' -f 4 | sort -u) | sort -u); do
     for file in $(ls -1 bench.*$hash*); do
       echo "removing obsolete benchmark: $file"
-      #rm -f $file
+      rm -f $file
     done
 done
 
