@@ -777,6 +777,9 @@ func (req *Request) ParseRequestHeaderLine(line []byte, options ParseOptions) (e
 	case "authuser":
 		err = parseAuthUser(&req.AuthUser, args)
 		return
+	case "statsnegate":
+		err = ParseFilterNegate(req.Stats)
+		return
 	}
 	err = fmt.Errorf("unrecognized header")
 	return
@@ -1029,10 +1032,12 @@ func (req *Request) optimizeResultLimit() (limit int) {
 	return
 }
 
-// optimizeFilterIndentation removes unnecessary filter indentation
+// optimizeFilterIndentation removes unnecessary filter indentation unless it is negated
 func (req *Request) optimizeFilterIndentation() {
 	for {
-		if len(req.Filter) == 1 && len(req.Filter[0].Filter) > 0 && req.Filter[0].GroupOperator == And {
+		if len(req.Filter) == 1 && len(req.Filter[0].Filter) > 0 &&
+			req.Filter[0].GroupOperator == And && req.Filter[0].Negate == false {
+
 			req.Filter = req.Filter[0].Filter
 		} else {
 			break
