@@ -154,19 +154,23 @@ func (op *Operator) String() string {
 
 // String converts a filter back to its string representation.
 func (f *Filter) String(prefix string) (str string) {
+	strNegate := ""
+
+	if f.Negate {
+		if f.StatsType == NoStats {
+			strNegate = fmt.Sprintf("%s\n", "Negate:")
+		} else {
+			strNegate = fmt.Sprintf("%s\n", "StatsNegate:")
+		}
+	}
+
 	if f.GroupOperator == And || f.GroupOperator == Or {
 		if len(f.Filter) > 0 {
 			for i := range f.Filter {
 				str += f.Filter[i].String(prefix)
 			}
 			str += fmt.Sprintf("%s%s: %d\n", prefix, f.GroupOperator.String(), len(f.Filter))
-			if f.Negate {
-				if f.StatsType == NoStats {
-					str += fmt.Sprintf("%s\n", "Negate:")
-				} else {
-					str += fmt.Sprintf("%s\n", "StatsNegate:")
-				}
-			}
+			str += strNegate
 			return
 		}
 	}
@@ -195,13 +199,7 @@ func (f *Filter) String(prefix string) (str string) {
 	default:
 		str = fmt.Sprintf("Stats: %s %s\n", f.StatsType.String(), colName)
 	}
-	if f.Negate {
-		if f.StatsType == NoStats {
-			str += fmt.Sprintf("%s\n", "Negate:")
-		} else {
-			str += fmt.Sprintf("%s\n", "StatsNegate:")
-		}
-	}
+	str += strNegate
 	return
 }
 

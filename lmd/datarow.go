@@ -701,8 +701,8 @@ func (d *DataRow) MatchFilter(filter *Filter, negate bool) bool {
 	groupOperator := filter.GroupOperator
 	negate = negate || filter.Negate
 
-	if negate == true {
-		//Inverse the operation if negate is done at the GroupOperator
+	if negate {
+		// Inverse the operation if negate is done at the GroupOperator
 		switch groupOperator {
 		case And:
 			groupOperator = Or
