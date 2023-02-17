@@ -1036,8 +1036,7 @@ func (req *Request) optimizeResultLimit() (limit int) {
 func (req *Request) optimizeFilterIndentation() {
 	for {
 		if len(req.Filter) == 1 && len(req.Filter[0].Filter) > 0 &&
-			req.Filter[0].GroupOperator == And && req.Filter[0].Negate == false {
-
+			req.Filter[0].GroupOperator == And && !req.Filter[0].Negate {
 			req.Filter = req.Filter[0].Filter
 		} else {
 			break
