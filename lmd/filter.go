@@ -154,12 +154,23 @@ func (op *Operator) String() string {
 
 // String converts a filter back to its string representation.
 func (f *Filter) String(prefix string) (str string) {
+	strNegate := ""
+
+	if f.Negate {
+		if f.StatsType == NoStats {
+			strNegate = fmt.Sprintf("%s\n", "Negate:")
+		} else {
+			strNegate = fmt.Sprintf("%s\n", "StatsNegate:")
+		}
+	}
+
 	if f.GroupOperator == And || f.GroupOperator == Or {
 		if len(f.Filter) > 0 {
 			for i := range f.Filter {
 				str += f.Filter[i].String(prefix)
 			}
 			str += fmt.Sprintf("%s%s: %d\n", prefix, f.GroupOperator.String(), len(f.Filter))
+			str += strNegate
 			return
 		}
 	}
@@ -188,9 +199,7 @@ func (f *Filter) String(prefix string) (str string) {
 	default:
 		str = fmt.Sprintf("Stats: %s %s\n", f.StatsType.String(), colName)
 	}
-	if f.Negate {
-		str += fmt.Sprintf("%s\n", "Negate:")
-	}
+	str += strNegate
 	return
 }
 
@@ -595,11 +604,11 @@ func parseFilterGroupOp(op GroupOperator, value []byte, stack *[]*Filter) (err e
 	return
 }
 
-// ParseFilterNegate sets the last filter group to be negated
+// ParseFilterNegate sets the last filter or stats group to be negated
 func ParseFilterNegate(stack []*Filter) (err error) {
 	stackLen := len(stack)
 	if stackLen == 0 {
-		err = fmt.Errorf("no filter on stack to negate")
+		err = fmt.Errorf("no filter/stats on stack to negate")
 		return
 	}
 	stack[stackLen-1].Negate = true

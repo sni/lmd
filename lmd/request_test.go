@@ -41,6 +41,7 @@ func TestRequestHeader(t *testing.T) {
 		"GET hosts\nAuthUser: testUser\n\n",
 		"GET hosts\nColumns: name\nFilter: contact_groups >= test\nNegate:\n\n",
 		"GET hosts\nColumns: name\nFilter: state ~~ 0|1|2\n\n",
+		"GET hosts\nStats: contact_groups >= test\nStatsNegate:\n\n",
 	}
 	for _, str := range testRequestStrings {
 		buf := bufio.NewReader(bytes.NewBufferString(str))
@@ -1270,7 +1271,7 @@ func TestNegate(t *testing.T) {
 		}
 	}
 
-	res, _, err = peer.QueryString("GET services\nColumns: host_name state\nFilter: host_name ~ testhost_1\nFilter: state = 0\nNegate:\nAnd: 2\n\n")
+	res, _, err = peer.QueryString("GET services\nColumns: host_name state\nFilter: host_name = testhost_1\nFilter: state = 0\nNegate:\nAnd: 2\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1287,6 +1288,88 @@ func TestNegate(t *testing.T) {
 		if err = assertNeq("0", host[1]); err != nil {
 			t.Error(err)
 		}
+	}
+
+	res, _, err = peer.QueryString("GET services\nColumns: host_name state\nFilter: host_name != testhost_1\nFilter: state != 10\nAnd: 2\nNegate:\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = assertEq(1, len(res)); err != nil {
+		t.Error(err)
+	}
+
+	for _, host := range res {
+		if err = assertEq("testhost_1", host[0]); err != nil {
+			t.Error(err)
+		}
+
+		if err = assertNeq("0", host[1]); err != nil {
+			t.Error(err)
+		}
+	}
+
+	res, _, err = peer.QueryString("GET services\nColumns: host_name state\nFilter: host_name != testhost_1\nFilter: state != 1\nOr: 2\nNegate:\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = assertEq(1, len(res)); err != nil {
+		t.Error(err)
+	}
+
+	for _, host := range res {
+		if err = assertEq("testhost_1", host[0]); err != nil {
+			t.Error(err)
+		}
+
+		if err = assertNeq("0", host[1]); err != nil {
+			t.Error(err)
+		}
+	}
+
+	if err := cleanup(); err != nil {
+		panic(err.Error())
+	}
+}
+
+func TestStatsNegate(t *testing.T) {
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	res, _, err := peer.QueryString("GET hosts\nStats: host_name = testhost_1\nStatsNegate:\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(float64(9), res[0][0]); err != nil {
+		t.Error(err)
+	}
+
+	res, _, err = peer.QueryString("GET services\nStats: host_name ~ testhost_1\nStats: state = 0\nStatsNegate:\nStatsAnd: 2\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = assertEq(float64(1), res[0][0]); err != nil {
+		t.Error(err)
+	}
+
+	res, _, err = peer.QueryString("GET services\nStats: host_name != testhost_1\nStats: state != 10\nStatsAnd: 2\nStatsNegate:\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = assertEq(float64(1), res[0][0]); err != nil {
+		t.Error(err)
+	}
+
+	res, _, err = peer.QueryString("GET services\nStats: host_name != testhost_1\nStats: state != 1\nStatsOr: 2\nStatsNegate:\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = assertEq(float64(1), res[0][0]); err != nil {
+		t.Error(err)
 	}
 
 	if err := cleanup(); err != nil {

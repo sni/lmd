@@ -695,19 +695,33 @@ func (d *DataRow) getVirtualSubLMDValue(col *Column) (val interface{}, ok bool) 
 }
 
 // MatchFilter returns true if the given filter matches the given datarow.
-func (d *DataRow) MatchFilter(filter *Filter) bool {
+// negate param is to force filter to be negated. Default is false.
+func (d *DataRow) MatchFilter(filter *Filter, negate bool) bool {
 	// recursive group filter
-	switch filter.GroupOperator {
+	groupOperator := filter.GroupOperator
+	negate = negate || filter.Negate
+
+	if negate {
+		// Inverse the operation if negate is done at the GroupOperator
+		switch groupOperator {
+		case And:
+			groupOperator = Or
+		case Or:
+			groupOperator = And
+		}
+	}
+
+	switch groupOperator {
 	case And:
 		for _, f := range filter.Filter {
-			if !d.MatchFilter(f) {
+			if !d.MatchFilter(f, negate) {
 				return false
 			}
 		}
 		return true
 	case Or:
 		for _, f := range filter.Filter {
-			if d.MatchFilter(f) {
+			if d.MatchFilter(f, negate) {
 				return true
 			}
 		}
@@ -724,7 +738,7 @@ func (d *DataRow) MatchFilter(filter *Filter) bool {
 			Regexp:      filter.Regexp,
 			IsEmpty:     filter.IsEmpty,
 			CustomTag:   filter.CustomTag,
-			Negate:      filter.Negate,
+			Negate:      negate,
 			ColumnIndex: -1,
 		}
 		f.Column.DataType = filter.Column.DataType
@@ -733,7 +747,7 @@ func (d *DataRow) MatchFilter(filter *Filter) bool {
 		}
 		return f.Match(d)
 	}
-	if filter.Negate {
+	if negate {
 		return !filter.Match(d)
 	}
 	return filter.Match(d)
@@ -1543,13 +1557,13 @@ func (d *DataRow) CountStats(stats []*Filter, result []*Filter) {
 		// counter must match their filter
 		switch s.StatsType {
 		case Counter:
-			if d.MatchFilter(s) {
+			if d.MatchFilter(s, false) {
 				result[resultPos].Stats++
 				result[resultPos].StatsCount++
 			}
 		case StatsGroup:
 			// if filter matches, recurse into sub stats
-			if d.MatchFilter(s) {
+			if d.MatchFilter(s, false) {
 				d.CountStats(s.Filter, result)
 			}
 		default:

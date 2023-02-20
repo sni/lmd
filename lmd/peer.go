@@ -1837,7 +1837,7 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
 
 			found = true
 			for i := range req.WaitCondition {
-				if !obj.MatchFilter(req.WaitCondition[i]) {
+				if !obj.MatchFilter(req.WaitCondition[i], false) {
 					found = false
 				}
 			}
@@ -2230,7 +2230,7 @@ Rows:
 		row := store.Data[j]
 		// does our filter match?
 		for _, f := range filter {
-			if !row.MatchFilter(f) {
+			if !row.MatchFilter(f, false) {
 				continue Rows
 			}
 		}
