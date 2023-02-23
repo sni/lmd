@@ -1080,7 +1080,7 @@ func (req *Request) optimizeStatsGroups(stats []*Filter, renumber bool) []*Filte
 		// append to previous group?
 		if i >= 1 && lastGroup != nil {
 			firstFilter := s.Filter[0]
-			if lastGroup.Column == firstFilter.Column && lastGroup.Operator == firstFilter.Operator && lastGroup.StrValue == firstFilter.StrValue {
+			if lastGroup.Column == firstFilter.Column && lastGroup.Operator == firstFilter.Operator && lastGroup.StrValue == firstFilter.StrValue && lastGroup.Negate == firstFilter.Negate && len(firstFilter.Filter) == 0 {
 				lastGroup.Filter = append(lastGroup.Filter, removeFirstStatsFilter(s))
 				continue
 			}
@@ -1092,7 +1092,7 @@ func (req *Request) optimizeStatsGroups(stats []*Filter, renumber bool) []*Filte
 		// start a new group if the current first stats filter matches the next first stats filter
 		if len(stats) > i+1 {
 			next := stats[i+1]
-			if next.StatsType != Counter || next.Column != nil || len(next.Filter) < 2 {
+			if next.StatsType != Counter || next.Column != nil || len(next.Filter) < 2 || s.Filter[0].GroupOperator == Or {
 				groupedStats = append(groupedStats, s)
 				continue
 			}

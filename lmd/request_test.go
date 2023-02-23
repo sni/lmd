@@ -1924,6 +1924,53 @@ StatsAnd: 2
 	}
 }
 
+func TestStatsQueryOptimizer2(t *testing.T) {
+	query := `GET services
+	Filter: host_name = localhost
+	Stats: state_type = 0
+	Stats: state = 0
+	StatsOr: 2
+	Stats: has_been_checked = 1
+	StatsAnd: 2
+	Stats: state_type = 0
+	Stats: state = 0
+	StatsOr: 2
+	Stats: has_been_checked = 1
+	Stats: scheduled_downtime_depth = 0
+	Stats: acknowledged = 0
+	StatsAnd: 4
+	OutputFormat: json
+	ResponseHeader: fixed16
+`
+	lmd := createTestLMDInstance()
+	buf := bufio.NewReader(bytes.NewBufferString(query))
+	req, _, err := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = assertEq(2, len(req.StatsGrouped)); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(`Stats: state_type = 0
+Stats: state = 0
+StatsOr: 2
+Stats: has_been_checked = 1
+StatsAnd: 2
+`, req.StatsGrouped[0].String("Stats")); err != nil {
+		t.Error(err)
+	}
+	if err = assertEq(`Stats: state_type = 0
+Stats: state = 0
+StatsOr: 2
+Stats: has_been_checked = 1
+Stats: scheduled_downtime_depth = 0
+Stats: acknowledged = 0
+StatsAnd: 4
+`, req.StatsGrouped[1].String("Stats")); err != nil {
+		t.Error(err)
+	}
+}
+
 func TestQueryWrappedJSON(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
