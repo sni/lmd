@@ -15,8 +15,12 @@ import (
 // LogFormat sets the log format
 var LogFormat string
 
+// DateTimeLogFormat sets the log format for the date/time portion
+var DateTimeLogFormat string
+
 func init() {
-	LogFormat = `[%{Date} %{Time "15:04:05.000"}][%{Severity}][pid:` + fmt.Sprintf("%d", os.Getpid()) + `][%{ShortFile}:%{Line}] %{Message}`
+	DateTimeLogFormat = `[%{Date} %{Time "15:04:05.000"}]`
+	LogFormat = `[%{Severity}][pid:` + fmt.Sprintf("%d", os.Getpid()) + `][%{ShortFile}:%{Line}] %{Message}`
 }
 
 const (
@@ -49,13 +53,16 @@ func InitLogging(conf *Config) {
 	var err error
 	switch {
 	case conf.LogFile == "" || conf.LogFile == "stdout":
-		logFormatter = factorlog.NewStdFormatter(LogColors + LogFormat + LogColorReset)
+		logFormatter = factorlog.NewStdFormatter(LogColors + DateTimeLogFormat + LogFormat + LogColorReset)
 		targetWriter = os.Stdout
 	case strings.EqualFold(conf.LogFile, "stderr"):
-		logFormatter = factorlog.NewStdFormatter(LogColors + LogFormat + LogColorReset)
+		logFormatter = factorlog.NewStdFormatter(LogColors + DateTimeLogFormat + LogFormat + LogColorReset)
 		targetWriter = os.Stderr
-	default:
+	case conf.LogFile == "stdout-journal":
 		logFormatter = factorlog.NewStdFormatter(LogFormat)
+		targetWriter = os.Stdout
+	default:
+		logFormatter = factorlog.NewStdFormatter(DateTimeLogFormat + LogFormat)
 		targetWriter, err = os.OpenFile(conf.LogFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644)
 	}
 	if err != nil {
