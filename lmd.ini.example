@@ -20,7 +20,15 @@ ListenTimeout = 60
 # set minimum allowed tls version, leave empty to allow all version or specify one of: tls1.0, tls1.1, tls1.2, tls1.3
 TLSMinVersion = "tls1.1"
 
-# daemon will log to stdout if no logfile is set
+# destinations the daemon will log to. Defaults to "stdout"
+# Choose from:
+# - "/var/log/lmd.log" (example)
+#   a literal file name to log to
+# - "stdout" or "stderr"
+#    to log to either standard output or standard error with colorized output
+# - "stdout-journal"
+#    same as stdout, but does not colorize the output and does not print the date/time prefix.
+#    this is more suitable if you connect stdout to a log shipping service like systemd-journald, which will supply the timestamp itself
 #LogFile         = "lmd.log"
 
 # May be Error, Warn, Info, Debug and Trace
