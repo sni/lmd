@@ -233,6 +233,8 @@ func NewContactsTable() (t *Table) {
 	t.AddExtraColumn("custom_variable_values", LocalStore, Dynamic, StringListCol, Naemon, "A list of the values of all custom variables of the contact")
 	t.AddExtraColumn("custom_variables", VirtualStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
 
+	t.AddExtraColumn("groups", LocalStore, Static, StringListCol, HasContactsGroupColumn, "List of groups this contact is part of.")
+
 	t.AddPeerInfoColumn("lmd_last_cache_update", FloatCol, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")

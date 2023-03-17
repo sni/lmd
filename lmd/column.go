@@ -180,6 +180,9 @@ const (
 
 	// HasServiceParentsColumn flag is set if remote site support service parents column
 	HasServiceParentsColumn
+
+	// HasContactsGroupColumn flag is set if remote site support contacts groups column
+	HasContactsGroupColumn
 )
 
 // OptionalFlagsStrings maps available backend flags to their string value
@@ -199,6 +202,7 @@ var OptionalFlagsStrings = map[OptionalFlags]string{
 	HasEventHandlerColumn:       "HasEventHandlerColumn",
 	HasStalenessColumn:          "HasStalenessColumn",
 	HasServiceParentsColumn:     "HasServiceParentsColumn",
+	HasContactsGroupColumn:      "HasContactsGroupColumn",
 }
 
 // String returns the string representation of used flags

@@ -1592,6 +1592,7 @@ func (p *Peer) checkAvailableTables() (err error) {
 		{TableHosts, "staleness", HasStalenessColumn},
 		{TableServices, "check_freshness", HasCheckFreshnessColumn},
 		{TableServices, "parents", HasServiceParentsColumn},
+		{TableContacts, "groups", HasContactsGroupColumn},
 	}
 
 	if p.HasFlag(Icinga2) {
