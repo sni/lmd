@@ -3,6 +3,9 @@ This file documents the revision history for the Livestatus Multitool Daemon (LM
 next:
           - fix stats query optimizer when using Or aggregation
           - add support for contacts groups column
+          - add support for multiple column headers (#137)
+          - print errors on config parse errors (#135)
+          - add logmode "stdout-journal" (#136)
 
 2.1.4    Mon Feb 20 09:35:17 CET 2023
           - add StatsNegate support (#133)
