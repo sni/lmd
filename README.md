@@ -31,7 +31,7 @@ Requirements
 
 You will need
 
- - Go >= 1.16
+ - Go >= 1.19
 
 to compile lmd.
 
@@ -63,6 +63,15 @@ Installation
 ```
     %> go install github.com/sni/lmd/v2/lmd@latest
 ```
+
+or
+
+```
+    %> git clone https://github.com/sni/lmd
+    %> cd lmd
+    %> make
+```
+
 
 Quick start with command line parameters:
 ```
