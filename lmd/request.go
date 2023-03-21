@@ -730,7 +730,7 @@ func (req *Request) ParseRequestHeaderLine(line []byte, options ParseOptions) (e
 		req.Backends = strings.Fields(string(args))
 		return
 	case "columns":
-		req.Columns = strings.Fields(string(args))
+		req.Columns = append(req.Columns, strings.Fields(string(args))...)
 		return
 	case "responseheader":
 		err = parseResponseHeader(&req.ResponseFixed16, args)
