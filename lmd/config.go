@@ -149,7 +149,8 @@ func NewConfig(files []string) *Config {
 				os.Exit(ExitUnknown)
 			}
 			if _, err := toml.DecodeFile(configFile, &conf); err != nil {
-				panic(err)
+				fmt.Fprintf(os.Stderr, "ERROR: could not load configuration from %s: %s\n", configFile, err.Error())
+				os.Exit(ExitUnknown)
 			}
 			allListeners = append(allListeners, conf.Listen...)
 			conf.Listen = []string{}
