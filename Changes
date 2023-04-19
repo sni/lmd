@@ -1,5 +1,8 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
+next:
+          - add support for setting expected tls servername
+
 2.1.5    Tue Mar 21 15:23:39 CET 2023
           - fix stats query optimizer when using Or aggregation
           - add support for contacts groups column

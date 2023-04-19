@@ -28,14 +28,16 @@ import (
 	"github.com/sasha-s/go-deadlock"
 )
 
-var reResponseHeader = regexp.MustCompile(`^(\d+)\s+(\d+)$`)
-var reHTTPTooOld = regexp.MustCompile(`Can.t locate object method`)
-var reHTTPOMDError = regexp.MustCompile(`<h1>(OMD:.*?)</h1>`)
-var reHTTPThrukError = regexp.MustCompile(`(?sm)<!--error:(.*?):error-->`)
-var reShinkenVersion = regexp.MustCompile(`\-shinken$`)
-var reIcinga2Version = regexp.MustCompile(`^(r[\d.-]+|.*\-icinga2)$`)
-var reNaemonVersion = regexp.MustCompile(`\-naemon$`)
-var reThrukVersion = regexp.MustCompile(`^(\d+\.\d+|\d+).*?$`)
+var (
+	reResponseHeader = regexp.MustCompile(`^(\d+)\s+(\d+)$`)
+	reHTTPTooOld     = regexp.MustCompile(`Can.t locate object method`)
+	reHTTPOMDError   = regexp.MustCompile(`<h1>(OMD:.*?)</h1>`)
+	reHTTPThrukError = regexp.MustCompile(`(?sm)<!--error:(.*?):error-->`)
+	reShinkenVersion = regexp.MustCompile(`\-shinken$`)
+	reIcinga2Version = regexp.MustCompile(`^(r[\d.-]+|.*\-icinga2)$`)
+	reNaemonVersion  = regexp.MustCompile(`\-naemon$`)
+	reThrukVersion   = regexp.MustCompile(`^(\d+\.\d+|\d+).*?$`)
+)
 
 const (
 	// MinFullScanInterval is the minimum interval between two full scans
@@ -1028,7 +1030,6 @@ func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(totalBytesReceived))
 
 	data, meta, err := req.parseResult(resBytes)
-
 	if err != nil {
 		logWith(p, req).Debugf("fetched table %20s time: %s, size: %d kB", req.Table.String(), duration, len(resBytes)/1024)
 		logWith(p, req).Errorf("result json string: %s", string(resBytes))
@@ -1827,7 +1828,7 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
 		}
 
 		// get object to watch
-		var found = false
+		found := false
 		if req.WaitObject != "" {
 			obj, ok := store.GetWaitObject(req)
 			if !ok {
@@ -2338,6 +2339,7 @@ func (p *Peer) getTLSClientConfig() (*tls.Config, error) {
 		caCertPool.AppendCertsFromPEM(caCert)
 		config.RootCAs = caCertPool
 	}
+	config.ServerName = p.Config.TLSServerName
 
 	return config, nil
 }

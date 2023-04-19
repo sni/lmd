@@ -25,6 +25,7 @@ type Connection struct {
 	TLSKey         string
 	TLSCA          string
 	TLSSkipVerify  int
+	TLSServerName  string
 	Proxy          string
 	Flags          []string
 }
@@ -37,6 +38,7 @@ func (c *Connection) Equals(other *Connection) bool {
 	equal = equal && c.RemoteName == other.RemoteName
 	equal = equal && c.Section == other.Section
 	equal = equal && c.TLSCertificate == other.TLSCertificate
+	equal = equal && c.TLSServerName == other.TLSServerName
 	equal = equal && c.TLSKey == other.TLSKey
 	equal = equal && c.TLSCA == other.TLSCA
 	equal = equal && c.TLSSkipVerify == other.TLSSkipVerify
