@@ -13,9 +13,9 @@ linters-settings:
       - experimental
     disabled-checks:
       - emptyFallthrough
+      - exitAfterDefer
       - paramTypeCombine
       - unnamedResult
-      - exitAfterDefer
     settings:
       rangeValCopy:
         sizeThreshold: 32
@@ -32,31 +32,32 @@ linters-settings:
 linters:
   enable-all: true
   disable:
-    - maligned
-    - nakedret
-    - lll
-    - gochecknoinits
-    - wsl
+    - contextcheck
+    - cyclop
+    - errorlint
     - exhaustive
-    - gofumpt
-    - nlreturn
     - exhaustivestruct
     - exhaustruct
-    - errorlint
-    - paralleltest
-    - godot
     - forbidigo
-    - ifshort
-    - cyclop
     - forcetypeassert
-    - nilerr
-    - wastedassign
-    - varnamelen
-    - contextcheck
-    - interfacer
+    - gochecknoinits
+    - godot
+    - gofumpt
     - golint
-    - scopelint
+    - ifshort
+    - interfacer
+    - lll
+    - maligned
+    - musttag
+    - nakedret
+    - nilerr
+    - nlreturn
     - nonamedreturns
+    - paralleltest
+    - scopelint
+    - varnamelen
+    - wastedassign
+    - wsl
   fast: false
 issues:
   max-same-issues: 0
