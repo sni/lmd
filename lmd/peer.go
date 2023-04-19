@@ -2143,9 +2143,8 @@ func (p *Peer) PassThroughQuery(res *Response, passthroughRequest *Request, virt
 	result, _, queryErr := p.query(passthroughRequest)
 	logWith(p, req).Tracef("req done")
 	if queryErr != nil {
-		if peerErr, ok := queryErr.(*PeerError); ok && peerErr.kind == ResponseError {
-			// no connection issue, no need to reset current connection
-		} else {
+		if peerErr, ok := queryErr.(*PeerError); !ok || peerErr.kind != ResponseError {
+			// connection issue, need to reset current connection
 			p.setNextAddrFromErr(queryErr, passthroughRequest)
 		}
 		logWith(p, req).Tracef("passthrough req errored %s", queryErr.Error())

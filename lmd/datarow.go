@@ -490,12 +490,12 @@ func (d *DataRow) GetCustomVarValue(col *Column, name string) string {
 }
 
 // VirtualColLocaltime returns current unix timestamp
-func VirtualColLocaltime(d *DataRow, col *Column) interface{} {
+func VirtualColLocaltime(_ *DataRow, _ *Column) interface{} {
 	return currentUnixTime()
 }
 
 // VirtualColLastStateChangeOrder returns sortable state
-func VirtualColLastStateChangeOrder(d *DataRow, col *Column) interface{} {
+func VirtualColLastStateChangeOrder(d *DataRow, _ *Column) interface{} {
 	// return last_state_change or program_start
 	lastStateChange := d.GetIntByName("last_state_change")
 	if lastStateChange == 0 {
@@ -505,7 +505,7 @@ func VirtualColLastStateChangeOrder(d *DataRow, col *Column) interface{} {
 }
 
 // VirtualColStateOrder returns sortable state
-func VirtualColStateOrder(d *DataRow, col *Column) interface{} {
+func VirtualColStateOrder(d *DataRow, _ *Column) interface{} {
 	// return 4 instead of 2, which makes critical come first
 	// this way we can use this column to sort by state
 	state := d.GetIntByName("state")
@@ -516,7 +516,7 @@ func VirtualColStateOrder(d *DataRow, col *Column) interface{} {
 }
 
 // VirtualColHasLongPluginOutput returns 1 if there is long plugin output, 0 if not
-func VirtualColHasLongPluginOutput(d *DataRow, col *Column) interface{} {
+func VirtualColHasLongPluginOutput(d *DataRow, _ *Column) interface{} {
 	val := d.GetStringByName("long_plugin_output")
 	if val != "" {
 		return 1
@@ -549,7 +549,7 @@ func VirtualColServicesWithInfo(d *DataRow, col *Column) interface{} {
 }
 
 // VirtualColMembersWithState returns a list of hostgroup/servicegroup members with their states
-func VirtualColMembersWithState(d *DataRow, col *Column) interface{} {
+func VirtualColMembersWithState(d *DataRow, _ *Column) interface{} {
 	switch d.DataStore.Table.Name {
 	case TableHostgroups:
 		members := d.GetStringListByName("members")
@@ -592,7 +592,7 @@ func VirtualColMembersWithState(d *DataRow, col *Column) interface{} {
 }
 
 // VirtualColCommentsWithInfo returns list of comment IDs with additional information
-func VirtualColCommentsWithInfo(d *DataRow, col *Column) interface{} {
+func VirtualColCommentsWithInfo(d *DataRow, _ *Column) interface{} {
 	commentsStore := d.DataStore.DataSet.tables[TableComments]
 	commentsTable := commentsStore.Table
 	authorCol := commentsTable.GetColumn("author")
@@ -616,7 +616,7 @@ func VirtualColCommentsWithInfo(d *DataRow, col *Column) interface{} {
 }
 
 // VirtualColDowntimesWithInfo returns list of downtimes IDs with additional information
-func VirtualColDowntimesWithInfo(d *DataRow, col *Column) interface{} {
+func VirtualColDowntimesWithInfo(d *DataRow, _ *Column) interface{} {
 	downtimesStore := d.DataStore.DataSet.tables[TableDowntimes]
 	downtimesTable := downtimesStore.Table
 	authorCol := downtimesTable.GetColumn("author")
@@ -640,7 +640,7 @@ func VirtualColDowntimesWithInfo(d *DataRow, col *Column) interface{} {
 }
 
 // VirtualColCustomVariables returns a custom variables hash
-func VirtualColCustomVariables(d *DataRow, col *Column) interface{} {
+func VirtualColCustomVariables(d *DataRow, _ *Column) interface{} {
 	namesCol := d.DataStore.GetColumn("custom_variable_names")
 	valuesCol := d.DataStore.GetColumn("custom_variable_values")
 	names := d.dataStringList[namesCol.Index]
@@ -653,13 +653,13 @@ func VirtualColCustomVariables(d *DataRow, col *Column) interface{} {
 }
 
 // VirtualColTotalServices returns number of services
-func VirtualColTotalServices(d *DataRow, col *Column) interface{} {
+func VirtualColTotalServices(d *DataRow, _ *Column) interface{} {
 	val := d.GetIntByName("num_services")
 	return val
 }
 
 // VirtualColFlags returns flags for peer
-func VirtualColFlags(d *DataRow, col *Column) interface{} {
+func VirtualColFlags(d *DataRow, _ *Column) interface{} {
 	peerflags := OptionalFlags(atomic.LoadUint32(&d.DataStore.Peer.Flags))
 	return peerflags.List()
 }
