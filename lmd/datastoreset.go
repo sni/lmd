@@ -84,22 +84,30 @@ func (ds *DataStoreSet) CreateObjectByType(table *Table) (store *DataStore, err 
 	// make sure all backends are sorted the same way
 	res = res.SortByPrimaryKey(table, req)
 
+	durationPrepare := time.Since(t1).Truncate(time.Millisecond)
+	t2 := time.Now()
+
 	now := currentUnixTime()
 	err = store.InsertData(res, columns, false)
 	if err != nil {
 		return
 	}
 
+	durationInsert := time.Since(t2).Truncate(time.Millisecond)
+
+	t3 := time.Now()
+
 	p.Lock.Lock()
 	p.Status[LastUpdate] = now
 	p.Status[LastFullUpdate] = now
 	p.Lock.Unlock()
+	durationLock := time.Since(t3).Truncate(time.Millisecond)
+
 	tableName := table.Name.String()
 	promObjectCount.WithLabelValues(p.Name, tableName).Set(float64(len(res)))
 
-	duration := time.Since(t1).Truncate(time.Millisecond)
-	logWith(p, req).Debugf("initial table: %15s - fetch: %9s - insert: %9s - count: %8d - size: %8d kB",
-		tableName, resMeta.Duration.Truncate(time.Millisecond), duration, len(res), resMeta.Size/1024)
+	logWith(p, req).Debugf("initial table: %15s - fetch: %9s - prepare: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
+		tableName, resMeta.Duration.Truncate(time.Millisecond), durationPrepare, durationLock, durationInsert, len(res), resMeta.Size/1024)
 	return
 }
 
