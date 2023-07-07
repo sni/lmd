@@ -226,6 +226,18 @@ func (d *DataStore) GetInitialColumns() ([]string, ColumnList) {
 	return keys, columns
 }
 
+func (ds *DataStore) getDataTypeIndex(dataType DataType, dataOffset int) []int {
+	list := make([]int, 0)
+	for i := range ds.DynamicColumnCache {
+		col := ds.DynamicColumnCache[i]
+		if col.DataType == dataType {
+			list = append(list, i+dataOffset)
+		}
+	}
+
+	return list
+}
+
 func (d *DataStore) GetWaitObject(req *Request) (*DataRow, bool) {
 	if req.Table == TableServices {
 		parts := strings.SplitN(req.WaitObject, ";", 2)

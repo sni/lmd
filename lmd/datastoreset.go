@@ -60,7 +60,6 @@ func (ds *DataStoreSet) CreateObjectByType(table *Table) (store *DataStore, err 
 	}
 	p.setQueryOptions(req)
 	res, resMeta, err := p.Query(req)
-
 	if err != nil {
 		return
 	}
@@ -99,7 +98,8 @@ func (ds *DataStoreSet) CreateObjectByType(table *Table) (store *DataStore, err 
 	promObjectCount.WithLabelValues(p.Name, tableName).Set(float64(len(res)))
 
 	duration := time.Since(t1).Truncate(time.Millisecond)
-	logWith(p, req).Debugf("updated table: %15s - fetch: %9s - insert: %9s - count: %8d - size: %8d kB", tableName, resMeta.Duration.Truncate(time.Microsecond), duration, len(res), resMeta.Size/1024)
+	logWith(p, req).Debugf("initial table: %15s - fetch: %9s - insert: %9s - count: %8d - size: %8d kB",
+		tableName, resMeta.Duration.Truncate(time.Millisecond), duration, len(res), resMeta.Size/1024)
 	return
 }
 
@@ -218,7 +218,7 @@ func (ds *DataStoreSet) UpdateDelta(from, to float64) (err error) {
 
 	p := ds.peer
 	duration := time.Since(t1)
-	logWith(p).Debugf("delta update complete in: %s", duration.String())
+	logWith(p).Debugf("delta update complete in: %s", duration.Truncate(time.Millisecond).String())
 
 	p.Lock.Lock()
 	peerStatus := p.Status[PeerState].(PeerStatus)
@@ -298,10 +298,17 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 	if err != nil {
 		return
 	}
+	durationPrepare := time.Since(t1).Truncate(time.Millisecond)
+
 	now := currentUnixTime()
+	t2 := time.Now()
 
 	ds.Lock.Lock()
 	defer ds.Lock.Unlock()
+
+	durationLock := time.Since(t2).Truncate(time.Millisecond)
+
+	t3 := time.Now()
 	for i := range updateSet {
 		update := updateSet[i]
 		if update.FullUpdate {
@@ -314,12 +321,13 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 		}
 	}
 
-	duration := time.Since(t1).Truncate(time.Millisecond)
+	durationInsert := time.Since(t3).Truncate(time.Millisecond)
 
 	p := ds.peer
 	tableName := table.Table.Name.String()
 	promObjectUpdate.WithLabelValues(p.Name, tableName).Add(float64(len(res)))
-	logWith(p, resMeta.Request).Debugf("updated table: %15s - fetch: %9s - insert: %9s - count: %8d - size: %8d kB", tableName, resMeta.Duration, duration, len(updateSet), resMeta.Size/1024)
+	logWith(p, resMeta.Request).Debugf("up delta table: %15s - fetch: %9s - prep: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
+		tableName, resMeta.Duration.Truncate(time.Millisecond), durationPrepare, durationLock, durationInsert, len(updateSet), resMeta.Size/1024)
 
 	return
 }
@@ -328,13 +336,9 @@ func (ds *DataStoreSet) prepareDataUpdateSet(dataOffset int, res ResultSet, tabl
 	updateSet = make([]ResultPrepared, 0, len(res))
 
 	// prepare list of large strings
-	stringlistIndexes := make([]int, 0)
-	for i := range table.DynamicColumnCache {
-		col := table.DynamicColumnCache[i]
-		if col.DataType == StringLargeCol {
-			stringlistIndexes = append(stringlistIndexes, i+dataOffset)
-		}
-	}
+	stringLargeIndexes := table.getDataTypeIndex(StringLargeCol, dataOffset)
+	stringIndexes := table.getDataTypeIndex(StringCol, dataOffset)
+	stringListIndexes := table.getDataTypeIndex(StringListCol, dataOffset)
 
 	// compare last check date and only update large strings if the last check date has changed
 	lastCheckCol := table.GetColumn("last_check")
@@ -374,11 +378,17 @@ func (ds *DataStoreSet) prepareDataUpdateSet(dataOffset int, res ResultSet, tabl
 			}
 		}
 
-		// compare last check date and prepare large strings if the last check date has changed
+		// compare last check date and prepare deduped strings if the last check date has changed
 		if interface2int64(resRow[lastCheckResIndex]) != prepared.DataRow.dataInt64[lastCheckDataIndex] {
 			prepared.FullUpdate = true
-			for _, j := range stringlistIndexes {
+			for _, j := range stringLargeIndexes {
 				res[i][j] = interface2stringlarge(res[i][j])
+			}
+			for _, j := range stringIndexes {
+				res[i][j] = interface2string(res[i][j])
+			}
+			for _, j := range stringListIndexes {
+				res[i][j] = interface2stringlist(res[i][j])
 			}
 		}
 		updateSet = append(updateSet, prepared)
@@ -452,7 +462,7 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, statusKey PeerStat
 	}
 
 	if len(missing) == 0 {
-		logWith(ds, req).Debugf("%s delta scan did not find any timestamps", store.Table.Name.String())
+		logWith(ds, req).Tracef("%s delta scan did not find any timestamps", store.Table.Name.String())
 		return
 	}
 
@@ -692,7 +702,9 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 	}
 
 	// make sure all backends are sorted the same way
+	t1 := time.Now()
 	res = res.SortByPrimaryKey(store.Table, req)
+	durationSort := time.Since(t1).Truncate(time.Millisecond)
 
 	ds.Lock.RLock()
 	data := store.Data
@@ -704,8 +716,8 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 	}
 
 	promObjectUpdate.WithLabelValues(p.Name, tableName.String()).Add(float64(len(res)))
-	t1 := time.Now()
 
+	var durationLock, durationInsert time.Duration
 	switch tableName {
 	case TableTimeperiods:
 		// check for changed timeperiods, because we have to update the linked hosts and services as well
@@ -724,7 +736,11 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 		// continue with normal update
 		fallthrough
 	default:
+		t2 := time.Now()
 		ds.Lock.Lock()
+		durationLock = time.Since(t2).Truncate(time.Millisecond)
+
+		t3 := time.Now()
 		now := currentUnixTime()
 		for i, row := range res {
 			err = data[i].UpdateValues(primaryKeysLen, row, store.DynamicColumnCache, now)
@@ -734,14 +750,15 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 			}
 		}
 		ds.Lock.Unlock()
+		durationInsert = time.Since(t3).Truncate(time.Millisecond)
 	}
 
 	if tableName == TableStatus {
 		LogErrors(p.checkStatusFlags(ds))
 	}
 
-	duration := time.Since(t1).Truncate(time.Millisecond)
-	logWith(p, req).Debugf("updated table: %15s - fetch: %9s - insert: %9s - count: %8d - size: %8d kB", tableName.String(), resMeta.Duration.Truncate(time.Microsecond), duration, len(res), resMeta.Size/1024)
+	logWith(p, req).Debugf("up full  table: %15s - fetch: %9s - sort: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
+		tableName.String(), resMeta.Duration.Truncate(time.Millisecond), durationSort, durationLock, durationInsert, len(res), resMeta.Size/1024)
 	return
 }
 
@@ -805,7 +822,7 @@ func (ds *DataStoreSet) RebuildCommentsList() (err error) {
 		return
 	}
 	duration := time.Since(t1)
-	logWith(ds).Debugf("comments rebuild (%s)", duration.Truncate(time.Microsecond))
+	logWith(ds).Debugf("comments rebuild (%s)", duration.Truncate(time.Millisecond))
 	return
 }
 
@@ -817,7 +834,7 @@ func (ds *DataStoreSet) RebuildDowntimesList() (err error) {
 		return
 	}
 	duration := time.Since(t1)
-	logWith(ds).Debugf("downtimes rebuild (%s)", duration.Truncate(time.Microsecond))
+	logWith(ds).Debugf("downtimes rebuild (%s)", duration.Truncate(time.Millisecond))
 	return
 }
 
