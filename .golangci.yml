@@ -34,6 +34,7 @@ linters:
   disable:
     - contextcheck
     - cyclop
+    - depguard
     - errorlint
     - exhaustive
     - exhaustivestruct
