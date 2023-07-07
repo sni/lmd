@@ -55,6 +55,14 @@ dump:
 build: vendor
 	cd $(LAMPDDIR) && go build -ldflags "-s -w -X main.Build=$(BUILD)"
 
+# run build watch, ex. with tracing: make build-watch -- -vv
+build-watch: vendor
+	ls $(LAMPDDIR)/*.go | entr -sr "$(MAKE) && ./lmd/lmd $(filter-out $@,$(MAKECMDGOALS))"
+
+# run build watch with other build targets, ex.: make build-watch-make -- build-windows-amd64
+build-watch-make: vendor
+	ls $(LAMPDDIR)/*.go | entr -sr "$(MAKE) $(filter-out $@,$(MAKECMDGOALS))"
+
 build-linux-amd64: vendor
 	cd $(LAMPDDIR) && GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.Build=$(BUILD)" -o lmd.linux.amd64
 
