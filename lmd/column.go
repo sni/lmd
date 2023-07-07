@@ -72,9 +72,11 @@ type ServiceMember [2]string
 type FetchType uint8
 
 // placeholder to return in GetEmptyValue, no need to create empty lists over and over
-var emptyInterfaceList = make([]interface{}, 0)
-var emptyStringMap = make(map[string]string)
-var emptyInt64List = []int64{}
+var (
+	emptyInterfaceList = make([]interface{}, 0)
+	emptyStringMap     = make(map[string]string)
+	emptyInt64List     = []int64{}
+)
 
 const (
 	// Static is used for all columns which are updated once at start.
@@ -186,23 +188,26 @@ const (
 )
 
 // OptionalFlagsStrings maps available backend flags to their string value
-var OptionalFlagsStrings = map[OptionalFlags]string{
-	LMD:                         "LMD",
-	MultiBackend:                "MultiBackend",
-	LMDSub:                      "LMDSub",
-	HTTPSub:                     "HTTPSub",
-	Shinken:                     "Shinken",
-	Icinga2:                     "Icinga2",
-	Naemon:                      "Naemon",
-	HasDependencyColumn:         "HasDependencyColumn",
-	HasLastUpdateColumn:         "HasLastUpdateColumn",
-	HasLMDLastCacheUpdateColumn: "HasLMDLastCacheUpdateColumn",
-	HasLocaltimeColumn:          "HasLocaltimeColumn",
-	HasCheckFreshnessColumn:     "HasCheckFreshnessColumn",
-	HasEventHandlerColumn:       "HasEventHandlerColumn",
-	HasStalenessColumn:          "HasStalenessColumn",
-	HasServiceParentsColumn:     "HasServiceParentsColumn",
-	HasContactsGroupColumn:      "HasContactsGroupColumn",
+var OptionalFlagsStrings = []struct {
+	flag OptionalFlags
+	name string
+}{
+	{LMD, "LMD"},
+	{MultiBackend, "MultiBackend"},
+	{LMDSub, "LMDSub"},
+	{HTTPSub, "HTTPSub"},
+	{Shinken, "Shinken"},
+	{Icinga2, "Icinga2"},
+	{Naemon, "Naemon"},
+	{HasDependencyColumn, "HasDependencyColumn"},
+	{HasLastUpdateColumn, "HasLastUpdateColumn"},
+	{HasLMDLastCacheUpdateColumn, "HasLMDLastCacheUpdateColumn"},
+	{HasLocaltimeColumn, "HasLocaltimeColumn"},
+	{HasCheckFreshnessColumn, "HasCheckFreshnessColumn"},
+	{HasEventHandlerColumn, "HasEventHandlerColumn"},
+	{HasStalenessColumn, "HasStalenessColumn"},
+	{HasServiceParentsColumn, "HasServiceParentsColumn"},
+	{HasContactsGroupColumn, "HasContactsGroupColumn"},
 }
 
 // String returns the string representation of used flags
@@ -219,9 +224,9 @@ func (f *OptionalFlags) List() (list []string) {
 	if *f == NoFlags {
 		return
 	}
-	for fl, name := range OptionalFlagsStrings {
-		if f.HasFlag(fl) {
-			list = append(list, name)
+	for _, fl := range OptionalFlagsStrings {
+		if f.HasFlag(fl.flag) {
+			list = append(list, fl.name)
 		}
 	}
 	return
