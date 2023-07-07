@@ -226,10 +226,10 @@ func (d *DataStore) GetInitialColumns() ([]string, ColumnList) {
 	return keys, columns
 }
 
-func (ds *DataStore) getDataTypeIndex(dataType DataType, dataOffset int) []int {
+func (d *DataStore) getDataTypeIndex(dataType DataType, dataOffset int) []int {
 	list := make([]int, 0)
-	for i := range ds.DynamicColumnCache {
-		col := ds.DynamicColumnCache[i]
+	for i := range d.DynamicColumnCache {
+		col := d.DynamicColumnCache[i]
 		if col.DataType == dataType {
 			list = append(list, i+dataOffset)
 		}
