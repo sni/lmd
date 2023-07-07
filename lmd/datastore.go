@@ -311,8 +311,8 @@ func (d *DataStore) tryFilterIndexData(filter []*Filter, fn getPreFilteredDataFi
 	return indexedData
 }
 
-func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet) (updateSet []ResultPrepared, err error) {
-	updateSet = make([]ResultPrepared, 0, len(res))
+func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet) (updateSet []*ResultPrepared, err error) {
+	updateSet = make([]*ResultPrepared, 0, len(res))
 
 	// prepare list of large strings
 	stringLargeIndexes := d.getDataTypeIndex(StringLargeCol, dataOffset)
@@ -328,7 +328,7 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet) (updateS
 	nameIndex := d.Index
 	nameIndex2 := d.Index2
 	for i, resRow := range res {
-		prepared := ResultPrepared{
+		prepared := &ResultPrepared{
 			ResultRow:  resRow,
 			FullUpdate: false,
 		}

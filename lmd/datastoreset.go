@@ -312,22 +312,22 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 	t2 := time.Now()
 
 	ds.Lock.Lock()
-	defer ds.Lock.Unlock()
-
 	durationLock := time.Since(t2).Truncate(time.Millisecond)
-
 	t3 := time.Now()
-	for i := range updateSet {
-		update := updateSet[i]
+
+	for _, update := range updateSet {
 		if update.FullUpdate {
 			err = update.DataRow.UpdateValues(dataOffset, update.ResultRow, table.DynamicColumnCache, now)
 		} else {
 			err = update.DataRow.UpdateValuesNumberOnly(dataOffset, update.ResultRow, table.DynamicColumnCache, now)
 		}
 		if err != nil {
+			ds.Lock.Unlock()
+
 			return
 		}
 	}
+	ds.Lock.Unlock()
 
 	durationInsert := time.Since(t3).Truncate(time.Millisecond)
 
