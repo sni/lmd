@@ -302,7 +302,7 @@ func (ds *DataStoreSet) updateDeltaHostsServices(tableName TableName, filterStr 
 
 func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, resMeta *ResultMetaData, table *DataStore) (err error) {
 	t1 := time.Now()
-	updateSet, err := ds.prepareDataUpdateSet(dataOffset, res, table)
+	updateSet, err := table.prepareDataUpdateSet(dataOffset, res)
 	if err != nil {
 		return
 	}
@@ -338,70 +338,6 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 		tableName, resMeta.Duration.Truncate(time.Millisecond), durationPrepare, durationLock, durationInsert, len(updateSet), resMeta.Size/1024)
 
 	return
-}
-
-func (ds *DataStoreSet) prepareDataUpdateSet(dataOffset int, res ResultSet, table *DataStore) (updateSet []ResultPrepared, err error) {
-	updateSet = make([]ResultPrepared, 0, len(res))
-
-	// prepare list of large strings
-	stringLargeIndexes := table.getDataTypeIndex(StringLargeCol, dataOffset)
-	stringIndexes := table.getDataTypeIndex(StringCol, dataOffset)
-	stringListIndexes := table.getDataTypeIndex(StringListCol, dataOffset)
-
-	// compare last check date and only update large strings if the last check date has changed
-	lastCheckCol := table.GetColumn("last_check")
-	lastCheckDataIndex := lastCheckCol.Index
-	lastCheckResIndex := table.DynamicColumnCache.GetColumnIndex("last_check") + dataOffset
-
-	// prepare update
-	ds.Lock.RLock()
-	defer ds.Lock.RUnlock()
-	nameIndex := table.Index
-	nameIndex2 := table.Index2
-	for i, resRow := range res {
-		prepared := ResultPrepared{
-			ResultRow:  resRow,
-			FullUpdate: false,
-		}
-		if dataOffset == 0 {
-			prepared.DataRow = table.Data[i]
-		} else {
-			switch table.Table.Name {
-			case TableHosts:
-				hostName := interface2stringNoDedup(resRow[0])
-				dataRow := nameIndex[hostName]
-				if dataRow == nil {
-					return updateSet, fmt.Errorf("cannot update host, no host named '%s' found", hostName)
-				}
-				prepared.DataRow = dataRow
-			case TableServices:
-				hostName := interface2stringNoDedup(resRow[0])
-				serviceName := interface2stringNoDedup(resRow[1])
-				dataRow := nameIndex2[hostName][serviceName]
-				if dataRow == nil {
-					return updateSet, fmt.Errorf("cannot update service, no service named '%s' - '%s' found", interface2stringNoDedup(resRow[0]), interface2stringNoDedup(resRow[1]))
-				}
-
-				prepared.DataRow = dataRow
-			}
-		}
-
-		// compare last check date and prepare deduped strings if the last check date has changed
-		if interface2int64(resRow[lastCheckResIndex]) != prepared.DataRow.dataInt64[lastCheckDataIndex] {
-			prepared.FullUpdate = true
-			for _, j := range stringLargeIndexes {
-				res[i][j] = interface2stringlarge(res[i][j])
-			}
-			for _, j := range stringIndexes {
-				res[i][j] = interface2string(res[i][j])
-			}
-			for _, j := range stringListIndexes {
-				res[i][j] = interface2stringlist(res[i][j])
-			}
-		}
-		updateSet = append(updateSet, prepared)
-	}
-	return updateSet, nil
 }
 
 // UpdateDeltaFullScanHostsServices is a table independent wrapper for UpdateDeltaFullScan

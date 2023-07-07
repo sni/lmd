@@ -311,6 +311,68 @@ func (d *DataStore) tryFilterIndexData(filter []*Filter, fn getPreFilteredDataFi
 	return indexedData
 }
 
+func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet) (updateSet []ResultPrepared, err error) {
+	updateSet = make([]ResultPrepared, 0, len(res))
+
+	// prepare list of large strings
+	stringLargeIndexes := d.getDataTypeIndex(StringLargeCol, dataOffset)
+	stringIndexes := d.getDataTypeIndex(StringCol, dataOffset)
+	stringListIndexes := d.getDataTypeIndex(StringListCol, dataOffset)
+
+	// compare last check date and only update large strings if the last check date has changed
+	lastCheckCol := d.GetColumn("last_check")
+	lastCheckDataIndex := lastCheckCol.Index
+	lastCheckResIndex := d.DynamicColumnCache.GetColumnIndex("last_check") + dataOffset
+
+	// prepare update
+	nameIndex := d.Index
+	nameIndex2 := d.Index2
+	for i, resRow := range res {
+		prepared := ResultPrepared{
+			ResultRow:  resRow,
+			FullUpdate: false,
+		}
+		if dataOffset == 0 {
+			prepared.DataRow = d.Data[i]
+		} else {
+			switch d.Table.Name {
+			case TableHosts:
+				hostName := interface2stringNoDedup(resRow[0])
+				dataRow := nameIndex[hostName]
+				if dataRow == nil {
+					return updateSet, fmt.Errorf("cannot update host, no host named '%s' found", hostName)
+				}
+				prepared.DataRow = dataRow
+			case TableServices:
+				hostName := interface2stringNoDedup(resRow[0])
+				serviceName := interface2stringNoDedup(resRow[1])
+				dataRow := nameIndex2[hostName][serviceName]
+				if dataRow == nil {
+					return updateSet, fmt.Errorf("cannot update service, no service named '%s' - '%s' found", interface2stringNoDedup(resRow[0]), interface2stringNoDedup(resRow[1]))
+				}
+
+				prepared.DataRow = dataRow
+			}
+		}
+
+		// compare last check date and prepare deduped strings if the last check date has changed
+		if interface2int64(resRow[lastCheckResIndex]) != prepared.DataRow.dataInt64[lastCheckDataIndex] {
+			prepared.FullUpdate = true
+			for _, j := range stringLargeIndexes {
+				res[i][j] = interface2stringlarge(res[i][j])
+			}
+			for _, j := range stringIndexes {
+				res[i][j] = interface2string(res[i][j])
+			}
+			for _, j := range stringListIndexes {
+				res[i][j] = interface2stringlist(res[i][j])
+			}
+		}
+		updateSet = append(updateSet, prepared)
+	}
+	return updateSet, nil
+}
+
 // TryFilterIndex returns list of hostname which can be used to reduce the initial dataset
 func (d *DataStore) TryFilterIndex(uniqHosts map[string]bool, filter []*Filter, fn getPreFilteredDataFilter, breakOnNoneIndexableFilter bool) bool {
 	filterFound := 0
