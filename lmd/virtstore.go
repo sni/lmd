@@ -6,15 +6,9 @@ type VirtualStoreResolveFunc func(table *Table, peer *Peer) *DataStore
 func GetTableBackendsStore(table *Table, peer *Peer) *DataStore {
 	// simply return a new DataStore with a single row, since all columns are virtual anyway
 	store := NewDataStore(table, peer)
-	ds, err := peer.GetDataStoreSet()
-	if err != nil {
-		log.Debugf("DataStoreSet error: %s", err.Error())
-	} else {
-		store.DataSet = ds
-	}
 	rows := make(ResultSet, 1)
 	_, columns := store.GetInitialColumns()
-	err = store.InsertData(rows, columns, true)
+	err := store.InsertData(rows, columns, true)
 	if err != nil {
 		log.Errorf("store error: %s", err.Error())
 	}
