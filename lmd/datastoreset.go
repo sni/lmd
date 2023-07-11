@@ -668,8 +668,6 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 		err = ds.updateTimeperiodsData(primaryKeysLen, store, res, store.DynamicColumnCache)
 		lastTimeperiodUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
 		p.StatusSet(LastTimeperiodUpdateMinute, lastTimeperiodUpdateMinute)
-	case TableHosts, TableServices:
-		err = ds.insertDeltaDataResult(primaryKeysLen, res, resMeta, store)
 	case TableStatus:
 		// check pid and date before updating tables.
 		// Otherwise we and up with inconsistent state until the full refresh is finished
@@ -680,21 +678,7 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 		// continue with normal update
 		fallthrough
 	default:
-		t2 := time.Now()
-		ds.Lock.Lock()
-		durationLock = time.Since(t2).Truncate(time.Millisecond)
-
-		t3 := time.Now()
-		now := currentUnixTime()
-		for i, row := range res {
-			err = data[i].UpdateValues(primaryKeysLen, row, store.DynamicColumnCache, now)
-			if err != nil {
-				ds.Lock.Unlock()
-				return
-			}
-		}
-		ds.Lock.Unlock()
-		durationInsert = time.Since(t3).Truncate(time.Millisecond)
+		err = ds.insertDeltaDataResult(primaryKeysLen, res, resMeta, store)
 	}
 
 	if tableName == TableStatus {

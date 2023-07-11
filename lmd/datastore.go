@@ -49,7 +49,7 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 
 	// create columns list
 	table.Lock.RLock()
-	defer table.Lock.RUnlock()
+	writeLocked := false
 	dataSizes := table.DataSizes
 
 	for i := range table.Columns {
@@ -57,30 +57,40 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 		if col.Optional != NoFlags && !d.Peer.HasFlag(col.Optional) {
 			continue
 		}
-		if col.StorageType == LocalStore {
-			if col.Index == -1 {
-				// require write lock and update table column
+		if col.StorageType != LocalStore {
+			continue
+		}
+		if col.Index == -1 {
+			// require write lock and update table column
+			if !writeLocked {
 				table.Lock.RUnlock()
 				table.Lock.Lock()
-				col.Index = dataSizes[col.DataType]
-				dataSizes[col.DataType]++
-				table.Lock.Unlock()
-				table.Lock.RLock()
+				writeLocked = true
 			}
-			if col.FetchType == Dynamic {
-				d.DynamicColumnNamesCache = append(d.DynamicColumnNamesCache, col.Name)
-				d.DynamicColumnCache = append(d.DynamicColumnCache, col)
-			}
-			if strings.HasSuffix(col.Name, "_lc") {
-				refCol := table.GetColumn(strings.TrimSuffix(col.Name, "_lc"))
-				d.LowerCaseColumns[refCol.Index] = col.Index
-			}
+			col.Index = dataSizes[col.DataType]
+			dataSizes[col.DataType]++
+		}
+		if col.FetchType == Dynamic {
+			d.DynamicColumnCache = append(d.DynamicColumnCache, col)
+		}
+		if strings.HasSuffix(col.Name, "_lc") {
+			refCol := table.GetColumn(strings.TrimSuffix(col.Name, "_lc"))
+			d.LowerCaseColumns[refCol.Index] = col.Index
 		}
 	}
 
+	if writeLocked {
+		table.Lock.Unlock()
+	} else {
+		table.Lock.RUnlock()
+	}
+
 	// prepend primary keys to dynamic keys, since they are required to map the results back to specific items
-	if len(d.DynamicColumnNamesCache) > 0 {
-		d.DynamicColumnNamesCache = append(table.PrimaryKey, d.DynamicColumnNamesCache...)
+	if len(d.DynamicColumnCache) > 0 {
+		d.DynamicColumnNamesCache = append(d.DynamicColumnNamesCache, table.PrimaryKey...)
+		for _, col := range d.DynamicColumnCache {
+			d.DynamicColumnNamesCache = append(d.DynamicColumnNamesCache, col.Name)
+		}
 	}
 	return
 }
@@ -320,9 +330,13 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet) (updateS
 	stringListIndexes := d.getDataTypeIndex(StringListCol, dataOffset)
 
 	// compare last check date and only update large strings if the last check date has changed
+	lastCheckDataIndex := -1
+	lastCheckResIndex := -1
 	lastCheckCol := d.GetColumn("last_check")
-	lastCheckDataIndex := lastCheckCol.Index
-	lastCheckResIndex := d.DynamicColumnCache.GetColumnIndex("last_check") + dataOffset
+	if lastCheckCol != nil {
+		lastCheckDataIndex = lastCheckCol.Index
+		lastCheckResIndex = d.DynamicColumnCache.GetColumnIndex("last_check") + dataOffset
+	}
 
 	// prepare update
 	nameIndex := d.Index
@@ -332,7 +346,7 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet) (updateS
 			ResultRow:  resRow,
 			FullUpdate: false,
 		}
-		if dataOffset == 0 {
+		if dataOffset == 0 || len(res) == len(d.Data) {
 			prepared.DataRow = d.Data[i]
 		} else {
 			switch d.Table.Name {
@@ -352,11 +366,13 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet) (updateS
 				}
 
 				prepared.DataRow = dataRow
+			default:
+				log.Panicf("table not supported: %s", d.Table.Name.String())
 			}
 		}
 
 		// compare last check date and prepare deduped strings if the last check date has changed
-		if interface2int64(resRow[lastCheckResIndex]) != prepared.DataRow.dataInt64[lastCheckDataIndex] {
+		if lastCheckCol == nil || interface2int64(resRow[lastCheckResIndex]) != prepared.DataRow.dataInt64[lastCheckDataIndex] {
 			prepared.FullUpdate = true
 			for _, j := range stringLargeIndexes {
 				res[i][j] = interface2stringlarge(res[i][j])
