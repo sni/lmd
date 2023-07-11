@@ -71,13 +71,17 @@ debugbuild: fmt dump vendor
 
 devbuild: debugbuild
 
-test: fmt dump vendor
+test: vendor
 	cd $(LAMPDDIR) && go test -timeout 300s -short -v | ../t/test_counter.sh
 	rm -f lmd/mock*.sock
 	if grep -rn TODO: lmd/; then exit 1; fi
 	if grep -rn Dump lmd/*.go | grep -v dump.go | grep -v httputil; then exit 1; fi
 
-longtest: fmt dump vendor
+# test with filter
+testf: vendor
+	cd $(LAMPDDIR) && go test -v -timeout 300s -run "$(filter-out $@,$(MAKECMDGOALS))"
+
+longtest: vendor
 	cd $(LAMPDDIR) && go test -timeout 300s -v | ../t/test_counter.sh
 	rm -f lmd/mock*.sock
 
