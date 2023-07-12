@@ -236,12 +236,15 @@ func (d *DataStore) GetInitialColumns() ([]string, ColumnList) {
 	return keys, columns
 }
 
-func (d *DataStore) getDataTypeIndex(dataType DataType, dataOffset int) []int {
-	list := make([]int, 0)
-	for i := range d.DynamicColumnCache {
-		col := d.DynamicColumnCache[i]
-		if col.DataType == dataType {
-			list = append(list, i+dataOffset)
+func (d *DataStore) getDynamicColumnsByType(dataTypes ...DataType) ColumnList {
+	list := make(ColumnList, 0)
+	for _, col := range d.DynamicColumnCache {
+		for _, dataType := range dataTypes {
+			if col.DataType == dataType {
+				list = append(list, col)
+
+				break
+			}
 		}
 	}
 
@@ -325,9 +328,7 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet) (updateS
 	updateSet = make([]*ResultPrepared, 0, len(res))
 
 	// prepare list of large strings
-	stringLargeIndexes := d.getDataTypeIndex(StringLargeCol, dataOffset)
-	stringIndexes := d.getDataTypeIndex(StringCol, dataOffset)
-	stringListIndexes := d.getDataTypeIndex(StringListCol, dataOffset)
+	preparedColumns := d.getDynamicColumnsByType(StringLargeCol, StringCol, StringListCol, ServiceMemberListCol, CustomVarCol)
 
 	// compare last check date and only update large strings if the last check date has changed
 	lastCheckDataIndex := -1
@@ -374,14 +375,9 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet) (updateS
 		// compare last check date and prepare deduped strings if the last check date has changed
 		if lastCheckCol == nil || interface2int64(resRow[lastCheckResIndex]) != prepared.DataRow.dataInt64[lastCheckDataIndex] {
 			prepared.FullUpdate = true
-			for _, j := range stringLargeIndexes {
-				res[i][j] = interface2stringlarge(res[i][j])
-			}
-			for _, j := range stringIndexes {
-				res[i][j] = interface2string(res[i][j])
-			}
-			for _, j := range stringListIndexes {
-				res[i][j] = interface2stringlist(res[i][j])
+			for _, col := range preparedColumns {
+				j := col.Index + dataOffset
+				res[i][j] = cast2Type(res[i][j], col)
 			}
 		}
 		updateSet = append(updateSet, prepared)
