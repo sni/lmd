@@ -25,8 +25,10 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-const testLogLevel = "Error"   // set to Trace for debugging
-const testLogTarget = "stderr" // set to /tmp/logfile...
+const (
+	testLogLevel  = "Error"  // set to Trace for debugging
+	testLogTarget = "stderr" // set to /tmp/logfile...
+)
 
 func init() {
 	lmd := createTestLMDInstance()
@@ -212,7 +214,7 @@ func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (t
 func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Table, numHosts int, numServices int) {
 	name := table.Name
 	dat, _ := os.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, name.String()))
-	var raw = make([]map[string]interface{}, 0)
+	raw := make([]map[string]interface{}, 0)
 	err := json.Unmarshal(dat, &raw)
 	if err != nil {
 		panic("failed to decode: " + err.Error())
@@ -297,7 +299,7 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 }
 
 func StartMockMainLoop(lmd *LMDInstance, sockets []string, extraConfig string) {
-	var testConfig = `
+	testConfig := `
 Loglevel       = "` + testLogLevel + `"
 LogFile        = "` + testLogTarget + `"
 
