@@ -302,7 +302,7 @@ func (ds *DataStoreSet) updateDeltaHostsServices(tableName TableName, filterStr 
 
 func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, resMeta *ResultMetaData, table *DataStore) (err error) {
 	t1 := time.Now()
-	updateSet, err := table.prepareDataUpdateSet(dataOffset, res)
+	updateSet, err := table.prepareDataUpdateSet(dataOffset, res, table.DynamicColumnCache)
 	if err != nil {
 		return
 	}

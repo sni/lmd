@@ -107,13 +107,19 @@ func (d *DataStore) InsertData(rows ResultSet, columns ColumnList, setReferences
 	default:
 		panic("not supported number of primary keys")
 	}
-	d.Table.Lock.RLock()
-	defer d.Table.Lock.RUnlock()
+
+	// prepare inserts
+	for rowNum := range rows {
+		for i, col := range columns {
+			rows[rowNum][i] = cast2Type(rows[rowNum][i], col)
+		}
+	}
+
 	d.Data = make([]*DataRow, len(rows))
-	for i, data := range rows {
-		row, err := NewDataRow(d, data, columns, now, setReferences)
+	for i, raw := range rows {
+		row, err := NewDataRow(d, raw, columns, now, setReferences)
 		if err != nil {
-			log.Errorf("adding new %s failed: %s", d.Table.Name.String(), err.Error())
+			log.Errorf("adding new %s failed: %s", d.Table.Name, err.Error())
 			return err
 		}
 		d.InsertItem(i, row)
@@ -236,21 +242,6 @@ func (d *DataStore) GetInitialColumns() ([]string, ColumnList) {
 	return keys, columns
 }
 
-func (d *DataStore) getDynamicColumnsByType(dataTypes ...DataType) ColumnList {
-	list := make(ColumnList, 0)
-	for _, col := range d.DynamicColumnCache {
-		for _, dataType := range dataTypes {
-			if col.DataType == dataType {
-				list = append(list, col)
-
-				break
-			}
-		}
-	}
-
-	return list
-}
-
 func (d *DataStore) GetWaitObject(req *Request) (*DataRow, bool) {
 	if req.Table == TableServices {
 		parts := strings.SplitN(req.WaitObject, ";", 2)
@@ -324,11 +315,8 @@ func (d *DataStore) tryFilterIndexData(filter []*Filter, fn getPreFilteredDataFi
 	return indexedData
 }
 
-func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet) (updateSet []*ResultPrepared, err error) {
+func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns ColumnList) (updateSet []*ResultPrepared, err error) {
 	updateSet = make([]*ResultPrepared, 0, len(res))
-
-	// prepare list of large strings
-	preparedColumns := d.getDynamicColumnsByType(StringLargeCol, StringCol, StringListCol, ServiceMemberListCol, CustomVarCol)
 
 	// compare last check date and only update large strings if the last check date has changed
 	lastCheckDataIndex := -1
@@ -342,13 +330,13 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet) (updateS
 	// prepare update
 	nameIndex := d.Index
 	nameIndex2 := d.Index2
-	for i, resRow := range res {
+	for rowNum, resRow := range res {
 		prepared := &ResultPrepared{
 			ResultRow:  resRow,
 			FullUpdate: false,
 		}
 		if dataOffset == 0 || len(res) == len(d.Data) {
-			prepared.DataRow = d.Data[i]
+			prepared.DataRow = d.Data[rowNum]
 		} else {
 			switch d.Table.Name {
 			case TableHosts:
@@ -375,9 +363,8 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet) (updateS
 		// compare last check date and prepare deduped strings if the last check date has changed
 		if lastCheckCol == nil || interface2int64(resRow[lastCheckResIndex]) != prepared.DataRow.dataInt64[lastCheckDataIndex] {
 			prepared.FullUpdate = true
-			for _, col := range preparedColumns {
-				j := col.Index + dataOffset
-				res[i][j] = cast2Type(res[i][j], col)
+			for i, col := range columns {
+				res[rowNum][i+dataOffset] = cast2Type(res[rowNum][i+dataOffset], col)
 			}
 		}
 		updateSet = append(updateSet, prepared)
