@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 )
 
 func TestPeerSource(t *testing.T) {
@@ -58,7 +59,6 @@ func TestParseResultJSON(t *testing.T) {
 	]`)
 
 	res, _, err := req.parseResult(data)
-
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,6 @@ func TestParseResultWrappedJSON(t *testing.T) {
 	"total_count": 2}`)
 
 	res, meta, err := req.parseResult(data)
-
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,6 +187,18 @@ func TestPeerUpdate(t *testing.T) {
 	PauseTestPeers(peer)
 
 	err := peer.data.UpdateFull(Objects.UpdateTables)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// fake some last_update entries
+	data, _ := peer.GetDataStoreSet()
+	svcTbl, _ := peer.GetDataStore(TableServices)
+	lastCheckCol := svcTbl.GetColumn("last_check")
+	for _, row := range svcTbl.Data {
+		row.dataInt64[lastCheckCol.Index] = 2
+	}
+	err = data.UpdateDelta(float64(5), float64(time.Now().Unix()+5))
 	if err != nil {
 		t.Error(err)
 	}

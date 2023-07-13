@@ -1168,6 +1168,8 @@ func cast2Type(val interface{}, col *Column) interface{} {
 		return (interface2stringNoDedup(val))
 	case StringListCol:
 		return (interface2stringlist(val))
+	case StringLargeCol:
+		return (interface2stringlarge(val))
 	case IntCol:
 		return (interface2int(val))
 	case Int64Col:
