@@ -34,7 +34,6 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 
 	// Requested table (name)
 	_, err := NewTableName(interface2stringNoDedup(requestData["table"]))
-
 	// Check if table exists
 	if err != nil {
 		c.errorOutput(err, w)
@@ -55,6 +54,11 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 	}
 
 	var res *Response
+	defer func() {
+		if res != nil {
+			res.UnlockAllStores()
+		}
+	}()
 	if d, exists := requestData["distributed"]; exists && d.(bool) {
 		// force local answer to avoid recursion
 		res, err = NewResponse(req)

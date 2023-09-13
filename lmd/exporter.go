@@ -165,6 +165,8 @@ func (ex *Exporter) addTable(p *Peer, t *Table) (written int64, err error) {
 		return
 	}
 
+	res.UnlockAllStores()
+
 	header := &tar.Header{
 		Name:    fmt.Sprintf("sites/%s/%s.json", p.ID, t.Name.String()),
 		Size:    int64(buf.Len()),

@@ -33,6 +33,7 @@ type Response struct {
 	RowsScanned   int // total number of data rows scanned for this result
 	Failed        map[string]string
 	SelectedPeers []*Peer
+	StoreLocks    map[*DataStoreSet]bool
 }
 
 // PeerResponse is the sub result from a peer before merged into the end result
@@ -371,6 +372,7 @@ func (res *Response) SendFixed16(c net.Conn) (size int64, err error) {
 
 // SendUnbuffered directly prints the result to the client connection
 func (res *Response) SendUnbuffered(c io.Writer) (size int64, err error) {
+	defer res.UnlockAllStores() // can be unlocked afterwards
 	countingWriter := NewWriteCounter(c)
 	if res.Error != nil {
 		logWith(res).Warnf("sending error response: %d - %s", res.Code, res.Error.Error())
@@ -398,6 +400,7 @@ func (res *Response) SendUnbuffered(c io.Writer) (size int64, err error) {
 
 // Buffer fills buffer with the response as bytes array
 func (res *Response) Buffer() (*bytes.Buffer, error) {
+	defer res.UnlockAllStores() // can be unlocked afterwards
 	buf := new(bytes.Buffer)
 	if res.Error != nil {
 		logWith(res).Warnf("sending error response: %d - %s", res.Code, res.Error.Error())
@@ -767,29 +770,33 @@ func SpinUpPeers(peers []*Peer) {
 
 // BuildLocalResponseData returns the result data for a given request
 func (res *Response) BuildLocalResponseData(store *DataStore, resultcollector chan *PeerResponse) {
-	ds := store.DataSet
 	logWith(store.PeerName, res).Tracef("BuildLocalResponseData")
-
-	// for some tables its faster to lock the table only once
-	if store.PeerLockMode == PeerLockModeFull && ds != nil && ds.peer != nil {
-		ds.peer.Lock.RLock()
-		defer ds.peer.Lock.RUnlock()
-	}
-
-	if !store.Table.WorksUnlocked {
-		ds.Lock.RLock()
-		defer ds.Lock.RUnlock()
-	}
 
 	if len(store.Data) == 0 {
 		return
 	}
 
+	// for some tables its faster to lock the table only once
+	ds := store.DataSet
+	if store.PeerLockMode == PeerLockModeFull && ds != nil && ds.peer != nil {
+		ds.peer.Lock.RLock()
+		defer ds.peer.Lock.RUnlock()
+	}
+
 	if len(res.Request.Stats) > 0 {
 		// stats queries
+		if !store.Table.WorksUnlocked {
+			ds.Lock.RLock()
+			defer ds.Lock.RUnlock()
+		}
+
 		res.MergeStats(res.gatherStatsResult(store))
 	} else {
 		// data queries
+		if !store.Table.WorksUnlocked {
+			res.LockStore(ds)
+		}
+
 		res.gatherResultRows(store, resultcollector)
 	}
 }
@@ -877,4 +884,27 @@ Rows:
 	}
 
 	return result
+}
+
+// UnlockAllStores unlocks all stores used to create the respons
+func (res *Response) UnlockAllStores() {
+	if res.StoreLocks != nil {
+		for ds := range res.StoreLocks {
+			ds.Lock.RUnlock()
+		}
+	}
+
+	// empty list
+	res.StoreLocks = nil
+}
+
+// LockStore locks store and saves references so it can be unlocked after processing the request
+func (res *Response) LockStore(ds *DataStoreSet) {
+	ds.Lock.RLock()
+	res.Lock.Lock()
+	if res.StoreLocks == nil {
+		res.StoreLocks = make(map[*DataStoreSet]bool)
+	}
+	res.StoreLocks[ds] = true
+	res.Lock.Unlock()
 }

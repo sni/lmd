@@ -148,23 +148,10 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 		}
 
 		LogErrors(cl.connection.SetDeadline(time.Now().Add(time.Duration(cl.listenTimeout) * time.Second)))
-		var response *Response
-		response, err = req.GetResponse()
-		if err != nil {
-			if netErr, ok := err.(net.Error); ok {
-				LogErrors((&Response{Code: 502, Request: req, Error: netErr}).Send(cl.connection))
-				return
-			}
-			if peerErr, ok := err.(*PeerError); ok && peerErr.kind == ConnectionError {
-				LogErrors((&Response{Code: 502, Request: req, Error: peerErr}).Send(cl.connection))
-				return
-			}
-			LogErrors((&Response{Code: 400, Request: req, Error: err}).Send(cl.connection))
-			return
-		}
 
 		var size int64
-		size, err = response.Send(cl.connection)
+		size, err = cl.processRequest(req)
+
 		duration := time.Since(t1)
 		logWith(reqctx).Infof("%s request finished in %s, response size: %s", req.Table.String(), duration.String(), ByteCountBinary(size))
 		if duration-time.Duration(req.WaitTimeout)*time.Millisecond > time.Duration(cl.logSlowQueryThreshold)*time.Second {
@@ -191,6 +178,29 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 	}
 
 	return nil
+}
+
+func (cl *ClientConnection) processRequest(req *Request) (size int64, err error) {
+	response, err := req.GetResponse()
+	defer func() {
+		if response != nil {
+			response.UnlockAllStores()
+		}
+	}()
+	if err != nil {
+		if netErr, ok := err.(net.Error); ok {
+			LogErrors((&Response{Code: 502, Request: req, Error: netErr}).Send(cl.connection))
+			return
+		}
+		if peerErr, ok := err.(*PeerError); ok && peerErr.kind == ConnectionError {
+			LogErrors((&Response{Code: 502, Request: req, Error: peerErr}).Send(cl.connection))
+			return
+		}
+		LogErrors((&Response{Code: 400, Request: req, Error: err}).Send(cl.connection))
+		return
+	}
+
+	return response.Send(cl.connection)
 }
 
 // sendRemainingCommands sends all queued commands
