@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"testing"
+	"time"
 )
 
 func TestComposeTimestamp1(t *testing.T) {
@@ -61,14 +62,14 @@ func TestDSFullUpdate(t *testing.T) {
 
 	peer.StatusSet(LastUpdate, float64(0))
 	peer.StatusSet(LastFullServiceUpdate, float64(0))
-	err := peer.data.UpdateDeltaServices(fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), false)
+	err := peer.data.UpdateDeltaServices(fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), false, 0)
 	if err != nil {
 		t.Error(err)
 	}
 
 	peer.StatusSet(LastUpdate, float64(0))
 	peer.StatusSet(LastFullServiceUpdate, float64(0))
-	err = peer.data.UpdateDeltaServices(fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), true)
+	err = peer.data.UpdateDeltaServices(fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), true, time.Now().Unix())
 	if err != nil {
 		t.Error(err)
 	}

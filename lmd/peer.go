@@ -1865,7 +1865,7 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
 		time.Sleep(WaitTimeoutCheckInterval)
 		switch req.Table {
 		case TableHosts:
-			err = data.UpdateDeltaHosts(fmt.Sprintf("Filter: name = %s\n", req.WaitObject), false)
+			err = data.UpdateDeltaHosts(fmt.Sprintf("Filter: name = %s\n", req.WaitObject), false, 0)
 		case TableServices:
 			tmp := strings.SplitN(req.WaitObject, ";", 2)
 			if len(tmp) < 2 {
@@ -1873,7 +1873,7 @@ func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
 				safeCloseWaitChannel(c)
 				return nil
 			}
-			err = data.UpdateDeltaServices(fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", tmp[0], tmp[1]), false)
+			err = data.UpdateDeltaServices(fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", tmp[0], tmp[1]), false, 0)
 		default:
 			err = data.UpdateFullTable(req.Table)
 		}

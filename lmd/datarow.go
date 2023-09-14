@@ -841,10 +841,12 @@ func (d *DataRow) CheckChangedIntValues(dataOffset int, data []interface{}, colu
 		switch col.DataType {
 		case IntCol:
 			if interface2int(data[j+dataOffset]) != d.dataInt[col.Index] {
+				log.Tracef("CheckChangedIntValues: int value %s changed: local: %d remote: %d", col.Name, d.dataInt[col.Index], interface2int(data[j+dataOffset]))
 				return true
 			}
 		case Int64Col:
 			if interface2int64(data[j+dataOffset]) != d.dataInt64[col.Index] {
+				log.Tracef("CheckChangedIntValues: int64 value %s changed: local: %d remote: %d", col.Name, d.dataInt64[col.Index], interface2int64(data[j+dataOffset]))
 				return true
 			}
 		}
