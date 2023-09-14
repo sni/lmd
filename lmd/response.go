@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -45,7 +46,7 @@ type PeerResponse struct {
 
 // NewResponse creates a new response object for a given request
 // It returns the Response object and any error encountered.
-func NewResponse(req *Request) (res *Response, err error) {
+func NewResponse(ctx context.Context, req *Request) (res *Response, err error) {
 	res = &Response{
 		Code:    200,
 		Failed:  req.BackendErrors,
@@ -113,7 +114,7 @@ func NewResponse(req *Request) (res *Response, err error) {
 		// normal requests
 		res.RawResults = &RawResultSet{}
 		res.RawResults.Sort = req.Sort
-		res.BuildLocalResponse()
+		res.BuildLocalResponse(ctx)
 		res.RawResults.PostProcessing(res)
 	}
 
@@ -435,7 +436,7 @@ func (res *Response) JSON(buf io.Writer) error {
 	json.WriteRaw("]")
 	err := json.Flush()
 	if err != nil {
-		return fmt.Errorf("JSON: %w", err)
+		return fmt.Errorf("json flush failed: %s", err.Error())
 	}
 	json.Reset(nil)
 	return nil
@@ -560,7 +561,7 @@ func (res *Response) WriteColumnsResponse(json *jsoniter.Stream) {
 }
 
 // BuildLocalResponse builds local data table result for all selected peers
-func (res *Response) BuildLocalResponse() {
+func (res *Response) BuildLocalResponse(ctx context.Context) {
 	var resultcollector chan *PeerResponse
 	var waitChan chan bool
 	if len(res.Request.Stats) == 0 {
@@ -592,13 +593,13 @@ func (res *Response) BuildLocalResponse() {
 
 		// process virtual tables serially without go routines to maintain the correct order, ex.: from the sites table
 		if store.Table.Virtual != nil {
-			res.BuildLocalResponseData(store, resultcollector)
+			res.BuildLocalResponseData(ctx, store, resultcollector)
 			continue
 		}
 
 		// if a WaitTrigger is supplied, wait max ms till the condition is true
 		if res.Request.WaitTrigger != "" {
-			p.WaitCondition(res.Request)
+			p.WaitCondition(ctx, res.Request)
 
 			// peer might have gone down meanwhile, ex. after waiting for a waittrigger, so check again
 			s, err := p.GetDataStore(res.Request.Table)
@@ -618,7 +619,7 @@ func (res *Response) BuildLocalResponse() {
 
 			defer wg.Done()
 
-			res.BuildLocalResponseData(store, resultcollector)
+			res.BuildLocalResponseData(ctx, store, resultcollector)
 		}(p, waitgroup)
 	}
 	logWith(res).Tracef("waiting...")
@@ -626,7 +627,10 @@ func (res *Response) BuildLocalResponse() {
 	waitgroup.Wait()
 	if resultcollector != nil {
 		close(resultcollector)
-		<-waitChan
+		select {
+		case <-waitChan:
+		case <-ctx.Done():
+		}
 	}
 
 	logWith(res).Tracef("waiting for all local data computations done")
@@ -634,6 +638,9 @@ func (res *Response) BuildLocalResponse() {
 
 // MergeStats merges stats result into final result set
 func (res *Response) MergeStats(stats *ResultSetStats) {
+	if stats == nil {
+		return
+	}
 	res.Lock.Lock()
 	defer res.Lock.Unlock()
 	if res.Request.StatsResult == nil {
@@ -769,7 +776,7 @@ func SpinUpPeers(peers []*Peer) {
 }
 
 // BuildLocalResponseData returns the result data for a given request
-func (res *Response) BuildLocalResponseData(store *DataStore, resultcollector chan *PeerResponse) {
+func (res *Response) BuildLocalResponseData(ctx context.Context, store *DataStore, resultcollector chan *PeerResponse) {
 	logWith(store.PeerName, res).Tracef("BuildLocalResponseData")
 
 	if len(store.Data) == 0 {
@@ -790,18 +797,18 @@ func (res *Response) BuildLocalResponseData(store *DataStore, resultcollector ch
 			defer ds.Lock.RUnlock()
 		}
 
-		res.MergeStats(res.gatherStatsResult(store))
+		res.MergeStats(res.gatherStatsResult(ctx, store))
 	} else {
 		// data queries
 		if !store.Table.WorksUnlocked {
 			res.LockStore(ds)
 		}
 
-		res.gatherResultRows(store, resultcollector)
+		res.gatherResultRows(ctx, store, resultcollector)
 	}
 }
 
-func (res *Response) gatherResultRows(store *DataStore, resultcollector chan *PeerResponse) {
+func (res *Response) gatherResultRows(ctx context.Context, store *DataStore, resultcollector chan *PeerResponse) {
 	result := &PeerResponse{}
 	defer func() {
 		resultcollector <- result
@@ -818,8 +825,16 @@ func (res *Response) gatherResultRows(store *DataStore, resultcollector chan *Pe
 	// no need to count all the way to the end unless the total number is required in wrapped_json output
 	breakOnLimit := res.Request.OutputFormat != OutputFormatWrappedJSON
 
+	done := ctx.Done()
 Rows:
 	for _, row := range store.GetPreFilteredData(req.Filter) {
+		select {
+		case <-done:
+			// request canceled
+			return
+		default:
+		}
+
 		result.RowsScanned++
 
 		// does our filter match?
@@ -847,13 +862,20 @@ Rows:
 	}
 }
 
-func (res *Response) gatherStatsResult(store *DataStore) *ResultSetStats {
+func (res *Response) gatherStatsResult(ctx context.Context, store *DataStore) *ResultSetStats {
 	result := NewResultSetStats()
 	req := res.Request
 	localStats := result.Stats
 
+	done := ctx.Done()
 Rows:
 	for _, row := range store.GetPreFilteredData(req.Filter) {
+		select {
+		case <-done:
+			// request canceled
+			return nil
+		default:
+		}
 		result.RowsScanned++
 		// does our filter match?
 		for _, f := range req.Filter {

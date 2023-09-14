@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -29,7 +30,7 @@ func (c *HTTPServerController) index(w http.ResponseWriter, _ *http.Request, _ h
 	fmt.Fprintf(w, "LMD %s\n", VERSION)
 }
 
-func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map[string]interface{}) {
+func (c *HTTPServerController) queryTable(ctx context.Context, w http.ResponseWriter, requestData map[string]interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 
 	// Requested table (name)
@@ -61,10 +62,10 @@ func (c *HTTPServerController) queryTable(w http.ResponseWriter, requestData map
 	}()
 	if d, exists := requestData["distributed"]; exists && d.(bool) {
 		// force local answer to avoid recursion
-		res, err = NewResponse(req)
+		res, err = NewResponse(ctx, req)
 	} else {
 		// Ask request object to send query, get response, might get distributed
-		res, err = req.GetResponse()
+		res, err = req.GetResponse(ctx)
 	}
 	if err != nil {
 		c.errorOutput(err, w)
@@ -98,7 +99,7 @@ func (c *HTTPServerController) table(w http.ResponseWriter, request *http.Reques
 		requestData["table"] = tableName
 	}
 
-	c.queryTable(w, requestData)
+	c.queryTable(request.Context(), w, requestData)
 }
 
 func (c *HTTPServerController) ping(w http.ResponseWriter, request *http.Request, _ httprouter.Params) {
@@ -150,7 +151,7 @@ func (c *HTTPServerController) query(w http.ResponseWriter, request *http.Reques
 	case "ping":
 		c.queryPing(w, requestData)
 	case "table":
-		c.queryTable(w, requestData)
+		c.queryTable(request.Context(), w, requestData)
 	default:
 		c.errorOutput(fmt.Errorf("unknown request: %s", requestedFunction), w)
 	}

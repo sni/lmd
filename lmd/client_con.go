@@ -47,6 +47,12 @@ func NewClientConnection(lmd *LMDInstance, c net.Conn, listenTimeout int, logSlo
 
 func (cl *ClientConnection) Handle() {
 	ctx := context.WithValue(context.Background(), CtxClient, fmt.Sprintf("%s->%s", cl.remoteAddr, cl.localAddr))
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	cl.keepAliveTimer = time.NewTimer(time.Duration(cl.listenTimeout) * time.Second)
+	defer cl.keepAliveTimer.Stop()
+
 	ch := make(chan error, 1)
 	go func() {
 		// make sure we log panics properly
@@ -54,8 +60,6 @@ func (cl *ClientConnection) Handle() {
 
 		ch <- cl.answer(ctx)
 	}()
-	cl.keepAliveTimer = time.NewTimer(time.Duration(cl.listenTimeout) * time.Second)
-	defer cl.keepAliveTimer.Stop()
 	select {
 	case err := <-ch:
 		if err != nil {
@@ -156,7 +160,7 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 		LogErrors(cl.connection.SetDeadline(time.Now().Add(time.Duration(cl.listenTimeout) * time.Second)))
 
 		var size int64
-		size, err = cl.processRequest(req)
+		size, err = cl.processRequest(ctx, req)
 
 		duration := time.Since(t1)
 		logWith(reqctx).Infof("%s request finished in %s, response size: %s", req.Table.String(), duration.String(), ByteCountBinary(size))
@@ -186,8 +190,8 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 	return nil
 }
 
-func (cl *ClientConnection) processRequest(req *Request) (size int64, err error) {
-	response, err := req.GetResponse()
+func (cl *ClientConnection) processRequest(ctx context.Context, req *Request) (size int64, err error) {
+	response, err := req.GetResponse(ctx)
 	defer func() {
 		if response != nil {
 			response.UnlockAllStores()

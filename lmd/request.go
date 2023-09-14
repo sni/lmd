@@ -159,8 +159,10 @@ type ResultMetaData struct {
 	Request     *Request      // the request itself
 }
 
-var reRequestAction = regexp.MustCompile(`^GET +([a-z]+)$`)
-var reRequestCommand = regexp.MustCompile(`^COMMAND +(\[\d+\].*)$`)
+var (
+	reRequestAction  = regexp.MustCompile(`^GET +([a-z]+)$`)
+	reRequestCommand = regexp.MustCompile(`^COMMAND +(\[\d+\].*)$`)
+)
 
 // ParseRequest reads from a connection and returns a single requests.
 // It returns a the requests and any errors encountered.
@@ -400,11 +402,11 @@ func (req *Request) ParseRequestAction(firstLine *string) (valid bool, err error
 
 // GetResponse builds the response for a given request.
 // It returns the Response object and any error encountered.
-func (req *Request) GetResponse() (*Response, error) {
+func (req *Request) GetResponse(ctx context.Context) (*Response, error) {
 	// Run single request if possible
 	if req.lmd.nodeAccessor == nil || !req.lmd.nodeAccessor.IsClustered() {
 		// Single mode (send request and return response)
-		return NewResponse(req)
+		return NewResponse(ctx, req)
 	}
 
 	// Determine if request for this node only (if backends specified)
@@ -420,15 +422,15 @@ func (req *Request) GetResponse() (*Response, error) {
 
 	// Return local result if its not distributed at all
 	if isForOurBackends {
-		return NewResponse(req)
+		return NewResponse(ctx, req)
 	}
 
 	// Distribute request
-	return req.getDistributedResponse()
+	return req.getDistributedResponse(ctx)
 }
 
 // getDistributedResponse builds the response from a distributed setup
-func (req *Request) getDistributedResponse() (*Response, error) {
+func (req *Request) getDistributedResponse(ctx context.Context) (*Response, error) {
 	// Type of request
 	allBackendsRequested := len(req.Backends) == 0
 
@@ -452,7 +454,7 @@ func (req *Request) getDistributedResponse() (*Response, error) {
 		if node.isMe {
 			// answer locally
 			req.SendStatsData = true
-			res, err := NewResponse(req)
+			res, err := NewResponse(ctx, req)
 			if err != nil {
 				return nil, err
 			}

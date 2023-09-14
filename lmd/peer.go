@@ -1769,7 +1769,7 @@ func (p *Peer) fetchRemotePeersFromAddr(peerAddr string) (sites []interface{}, e
 
 // WaitCondition waits for a given condition.
 // It returns when the condition matches successfully or after a timeout
-func (p *Peer) WaitCondition(req *Request) {
+func (p *Peer) WaitCondition(ctx context.Context, req *Request) {
 	// wait up to one minute if nothing specified
 	if req.WaitTimeout <= 0 {
 		req.WaitTimeout = WaitTimeoutDefault
@@ -1779,7 +1779,7 @@ func (p *Peer) WaitCondition(req *Request) {
 		// make sure we log panics properly
 		defer logPanicExitPeer(p)
 
-		p.LogErrors(p.waitcondition(c, req))
+		p.LogErrors(p.waitcondition(ctx, c, req))
 	}(p, c, req)
 	timeout := time.NewTimer(time.Duration(req.WaitTimeout) * time.Millisecond)
 	select {
@@ -1788,16 +1788,21 @@ func (p *Peer) WaitCondition(req *Request) {
 		timeout.Stop()
 	case <-timeout.C:
 		// timed out
+	case <-ctx.Done():
+		// contxt closed
 	}
 
 	safeCloseWaitChannel(c)
 }
 
-func (p *Peer) waitcondition(c chan struct{}, req *Request) (err error) {
+func (p *Peer) waitcondition(ctx context.Context, c chan struct{}, req *Request) (err error) {
 	var lastUpdate float64
 	for {
 		select {
 		case <-c:
+			// canceled
+			return
+		case <-ctx.Done():
 			// canceled
 			return
 		default:
