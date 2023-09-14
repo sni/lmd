@@ -54,9 +54,9 @@ func (cl *ClientConnection) Handle() {
 		ch <- cl.answer(ctx)
 	}()
 	timeout := time.NewTimer(time.Duration(cl.listenTimeout) * time.Second)
+	defer timeout.Stop()
 	select {
 	case err := <-ch:
-		timeout.Stop()
 		if err != nil {
 			logWith(ctx).Debugf("request failed with client error: %s", err.Error())
 		}
