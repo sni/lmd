@@ -975,7 +975,7 @@ func interface2stringlist(in interface{}) []string {
 	case float64:
 		val := make([]string, 0, 1)
 		// icinga 2 sends a 0 for empty lists, ex.: modified_attributes_list
-		if in != 0 {
+		if list != 0 {
 			val = append(val, *(interface2string(in)))
 		}
 		return val
