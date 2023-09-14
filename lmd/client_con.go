@@ -19,6 +19,7 @@ type ClientConnection struct {
 	localAddr             string
 	remoteAddr            string
 	keepAlive             bool
+	keepAliveTimer        *time.Timer
 	listenTimeout         int
 	logSlowQueryThreshold int
 	logHugeQueryThreshold int
@@ -53,15 +54,19 @@ func (cl *ClientConnection) Handle() {
 
 		ch <- cl.answer(ctx)
 	}()
-	timeout := time.NewTimer(time.Duration(cl.listenTimeout) * time.Second)
-	defer timeout.Stop()
+	cl.keepAliveTimer = time.NewTimer(time.Duration(cl.listenTimeout) * time.Second)
+	defer cl.keepAliveTimer.Stop()
 	select {
 	case err := <-ch:
 		if err != nil {
 			logWith(ctx).Debugf("request failed with client error: %s", err.Error())
 		}
-	case <-timeout.C:
-		logWith(ctx).Warnf("request timed out (timeout: %s)", time.Duration(cl.listenTimeout)*time.Second)
+	case <-cl.keepAliveTimer.C:
+		if cl.keepAlive {
+			logWith(ctx).Debugf("closing keep alive connection (timeout: %s)", time.Duration(cl.listenTimeout)*time.Second)
+		} else {
+			logWith(ctx).Warnf("request timed out (timeout: %s)", time.Duration(cl.listenTimeout)*time.Second)
+		}
 	}
 	cl.connection.Close()
 }
@@ -91,6 +96,7 @@ func (cl *ClientConnection) answer(ctx context.Context) error {
 			if cl.keepAlive {
 				logWith(cl, reqs[len(reqs)-1]).Debugf("connection keepalive, waiting for more requests")
 				LogErrors(cl.connection.SetDeadline(time.Now().Add(RequestReadTimeout)))
+				cl.keepAliveTimer.Reset(time.Duration(cl.listenTimeout) * time.Second)
 				continue
 			}
 		case cl.keepAlive:
