@@ -927,11 +927,14 @@ func (res *Response) UnlockAllStores() {
 
 // LockStore locks store and saves references so it can be unlocked after processing the request
 func (res *Response) LockStore(ds *DataStoreSet) {
-	ds.Lock.RLock()
 	res.Lock.Lock()
 	if res.StoreLocks == nil {
 		res.StoreLocks = make(map[*DataStoreSet]bool)
 	}
+	if _, ok := res.StoreLocks[ds]; ok {
+		log.Panicf("tried to lock store twice")
+	}
 	res.StoreLocks[ds] = true
+	ds.Lock.RLock()
 	res.Lock.Unlock()
 }
