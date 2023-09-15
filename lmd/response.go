@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -35,7 +34,6 @@ type Response struct {
 	RowsScanned   int // total number of data rows scanned for this result
 	Failed        map[string]string
 	SelectedPeers []*Peer
-	StoreLocks    map[*DataStoreSet]bool
 }
 
 // PeerResponse is the sub result from a peer before merged into the end result
@@ -48,7 +46,7 @@ type PeerResponse struct {
 // NewResponse creates a new response object for a given request
 // It returns the Response object and any error encountered.
 // unlockFn must be called whenever there is no error returned.
-func NewResponse(ctx context.Context, req *Request) (res *Response, unlockFn func(), err error) {
+func NewResponse(ctx context.Context, req *Request) (res *Response, err error) {
 	res = &Response{
 		Code:    200,
 		Failed:  req.BackendErrors,
@@ -58,7 +56,6 @@ func NewResponse(ctx context.Context, req *Request) (res *Response, unlockFn fun
 	if res.Failed == nil {
 		res.Failed = make(map[string]string)
 	}
-	unlockFn = res.UnlockAllStores
 
 	table := Objects.Tables[req.Table]
 
@@ -101,7 +98,6 @@ func NewResponse(ctx context.Context, req *Request) (res *Response, unlockFn fun
 	if res.Request.OutputFormat != OutputFormatWrappedJSON && len(res.Failed) > 0 && len(res.Failed) == len(req.Backends) {
 		res.Code = 502
 		err = &PeerError{msg: res.Failed[req.Backends[0]], kind: ConnectionError}
-		res.UnlockAllStores()
 		return
 	}
 
@@ -120,12 +116,6 @@ func NewResponse(ctx context.Context, req *Request) (res *Response, unlockFn fun
 		res.RawResults.Sort = req.Sort
 		res.BuildLocalResponse(ctx)
 		res.RawResults.PostProcessing(res)
-		runtime.SetFinalizer(res, func(r *Response) {
-			if res.StoreLocks != nil {
-				log.Errorf("%s", res.Request.String())
-				log.Panicf("response still has locks!")
-			}
-		})
 	}
 
 	res.CalculateFinalStats()
@@ -383,7 +373,6 @@ func (res *Response) SendFixed16(c net.Conn) (size int64, err error) {
 
 // SendUnbuffered directly prints the result to the client connection
 func (res *Response) SendUnbuffered(c io.Writer) (size int64, err error) {
-	defer res.UnlockAllStores() // can be unlocked afterwards
 	countingWriter := NewWriteCounter(c)
 	if res.Error != nil {
 		logWith(res).Warnf("sending error response: %d - %s", res.Code, res.Error.Error())
@@ -411,7 +400,6 @@ func (res *Response) SendUnbuffered(c io.Writer) (size int64, err error) {
 
 // Buffer fills buffer with the response as bytes array
 func (res *Response) Buffer() (*bytes.Buffer, error) {
-	defer res.UnlockAllStores() // can be unlocked afterwards
 	buf := new(bytes.Buffer)
 	if res.Error != nil {
 		logWith(res).Warnf("sending error response: %d - %s", res.Code, res.Error.Error())
@@ -489,7 +477,6 @@ func (res *Response) WrappedJSON(buf io.Writer) error {
 
 // WriteDataResponse writes the data part of the result
 func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
-	defer res.UnlockAllStores() // can be unlocked afterwards
 	switch {
 	case res.Result != nil:
 		// append result row by row
@@ -757,7 +744,6 @@ func (res *Response) SendColumnsHeader() bool {
 
 // SetResultData populates Result table with data from the RawResultSet
 func (res *Response) SetResultData() {
-	defer res.UnlockAllStores() // can be unlocked afterwards
 	res.Result = make(ResultSet, 0, len(res.RawResults.DataResult))
 	rowSize := len(res.Request.RequestColumns)
 	for i := range res.RawResults.DataResult {
@@ -802,20 +788,16 @@ func (res *Response) BuildLocalResponseData(ctx context.Context, store *DataStor
 		defer ds.peer.Lock.RUnlock()
 	}
 
+	if !store.Table.WorksUnlocked {
+		ds.Lock.Lock()
+		defer ds.Lock.Unlock()
+	}
+
 	if len(res.Request.Stats) > 0 {
 		// stats queries
-		if !store.Table.WorksUnlocked {
-			ds.Lock.RLock()
-			defer ds.Lock.RUnlock()
-		}
-
 		res.MergeStats(res.gatherStatsResult(ctx, store))
 	} else {
 		// data queries
-		if !store.Table.WorksUnlocked {
-			res.LockStore(ds)
-		}
-
 		res.gatherResultRows(ctx, store, resultcollector)
 	}
 }
@@ -918,30 +900,4 @@ Rows:
 	}
 
 	return result
-}
-
-// UnlockAllStores unlocks all stores used to create the respons
-func (res *Response) UnlockAllStores() {
-	if res.StoreLocks != nil {
-		for ds := range res.StoreLocks {
-			ds.Lock.RUnlock()
-		}
-	}
-
-	// empty list
-	res.StoreLocks = nil
-}
-
-// LockStore locks store and saves references so it can be unlocked after processing the request
-func (res *Response) LockStore(ds *DataStoreSet) {
-	res.Lock.Lock()
-	defer res.Lock.Unlock()
-	if res.StoreLocks == nil {
-		res.StoreLocks = make(map[*DataStoreSet]bool)
-	}
-	if _, ok := res.StoreLocks[ds]; ok {
-		log.Panicf("tried to lock store twice")
-	}
-	res.StoreLocks[ds] = true
-	ds.Lock.RLock()
 }

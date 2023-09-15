@@ -191,9 +191,7 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 }
 
 func (cl *ClientConnection) processRequest(ctx context.Context, req *Request) (size int64, err error) {
-	response, unlock, err := req.GetResponse(ctx)
-	defer unlock()
-
+	response, err := req.GetResponse(ctx)
 	if err != nil {
 		if netErr, ok := err.(net.Error); ok {
 			LogErrors((&Response{Code: 502, Request: req, Error: netErr}).Send(cl.connection))
