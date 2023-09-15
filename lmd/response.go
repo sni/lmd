@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -119,6 +120,12 @@ func NewResponse(ctx context.Context, req *Request) (res *Response, unlockFn fun
 		res.RawResults.Sort = req.Sort
 		res.BuildLocalResponse(ctx)
 		res.RawResults.PostProcessing(res)
+		runtime.SetFinalizer(res, func(r *Response) {
+			if res.StoreLocks != nil {
+				log.Errorf("%s", res.Request.String())
+				log.Panicf("response still has locks!")
+			}
+		})
 	}
 
 	res.CalculateFinalStats()
@@ -928,6 +935,7 @@ func (res *Response) UnlockAllStores() {
 // LockStore locks store and saves references so it can be unlocked after processing the request
 func (res *Response) LockStore(ds *DataStoreSet) {
 	res.Lock.Lock()
+	defer res.Lock.Unlock()
 	if res.StoreLocks == nil {
 		res.StoreLocks = make(map[*DataStoreSet]bool)
 	}
@@ -936,5 +944,4 @@ func (res *Response) LockStore(ds *DataStoreSet) {
 	}
 	res.StoreLocks[ds] = true
 	ds.Lock.RLock()
-	res.Lock.Unlock()
 }
