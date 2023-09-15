@@ -402,7 +402,7 @@ func (req *Request) ParseRequestAction(firstLine *string) (valid bool, err error
 
 // GetResponse builds the response for a given request.
 // It returns the Response object and any error encountered.
-func (req *Request) GetResponse(ctx context.Context) (*Response, error) {
+func (req *Request) GetResponse(ctx context.Context) (*Response, func(), error) {
 	// Run single request if possible
 	if req.lmd.nodeAccessor == nil || !req.lmd.nodeAccessor.IsClustered() {
 		// Single mode (send request and return response)
@@ -430,7 +430,7 @@ func (req *Request) GetResponse(ctx context.Context) (*Response, error) {
 }
 
 // getDistributedResponse builds the response from a distributed setup
-func (req *Request) getDistributedResponse(ctx context.Context) (*Response, error) {
+func (req *Request) getDistributedResponse(ctx context.Context) (*Response, func(), error) {
 	// Type of request
 	allBackendsRequested := len(req.Backends) == 0
 
@@ -454,14 +454,15 @@ func (req *Request) getDistributedResponse(ctx context.Context) (*Response, erro
 		if node.isMe {
 			// answer locally
 			req.SendStatsData = true
-			res, err := NewResponse(ctx, req)
+			res, unlock, err := NewResponse(ctx, req)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			req.SendStatsData = false
 			if res.Result == nil {
 				res.SetResultData()
 			}
+			unlock()
 			collectedDatasets <- res.Result
 			collectedFailedHashes <- res.Failed
 			continue
@@ -508,22 +509,22 @@ func (req *Request) getDistributedResponse(ctx context.Context) (*Response, erro
 			collectedFailedHashes <- failedHashStrings
 		})
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
 	// Wait for all requests
 	timeout := 10
-	if waitTimeout(&wg, time.Duration(timeout)*time.Second) {
+	if waitTimeout(ctx, &wg, time.Duration(timeout)*time.Second) {
 		err := fmt.Errorf("timeout waiting for partner nodes")
-		return nil, err
+		return nil, nil, err
 	}
 	close(collectedDatasets)
 
 	// Double-check that we have the right number of datasets
 	if len(collectedDatasets) != len(req.lmd.nodeAccessor.nodeBackends) {
 		err := fmt.Errorf("got %d instead of %d datasets", len(collectedDatasets), len(req.lmd.nodeAccessor.nodeBackends))
-		return nil, err
+		return nil, nil, err
 	}
 
 	res := req.mergeDistributedResponse(collectedDatasets, collectedFailedHashes)
@@ -536,7 +537,8 @@ func (req *Request) getDistributedResponse(ctx context.Context) (*Response, erro
 		res.PostProcessing()
 	}
 
-	return res, nil
+	noop := func() {}
+	return res, noop, nil
 }
 
 func (req *Request) getSubBackends(allBackendsRequested bool, nodeBackends []string) (subBackends []string) {

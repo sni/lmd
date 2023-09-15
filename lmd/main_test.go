@@ -102,7 +102,7 @@ func TestMainReload(t *testing.T) {
 		l.Stop()
 	}
 	lmd.ListenersLock.Unlock()
-	if waitTimeout(lmd.waitGroupPeers, 5*time.Second) {
+	if waitTimeout(context.TODO(), lmd.waitGroupPeers, 5*time.Second) {
 		t.Errorf("timeout while waiting for peers to stop")
 	}
 	retries := 0
@@ -355,7 +355,7 @@ func TestMainWaitTimeout(t *testing.T) {
 	wg.Add(1)
 	t1 := time.Now()
 	timeout := 50 * time.Millisecond
-	waitTimeout(wg, timeout)
+	waitTimeout(context.TODO(), wg, timeout)
 	if duration := time.Since(t1); duration < timeout {
 		t.Errorf("timeout too small: %s", duration)
 	}

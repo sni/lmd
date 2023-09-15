@@ -46,7 +46,8 @@ type PeerResponse struct {
 
 // NewResponse creates a new response object for a given request
 // It returns the Response object and any error encountered.
-func NewResponse(ctx context.Context, req *Request) (res *Response, err error) {
+// unlockFn must be called whenever there is no error returned.
+func NewResponse(ctx context.Context, req *Request) (res *Response, unlockFn func(), err error) {
 	res = &Response{
 		Code:    200,
 		Failed:  req.BackendErrors,
@@ -56,6 +57,7 @@ func NewResponse(ctx context.Context, req *Request) (res *Response, err error) {
 	if res.Failed == nil {
 		res.Failed = make(map[string]string)
 	}
+	unlockFn = res.UnlockAllStores
 
 	table := Objects.Tables[req.Table]
 
@@ -91,13 +93,14 @@ func NewResponse(ctx context.Context, req *Request) (res *Response, err error) {
 	}
 
 	if !table.PassthroughOnly && len(spinUpPeers) > 0 {
-		SpinUpPeers(spinUpPeers)
+		SpinUpPeers(ctx, spinUpPeers)
 	}
 
 	// if all backends are down, send an error instead of an empty result
 	if res.Request.OutputFormat != OutputFormatWrappedJSON && len(res.Failed) > 0 && len(res.Failed) == len(req.Backends) {
 		res.Code = 502
 		err = &PeerError{msg: res.Failed[req.Backends[0]], kind: ConnectionError}
+		res.UnlockAllStores()
 		return
 	}
 
@@ -479,6 +482,7 @@ func (res *Response) WrappedJSON(buf io.Writer) error {
 
 // WriteDataResponse writes the data part of the result
 func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
+	defer res.UnlockAllStores() // can be unlocked afterwards
 	switch {
 	case res.Result != nil:
 		// append result row by row
@@ -746,6 +750,7 @@ func (res *Response) SendColumnsHeader() bool {
 
 // SetResultData populates Result table with data from the RawResultSet
 func (res *Response) SetResultData() {
+	defer res.UnlockAllStores() // can be unlocked afterwards
 	res.Result = make(ResultSet, 0, len(res.RawResults.DataResult))
 	rowSize := len(res.Request.RequestColumns)
 	for i := range res.RawResults.DataResult {
@@ -759,7 +764,7 @@ func (res *Response) SetResultData() {
 }
 
 // SpinUpPeers starts an immediate parallel delta update for all supplied peer ids.
-func SpinUpPeers(peers []*Peer) {
+func SpinUpPeers(ctx context.Context, peers []*Peer) {
 	waitgroup := &sync.WaitGroup{}
 	for i := range peers {
 		p := peers[i]
@@ -771,7 +776,7 @@ func SpinUpPeers(peers []*Peer) {
 			LogErrors(peer.ResumeFromIdle())
 		}(p, waitgroup)
 	}
-	waitTimeout(waitgroup, SpinUpPeersTimeout)
+	waitTimeout(ctx, waitgroup, SpinUpPeersTimeout)
 	log.Debugf("spin up completed")
 }
 

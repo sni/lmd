@@ -9,6 +9,7 @@ Use `lmd -h` to get help on command line parameters.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"flag"
@@ -179,8 +180,10 @@ func (i *arrayFlags) Set(value string) error {
 // Objects contains the static definition of all available tables and columns
 var Objects *ObjectsType
 
-var once sync.Once
-var reHTTPHostPort = regexp.MustCompile("^(https?)://(.*?):(.*)")
+var (
+	once           sync.Once
+	reHTTPHostPort = regexp.MustCompile("^(https?)://(.*?):(.*)")
+)
 
 // initialize objects structure
 func init() {
@@ -746,7 +749,7 @@ func (lmd *LMDInstance) mainSignalHandler(sig os.Signal, prometheusListener io.C
 		}
 		// wait one second which should be enough for the listeners
 		if lmd.waitGroupListener != nil {
-			waitTimeout(lmd.waitGroupListener, time.Second)
+			waitTimeout(context.TODO(), lmd.waitGroupListener, time.Second)
 		}
 		if qStat != nil {
 			lmd.onExit(qStat)
@@ -795,7 +798,7 @@ func logThreaddump() {
 
 // waitTimeout waits for the waitgroup for the specified max timeout.
 // Returns true if waiting timed out.
-func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+func waitTimeout(ctx context.Context, wg *sync.WaitGroup, timeout time.Duration) bool {
 	if timeout < time.Millisecond*10 {
 		log.Panic("bogus timeout")
 	}
@@ -811,6 +814,8 @@ func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 		return false // completed normally
 	case <-t.C:
 		return true // timed out
+	case <-ctx.Done():
+		return true // aborted
 	}
 }
 

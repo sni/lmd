@@ -261,7 +261,7 @@ func (n *Nodes) checkNodeAvailability() {
 	}
 	// Handle timeout
 	timeout := n.heartbeatTimeout
-	if waitTimeout(&wg, time.Duration(timeout)*time.Second) {
+	if waitTimeout(context.TODO(), &wg, time.Duration(timeout)*time.Second) {
 		// Not all nodes have responded, but that's ok
 		log.Tracef("node timeout")
 		if initializing && n.thisNode == nil {

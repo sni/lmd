@@ -191,12 +191,9 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 }
 
 func (cl *ClientConnection) processRequest(ctx context.Context, req *Request) (size int64, err error) {
-	response, err := req.GetResponse(ctx)
-	defer func() {
-		if response != nil {
-			response.UnlockAllStores()
-		}
-	}()
+	response, unlock, err := req.GetResponse(ctx)
+	defer unlock()
+
 	if err != nil {
 		if netErr, ok := err.(net.Error); ok {
 			LogErrors((&Response{Code: 502, Request: req, Error: netErr}).Send(cl.connection))
@@ -255,7 +252,7 @@ func (cl *ClientConnection) SendCommands(ctx context.Context, commandsByPeer map
 	}
 
 	// Wait up to 9.5 seconds for all commands being sent
-	if waitTimeout(wg, PeerCommandTimeout) {
+	if waitTimeout(ctx, wg, PeerCommandTimeout) {
 		code = 202
 		msg = "sending command timed out but will continue in background"
 		return

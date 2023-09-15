@@ -156,17 +156,16 @@ func (ex *Exporter) addTable(p *Peer, t *Table) (written int64, err error) {
 		return
 	}
 	req.SetRequestColumns()
-	res, err := NewResponse(context.TODO(), req)
+	res, unlock, err := NewResponse(context.TODO(), req)
 	if err != nil {
 		return
 	}
+	defer unlock()
 
 	buf, err := res.Buffer()
 	if err != nil {
 		return
 	}
-
-	res.UnlockAllStores()
 
 	header := &tar.Header{
 		Name:    fmt.Sprintf("sites/%s/%s.json", p.ID, t.Name.String()),

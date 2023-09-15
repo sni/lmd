@@ -90,7 +90,7 @@ func StartMockLivestatusSource(lmd *LMDInstance, nr int, numHosts int, numServic
 		}
 		clientConns := &sync.WaitGroup{}
 		defer func() {
-			if waitTimeout(clientConns, 5*time.Second) {
+			if waitTimeout(context.TODO(), clientConns, 5*time.Second) {
 				log.Errorf("timeout while for mock connections to finish")
 			}
 			os.Remove(listen)
@@ -392,13 +392,13 @@ func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig
 		// stop the test peer
 		peer.Stop()
 		// wait till all has stoped
-		if waitTimeout(peer.lmd.waitGroupPeers, 10*time.Second) {
+		if waitTimeout(context.TODO(), peer.lmd.waitGroupPeers, 10*time.Second) {
 			err = fmt.Errorf("timeout while waiting for peers to stop")
 		}
-		if waitTimeout(mocklmd.waitGroupPeers, 10*time.Second) {
+		if waitTimeout(context.TODO(), mocklmd.waitGroupPeers, 10*time.Second) {
 			err = fmt.Errorf("timeout while waiting for mock peers to stop")
 		}
-		if waitTimeout(mocklmd.waitGroupListener, 10*time.Second) {
+		if waitTimeout(context.TODO(), mocklmd.waitGroupListener, 10*time.Second) {
 			err = fmt.Errorf("timeout while waiting for mock listenern to stop")
 		}
 		return
