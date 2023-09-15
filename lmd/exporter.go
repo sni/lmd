@@ -156,7 +156,7 @@ func (ex *Exporter) addTable(p *Peer, t *Table) (written int64, err error) {
 		return
 	}
 	req.SetRequestColumns()
-	res, err := NewResponse(context.TODO(), req)
+	res, _, err := NewResponse(context.TODO(), req, nil)
 	if err != nil {
 		return
 	}

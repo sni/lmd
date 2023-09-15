@@ -191,7 +191,7 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 }
 
 func (cl *ClientConnection) processRequest(ctx context.Context, req *Request) (size int64, err error) {
-	response, err := req.GetResponse(ctx)
+	size, err = req.BuildResponseSend(ctx, cl.connection)
 	if err != nil {
 		if netErr, ok := err.(net.Error); ok {
 			LogErrors((&Response{Code: 502, Request: req, Error: netErr}).Send(cl.connection))
@@ -205,7 +205,7 @@ func (cl *ClientConnection) processRequest(ctx context.Context, req *Request) (s
 		return
 	}
 
-	return response.Send(cl.connection)
+	return
 }
 
 // sendRemainingCommands sends all queued commands

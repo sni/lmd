@@ -21,6 +21,9 @@ func TestMainFunc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(res) < 2 {
+		t.Fatalf("expected at least 2 rows: %#v", res)
+	}
 	if err = assertEq("peer_key", res[0][0]); err != nil {
 		t.Fatal(err)
 	}

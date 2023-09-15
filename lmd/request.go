@@ -400,13 +400,14 @@ func (req *Request) ParseRequestAction(firstLine *string) (valid bool, err error
 	return
 }
 
-// GetResponse builds the response for a given request.
+// BuildResponse builds the response for a given request.
 // It returns the Response object and any error encountered.
-func (req *Request) GetResponse(ctx context.Context) (*Response, error) {
+func (req *Request) BuildResponse(ctx context.Context) (*Response, error) {
 	// Run single request if possible
 	if req.lmd.nodeAccessor == nil || !req.lmd.nodeAccessor.IsClustered() {
 		// Single mode (send request and return response)
-		return NewResponse(ctx, req)
+		res, _, err := NewResponse(ctx, req, nil)
+		return res, err
 	}
 
 	// Determine if request for this node only (if backends specified)
@@ -422,11 +423,29 @@ func (req *Request) GetResponse(ctx context.Context) (*Response, error) {
 
 	// Return local result if its not distributed at all
 	if isForOurBackends {
-		return NewResponse(ctx, req)
+		res, _, err := NewResponse(ctx, req, nil)
+		return res, err
 	}
 
 	// Distribute request
 	return req.getDistributedResponse(ctx)
+}
+
+// BuildResponseSend builds the response and sends to the given connection.
+// It returns the transferred size or an error.
+func (req *Request) BuildResponseSend(ctx context.Context, w net.Conn) (int64, error) {
+	// Run single request if possible
+	if req.lmd.nodeAccessor == nil || !req.lmd.nodeAccessor.IsClustered() {
+		// Single mode (send request)
+		_, size, err := NewResponse(ctx, req, w)
+		return size, err
+	}
+
+	res, err := req.BuildResponse(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return res.Send(w)
 }
 
 // getDistributedResponse builds the response from a distributed setup
@@ -454,7 +473,7 @@ func (req *Request) getDistributedResponse(ctx context.Context) (*Response, erro
 		if node.isMe {
 			// answer locally
 			req.SendStatsData = true
-			res, err := NewResponse(ctx, req)
+			res, _, err := NewResponse(ctx, req, nil)
 			if err != nil {
 				return nil, err
 			}

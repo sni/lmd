@@ -46,13 +46,83 @@ type PeerResponse struct {
 // NewResponse creates a new response object for a given request
 // It returns the Response object and any error encountered.
 // unlockFn must be called whenever there is no error returned.
-func NewResponse(ctx context.Context, req *Request) (res *Response, err error) {
+func NewResponse(ctx context.Context, req *Request, w net.Conn) (res *Response, size int64, err error) {
 	res = &Response{
 		Code:    200,
 		Failed:  req.BackendErrors,
 		Request: req,
 		Lock:    new(deadlock.RWMutex),
 	}
+	res.prepareResponse(ctx, req)
+
+	// if all backends are down, send an error instead of an empty result
+	if res.Request.OutputFormat != OutputFormatWrappedJSON && len(res.Failed) > 0 && len(res.Failed) == len(req.Backends) {
+		res.Code = 502
+		err = &PeerError{msg: res.Failed[req.Backends[0]], kind: ConnectionError}
+		return
+	}
+
+	table := Objects.Tables[req.Table]
+
+	switch {
+	case len(res.SelectedPeers) == 0:
+		// no backends selected, return empty result
+		res.Result = make(ResultSet, 0)
+	case table.PassthroughOnly:
+		// passthrough requests, ex.: log table
+		res.BuildPassThroughResult()
+		res.PostProcessing()
+	default:
+		// normal requests
+
+		if res.Request.WaitTrigger != "" {
+			for i := range res.SelectedPeers {
+				p := res.SelectedPeers[i]
+				res.waitTrigger(ctx, p)
+			}
+		}
+
+		// set locks for required stores
+		stores := make(map[*Peer]*DataStore)
+		for i := range res.SelectedPeers {
+			p := res.SelectedPeers[i]
+			store, err := p.GetDataStore(table.Name)
+			if err != nil {
+				res.Lock.Lock()
+				res.Failed[p.ID] = err.Error()
+				res.Lock.Unlock()
+				continue
+			}
+			if !table.WorksUnlocked {
+				store.DataSet.Lock.RLock()
+			}
+			stores[p] = store
+		}
+		if !table.WorksUnlocked {
+			defer func() {
+				for _, s := range stores {
+					s.DataSet.Lock.RUnlock()
+				}
+			}()
+		}
+
+		res.RawResults = &RawResultSet{}
+		res.RawResults.Sort = req.Sort
+		res.buildLocalResponse(ctx, stores)
+		res.RawResults.PostProcessing(res)
+	}
+
+	res.CalculateFinalStats()
+
+	if w != nil {
+		size, err = res.Send(w)
+		return nil, size, err
+	}
+
+	return res, 0, err
+}
+
+func (res *Response) prepareResponse(ctx context.Context, req *Request) {
 	if res.Failed == nil {
 		res.Failed = make(map[string]string)
 	}
@@ -93,33 +163,6 @@ func NewResponse(ctx context.Context, req *Request) (res *Response, err error) {
 	if !table.PassthroughOnly && len(spinUpPeers) > 0 {
 		SpinUpPeers(ctx, spinUpPeers)
 	}
-
-	// if all backends are down, send an error instead of an empty result
-	if res.Request.OutputFormat != OutputFormatWrappedJSON && len(res.Failed) > 0 && len(res.Failed) == len(req.Backends) {
-		res.Code = 502
-		err = &PeerError{msg: res.Failed[req.Backends[0]], kind: ConnectionError}
-		return
-	}
-
-	switch {
-	case len(res.SelectedPeers) == 0:
-		// no backends selected, return empty result
-		res.Result = make(ResultSet, 0)
-		return
-	case table.PassthroughOnly:
-		// passthrough requests, ex.: log table
-		res.BuildPassThroughResult()
-		res.PostProcessing()
-	default:
-		// normal requests
-		res.RawResults = &RawResultSet{}
-		res.RawResults.Sort = req.Sort
-		res.BuildLocalResponse(ctx)
-		res.RawResults.PostProcessing(res)
-	}
-
-	res.CalculateFinalStats()
-	return
 }
 
 // Len returns the result length used for sorting results.
@@ -334,19 +377,25 @@ func finalStatsApply(s *Filter) (res float64) {
 // Send converts the result object to a livestatus answer and writes the resulting bytes back to the client.
 func (res *Response) Send(c net.Conn) (size int64, err error) {
 	if res.Request.ResponseFixed16 {
-		return res.SendFixed16(c)
+		size, err = res.SendFixed16(c)
+	} else {
+		size, err = res.SendUnbuffered(c)
 	}
-	return res.SendUnbuffered(c)
+
+	localAddr := c.LocalAddr().String()
+	promFrontendBytesSend.WithLabelValues(localAddr).Add(float64(size + 1))
+
+	return
 }
 
 // SendFixed16 converts the result object to a livestatus answer and writes the resulting bytes back to the client.
-func (res *Response) SendFixed16(c net.Conn) (size int64, err error) {
+func (res *Response) SendFixed16(c io.Writer) (size int64, err error) {
 	resBuffer, err := res.Buffer()
 	if err != nil {
 		return
 	}
-	size = int64(resBuffer.Len()) + 1
-	headerFixed16 := fmt.Sprintf("%d %11d", res.Code, size)
+	size = int64(resBuffer.Len())
+	headerFixed16 := fmt.Sprintf("%d %11d", res.Code, size+1)
 	logWith(res).Tracef("write: %s", headerFixed16)
 	_, err = fmt.Fprintf(c, "%s\n", headerFixed16)
 	if err != nil {
@@ -361,13 +410,12 @@ func (res *Response) SendFixed16(c net.Conn) (size int64, err error) {
 		logWith(res).Warnf("write error: %s", err.Error())
 		return
 	}
-	localAddr := c.LocalAddr().String()
-	promFrontendBytesSend.WithLabelValues(localAddr).Add(float64(written + 1))
-	if written != size-1 {
+	if written != size {
 		logWith(res).Warnf("write error: written %d, size: %d", written, size)
 		return
 	}
 	_, err = c.Write([]byte("\n"))
+
 	return
 }
 
@@ -558,8 +606,8 @@ func (res *Response) WriteColumnsResponse(json *jsoniter.Stream) {
 	json.WriteRaw("\n")
 }
 
-// BuildLocalResponse builds local data table result for all selected peers
-func (res *Response) BuildLocalResponse(ctx context.Context) {
+// buildLocalResponse builds local data table result for all selected peers
+func (res *Response) buildLocalResponse(ctx context.Context, stores map[*Peer]*DataStore) {
 	var resultcollector chan *PeerResponse
 	var waitChan chan bool
 	if len(res.Request.Stats) == 0 {
@@ -581,33 +629,15 @@ func (res *Response) BuildLocalResponse(ctx context.Context) {
 		p := res.SelectedPeers[i]
 		p.StatusSet(LastQuery, currentUnixTime())
 
-		store, err := p.GetDataStore(res.Request.Table)
-		if err != nil {
-			res.Lock.Lock()
-			res.Failed[p.ID] = err.Error()
-			res.Lock.Unlock()
+		store, ok := stores[p]
+		if !ok {
 			continue
 		}
 
 		// process virtual tables serially without go routines to maintain the correct order, ex.: from the sites table
 		if store.Table.Virtual != nil {
-			res.BuildLocalResponseData(ctx, store, resultcollector)
+			res.buildLocalResponseData(ctx, store, resultcollector)
 			continue
-		}
-
-		// if a WaitTrigger is supplied, wait max ms till the condition is true
-		if res.Request.WaitTrigger != "" {
-			p.WaitCondition(ctx, res.Request)
-
-			// peer might have gone down meanwhile, ex. after waiting for a waittrigger, so check again
-			s, err := p.GetDataStore(res.Request.Table)
-			if err != nil {
-				res.Lock.Lock()
-				res.Failed[p.ID] = err.Error()
-				res.Lock.Unlock()
-				return
-			}
-			store = s
 		}
 
 		waitgroup.Add(1)
@@ -617,7 +647,7 @@ func (res *Response) BuildLocalResponse(ctx context.Context) {
 
 			defer wg.Done()
 
-			res.BuildLocalResponseData(ctx, store, resultcollector)
+			res.buildLocalResponseData(ctx, store, resultcollector)
 		}(p, waitgroup)
 	}
 	logWith(res).Tracef("waiting...")
@@ -632,6 +662,25 @@ func (res *Response) BuildLocalResponse(ctx context.Context) {
 	}
 
 	logWith(res).Tracef("waiting for all local data computations done")
+}
+
+// waitTrigger waits till all trigger are fulfilled
+func (res *Response) waitTrigger(ctx context.Context, p *Peer) {
+	// if a WaitTrigger is supplied, wait max ms till the condition is true
+	if res.Request.WaitTrigger == "" {
+		return
+	}
+
+	p.WaitCondition(ctx, res.Request)
+
+	// peer might have gone down meanwhile, ex. after waiting for a waittrigger, so check again
+	_, err := p.GetDataStore(res.Request.Table)
+	if err != nil {
+		res.Lock.Lock()
+		res.Failed[p.ID] = err.Error()
+		res.Lock.Unlock()
+		return
+	}
 }
 
 // MergeStats merges stats result into final result set
@@ -773,8 +822,8 @@ func SpinUpPeers(ctx context.Context, peers []*Peer) {
 	log.Debugf("spin up completed")
 }
 
-// BuildLocalResponseData returns the result data for a given request
-func (res *Response) BuildLocalResponseData(ctx context.Context, store *DataStore, resultcollector chan *PeerResponse) {
+// buildLocalResponseData returns the result data for a given request
+func (res *Response) buildLocalResponseData(ctx context.Context, store *DataStore, resultcollector chan *PeerResponse) {
 	logWith(store.PeerName, res).Tracef("BuildLocalResponseData")
 
 	if len(store.Data) == 0 {
@@ -786,11 +835,6 @@ func (res *Response) BuildLocalResponseData(ctx context.Context, store *DataStor
 	if store.PeerLockMode == PeerLockModeFull && ds != nil && ds.peer != nil {
 		ds.peer.Lock.RLock()
 		defer ds.peer.Lock.RUnlock()
-	}
-
-	if !store.Table.WorksUnlocked {
-		ds.Lock.Lock()
-		defer ds.Lock.Unlock()
 	}
 
 	if len(res.Request.Stats) > 0 {
