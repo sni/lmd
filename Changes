@@ -3,6 +3,7 @@ This file documents the revision history for the Livestatus Multitool Daemon (LM
 next:
           - improve full scan sync, less delta scan timestamp filter too complex messages
           - fix modified attributes with icinga 2
+          - fix data corruption during update
 
 2.1.6    Fri Jul 14 08:44:27 CEST 2023
           - add support for setting expected tls servername

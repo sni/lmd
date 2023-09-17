@@ -290,6 +290,10 @@ func (ds *DataStoreSet) updateDeltaHostsServices(tableName TableName, filterStr 
 	if err != nil {
 		return
 	}
+
+	// make sure all backends are sorted the same way
+	res = res.SortByPrimaryKey(table.Table, req)
+
 	switch tableName {
 	case TableHosts:
 		hostDataOffset := 1
