@@ -330,7 +330,8 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 	// prepare update
 	nameIndex := d.Index
 	nameIndex2 := d.Index2
-	for rowNum, resRow := range res {
+	for rowNum := range res {
+		resRow := res[rowNum]
 		prepared := &ResultPrepared{
 			ResultRow:  resRow,
 			FullUpdate: false,
