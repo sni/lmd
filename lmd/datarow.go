@@ -456,6 +456,8 @@ func (d *DataRow) getVirtualRowValue(col *Column) interface{} {
 					return &(p.Name)
 				case PeerKey:
 					return &(p.ID)
+				case ProgramStart:
+					return &(p.ProgramStart)
 				default:
 					value = p.StatusGet(col.VirtualMap.StatusKey)
 				}
@@ -499,7 +501,7 @@ func VirtualColLastStateChangeOrder(d *DataRow, _ *Column) interface{} {
 	// return last_state_change or program_start
 	lastStateChange := d.GetIntByName("last_state_change")
 	if lastStateChange == 0 {
-		return d.DataStore.Peer.StatusGet(ProgramStart)
+		return d.DataStore.Peer.ProgramStart
 	}
 	return lastStateChange
 }

@@ -67,6 +67,7 @@ type Peer struct {
 	noCopy          noCopy
 	Name            string                        // Name of this peer, aka peer_name
 	ID              string                        // ID for this peer, aka peer_key
+	ProgramStart    int64                         // unix time when this peer started, aka program_start
 	ParentID        string                        // ID of parent Peer
 	Flags           uint32                        // optional flags, like LMD, Icinga2, etc...
 	Source          []string                      // reference to all connection strings
@@ -480,7 +481,7 @@ func (p *Peer) handleBrokenPeer() (err error) {
 	if len(res) > 0 && len(res[0]) == 2 {
 		programStart := interface2int64(res[0][0])
 		corePid := interface2int(res[0][1])
-		if p.StatusGet(ProgramStart) != programStart || p.StatusGet(LastPid) != corePid {
+		if p.ProgramStart != programStart || p.StatusGet(LastPid) != corePid {
 			logWith(p).Debugf("broken peer has reloaded, trying again.")
 			return p.InitAllTables()
 		}
@@ -913,6 +914,7 @@ func (p *Peer) updateInitialStatus(store *DataStore) (err error) {
 	delete(p.Status, ConfigTool)
 	delete(p.Status, ThrukExtras)
 	p.Status[ProgramStart] = programStart
+	p.ProgramStart = programStart
 	p.Status[LastPid] = corePid
 	p.Lock.Unlock()
 	if !p.HasFlag(MultiBackend) {
@@ -2668,11 +2670,10 @@ func (p *Peer) CheckBackendRestarted(primaryKeysLen int, res ResultSet, columns 
 		return
 	}
 
-	programStart := p.StatusGet(ProgramStart).(int64)
 	corePid := p.StatusGet(LastPid).(int)
 
 	// not yet started completely
-	if programStart == 0 || corePid == 0 {
+	if p.ProgramStart == 0 || corePid == 0 {
 		return
 	}
 
@@ -2691,7 +2692,7 @@ func (p *Peer) CheckBackendRestarted(primaryKeysLen int, res ResultSet, columns 
 		}
 	}
 
-	if newProgramStart != programStart || newCorePid != corePid {
+	if newProgramStart != p.ProgramStart || newCorePid != corePid {
 		err = fmt.Errorf("site has been restarted, recreating objects (program_start: %d, pid: %d)", newProgramStart, newCorePid)
 		if !p.ErrorLogged {
 			logWith(p).Infof("%s", err.Error())
