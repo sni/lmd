@@ -24,6 +24,7 @@ type ClientConnection struct {
 	logSlowQueryThreshold int
 	logHugeQueryThreshold int
 	queryStats            *QueryStats
+	curRequest            *Request
 }
 
 // NewClientConnection creates a new client connection object
@@ -70,6 +71,9 @@ func (cl *ClientConnection) Handle() {
 			logWith(ctx).Debugf("closing keep alive connection (timeout: %s)", time.Duration(cl.listenTimeout)*time.Second)
 		} else {
 			logWith(ctx).Warnf("request timed out (timeout: %s)", time.Duration(cl.listenTimeout)*time.Second)
+			if cl.curRequest != nil {
+				logWith(ctx).Warnf("", cl.curRequest.String())
+			}
 		}
 	}
 	cl.connection.Close()
@@ -139,9 +143,13 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 	if len(reqs) == 0 {
 		return
 	}
+	defer func() {
+		cl.curRequest = nil
+	}()
 	commandsByPeer := make(map[string][]string)
 	for _, req := range reqs {
 		cl.keepAlive = req.KeepAlive
+		cl.curRequest = req
 		reqctx := context.WithValue(ctx, CtxRequest, req.ID())
 		t1 := time.Now()
 		if req.Command != "" {
@@ -191,6 +199,10 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 }
 
 func (cl *ClientConnection) processRequest(ctx context.Context, req *Request) (size int64, err error) {
+	cl.curRequest = req
+	defer func() {
+		cl.curRequest = nil
+	}()
 	size, err = req.BuildResponseSend(ctx, cl.connection)
 	if err != nil {
 		if netErr, ok := err.(net.Error); ok {
