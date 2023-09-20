@@ -19,6 +19,9 @@ import (
 const (
 	// SpinUpPeersTimeout sets timeout to wait for peers after spin up
 	SpinUpPeersTimeout = 5 * time.Second
+
+	// Number of processes rows after which the context is checked again
+	RowContextCheck = 10000
 )
 
 // Response contains the livestatus response data as long with some meta data
@@ -865,12 +868,15 @@ func (res *Response) gatherResultRows(ctx context.Context, store *DataStore, res
 
 	done := ctx.Done()
 Rows:
-	for _, row := range store.GetPreFilteredData(req.Filter) {
-		select {
-		case <-done:
-			// request canceled
-			return
-		default:
+	for i, row := range store.GetPreFilteredData(req.Filter) {
+		// only check every couple of rows
+		if i%RowContextCheck == 0 {
+			select {
+			case <-done:
+				// request canceled
+				return
+			default:
+			}
 		}
 
 		result.RowsScanned++
@@ -907,12 +913,15 @@ func (res *Response) gatherStatsResult(ctx context.Context, store *DataStore) *R
 
 	done := ctx.Done()
 Rows:
-	for _, row := range store.GetPreFilteredData(req.Filter) {
-		select {
-		case <-done:
-			// request canceled
-			return nil
-		default:
+	for i, row := range store.GetPreFilteredData(req.Filter) {
+		// only check every couple of rows
+		if i%RowContextCheck == 0 {
+			select {
+			case <-done:
+				// request canceled
+				return nil
+			default:
+			}
 		}
 		result.RowsScanned++
 		// does our filter match?
