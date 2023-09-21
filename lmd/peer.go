@@ -599,8 +599,6 @@ func (p *Peer) periodicUpdateMultiBackends(data *DataStoreSet, force bool) (err 
 	// check if we need to start/stop peers
 	logWith(p).Debugf("checking for changed remote multi backends")
 	existing := make(map[string]bool)
-	p.lmd.PeerMapLock.Lock()
-	defer p.lmd.PeerMapLock.Unlock()
 	for _, siteRow := range sites {
 		var site map[string]interface{}
 		if s, ok := siteRow.(map[string]interface{}); ok {
@@ -613,6 +611,8 @@ func (p *Peer) periodicUpdateMultiBackends(data *DataStoreSet, force bool) (err 
 	}
 
 	// remove exceeding peers
+	p.lmd.PeerMapLock.Lock()
+	defer p.lmd.PeerMapLock.Unlock()
 	for id := range p.lmd.PeerMap {
 		peer := p.lmd.PeerMap[id]
 		if peer.ParentID == p.ID {
