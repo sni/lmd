@@ -1,5 +1,6 @@
 [
   {
+    "id": 1,
     "alias": "example",
     "can_submit_commands": 1,
     "custom_variable_names": [
@@ -19,10 +20,17 @@
     "address4": "",
     "address5": "",
     "address6": "",
+    "modified_attributes": 0,
+    "modified_attributes_list": [],
     "service_notification_period": "24x7",
-    "service_notifications_enabled": 0
+    "service_notifications_enabled": 0,
+    "host_notification_commands": ["notifiy-host-by-email"],
+    "service_notification_commands": ["notifiy-service-by-email"],
+    "in_host_notification_period": 1,
+    "in_service_notification_period": 1
   },
   {
+    "id": 2,
     "alias": "authuser",
     "can_submit_commands": 1,
     "custom_variable_names": [],
@@ -38,7 +46,13 @@
     "address4": "",
     "address5": "",
     "address6": "",
+    "modified_attributes": 0,
+    "modified_attributes_list": [],
     "service_notification_period": "24x7",
-    "service_notifications_enabled": 0
+    "service_notifications_enabled": 0,
+    "host_notification_commands": [],
+    "service_notification_commands": [],
+    "in_host_notification_period": 1,
+    "in_service_notification_period": 1
   }
 ]

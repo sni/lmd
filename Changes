@@ -2,6 +2,7 @@ This file documents the revision history for the Livestatus Multitool Daemon (LM
 
 next:
           - improve full scan sync, less delta scan timestamp filter too complex messages
+          - add more contacts columns (id, host/service_notification_commands, in_host/service_notification_period,in_host_notification_period)
           - fix modified attributes with icinga 2
           - fix data corruption during update
 
