@@ -185,6 +185,9 @@ const (
 
 	// HasContactsGroupColumn flag is set if remote site support contacts groups column
 	HasContactsGroupColumn
+
+	// HasContactsCommandsColumn flag is set if remote site support contacts notification commands column
+	HasContactsCommandsColumn
 )
 
 // OptionalFlagsStrings maps available backend flags to their string value
@@ -208,6 +211,7 @@ var OptionalFlagsStrings = []struct {
 	{HasStalenessColumn, "HasStalenessColumn"},
 	{HasServiceParentsColumn, "HasServiceParentsColumn"},
 	{HasContactsGroupColumn, "HasContactsGroupColumn"},
+	{HasContactsCommandsColumn, "HasContactsCommandsColumn"},
 }
 
 // String returns the string representation of used flags

@@ -226,8 +226,6 @@ func NewContactsTable() (t *Table) {
 	t.AddExtraColumn("modified_attributes", LocalStore, Dynamic, IntCol, Naemon, "A bitmask specifying which attributes have been modified")
 	t.AddExtraColumn("modified_attributes_list", LocalStore, Dynamic, StringListCol, Naemon, "A bitmask specifying which attributes have been modified")
 
-	t.AddExtraColumn("host_notification_commands", LocalStore, Static, StringListCol, Naemon, "A list of all host notification commands.")
-	t.AddExtraColumn("service_notification_commands", LocalStore, Static, StringListCol, Naemon, "A list of all service notification commands.")
 	t.AddExtraColumn("in_service_notification_period", LocalStore, Dynamic, IntCol, Naemon, "Boolean flag if the contact is currently in its host notification period")
 	t.AddExtraColumn("in_host_notification_period", LocalStore, Dynamic, IntCol, Naemon, "Boolean flag if the contact is currently in its host notification period")
 
@@ -243,6 +241,9 @@ func NewContactsTable() (t *Table) {
 	t.AddExtraColumn("custom_variables", VirtualStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
 
 	t.AddExtraColumn("groups", LocalStore, Static, StringListCol, HasContactsGroupColumn, "List of groups this contact is part of.")
+
+	t.AddExtraColumn("host_notification_commands", LocalStore, Static, StringListCol, HasContactsCommandsColumn, "A list of all host notification commands.")
+	t.AddExtraColumn("service_notification_commands", LocalStore, Static, StringListCol, HasContactsCommandsColumn, "A list of all service notification commands.")
 
 	t.AddPeerInfoColumn("lmd_last_cache_update", FloatCol, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
