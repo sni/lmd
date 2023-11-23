@@ -264,7 +264,7 @@ func TestResponseErrorsFunc(t *testing.T) {
 		{"GET hosts\nOffset: -1", "bad request: expecting a positive number in: Offset: -1"},
 		{"GET hosts\nSort: name none", "bad request: unrecognized sort direction, must be asc or desc in: Sort: name none"},
 		{"GET hosts\nResponseheader: none", "bad request: unrecognized responseformat, only fixed16 is supported in: Responseheader: none"},
-		{"GET hosts\nOutputFormat: csv: none", "bad request: unrecognized outputformat, choose from json, wrapped_json and python in: OutputFormat: csv: none"},
+		{"GET hosts\nOutputFormat: csv: none", "bad request: unrecognized outputformat, choose from json, wrapped_json, python and python3 in: OutputFormat: csv: none"},
 		{"GET hosts\nStatsAnd: 1", "bad request: not enough filter on stack in: StatsAnd: 1"},
 		{"GET hosts\nStatsOr: 1", "bad request: not enough filter on stack in: StatsOr: 1"},
 		{"GET hosts\nFilter: name", "bad request: filter header must be Filter: <field> <operator> <value> in: Filter: name"},

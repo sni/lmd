@@ -100,6 +100,7 @@ const (
 	OutputFormatJSON
 	OutputFormatWrappedJSON
 	OutputFormatPython
+	OutputFormatPython3
 )
 
 // String converts a SortDirection back to the original string.
@@ -111,6 +112,8 @@ func (o *OutputFormat) String() string {
 		return "wrapped_json"
 	case OutputFormatPython:
 		return "python"
+	case OutputFormatPython3:
+		return "python3"
 	}
 	log.Panicf("not implemented")
 	return ""
@@ -883,8 +886,10 @@ func parseOutputFormat(field *OutputFormat, value []byte) (err error) {
 		*field = OutputFormatJSON
 	case "python":
 		*field = OutputFormatPython
+	case "python3":
+		*field = OutputFormatPython3
 	default:
-		err = errors.New("unrecognized outputformat, choose from json, wrapped_json and python")
+		err = errors.New("unrecognized outputformat, choose from json, wrapped_json, python and python3")
 		return
 	}
 	return
