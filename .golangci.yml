@@ -38,7 +38,6 @@ linters:
     - errorlint
     - exhaustive
     - exhaustivestruct
-    - perfsprint
     - exhaustruct
     - forbidigo
     - forcetypeassert
@@ -56,6 +55,7 @@ linters:
     - nlreturn
     - nonamedreturns
     - paralleltest
+    - perfsprint
     - scopelint
     - varnamelen
     - wastedassign
@@ -65,72 +65,72 @@ issues:
   max-same-issues: 0
   exclude-use-default: true
   exclude:
-    - "TLS InsecureSkipVerify may be true"
-    - "`noCopy` is unused"
-    - "can be `expvar.Var`"
-    - "cyclomatic complexity .* of func `TestNodeManager` is high"
-    - "cyclomatic complexity .* of func `.*ParseRequestHeaderLine` is high"
-    - "cyclomatic complexity .* of func `.*Less` is high"
-    - "cyclomatic complexity .* of func `matchStringListFilter` is high"
-    - "cyclomatic complexity .* of func `.*String` is high"
-    - "cyclomatic complexity .* of func `TestRequestKeepalive` is high"
-    - "cyclomatic complexity .* of func `appendIndexHostsFromServiceColumns` is high"
-    - "cyclomatic complexity .* of func `TestNegate` is high"
-    - "G108: Profiling endpoint is automatically exposed"
-    - "G114: Use of net/http serve function that has no support for setting timeouts"
-    - "ptrToRefParam: consider `commandsByPeer' to be of non-pointer type"
-    - "cognitive complexity .* of func `ProcessRequests` is high"
-    - "cognitive complexity .* of func `.*Request..getDistributedResponse` is high"
-    - "cognitive complexity .* of func `.*Peer..waitcondition` is high"
-    - "cognitive complexity .* of func `appendIndexHostsFromServiceColumns` is high"
-    - "cognitive complexity .* of func `.*..optimizeStatsGroups` is high"
-    - 'Magic number: 1\D '
-    - 'Magic number: 2\D '
-    - 'Magic number: 3\D '
-    - 'Magic number: 4\D '
-    - 'Magic number: 10\D '
-    - 'Magic number: 16\D '
-    - 'Magic number: 32\D '
-    - 'Magic number: 64\D '
-    - 'Magic number: 100\D '
-    - 'Magic number: 200\D '
-    - 'Magic number: 400\D '
-    - 'Magic number: 502\D '
-    - 'Magic number: 1024\D '
-    - 'Magic number: 0o644\D '
-    - 'Magic number: 65536\D '
-    - 'package should be `main_test` instead of `main`'
+    - 'data.Options.Sub.*_raw_query.*is deeply nested'
     - 'err113:'
     - 'Expect WriteFile permissions to be 0600 or less'
-    - 'Top level comment should end in a period'
-    - 'data.Options.Sub.*_raw_query.*is deeply nested'
-    - 'missing cases in switch of type SortDirection: _'
-    - 'missing cases in switch of type GroupOperator: _'
-    - 'missing cases in switch of type Operator: _'
     - 'lines are duplicate of.*_test.go:'
     - 'lines are duplicate of.*objects.go:'
-    - "Function 'NewHostsTable' has too many statements"
-    - "Function 'NewServicesTable' has too many statements"
-    - "func .*noCopy.* is unused"
-    - "Use of weak random number generator"
-    - "Error return value of `log.Output` is not checked"
-    - "prom.* is a global variable"
-    - "Build is a global variable"
-    - "log is a global variable"
-    - "once is a global variable"
-    - "empty.* is a global variable"
-    - "Objects is a global variable"
-    - "CompressionLevel is a global variable"
-    - "CompressionMinimumSize is a global variable"
-    - "defaultParseOptimizer is a global variable"
-    - "VirtualColumnMap is a global variable"
-    - "VirtualColumnList is a global variable"
-    - "OptionalFlagsStrings is a global variable"
-    - "LogFormat is a global variable"
+    - 'Magic number: 0o644\D '
+    - 'Magic number: 1\D '
+    - 'Magic number: 10\D '
+    - 'Magic number: 100\D '
+    - 'Magic number: 1024\D '
+    - 'Magic number: 16\D '
+    - 'Magic number: 2\D '
+    - 'Magic number: 200\D '
+    - 'Magic number: 3\D '
+    - 'Magic number: 32\D '
+    - 'Magic number: 4\D '
+    - 'Magic number: 400\D '
+    - 'Magic number: 502\D '
+    - 'Magic number: 64\D '
+    - 'Magic number: 65536\D '
+    - 'missing cases in switch of type GroupOperator: _'
+    - 'missing cases in switch of type Operator: _'
+    - 'missing cases in switch of type SortDirection: _'
+    - 'package should be `main_test` instead of `main`'
+    - 'Top level comment should end in a period'
     - "_checkErr contains underscore"
     - "_checkErr2 contains underscore"
     - "(RLIMIT_NOFILE|O_APPEND|O_WRONLY|O_CREATE) contains underscore"
+    - "`noCopy` is unused"
+    - "Build is a global variable"
+    - "can be `expvar.Var`"
+    - "cognitive complexity .* of func `.*..optimizeStatsGroups` is high"
+    - "cognitive complexity .* of func `.*Peer..waitcondition` is high"
+    - "cognitive complexity .* of func `.*Request..getDistributedResponse` is high"
+    - "cognitive complexity .* of func `appendIndexHostsFromServiceColumns` is high"
+    - "cognitive complexity .* of func `ProcessRequests` is high"
+    - "CompressionLevel is a global variable"
+    - "CompressionMinimumSize is a global variable"
+    - "cyclomatic complexity .* of func `.*Less` is high"
+    - "cyclomatic complexity .* of func `.*ParseRequestHeaderLine` is high"
+    - "cyclomatic complexity .* of func `.*String` is high"
+    - "cyclomatic complexity .* of func `appendIndexHostsFromServiceColumns` is high"
+    - "cyclomatic complexity .* of func `matchStringListFilter` is high"
+    - "cyclomatic complexity .* of func `TestNegate` is high"
+    - "cyclomatic complexity .* of func `TestNodeManager` is high"
+    - "cyclomatic complexity .* of func `TestRequestKeepalive` is high"
     - "dedup is a global variable"
+    - "defaultParseOptimizer is a global variable"
+    - "empty.* is a global variable"
+    - "Error return value of `log.Output` is not checked"
+    - "func .*noCopy.* is unused"
+    - "Function 'NewHostsTable' has too many statements"
+    - "Function 'NewServicesTable' has too many statements"
+    - "G108: Profiling endpoint is automatically exposed"
+    - "G114: Use of net/http serve function that has no support for setting timeouts"
+    - "log is a global variable"
+    - "LogFormat is a global variable"
+    - "Objects is a global variable"
+    - "once is a global variable"
+    - "OptionalFlagsStrings is a global variable"
+    - "prom.* is a global variable"
+    - "ptrToRefParam: consider `commandsByPeer' to be of non-pointer type"
+    - "TLS InsecureSkipVerify may be true"
+    - "Use of weak random number generator"
+    - "VirtualColumnList is a global variable"
+    - "VirtualColumnMap is a global variable"
   exclude-rules:
     # Exclude some linters from running on tests files.
     - path: _test\.go
