@@ -2,6 +2,7 @@ This file documents the revision history for the Livestatus Multitool Daemon (LM
 
 next:
           - submit pending commands as soon as syncing started
+          - accept python3 outputformat (#128)
 
 2.1.7    Fri Oct 20 10:08:38 CEST 2023
           - improve full scan sync, less delta scan timestamp filter too complex messages
