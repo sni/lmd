@@ -31,7 +31,7 @@ Requirements
 
 You will need
 
- - Go >= 1.19
+ - Go >= 1.21
 
 to compile lmd.
 
