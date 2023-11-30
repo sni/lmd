@@ -1,5 +1,8 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
+next:
+          - submit pending commands as soon as syncing started
+
 2.1.7    Fri Oct 20 10:08:38 CEST 2023
           - improve full scan sync, less delta scan timestamp filter too complex messages
           - add more contacts columns (id, host/service_notification_commands, in_host/service_notification_period,in_host_notification_period)

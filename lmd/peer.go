@@ -99,11 +99,12 @@ type PeerStatus uint8
 // It is pending right after start and warning when the connection fails
 // but the stale timeout is not yet hit.
 const (
-	PeerStatusUp PeerStatus = iota
-	PeerStatusWarning
-	PeerStatusDown
-	PeerStatusBroken // broken flags clients which cannot be used, lmd will check program_start and only retry them if start time changed
-	PeerStatusPending
+	PeerStatusUp      PeerStatus = iota // peer is up and running and fully synced
+	PeerStatusWarning                   // peer is down but stale timeout has not yet reached
+	PeerStatusDown                      // peer is down and cached data removed
+	PeerStatusBroken                    // broken flags clients which cannot be used, lmd will check program_start and only retry them if start time changed
+	PeerStatusPending                   // initial status on startup
+	PeerStatusSyncing                   // sync started and first data set but not yet finished
 )
 
 // String converts a PeerStatus into a string
@@ -119,6 +120,8 @@ func (ps *PeerStatus) String() string {
 		return "broken"
 	case PeerStatusPending:
 		return "pending"
+	case PeerStatusSyncing:
+		return "syncing"
 	default:
 		log.Panicf("not implemented")
 	}
@@ -451,7 +454,7 @@ func (p *Peer) periodicUpdate() (err error) {
 		}
 		// run update if it was just a short outage
 		return data.UpdateFull(Objects.UpdateTables)
-	case PeerStatusUp:
+	case PeerStatusUp, PeerStatusSyncing:
 		if data == nil {
 			logWith(p).Warnf("inconsistent state, no data with state: %s", lastStatus)
 			return p.InitAllTables()
@@ -869,6 +872,7 @@ func (p *Peer) initTable(data *DataStoreSet, table *Table) (err error) {
 		}
 		// got an answer, remove last error and let clients know we are reconnecting
 		if p.StatusGet(PeerState).(PeerStatus) != PeerStatusPending {
+			p.StatusSet(PeerState, PeerStatusSyncing)
 			p.StatusSet(LastError, "reconnecting...")
 		}
 	case TableTimeperiods:
@@ -1500,7 +1504,8 @@ func (p *Peer) setNextAddrFromErr(err error, req *Request) {
 	p.closeConnectionPool()
 	p.cache.connectionPool = make(chan net.Conn, p.lmd.Config.MaxParallelPeerConnections)
 
-	if p.Status[PeerState].(PeerStatus) == PeerStatusUp || p.Status[PeerState].(PeerStatus) == PeerStatusPending {
+	switch p.Status[PeerState].(PeerStatus) {
+	case PeerStatusUp, PeerStatusPending, PeerStatusSyncing:
 		p.Status[PeerState] = PeerStatusWarning
 	}
 	now := currentUnixTime()
@@ -2376,7 +2381,7 @@ func (p *Peer) SendCommandsWithRetry(ctx context.Context, commands []string) (er
 		case PeerStatusWarning, PeerStatusPending:
 			// wait till we get either a up or down
 			time.Sleep(1 * time.Second)
-		case PeerStatusUp:
+		case PeerStatusUp, PeerStatusSyncing:
 			err = p.SendCommands(ctx, commands)
 			if err == nil {
 				return
