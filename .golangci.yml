@@ -38,6 +38,7 @@ linters:
     - errorlint
     - exhaustive
     - exhaustivestruct
+    - perfsprint
     - exhaustruct
     - forbidigo
     - forcetypeassert
