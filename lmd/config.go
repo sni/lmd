@@ -28,6 +28,7 @@ type Connection struct {
 	TLSServerName  string
 	Proxy          string
 	Flags          []string
+	NoConfigTool   int `toml:"noconfigtool"` // skip adding config tool to sites query
 }
 
 // Equals checks if two connection objects are identical.
@@ -42,6 +43,7 @@ func (c *Connection) Equals(other *Connection) bool {
 	equal = equal && c.TLSKey == other.TLSKey
 	equal = equal && c.TLSCA == other.TLSCA
 	equal = equal && c.TLSSkipVerify == other.TLSSkipVerify
+	equal = equal && c.NoConfigTool == other.NoConfigTool
 	equal = equal && strings.Join(c.Source, ":") == strings.Join(other.Source, ":")
 	equal = equal && strings.Join(c.Flags, ":") == strings.Join(other.Flags, ":")
 	return equal

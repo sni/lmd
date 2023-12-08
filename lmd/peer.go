@@ -902,6 +902,15 @@ func (p *Peer) updateInitialStatus(store *DataStore) (err error) {
 		err = cerr
 		return
 	}
+	if p.Config.NoConfigTool >= 1 {
+		configtool = map[string]interface{}{
+			"disable": "1",
+		}
+		if thrukextras == nil {
+			thrukextras = map[string]interface{}{}
+		}
+		thrukextras["configtool"] = configtool
+	}
 	p.LogErrors(p.fetchRemotePeers(store.DataSet))
 	p.LogErrors(p.checkStatusFlags(store.DataSet))
 
