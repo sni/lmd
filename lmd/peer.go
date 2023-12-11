@@ -659,6 +659,9 @@ func (p *Peer) periodicTimeperiodsUpdate(data *DataStoreSet) (err error) {
 	}
 	// this also sets the thruk version and checks the clock, so it should be called first
 	if _, _, err = p.fetchThrukExtras(); err != nil {
+		// log error, but this should not prevent accessing the backend
+		log.Debugf("fetchThrukExtras: %s ", err.Error())
+
 		return
 	}
 	return
@@ -899,8 +902,8 @@ func (p *Peer) updateInitialStatus(store *DataStore) (err error) {
 	// if its http and a status request, try a processinfo query to fetch all backends
 	configtool, thrukextras, cerr := p.fetchThrukExtras() // this also sets the thruk version and checks the clock, so it should be called first
 	if cerr != nil {
-		err = cerr
-		return
+		// log error, but this should not prevent accessing the backend
+		log.Debugf("fetchThrukExtras: %s ", cerr.Error())
 	}
 	if p.Config.NoConfigTool >= 1 {
 		configtool = map[string]interface{}{
