@@ -893,7 +893,7 @@ func hasRegexpCharacters(val string) bool {
 			return true
 		}
 		test := reRegexDotReplace.ReplaceAllString(val, "")
-		// still contans dots?
+		// still contains dots?
 		if strings.Contains(test, ".") {
 			return true
 		}
