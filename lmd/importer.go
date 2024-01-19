@@ -10,6 +10,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync/atomic"
 )
 
 var reImportFileTable = regexp.MustCompile(`/([a-z]+)\.json$`)
@@ -59,6 +60,10 @@ func initializePeersWithImport(lmd *LMDInstance, importFile string) (err error) 
 	lmd.PeerMap = PeerMapNew
 	lmd.PeerMapLock.Unlock()
 
+	if len(PeerMapOrderNew) == 0 {
+		return fmt.Errorf("failed to find any useable data")
+	}
+
 	log.Infof("imported %d peers successfully", len(PeerMapOrderNew))
 
 	lmd.nodeAccessor = NewNodes(lmd, []string{}, "")
@@ -73,7 +78,7 @@ func importPeersFromDir(lmd *LMDInstance, folder string) (peers []*Peer, err err
 		err = fmt.Errorf("cannot read %s: %s", folder, err)
 		return
 	}
-	if _, err := os.Stat(folder + "/sites.json"); err == nil {
+	if _, err := os.Stat(folder + "/backends.json"); err == nil {
 		return importPeerFromDir(peers, folder, lmd)
 	}
 	for _, f := range files {
@@ -96,9 +101,13 @@ func importPeerFromDir(peers []*Peer, folder string, lmd *LMDInstance) ([]*Peer,
 		err = fmt.Errorf("cannot read %s: %s", folder, err)
 		return nil, err
 	}
-	peers, err = importPeerFromFile(peers, folder+"/sites.json", lmd)
+	peers, err = importPeerFromFile(peers, folder+"/backends.json", lmd)
 	if err != nil {
-		return nil, fmt.Errorf("import error in file %s: %s", folder+"/sites.json", err)
+		return nil, fmt.Errorf("import error in file %s: %s", folder+"/backends.json", err)
+	}
+	peers, err = importPeerFromFile(peers, folder+"/status.json", lmd)
+	if err != nil {
+		return nil, fmt.Errorf("import error in file %s: %s", folder+"/status.json", err)
 	}
 	for _, f := range files {
 		fInfo, err := f.Info()
@@ -106,7 +115,10 @@ func importPeerFromDir(peers []*Peer, folder string, lmd *LMDInstance) ([]*Peer,
 			return nil, fmt.Errorf("import error in file %s: %s", f.Name(), err)
 		}
 		if fInfo.Mode().IsRegular() {
-			if strings.Contains(f.Name(), "sites.json") {
+			if strings.Contains(f.Name(), "backends.json") {
+				continue
+			}
+			if strings.Contains(f.Name(), "status.json") {
 				continue
 			}
 			peers, err = importPeerFromFile(peers, folder+"/"+f.Name(), lmd)
@@ -199,16 +211,18 @@ func importPeerFromTar(peers []*Peer, header *tar.Header, tarReader io.Reader, l
 }
 
 // importData creates/extends peer from given table data
-func importData(peers []*Peer, table *Table, rows ResultSet, columns ColumnList, lmd *LMDInstance) ([]*Peer, error) {
-	colIndex := make(map[string]int)
-	for i, col := range columns {
-		colIndex[col.Name] = i
-	}
+func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, lmd *LMDInstance) ([]*Peer, error) {
 	var p *Peer
 	if len(peers) > 0 {
 		p = peers[len(peers)-1]
 	}
-	if table.Name == TableSites {
+
+	colIndex := make(map[string]int)
+	for i, col := range columns {
+		colIndex[col] = i
+	}
+
+	if table.Name == TableBackends {
 		if len(rows) != 1 {
 			return peers, fmt.Errorf("wrong number of site rows, expected 1 but got: %d", len(rows))
 		}
@@ -232,6 +246,10 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns ColumnList,
 		p.Status[Queries] = interface2int64(rows[0][colIndex["queries"]])
 		p.Status[ResponseTime] = interface2float64(rows[0][colIndex["response_time"]])
 		p.data = NewDataStoreSet(p)
+
+		flags := NoFlags
+		flags.Load(con.Flags)
+		atomic.StoreUint32(&p.Flags, uint32(flags))
 	}
 	if table.Virtual != nil {
 		return peers, nil
@@ -240,8 +258,19 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns ColumnList,
 	if p != nil && p.isOnline() {
 		store := NewDataStore(table, p)
 		store.DataSet = p.data
+		columnsList := ColumnList{}
+		for _, name := range columns {
+			col := store.GetColumn(name)
+			if col == nil {
+				return peers, fmt.Errorf("unknown column: %s", name)
+			}
+			if col.Index < 0 && col.StorageType == LocalStore {
+				return peers, fmt.Errorf("bad column: %s in table %s", name, table.Name.String())
+			}
+			columnsList = append(columnsList, col)
+		}
 
-		err := store.InsertData(rows, columns, false)
+		err := store.InsertData(rows, columnsList, false)
 		if err != nil {
 			return peers, fmt.Errorf("failed to insert data: %s", err)
 		}
@@ -251,7 +280,7 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns ColumnList,
 }
 
 // importReadFile returns table, data and columns from json file
-func importReadFile(tableName string, tarReader io.Reader, size int64) (table *Table, rows ResultSet, columns ColumnList, err error) {
+func importReadFile(tableName string, tarReader io.Reader, size int64) (table *Table, rows ResultSet, columns []string, err error) {
 	for _, t := range Objects.Tables {
 		if strings.EqualFold(t.Name.String(), tableName) {
 			table = t
@@ -281,14 +310,11 @@ func importReadFile(tableName string, tarReader io.Reader, size int64) (table *T
 		err = fmt.Errorf("missing column header")
 		return
 	}
+	columns = []string{}
 	columnRow := rows[0]
 	rows = rows[1:]
 	for i := range columnRow {
-		col := table.GetColumn(interface2stringNoDedup(columnRow[i]))
-		if col == nil {
-			err = fmt.Errorf("no column found by name: %s", columnRow[i])
-			return
-		}
+		col := interface2stringNoDedup(columnRow[i])
 		columns = append(columns, col)
 	}
 	return

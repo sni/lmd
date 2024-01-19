@@ -776,6 +776,9 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 		if col.StorageType != LocalStore {
 			continue
 		}
+		if localIndex < 0 {
+			log.Panicf("%s: tried to update bad column, index %d - %s", d.DataStore.Table.Name.String(), localIndex, col.Name)
+		}
 		resIndex := i + dataOffset
 		switch col.DataType {
 		case StringCol:

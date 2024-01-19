@@ -214,6 +214,20 @@ var OptionalFlagsStrings = []struct {
 	{HasContactsCommandsColumn, "HasContactsCommandsColumn"},
 }
 
+// Load set flags from list of strings
+func (f *OptionalFlags) Load(list []string) {
+	f.Clear()
+	for _, flag := range list {
+		for _, opt := range OptionalFlagsStrings {
+			if strings.EqualFold(flag, opt.name) {
+				f.SetFlag(opt.flag)
+
+				break
+			}
+		}
+	}
+}
+
 // String returns the string representation of used flags
 func (f *OptionalFlags) String() string {
 	if *f == NoFlags {
