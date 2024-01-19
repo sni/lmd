@@ -4,6 +4,7 @@ next:
           - submit pending commands as soon as syncing started
           - accept python3 outputformat (#128)
           - go build dependency changed to v1.21
+          - fix regexp filter using case sensitive index
 
 2.1.7    Fri Oct 20 10:08:38 CEST 2023
           - improve full scan sync, less delta scan timestamp filter too complex messages

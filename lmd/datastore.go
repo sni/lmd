@@ -443,7 +443,7 @@ func appendIndexHostsFromHostColumns(d *DataStore, uniqHosts map[string]bool, f 
 		case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase:
 			store := d.DataSet.tables[TableHostgroups]
 			for groupname, group := range store.Index {
-				if f.MatchString(groupname) {
+				if f.MatchString(strings.ToLower(groupname)) {
 					members := group.GetStringListByName("members")
 					for _, m := range members {
 						uniqHosts[m] = true
@@ -467,7 +467,16 @@ func appendIndexHostsFromServiceColumns(d *DataStore, uniqHosts map[string]bool,
 			uniqHosts[f.StrValue] = true
 			return true
 		// host_name ~~ <value>
-		case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase, EqualNocase:
+		case RegexMatch, Contains:
+			store := d.DataSet.tables[TableHosts]
+			for hostname := range store.Index {
+				if f.MatchString(strings.ToLower(hostname)) {
+					uniqHosts[hostname] = true
+				}
+			}
+			return true
+		// host_name ~ <value>
+		case RegexNoCaseMatch, ContainsNoCase, EqualNocase:
 			store := d.DataSet.tables[TableHosts]
 			for hostname := range store.Index {
 				if f.MatchString(hostname) {
@@ -493,7 +502,7 @@ func appendIndexHostsFromServiceColumns(d *DataStore, uniqHosts map[string]bool,
 		case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase:
 			store := d.DataSet.tables[TableHostgroups]
 			for groupname, group := range store.Index {
-				if f.MatchString(groupname) {
+				if f.MatchString(strings.ToLower(groupname)) {
 					members := group.GetStringListByName("members")
 					for _, m := range members {
 						uniqHosts[m] = true
