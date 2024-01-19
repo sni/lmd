@@ -274,15 +274,16 @@ func (d *DataStore) tryFilterIndexData(filter []*Filter, fn getPreFilteredDataFi
 	if !ok {
 		return d.Data
 	}
+	if len(uniqHosts) == 0 {
+		// this usually means our filter functions operator was not supported
+		return d.Data
+	}
 	// sort and return list of index names used
 	hostlist := []string{}
 	for key := range uniqHosts {
 		hostlist = append(hostlist, key)
 	}
 	sort.Strings(hostlist)
-	if len(hostlist) == 0 {
-		return d.Data
-	}
 	indexedData := make([]*DataRow, 0)
 	switch d.Table.Name {
 	case TableHosts:
