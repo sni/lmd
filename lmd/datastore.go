@@ -274,10 +274,6 @@ func (d *DataStore) tryFilterIndexData(filter []*Filter, fn getPreFilteredDataFi
 	if !ok {
 		return d.Data
 	}
-	if len(uniqHosts) == 0 {
-		// this usually means our filter functions operator was not supported
-		return d.Data
-	}
 	// sort and return list of index names used
 	hostlist := []string{}
 	for key := range uniqHosts {
@@ -378,33 +374,25 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 func (d *DataStore) TryFilterIndex(uniqHosts map[string]bool, filter []*Filter, fn getPreFilteredDataFilter, breakOnNoneIndexableFilter bool) bool {
 	filterFound := 0
 	for _, f := range filter {
+		if f.Negate {
+			// not supported
+			return false
+		}
+
 		switch f.GroupOperator {
 		case And:
-			if f.Negate {
-				// not supported
-				return false
-			}
 			ok := d.TryFilterIndex(uniqHosts, f.Filter, fn, false)
 			if !ok {
 				return false
 			}
 			filterFound++
 		case Or:
-			if f.Negate {
-				// not supported
-				return false
-			}
 			ok := d.TryFilterIndex(uniqHosts, f.Filter, fn, true)
 			if !ok {
 				return false
 			}
 			filterFound++
 		default:
-			if f.Negate {
-				// not supported
-				return false
-			}
-
 			if fn(d, uniqHosts, f) {
 				filterFound++
 			} else if breakOnNoneIndexableFilter {
@@ -412,6 +400,7 @@ func (d *DataStore) TryFilterIndex(uniqHosts map[string]bool, filter []*Filter, 
 			}
 		}
 	}
+
 	// index can only be used if there is at least one useable filter found
 	return filterFound > 0
 }
