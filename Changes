@@ -1,6 +1,6 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
-next:
+2.1.8    Mon Jan 22 08:55:02 CET 2024
           - submit pending commands as soon as syncing started
           - accept python3 outputformat (#128)
           - go build dependency changed to v1.21
