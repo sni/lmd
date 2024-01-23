@@ -306,12 +306,12 @@ func NewColumn(table *Table, name string, storage StorageType, update FetchType,
 	if col.StorageType == VirtualStore {
 		col.VirtualMap = VirtualColumnMap[name]
 		if col.VirtualMap == nil {
-			log.Panicf("missing VirtualMap for %s in %s", col.Name, table.Name)
+			log.Panicf("missing VirtualMap for %s in %s", col.Name, table.Name.String())
 		}
 	}
 	if col.StorageType == RefStore {
 		if col.RefCol == nil {
-			log.Panicf("missing RefCol for %s in %s", col.Name, table.Name)
+			log.Panicf("missing RefCol for %s in %s", col.Name, table.Name.String())
 		}
 		col.RefColTableName = refCol.Table.Name
 	}

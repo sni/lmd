@@ -89,10 +89,10 @@ func NewResponse(ctx context.Context, req *Request, w net.Conn) (res *Response, 
 		stores := make(map[*Peer]*DataStore)
 		for i := range res.SelectedPeers {
 			p := res.SelectedPeers[i]
-			store, err := p.GetDataStore(table.Name)
-			if err != nil {
+			store, err2 := p.GetDataStore(table.Name)
+			if err2 != nil {
 				res.Lock.Lock()
-				res.Failed[p.ID] = err.Error()
+				res.Failed[p.ID] = err2.Error()
 				res.Lock.Unlock()
 				continue
 			}

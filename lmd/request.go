@@ -978,9 +978,9 @@ func (req *Request) parseResult(resBytes []byte) (ResultSet, *ResultMetaData, er
 		return nil, nil, &PeerError{msg: fmt.Sprintf("response does not look like a json result: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
 	}
 	if req.OutputFormat == OutputFormatWrappedJSON {
-		dataBytes, err := req.parseWrappedJSONMeta(resBytes, meta)
-		if err != nil {
-			return nil, nil, fmt.Errorf("parserResult: %w", err)
+		dataBytes, err2 := req.parseWrappedJSONMeta(resBytes, meta)
+		if err2 != nil {
+			return nil, nil, fmt.Errorf("parserResult: %w", err2)
 		}
 		resBytes = dataBytes
 	}

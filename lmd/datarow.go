@@ -439,7 +439,7 @@ func (d *DataRow) getVirtualRowValue(col *Column) interface{} {
 	var value interface{}
 	if col.VirtualMap.StatusKey > 0 {
 		if d.DataStore.Peer == nil {
-			log.Panicf("requesting column '%s' from table '%s' with peer", col.Name, d.DataStore.Table.Name)
+			log.Panicf("requesting column '%s' from table '%s' with peer", col.Name, d.DataStore.Table.Name.String())
 		}
 		p := d.DataStore.Peer
 		ok := false
@@ -805,7 +805,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 		case InterfaceListCol:
 			d.dataInterfaceList[localIndex] = interface2interfacelist(data[resIndex])
 		default:
-			log.Panicf("unsupported column %s (type %d) in table %s", col.Name, col.DataType, d.DataStore.Table.Name)
+			log.Panicf("unsupported column %s (type %d) in table %s", col.Name, col.DataType, d.DataStore.Table.Name.String())
 		}
 	}
 	if timestamp == 0 {

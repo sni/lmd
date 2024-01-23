@@ -195,7 +195,7 @@ func TestRequestRegexIntFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(10, len(res)); err != nil {
+	if err = assertEq(10, len(res)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -203,11 +203,11 @@ func TestRequestRegexIntFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := assertEq(0, len(res)); err != nil {
+	if err = assertEq(0, len(res)); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := cleanup(); err != nil {
+	if err = cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
@@ -1600,7 +1600,7 @@ func TestRequestKeepalive(t *testing.T) {
 	}
 
 	// there should be one connection now
-	if err := assertEq(int64(1), getOpenListeners()); err != nil {
+	if err = assertEq(int64(1), getOpenListeners()); err != nil {
 		t.Error(err)
 	}
 
@@ -1619,7 +1619,7 @@ func TestRequestKeepalive(t *testing.T) {
 	}
 
 	// open connections should be zero, we are done
-	if err := assertEq(int64(0), getOpenListeners()); err != nil {
+	if err = assertEq(int64(0), getOpenListeners()); err != nil {
 		t.Error(err)
 	}
 
@@ -1632,7 +1632,7 @@ func TestRequestKeepalive(t *testing.T) {
 
 	// open connections should be zero, we are done
 	time.Sleep(KeepAliveWaitInterval)
-	if err := assertEq(int64(0), getOpenListeners()); err != nil {
+	if err = assertEq(int64(0), getOpenListeners()); err != nil {
 		t.Error(err)
 	}
 
@@ -1653,7 +1653,7 @@ func TestRequestKeepalive(t *testing.T) {
 	}
 
 	// open connections should be one
-	if err := assertEq(int64(1), getOpenListeners()); err != nil {
+	if err = assertEq(int64(1), getOpenListeners()); err != nil {
 		t.Error(err)
 	}
 
@@ -1668,14 +1668,14 @@ func TestRequestKeepalive(t *testing.T) {
 	}
 
 	// open connections should be one
-	if err := assertEq(int64(1), getOpenListeners()); err != nil {
+	if err = assertEq(int64(1), getOpenListeners()); err != nil {
 		t.Error(err)
 	}
 	conn.Close()
 
 	// open connections should be zero, we are done
 	time.Sleep(KeepAliveWaitInterval)
-	if err := assertEq(int64(0), getOpenListeners()); err != nil {
+	if err = assertEq(int64(0), getOpenListeners()); err != nil {
 		t.Error(err)
 	}
 
@@ -1697,7 +1697,7 @@ func TestRequestKeepalive(t *testing.T) {
 
 	// open connections should be one
 	time.Sleep(KeepAliveWaitInterval)
-	if err := assertEq(int64(0), getOpenListeners()); err != nil {
+	if err = assertEq(int64(0), getOpenListeners()); err != nil {
 		t.Error(err)
 	}
 

@@ -449,14 +449,14 @@ func (p *Peer) periodicUpdate() (err error) {
 		return p.InitAllTables()
 	case PeerStatusWarning:
 		if data == nil {
-			logWith(p).Warnf("inconsistent state, no data with state: %s", lastStatus)
+			logWith(p).Warnf("inconsistent state, no data with state: %s", lastStatus.String())
 			return p.InitAllTables()
 		}
 		// run update if it was just a short outage
 		return data.UpdateFull(Objects.UpdateTables)
 	case PeerStatusUp, PeerStatusSyncing:
 		if data == nil {
-			logWith(p).Warnf("inconsistent state, no data with state: %s", lastStatus)
+			logWith(p).Warnf("inconsistent state, no data with state: %s", lastStatus.String())
 			return p.InitAllTables()
 		}
 		// full update interval
@@ -469,7 +469,7 @@ func (p *Peer) periodicUpdate() (err error) {
 		}
 		return data.UpdateDelta(lastUpdate, now)
 	}
-	logWith(p).Panicf("unhandled status case: %s", lastStatus)
+	logWith(p).Panicf("unhandled status case: %s", lastStatus.String())
 	return
 }
 
@@ -827,10 +827,10 @@ func (p *Peer) initAllTablesParallel(data *DataStoreSet) (err error) {
 				wait.Done()
 			}()
 
-			err := p.initTable(data, table)
-			results <- err
-			if err != nil {
-				logWith(p).Debugf("fetching %s objects failed: %s", table.Name.String(), err.Error())
+			err2 := p.initTable(data, table)
+			results <- err2
+			if err2 != nil {
+				logWith(p).Debugf("fetching %s objects failed: %s", table.Name.String(), err2.Error())
 				return
 			}
 		}(data, t)
@@ -1203,9 +1203,9 @@ func (p *Peer) socketSendQuery(query string, conn net.Conn) (int, error) {
 
 	if strings.HasSuffix(query, "\n\n") {
 		query = strings.TrimSuffix(query, "\n\n")
-		n, err := fmt.Fprintf(conn, "%s\n", query)
-		if err != nil {
-			return n, fmt.Errorf("socket error: %w", err)
+		n, err2 := fmt.Fprintf(conn, "%s\n", query)
+		if err2 != nil {
+			return n, fmt.Errorf("socket error: %w", err2)
 		}
 		// send an extra newline to finish the query but ignore errors because the connection might have closed right after the query
 		n2, err2 := fmt.Fprintf(conn, "\n")

@@ -119,7 +119,7 @@ func (d *DataStore) InsertData(rows ResultSet, columns ColumnList, setReferences
 	for i, raw := range rows {
 		row, err := NewDataRow(d, raw, columns, now, setReferences)
 		if err != nil {
-			log.Errorf("adding new %s failed: %s", d.Table.Name, err.Error())
+			log.Errorf("adding new %s failed: %s", d.Table.Name.String(), err.Error())
 			return err
 		}
 		d.InsertItem(i, row)

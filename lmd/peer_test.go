@@ -234,11 +234,11 @@ func TestPeerUpdate(t *testing.T) {
 	if err == nil {
 		t.Fatalf("got no error but expected broken peer")
 	}
-	if err := assertLike("waiting for peer to recover", err.Error()); err != nil {
+	if err = assertLike("waiting for peer to recover", err.Error()); err != nil {
 		t.Error(err)
 	}
 
-	if err := cleanup(); err != nil {
+	if err = cleanup(); err != nil {
 		panic(err.Error())
 	}
 }
@@ -320,11 +320,11 @@ func TestPeerLog(t *testing.T) {
 	if err == nil {
 		t.Fatalf("got no error but expected broken peer")
 	}
-	if err := assertLike("test", err.Error()); err != nil {
+	if err = assertLike("test", err.Error()); err != nil {
 		t.Error(err)
 	}
 
-	if err := cleanup(); err != nil {
+	if err = cleanup(); err != nil {
 		panic(err.Error())
 	}
 }

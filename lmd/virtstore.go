@@ -36,7 +36,7 @@ func GetTableColumnsStore(table *Table, _ *Peer) *DataStore {
 			case StringListCol, Int64ListCol, ServiceMemberListCol, InterfaceListCol, CustomVarCol:
 				colTypeName = "list"
 			default:
-				log.Panicf("type not handled in table %s: %#v", t.Name, c)
+				log.Panicf("type not handled in table %s: %#v", t.Name.String(), c)
 			}
 			row := []interface{}{
 				c.Name,
@@ -112,7 +112,7 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 			}
 		}
 	default:
-		log.Panicf("GetGroupByData not implemented for table: %s", store.Table.Name)
+		log.Panicf("GetGroupByData not implemented for table: %s", store.Table.Name.String())
 	}
 	_, columns := store.GetInitialColumns()
 	err := store.InsertData(data, columns, true)

@@ -140,7 +140,7 @@ func (t *TableName) String() string {
 		return "servicesbyhostgroup"
 	}
 
-	log.Panicf("unsupported tablename: %v", t)
+	log.Panicf("unsupported tablename: %#v", t)
 	return ""
 }
 
@@ -222,7 +222,7 @@ func (t *Table) AddPeerInfoColumn(name string, datatype DataType, description st
 func (t *Table) AddRefColumns(tableName TableName, prefix string, localName []string) {
 	refTable, Ok := Objects.Tables[tableName]
 	if !Ok {
-		log.Panicf("no such reference %s from column %s", tableName, strings.Join(localName, ","))
+		log.Panicf("no such reference %s from column %s", tableName.String(), strings.Join(localName, ","))
 	}
 
 	t.RefTables = append(t.RefTables, TableRef{Table: refTable, Columns: t.GetColumns(localName)})

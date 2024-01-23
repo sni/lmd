@@ -553,17 +553,17 @@ func (ds *DataStoreSet) UpdateDeltaCommentsOrDowntimes(name TableName) (err erro
 
 	if len(missingIds) > 0 {
 		keys, columns := store.GetInitialColumns()
-		req := &Request{
+		req2 := &Request{
 			Table:     name,
 			Columns:   keys,
 			FilterStr: "",
 		}
 		for _, id := range missingIds {
-			req.FilterStr += fmt.Sprintf("Filter: id = %d\n", id)
+			req2.FilterStr += fmt.Sprintf("Filter: id = %d\n", id)
 		}
-		req.FilterStr += fmt.Sprintf("Or: %d\n", len(missingIds))
-		p.setQueryOptions(req)
-		res, _, err = p.Query(req)
+		req2.FilterStr += fmt.Sprintf("Or: %d\n", len(missingIds))
+		p.setQueryOptions(req2)
+		res, _, err = p.Query(req2)
 		if err != nil {
 			return
 		}

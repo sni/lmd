@@ -72,7 +72,7 @@ func (cl *ClientConnection) Handle() {
 		} else {
 			logWith(ctx).Warnf("request timed out (timeout: %s)", time.Duration(cl.listenTimeout)*time.Second)
 			if cl.curRequest != nil {
-				logWith(ctx).Warnf("", cl.curRequest.String())
+				logWith(ctx).Warnf("%s", cl.curRequest.String())
 			}
 		}
 	}

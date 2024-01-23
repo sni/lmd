@@ -29,6 +29,18 @@ linters-settings:
   asasalint:
     exclude:
       - append
+  govet:
+    check-shadowing: true
+    settings:
+      printf:
+        funcs:
+          - Tracef
+          - Infof
+          - Warnf
+          - Errorf
+          - Fatalf
+          - Criticalf
+          - Panicf
 linters:
   enable-all: true
   disable:
@@ -131,6 +143,7 @@ issues:
     - "Use of weak random number generator"
     - "VirtualColumnList is a global variable"
     - "VirtualColumnMap is a global variable"
+    - "LogPrefixer.*does not support error-wrapping"
   exclude-rules:
     # Exclude some linters from running on tests files.
     - path: _test\.go

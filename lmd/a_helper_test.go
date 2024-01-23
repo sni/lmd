@@ -531,9 +531,9 @@ func convertTestDataMapToList(filename string, columns []string) []byte {
 			}
 			rowOut[i] = val
 		}
-		rowBytes, err := json.Marshal(rowOut)
-		if err != nil {
-			panic("could not convert row to json: " + err.Error())
+		rowBytes, err2 := json.Marshal(rowOut)
+		if err2 != nil {
+			panic("could not convert row to json: " + err2.Error())
 		}
 		result = append(result, rowBytes...)
 		if k < len(hashedData)-1 {
