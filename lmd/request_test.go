@@ -9,6 +9,9 @@ import (
 	"net"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRequestHeader(t *testing.T) {
@@ -312,19 +315,11 @@ OutputFormat: wrapped_json
 ResponseHeader: fixed16
 `
 	res, _, err := peer.QueryString(query)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(3, len(res)); err != nil {
-		t.Fatal(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+	require.Lenf(t, res, 4, "result length")
 
-	if err = assertEq("testhost_7", res[0][0]); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq("testsvc_1", res[0][1]); err != nil {
-		t.Error(err)
-	}
+	assert.Equalf(t, "UPPER_3", res[0][0], "hostname matches")
+	assert.Equalf(t, "testsvc_1", res[0][1], "service matches")
 
 	if err := cleanup(); err != nil {
 		panic(err.Error())
@@ -374,35 +369,19 @@ func TestRequestStatsGroupBy(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: name\nStats: avg latency\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(10, len(res)); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq("testhost_1", res[0][0]); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq(0.083658002317, res[1][1]); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+	require.Lenf(t, res, 10, "result length")
+
+	assert.Equalf(t, "UPPER_3", res[0][0], "hostname matches")
+	assert.Equalf(t, 0.083658002317, res[1][1], "latency matches")
 
 	res, _, err = peer.QueryString("GET hosts\nColumns: name alias\nStats: avg latency\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(10, len(res)); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq("testhost_1", res[0][0]); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq("testhost_1_ALIAS", res[0][1]); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq(0.083658002317, res[1][2]); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+	require.Lenf(t, res, 10, "result length")
+
+	assert.Equalf(t, "UPPER_3", res[0][0], "hostname matches")
+	assert.Equalf(t, "UPPER_3_ALIAS", res[0][1], "hostalias matches")
+	assert.Equalf(t, 0.083658002317, res[1][2], "latency matches")
 
 	if err := cleanup(); err != nil {
 		panic(err.Error())
@@ -550,18 +529,11 @@ func TestRequestGroupByTable(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET servicesbyhostgroup\nColumns: host_name description host_groups groups host_alias host_address\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(10, len(res)); err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq("testhost_1", res[0][0]); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq("127.0.0.1", res[0][5]); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+	require.Lenf(t, res, 10, "result length")
+
+	assert.Equalf(t, "UPPER_3", res[0][0], "hostname matches")
+	assert.Equalf(t, "127.0.0.1", res[0][5], "address matches")
 
 	if err := cleanup(); err != nil {
 		panic(err.Error())
@@ -611,15 +583,10 @@ func TestRequestSort(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: name latency\nSort: latency asc\nSort: name asc\nLimit: 5\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(5, len(res)); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq("testhost_1", res[0][0]); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+	require.Lenf(t, res, 5, "result length")
+
+	assert.Equalf(t, "UPPER_3", res[0][0], "hostname matches")
 
 	if err := cleanup(); err != nil {
 		panic(err.Error())
@@ -631,21 +598,13 @@ func TestRequestSort2(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: name\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(20, len(res)); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq("testhost_1", res[0][0]); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq("testhost_10", res[1][0]); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq("testhost_11", res[2][0]); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+	require.Lenf(t, res, 20, "result length")
+
+	assert.Equalf(t, "UPPER_3", (res)[0][0], "hostname matches")
+	assert.Equalf(t, "testhost_1", (res)[1][0], "hostname matches")
+	assert.Equalf(t, "testhost_10", (res)[2][0], "hostname matches")
+	assert.Equalf(t, "testhost_11", (res)[3][0], "hostname matches")
 
 	if err := cleanup(); err != nil {
 		panic(err.Error())
@@ -657,18 +616,11 @@ func TestRequestSortColumnNotRequested(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: name state alias\nSort: latency asc\nSort: name asc\nLimit: 5\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(5, len(res)); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq(3, len(res[0])); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq("testhost_1", res[0][0]); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+	require.Lenf(t, res, 5, "result length")
+
+	require.Lenf(t, res[0], 3, "result length")
+	assert.Equalf(t, "UPPER_3", res[0][0], "hostname matches")
 
 	if err := cleanup(); err != nil {
 		panic(err.Error())
@@ -706,18 +658,11 @@ func TestRequestUnknownOptionalColumns(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: name is_impact\nLimit: 1\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(1, len(res)); err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq("testhost_1", res[0][0]); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq(float64(-1), res[0][1]); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+	require.Lenf(t, res, 1, "result length")
+
+	assert.Equalf(t, "UPPER_3", (res)[0][0], "hostname matches")
+	assert.Equalf(t, float64(-1), (res)[0][1], "is_impact matches")
 
 	if err := cleanup(); err != nil {
 		panic(err.Error())
@@ -729,34 +674,19 @@ func TestRequestUnknownOptionalRefsColumns(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET services\nColumns: host_name host_is_impact\nLimit: 1\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(1, len(res)); err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq("testhost_1", res[0][0]); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq(float64(-1), res[0][1]); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+	require.Lenf(t, res, 1, "result length")
+
+	assert.Equalf(t, "UPPER_3", (res)[0][0], "hostname matches")
+	assert.Equalf(t, float64(-1), (res)[0][1], "is_impact matches")
 
 	res, _, err = peer.QueryString("GET services\nColumns: host_name\nFilter: host_is_impact != -1\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(0, len(res)); err != nil {
-		t.Fatal(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+	require.Emptyf(t, res, "result length")
 
 	res, _, err = peer.QueryString("GET services\nColumns: host_name\nFilter: host_is_impact = -1\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(10, len(res)); err != nil {
-		t.Fatal(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+	require.Lenf(t, res, 10, "result length")
 
 	if err := cleanup(); err != nil {
 		panic(err.Error())
@@ -768,53 +698,32 @@ func TestRequestColumnsWrappedJson(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: name state alias\nOutputFormat: wrapped_json\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(10, len(res)); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq("testhost_1", (res)[0][0]); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+
+	require.Lenf(t, res, 10, "result length")
+	assert.Equalf(t, "UPPER_3", (res)[0][0], "hostname matches")
 
 	peer.lmd.Config.SaveTempRequests = true
 	res, meta, err := peer.QueryString("GET hosts\nColumns: name state alias\nOutputFormat: wrapped_json\nColumnHeaders: on\nLimit: 5\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+
 	var jsonTest interface{}
 	jErr := json.Unmarshal(peer.last.Response, &jsonTest)
-	if jErr != nil {
-		t.Fatal(jErr)
-	}
-	if err = assertEq(5, len(res)); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq("testhost_1", res[0][0]); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq(int64(10), meta.Total); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq("name", meta.Columns[0]); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, jErr, "json ok")
+
+	require.Lenf(t, res, 5, "result length")
+	assert.Equalf(t, "UPPER_3", (res)[0][0], "hostname matches")
+	assert.Equalf(t, int64(10), meta.Total, "meta.total matches")
+	assert.Equalf(t, "name", meta.Columns[0], "meta columns matches")
 
 	res, _, err = peer.QueryString("GET hosts\nColumns: name state alias\nOutputFormat: json\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+
 	jErr = json.Unmarshal(peer.last.Response, &jsonTest)
-	if jErr != nil {
-		t.Fatal(jErr)
-	}
-	if err = assertEq(10, len(res)); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq("testhost_1", res[0][0]); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, jErr, "json ok")
+
+	require.Lenf(t, res, 10, "result length")
+	assert.Equalf(t, "UPPER_3", (res)[0][0], "hostname matches")
 
 	if err := cleanup(); err != nil {
 		panic(err.Error())
@@ -1419,31 +1328,22 @@ func TestServicesWithInfo(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: services_with_info\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+	require.Lenf(t, res, 10, "result length")
+
 	value := res[0][0].([]interface{})[0].([]interface{})
 
 	// service description
-	if err = assertEq("testsvc_1", value[0]); err != nil {
-		t.Error(err)
-	}
+	assert.Equalf(t, "testsvc_1", value[0], "service matches")
 
 	// state
-	if err = assertEq(1.0, value[1]); err != nil {
-		t.Error(err)
-	}
+	assert.Equalf(t, 1.0, value[1], "state matches")
 
 	// has_been_checked
-	if err = assertEq(1.0, value[2]); err != nil {
-		t.Error(err)
-	}
+	assert.Equalf(t, 1.0, value[2], "has_been_checked matches")
 
 	// plugin output
-	expectedPluginOutput := "HTTP WARNING: HTTP/1.1 403 Forbidden - 5215 bytes in 0.001 second response time"
-	if err = assertEq(expectedPluginOutput, value[3]); err != nil {
-		t.Error(err)
-	}
+	assert.Equalf(t, "HTTP WARNING: HTTP/1.1 403 Forbidden - 5215 bytes in 0.004 second response time", value[3], "plugin output matches")
 
 	if err = cleanup(); err != nil {
 		panic(err.Error())
@@ -1462,23 +1362,13 @@ ResponseHeader: fixed16
 `
 
 	req, _, err := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq("name_lc", req.Filter[0].Column.Name); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+	assert.Equalf(t, "name_lc", req.Filter[0].Column.Name, "column name is correct")
 
 	res, meta, err := peer.QueryString(query)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(int64(9), meta.Total); err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq("testhost_9", res[8][0]); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "query string successful")
+	assert.Equalf(t, int64(9), meta.Total, "meta.Total is correct")
+	assert.Equalf(t, "testhost_9", res[8][0], "hostname is correct")
 
 	query = `GET services
 	Columns: host_name host_alias description state peer_key
@@ -1487,22 +1377,13 @@ ResponseHeader: fixed16
 	ResponseHeader: fixed16
 	`
 	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq("host_name_lc", req.Filter[0].Column.Name); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "request successful")
+	assert.Equalf(t, "host_name_lc", req.Filter[0].Column.Name, "column name is correct")
+
 	res, meta, err = peer.QueryString(query)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(int64(1), meta.Total); err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq("testhost_2", res[0][0]); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "request successful")
+	assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct")
+	assert.Equalf(t, "testhost_2", res[0][0], "hostname is correct")
 
 	query = `GET services
 	Columns: host_name host_alias host_name_lc host_alias_lc description state peer_key
@@ -1511,28 +1392,15 @@ ResponseHeader: fixed16
 	ResponseHeader: fixed16
 	`
 	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq("host_alias_lc", req.Filter[0].Column.Name); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "request successful")
+	assert.Equalf(t, "host_alias_lc", req.Filter[0].Column.Name, "column name is correct")
+
 	res, meta, err = peer.QueryString(query)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(int64(1), meta.Total); err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq("testhost_2", res[0][0]); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq("testhost_2", res[0][2]); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq("testhost_2_alias", res[0][3]); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "query string successful")
+	assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct")
+	assert.Equalf(t, "testhost_2", res[0][0], "hostname is correct")
+	assert.Equalf(t, "testhost_2", res[0][2], "hostname is correct")
+	assert.Equalf(t, "testhost_2_alias", res[0][3], "alias is correct")
 
 	if err := cleanup(); err != nil {
 		panic(err.Error())
@@ -1549,22 +1417,14 @@ func TestRequestLowercaseHostFilter(t *testing.T) {
 	ResponseHeader: fixed16
 	`
 	req, _, err := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq("alias_lc", req.Filter[0].Column.Name); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "request successful")
+	assert.Equalf(t, "alias_lc", req.Filter[0].Column.Name, "column name is correct")
+
 	res, meta, err := peer.QueryString(query)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(int64(1), meta.Total); err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq("testhost_1_ALIAS", res[0][0]); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "query string successful")
+
+	assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct")
+	assert.Equalf(t, "testhost_1_ALIAS", res[0][0], "hostname is correct")
 
 	if err := cleanup(); err != nil {
 		panic(err.Error())

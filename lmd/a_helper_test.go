@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -231,6 +232,10 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 	for x := 0; x < numHosts; x++ {
 		hosts[x].hostname = fmt.Sprintf("%s_%d", "testhost", x+1)
 		hosts[x].services = make([]string, 0)
+		if x == 2 {
+			hosts[x].hostname = strings.ToUpper(hosts[x].hostname)
+			hosts[x].hostname = strings.ReplaceAll(hosts[x].hostname, "TESTHOST", "UPPER")
+		}
 		for y := 1; y <= numServices/numHosts; y++ {
 			service := fmt.Sprintf("%s_%d", "testsvc", y)
 			hosts[x].services = append(hosts[x].services, service)
@@ -656,15 +661,11 @@ func TestMock1(t *testing.T) {
 	})
 
 	err := peer.InitAllTables()
-	if err != nil {
-		t.Fatalf("init tables failed: %s", err.Error())
-	}
+	require.NoErrorf(t, err, "init tables failed")
 
 	// tear down
 	_, _, err = peer.QueryString("COMMAND [0] MOCK_EXIT")
-	if err != nil {
-		t.Fatalf("stopping mock livestatus source failed: %s", err.Error())
-	}
+	require.NoErrorf(t, err, "stopping mock livestatus source failed")
 }
 
 func TestMock2(t *testing.T) {
@@ -672,12 +673,8 @@ func TestMock2(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET status\nColumns: program_start\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := assertEq(1, len(res)); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "query is successful")
+	require.Lenf(t, res, 1, "result size is correct")
 
 	if err := cleanup(); err != nil {
 		panic(err.Error())

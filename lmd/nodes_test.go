@@ -2,6 +2,9 @@ package main
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNodeManager(t *testing.T) {
@@ -15,73 +18,42 @@ func TestNodeManager(t *testing.T) {
 	peer, cleanup, mocklmd := StartTestPeerExtra(4, 10, 10, extraConfig)
 	PauseTestPeers(peer)
 
-	if mocklmd.nodeAccessor == nil {
-		t.Fatalf("nodeAccessor should not be nil")
-	}
-	if err := assertEq(mocklmd.nodeAccessor.IsClustered(), true); err != nil {
-		t.Fatalf("Nodes are not clustered")
-	}
-	if mocklmd.nodeAccessor.thisNode == nil {
-		t.Fatalf("thisNode should not be nil")
-	}
-	if !(mocklmd.nodeAccessor.thisNode.String() != "") {
-		t.Fatalf("got a name")
-	}
+	require.NotNilf(t, mocklmd.nodeAccessor, "nodeAccessor must not be nil")
+	require.Truef(t, mocklmd.nodeAccessor.IsClustered(), "nodes must not be clustered")
+	require.NotNilf(t, mocklmd.nodeAccessor.thisNode, "thisNode should not be nil")
+	require.NotEmptyf(t, mocklmd.nodeAccessor.thisNode.String(), "thisNode got a name")
 
 	// test host request
 	res, _, err := peer.QueryString("GET hosts\nColumns: name peer_key state\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err = assertEq(40, len(res)); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+	require.Lenf(t, res, 40, "result length")
 
 	// test host stats request
 	res, _, err = peer.QueryString("GET hosts\nStats: name !=\nStats: avg latency\nStats: sum latency\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(40, int(res[0][0].(float64))); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq(0.08365800231700002, res[0][1]); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq(3.346320092680001, res[0][2]); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+	require.Lenf(t, res, 1, "result length")
+
+	assert.Equalf(t, float64(40), res[0][0], "count is correct")
+	assert.Equalf(t, 0.08365800231700002, res[0][1], "avg latency is correct")
+	assert.Equalf(t, 3.346320092680001, res[0][2], "sum latency is correct")
 
 	// test host grouped stats request
 	res, _, err = peer.QueryString("GET hosts\nColumns: name alias\nStats: name !=\nStats: avg latency\nStats: sum latency\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq("testhost_10", res[1][0]); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq("testhost_10_ALIAS", res[1][1]); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq(4.0, res[1][2]); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq(0.083658002317, res[1][3]); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+	require.Lenf(t, res, 10, "result length")
+
+	require.Lenf(t, res[1], 5, "result length")
+	assert.Equalf(t, "testhost_1", res[1][0], "hostname matches")
+	assert.Equalf(t, "testhost_1_ALIAS", res[1][1], "alias matches")
+	assert.Equalf(t, 4.0, res[1][2], "count matches")
+	assert.Equalf(t, 0.083658002317, res[1][3], "avg latency matches")
 
 	// test host empty stats request
 	res, _, err = peer.QueryString("GET hosts\nFilter: check_type = 15\nStats: sum percent_state_change\nStats: min percent_state_change\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(1, len(res)); err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(float64(0), res[0][0]); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+	require.Lenf(t, res, 1, "result length")
+
+	assert.Equalf(t, float64(0), res[0][0], "count is correct")
 
 	if err := cleanup(); err != nil {
 		panic(err.Error())
