@@ -354,6 +354,16 @@ func (f *Filter) setRegexFilter(options ParseOptions) error {
 	val := strings.TrimPrefix(f.StrValue, ".*")
 	val = strings.TrimSuffix(val, ".*")
 
+	// special case Filter: host_name ~ ^name$
+	if options&ParseOptimize != 0 && f.Operator == RegexMatch && strings.HasPrefix(val, "^") && strings.HasSuffix(val, "$") {
+		val2 := strings.TrimPrefix(val, "^")
+		val2 = strings.TrimSuffix(val2, "$")
+		if !hasRegexpCharacters(val2) {
+			f.Operator = Equal
+			f.StrValue = val2
+		}
+	}
+
 	if options&ParseOptimize != 0 && !hasRegexpCharacters(val) {
 		switch f.Operator {
 		case RegexMatch:

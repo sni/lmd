@@ -1367,7 +1367,9 @@ ResponseHeader: fixed16
 
 	res, meta, err := peer.QueryString(query)
 	require.NoErrorf(t, err, "query string successful")
+	require.Lenf(t, res, 9, "result length")
 	assert.Equalf(t, int64(9), meta.Total, "meta.Total is correct")
+	assert.Equalf(t, int64(10), meta.RowsScanned, "meta.RowsScanned is correct")
 	assert.Equalf(t, "testhost_9", res[8][0], "hostname is correct")
 
 	query = `GET services
@@ -1382,7 +1384,9 @@ ResponseHeader: fixed16
 
 	res, meta, err = peer.QueryString(query)
 	require.NoErrorf(t, err, "request successful")
+	require.Lenf(t, res, 1, "result length")
 	assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct")
+	assert.Equalf(t, int64(1), meta.RowsScanned, "meta.RowsScanned is correct")
 	assert.Equalf(t, "testhost_2", res[0][0], "hostname is correct")
 
 	query = `GET services
@@ -1397,10 +1401,50 @@ ResponseHeader: fixed16
 
 	res, meta, err = peer.QueryString(query)
 	require.NoErrorf(t, err, "query string successful")
+	require.Lenf(t, res, 1, "result length")
 	assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct")
+	assert.Equalf(t, int64(10), meta.RowsScanned, "meta.RowsScanned is correct")
 	assert.Equalf(t, "testhost_2", res[0][0], "hostname is correct")
 	assert.Equalf(t, "testhost_2", res[0][2], "hostname is correct")
 	assert.Equalf(t, "testhost_2_alias", res[0][3], "alias is correct")
+
+	// case insensitive search on upper case name
+	query = `GET services
+	Columns: host_name description
+	Filter: host_name ~~ UPPER
+	OutputFormat: wrapped_json
+	ResponseHeader: fixed16
+	`
+	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	require.NoErrorf(t, err, "request successful")
+	assert.Equalf(t, "host_name_lc", req.Filter[0].Column.Name, "column name is correct")
+
+	res, meta, err = peer.QueryString(query)
+	require.NoErrorf(t, err, "query string successful")
+	require.Lenf(t, res, 1, "result length")
+	assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct")
+	assert.Equalf(t, int64(1), meta.RowsScanned, "meta.RowsScanned is correct")
+	assert.Equalf(t, "UPPER_3", res[0][0], "hostname is correct")
+	assert.Equalf(t, "testsvc_1", res[0][1], "service is correct")
+
+	// case sensitive search on upper case name
+	query = `GET services
+	Columns: host_name description
+	Filter: host_name ~ UPPER
+	OutputFormat: wrapped_json
+	ResponseHeader: fixed16
+	`
+	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	require.NoErrorf(t, err, "request successful")
+	assert.Equalf(t, "host_name", req.Filter[0].Column.Name, "column name is correct")
+
+	res, meta, err = peer.QueryString(query)
+	require.NoErrorf(t, err, "query string successful")
+	require.Lenf(t, res, 1, "result length")
+	assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct")
+	assert.Equalf(t, int64(1), meta.RowsScanned, "meta.RowsScanned is correct")
+	assert.Equalf(t, "UPPER_3", res[0][0], "hostname is correct")
+	assert.Equalf(t, "testsvc_1", res[0][1], "service is correct")
 
 	if err := cleanup(); err != nil {
 		panic(err.Error())
@@ -1423,8 +1467,9 @@ func TestRequestLowercaseHostFilter(t *testing.T) {
 
 	res, meta, err := peer.QueryString(query)
 	require.NoErrorf(t, err, "query string successful")
-
+	require.Lenf(t, res, 1, "result length")
 	assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct")
+	assert.Equalf(t, int64(10), meta.RowsScanned, "meta.RowsScanned is correct")
 	assert.Equalf(t, "testhost_1_ALIAS", res[0][0], "hostname is correct")
 
 	// upper case request and case sensitive
@@ -1440,8 +1485,10 @@ func TestRequestLowercaseHostFilter(t *testing.T) {
 
 	res, meta, err = peer.QueryString(query)
 	require.NoErrorf(t, err, "query string successful")
+	require.Lenf(t, res, 1, "result length")
 
 	assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct")
+	assert.Equalf(t, int64(10), meta.RowsScanned, "meta.RowsScanned is correct")
 	assert.Equalf(t, "UPPER_3", res[0][0], "hostname is correct")
 
 	// lower case request but case insensitive
@@ -1457,8 +1504,29 @@ func TestRequestLowercaseHostFilter(t *testing.T) {
 
 	res, meta, err = peer.QueryString(query)
 	require.NoErrorf(t, err, "query string successful")
+	require.Lenf(t, res, 1, "result length")
 
 	assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct")
+	assert.Equalf(t, int64(10), meta.RowsScanned, "meta.RowsScanned is correct")
+	assert.Equalf(t, "UPPER_3", res[0][0], "hostname is correct")
+
+	// not actually a regex
+	query = `GET hosts
+	Columns: name
+	Filter: name ~ ^UPPER_3$
+	OutputFormat: wrapped_json
+	ResponseHeader: fixed16
+	`
+	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	require.NoErrorf(t, err, "request successful")
+	assert.Equalf(t, "name", req.Filter[0].Column.Name, "column name is correct")
+
+	res, meta, err = peer.QueryString(query)
+	require.NoErrorf(t, err, "query string successful")
+	require.Lenf(t, res, 1, "result length")
+
+	assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct")
+	assert.Equalf(t, int64(1), meta.RowsScanned, "meta.RowsScanned is correct")
 	assert.Equalf(t, "UPPER_3", res[0][0], "hostname is correct")
 
 	if err := cleanup(); err != nil {
@@ -1664,18 +1732,11 @@ func TestIndexedServiceByHostRegex(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res, meta, err := peer.QueryString("GET services\nColumns: host_name description state\nOutputFormat: wrapped_json\nColumnHeaders: on\nFilter: host_name ~~ Test.*1$\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(1, len(res)); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq(int64(1), meta.Total); err != nil {
-		t.Error(err)
-	}
-	if err = assertEq(int64(1), meta.RowsScanned); err != nil {
-		t.Error(err)
-	}
+	require.NoErrorf(t, err, "query successful")
+	require.Lenf(t, res, 1, "result length")
+	assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct")
+	assert.Equalf(t, int64(1), meta.RowsScanned, "meta.RowsScanned is correct")
+
 	if err = cleanup(); err != nil {
 		t.Error(err)
 	}

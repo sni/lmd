@@ -447,28 +447,30 @@ func appendIndexHostsFromHostColumns(d *DataStore, uniqHosts map[string]bool, f 
 
 func appendIndexHostsFromServiceColumns(d *DataStore, uniqHosts map[string]bool, f *Filter) bool {
 	// trim lower case columns prefix, they are used internally only
-	colName := strings.TrimSuffix(f.Column.Name, "_lc")
-	switch colName {
+	switch f.Column.Name {
 	case "host_name":
 		switch f.Operator {
 		// host_name == <value>
 		case Equal:
 			uniqHosts[f.StrValue] = true
 			return true
-		// host_name ~~ <value>
+		// host_name ~ <value>
 		case RegexMatch, Contains:
 			store := d.DataSet.tables[TableHosts]
 			for hostname := range store.Index {
-				if f.MatchString(strings.ToLower(hostname)) {
+				if f.MatchString(hostname) {
 					uniqHosts[hostname] = true
 				}
 			}
 			return true
-		// host_name ~ <value>
-		case RegexNoCaseMatch, ContainsNoCase, EqualNocase:
+		}
+	case "host_name_lc":
+		switch f.Operator {
+		// host_name ~~ <value>
+		case RegexMatch, Contains, RegexNoCaseMatch, ContainsNoCase, EqualNocase:
 			store := d.DataSet.tables[TableHosts]
 			for hostname := range store.Index {
-				if f.MatchString(hostname) {
+				if f.MatchString(strings.ToLower(hostname)) {
 					uniqHosts[hostname] = true
 				}
 			}
