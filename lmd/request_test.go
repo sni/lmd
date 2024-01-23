@@ -1410,6 +1410,7 @@ ResponseHeader: fixed16
 func TestRequestLowercaseHostFilter(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
+
 	query := `GET hosts
 	Columns: alias
 	Filter: alias ~~ .*host_1_ALIAS
@@ -1425,6 +1426,40 @@ func TestRequestLowercaseHostFilter(t *testing.T) {
 
 	assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct")
 	assert.Equalf(t, "testhost_1_ALIAS", res[0][0], "hostname is correct")
+
+	// upper case request and case sensitive
+	query = `GET hosts
+	Columns: name
+	Filter: name ~ UPPER
+	OutputFormat: wrapped_json
+	ResponseHeader: fixed16
+	`
+	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	require.NoErrorf(t, err, "request successful")
+	assert.Equalf(t, "name", req.Filter[0].Column.Name, "column name is correct")
+
+	res, meta, err = peer.QueryString(query)
+	require.NoErrorf(t, err, "query string successful")
+
+	assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct")
+	assert.Equalf(t, "UPPER_3", res[0][0], "hostname is correct")
+
+	// lower case request but case insensitive
+	query = `GET hosts
+	Columns: name
+	Filter: name ~~ upper
+	OutputFormat: wrapped_json
+	ResponseHeader: fixed16
+	`
+	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	require.NoErrorf(t, err, "request successful")
+	assert.Equalf(t, "name_lc", req.Filter[0].Column.Name, "column name is correct")
+
+	res, meta, err = peer.QueryString(query)
+	require.NoErrorf(t, err, "query string successful")
+
+	assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct")
+	assert.Equalf(t, "UPPER_3", res[0][0], "hostname is correct")
 
 	if err := cleanup(); err != nil {
 		panic(err.Error())
