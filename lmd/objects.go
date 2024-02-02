@@ -236,7 +236,7 @@ func NewContactsTable() (t *Table) {
 	t.AddExtraColumn("address5", LocalStore, Static, StringCol, Naemon, "Additional address information for the contact")
 	t.AddExtraColumn("address6", LocalStore, Static, StringCol, Naemon, "Additional address information for the contact")
 
-	t.AddExtraColumn("custom_variable_names", LocalStore, Dynamic, StringListCol, Naemon, "A list of all custom variables of the contact")
+	t.AddExtraColumn("custom_variable_names", LocalStore, Static, StringListCol, Naemon, "A list of all custom variables of the contact")
 	t.AddExtraColumn("custom_variable_values", LocalStore, Dynamic, StringListCol, Naemon, "A list of the values of all custom variables of the contact")
 	t.AddExtraColumn("custom_variables", VirtualStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
 
