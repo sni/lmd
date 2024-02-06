@@ -245,6 +245,8 @@ func NewContactsTable() (t *Table) {
 	t.AddExtraColumn("host_notification_commands", LocalStore, Static, StringListCol, HasContactsCommandsColumn, "A list of all host notification commands.")
 	t.AddExtraColumn("service_notification_commands", LocalStore, Static, StringListCol, HasContactsCommandsColumn, "A list of all service notification commands.")
 
+	t.AddExtraColumn("last_update", LocalStore, Dynamic, Int64Col, HasLastUpdateColumn, "Timestamp of the last change of any attribute of this contact.")
+
 	t.AddPeerInfoColumn("lmd_last_cache_update", FloatCol, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
@@ -386,6 +388,7 @@ func NewHostsTable() (t *Table) {
 	t.AddExtraColumn("hourly_value", LocalStore, Static, IntCol, Naemon, "Hourly Value")
 	t.AddExtraColumn("event_handler", LocalStore, Static, StringCol, HasEventHandlerColumn, "Naemon command used as event handler")
 	t.AddExtraColumn("staleness", LocalStore, Dynamic, FloatCol, HasStalenessColumn, "Staleness indicator for this host")
+	t.AddExtraColumn("last_update", LocalStore, Dynamic, Int64Col, HasLastUpdateColumn, "Timestamp of the last change of any attribute of this host.")
 
 	// shinken specific
 	t.AddExtraColumn("is_impact", LocalStore, Dynamic, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
@@ -549,6 +552,7 @@ func NewServicesTable() (t *Table) {
 	t.AddExtraColumn("hourly_value", LocalStore, Static, IntCol, Naemon, "Hourly Value")
 	t.AddExtraColumn("check_freshness", LocalStore, Dynamic, IntCol, HasCheckFreshnessColumn, "Whether freshness checks are activated (0/1)")
 	t.AddExtraColumn("staleness", LocalStore, Dynamic, FloatCol, HasStalenessColumn, "Staleness indicator for this host")
+	t.AddExtraColumn("last_update", LocalStore, Dynamic, Int64Col, HasLastUpdateColumn, "Timestamp of the last change of any attribute of this service.")
 
 	// shinken specific
 	t.AddExtraColumn("is_impact", LocalStore, Dynamic, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")

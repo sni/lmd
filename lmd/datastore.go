@@ -324,6 +324,14 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 		lastCheckResIndex = d.DynamicColumnCache.GetColumnIndex("last_check") + dataOffset
 	}
 
+	lastUpdateDataIndex := -1
+	lastUpdateResIndex := -1
+	lastUpdateCol := d.GetColumn("last_update")
+	if lastUpdateCol != nil {
+		lastUpdateDataIndex = lastUpdateCol.Index
+		lastUpdateResIndex = d.DynamicColumnCache.GetColumnIndex("last_update") + dataOffset
+	}
+
 	// prepare update
 	nameIndex := d.Index
 	nameIndex2 := d.Index2
@@ -358,9 +366,19 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 			}
 		}
 
-		// compare last check date and prepare deduped strings if the last check date has changed
-		if lastCheckCol == nil || interface2int64(resRow[lastCheckResIndex]) != prepared.DataRow.dataInt64[lastCheckDataIndex] {
+		// checking the last_update column allows us to skip the update completely
+		if lastUpdateCol != nil {
+			if interface2int64(resRow[lastUpdateResIndex]) == prepared.DataRow.dataInt64[lastUpdateDataIndex] {
+				continue
+			}
 			prepared.FullUpdate = true
+
+			// compare last check date and prepare deduped strings if the last check date has changed
+		} else if lastCheckCol == nil || interface2int64(resRow[lastCheckResIndex]) != prepared.DataRow.dataInt64[lastCheckDataIndex] {
+			prepared.FullUpdate = true
+		}
+
+		if prepared.FullUpdate {
 			for i, col := range columns {
 				res[rowNum][i+dataOffset] = cast2Type(res[rowNum][i+dataOffset], col)
 			}
