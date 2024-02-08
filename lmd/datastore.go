@@ -322,6 +322,9 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 	if lastCheckCol != nil {
 		lastCheckDataIndex = lastCheckCol.Index
 		lastCheckResIndex = d.DynamicColumnCache.GetColumnIndex("last_check") + dataOffset
+		if lastCheckCol.DataType != Int64Col {
+			log.Panicf("%s: assumption about column type for %s is wrong, expected %s and got %s", d.Table.Name.String(), lastCheckCol.Name, Int64Col.String(), lastCheckCol.DataType.String())
+		}
 	}
 
 	lastUpdateDataIndex := -1
@@ -330,6 +333,9 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 	if lastUpdateCol != nil {
 		lastUpdateDataIndex = lastUpdateCol.Index
 		lastUpdateResIndex = d.DynamicColumnCache.GetColumnIndex("last_update") + dataOffset
+		if lastUpdateCol.DataType != Int64Col {
+			log.Panicf("%s: assumption about column type for %s is wrong, expected %s and got %s", d.Table.Name.String(), lastUpdateCol.Name, Int64Col.String(), lastUpdateCol.DataType.String())
+		}
 	}
 
 	// prepare update
@@ -366,18 +372,24 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 			}
 		}
 
-		// checking the last_update column allows us to skip the update completely
-		if lastUpdateCol != nil {
+		switch {
+		case lastUpdateResIndex != -1:
+			// if there is a last_update column, we simply trust the core if an update is required
 			if interface2int64(resRow[lastUpdateResIndex]) == prepared.DataRow.dataInt64[lastUpdateDataIndex] {
+				// skip update completely
 				continue
 			}
+			// last_update has change -> always do a full update
 			prepared.FullUpdate = true
-
-			// compare last check date and prepare deduped strings if the last check date has changed
-		} else if lastCheckCol == nil || interface2int64(resRow[lastCheckResIndex]) != prepared.DataRow.dataInt64[lastCheckDataIndex] {
+		case lastCheckResIndex == -1:
+			// no last_check column and no last_update -> always do a full update
+			prepared.FullUpdate = true
+		case interface2int64(resRow[lastCheckResIndex]) != prepared.DataRow.dataInt64[lastCheckDataIndex]:
+			// compare last check date and do a full update only if last check has changed
 			prepared.FullUpdate = true
 		}
 
+		// prepare deduped strings if required
 		if prepared.FullUpdate {
 			for i, col := range columns {
 				res[rowNum][i+dataOffset] = cast2Type(res[rowNum][i+dataOffset], col)
