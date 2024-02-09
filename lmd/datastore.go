@@ -338,6 +338,8 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 		}
 	}
 
+	useIndex := dataOffset == 0 || len(res) == len(d.Data)
+
 	// prepare update
 	nameIndex := d.Index
 	nameIndex2 := d.Index2
@@ -347,7 +349,7 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 			ResultRow:  resRow,
 			FullUpdate: false,
 		}
-		if dataOffset == 0 || len(res) == len(d.Data) {
+		if useIndex {
 			prepared.DataRow = d.Data[rowNum]
 		} else {
 			switch d.Table.Name {

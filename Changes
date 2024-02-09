@@ -1,5 +1,8 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
+next:
+          - synchronize naemon more efficient based on last_update column
+
 2.1.9    Wed Jan 24 20:50:13 CET 2024
           - performance improvements
           - fix regexp filter using case sensitive index
