@@ -330,7 +330,7 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 	lastUpdateDataIndex := -1
 	lastUpdateResIndex := -1
 	lastUpdateCol := d.GetColumn("last_update")
-	if lastUpdateCol != nil {
+	if lastUpdateCol != nil && d.Peer.HasFlag(HasLastUpdateColumn) {
 		lastUpdateDataIndex = lastUpdateCol.Index
 		lastUpdateResIndex = d.DynamicColumnCache.GetColumnIndex("last_update") + dataOffset
 		if lastUpdateCol.DataType != Int64Col {
