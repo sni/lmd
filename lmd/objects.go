@@ -245,8 +245,6 @@ func NewContactsTable() (t *Table) {
 	t.AddExtraColumn("host_notification_commands", LocalStore, Static, StringListCol, HasContactsCommandsColumn, "A list of all host notification commands.")
 	t.AddExtraColumn("service_notification_commands", LocalStore, Static, StringListCol, HasContactsCommandsColumn, "A list of all service notification commands.")
 
-	t.AddExtraColumn("last_update", LocalStore, Dynamic, Int64Col, HasLastUpdateColumn, "Timestamp of the last change of any attribute of this contact.")
-
 	t.AddPeerInfoColumn("lmd_last_cache_update", FloatCol, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
