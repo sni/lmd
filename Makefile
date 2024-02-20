@@ -162,8 +162,8 @@ clean:
 GOVET=go vet -all
 fmt: generate tools
 	cd $(LAMPDDIR) && gofmt -w -s *.go .
-	cd $(LAMPDDIR) && ./tools/gofumpt -w .
-	cd $(LAMPDDIR) && ./tools/gci write . --skip-generated
+	cd $(LAMPDDIR) && gofumpt -w .
+	cd $(LAMPDDIR) && gci write . --skip-generated
 	cd $(LAMPDDIR) && goimports -w .
 
 generate: tools

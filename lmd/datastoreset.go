@@ -527,7 +527,7 @@ func (ds *DataStoreSet) UpdateDeltaCommentsOrDowntimes(name TableName) (err erro
 	}
 	ds.Lock.Lock()
 	idIndex := store.Index
-	missingIds := []int64{}
+	missingIDs := []int64{}
 	resIndex := make(map[string]bool)
 	for _, resRow := range res {
 		id := fmt.Sprintf("%d", interface2int64(resRow[0]))
@@ -535,7 +535,7 @@ func (ds *DataStoreSet) UpdateDeltaCommentsOrDowntimes(name TableName) (err erro
 		if !ok {
 			logWith(ds, req).Debugf("adding %s with id %s", name.String(), id)
 			id64 := int64(resRow[0].(float64))
-			missingIds = append(missingIds, id64)
+			missingIDs = append(missingIDs, id64)
 		}
 		resIndex[id] = true
 	}
@@ -551,17 +551,17 @@ func (ds *DataStoreSet) UpdateDeltaCommentsOrDowntimes(name TableName) (err erro
 	}
 	ds.Lock.Unlock()
 
-	if len(missingIds) > 0 {
+	if len(missingIDs) > 0 {
 		keys, columns := store.GetInitialColumns()
 		req2 := &Request{
 			Table:     name,
 			Columns:   keys,
 			FilterStr: "",
 		}
-		for _, id := range missingIds {
+		for _, id := range missingIDs {
 			req2.FilterStr += fmt.Sprintf("Filter: id = %d\n", id)
 		}
-		req2.FilterStr += fmt.Sprintf("Or: %d\n", len(missingIds))
+		req2.FilterStr += fmt.Sprintf("Or: %d\n", len(missingIDs))
 		p.setQueryOptions(req2)
 		res, _, err = p.Query(req2)
 		if err != nil {

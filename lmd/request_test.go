@@ -373,7 +373,7 @@ func TestRequestStatsGroupBy(t *testing.T) {
 	require.Lenf(t, res, 10, "result length")
 
 	assert.Equalf(t, "UPPER_3", res[0][0], "hostname matches")
-	assert.Equalf(t, 0.083658002317, res[1][1], "latency matches")
+	assert.InDeltaf(t, 0.083658002317, res[1][1], 0.00001, "latency matches")
 
 	res, _, err = peer.QueryString("GET hosts\nColumns: name alias\nStats: avg latency\n\n")
 	require.NoErrorf(t, err, "query successful")
@@ -381,7 +381,7 @@ func TestRequestStatsGroupBy(t *testing.T) {
 
 	assert.Equalf(t, "UPPER_3", res[0][0], "hostname matches")
 	assert.Equalf(t, "UPPER_3_ALIAS", res[0][1], "hostalias matches")
-	assert.Equalf(t, 0.083658002317, res[1][2], "latency matches")
+	assert.InDeltaf(t, 0.083658002317, res[1][2], 0.00001, "latency matches")
 
 	if err := cleanup(); err != nil {
 		panic(err.Error())
@@ -662,7 +662,7 @@ func TestRequestUnknownOptionalColumns(t *testing.T) {
 	require.Lenf(t, res, 1, "result length")
 
 	assert.Equalf(t, "UPPER_3", (res)[0][0], "hostname matches")
-	assert.Equalf(t, float64(-1), (res)[0][1], "is_impact matches")
+	assert.InDeltaf(t, -1, (res)[0][1], 0.00001, "is_impact matches")
 
 	if err := cleanup(); err != nil {
 		panic(err.Error())
@@ -678,7 +678,7 @@ func TestRequestUnknownOptionalRefsColumns(t *testing.T) {
 	require.Lenf(t, res, 1, "result length")
 
 	assert.Equalf(t, "UPPER_3", (res)[0][0], "hostname matches")
-	assert.Equalf(t, float64(-1), (res)[0][1], "is_impact matches")
+	assert.InDeltaf(t, -1, (res)[0][1], 0.00001, "is_impact matches")
 
 	res, _, err = peer.QueryString("GET services\nColumns: host_name\nFilter: host_is_impact != -1\n\n")
 	require.NoErrorf(t, err, "query successful")
@@ -1337,10 +1337,10 @@ func TestServicesWithInfo(t *testing.T) {
 	assert.Equalf(t, "testsvc_1", value[0], "service matches")
 
 	// state
-	assert.Equalf(t, 1.0, value[1], "state matches")
+	assert.InDeltaf(t, 1, value[1], 0.00001, "state matches")
 
 	// has_been_checked
-	assert.Equalf(t, 1.0, value[2], "has_been_checked matches")
+	assert.InDeltaf(t, 1, value[2], 0.00001, "has_been_checked matches")
 
 	// plugin output
 	assert.Equalf(t, "HTTP WARNING: HTTP/1.1 403 Forbidden - 5215 bytes in 0.004 second response time", value[3], "plugin output matches")

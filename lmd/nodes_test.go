@@ -33,9 +33,9 @@ func TestNodeManager(t *testing.T) {
 	require.NoErrorf(t, err, "query successful")
 	require.Lenf(t, res, 1, "result length")
 
-	assert.Equalf(t, float64(40), res[0][0], "count is correct")
-	assert.Equalf(t, 0.08365800231700002, res[0][1], "avg latency is correct")
-	assert.Equalf(t, 3.346320092680001, res[0][2], "sum latency is correct")
+	assert.InDeltaf(t, 40, res[0][0], 0.00001, "count is correct")
+	assert.InDeltaf(t, 0.08365800231700002, res[0][1], 0.00001, "avg latency is correct")
+	assert.InDeltaf(t, 3.346320092680001, res[0][2], 0.00001, "sum latency is correct")
 
 	// test host grouped stats request
 	res, _, err = peer.QueryString("GET hosts\nColumns: name alias\nStats: name !=\nStats: avg latency\nStats: sum latency\n\n")
@@ -45,15 +45,15 @@ func TestNodeManager(t *testing.T) {
 	require.Lenf(t, res[1], 5, "result length")
 	assert.Equalf(t, "testhost_1", res[1][0], "hostname matches")
 	assert.Equalf(t, "testhost_1_ALIAS", res[1][1], "alias matches")
-	assert.Equalf(t, 4.0, res[1][2], "count matches")
-	assert.Equalf(t, 0.083658002317, res[1][3], "avg latency matches")
+	assert.InDeltaf(t, 4.0, res[1][2], 0.00001, "count matches")
+	assert.InDeltaf(t, 0.083658002317, res[1][3], 0.00001, "avg latency matches")
 
 	// test host empty stats request
 	res, _, err = peer.QueryString("GET hosts\nFilter: check_type = 15\nStats: sum percent_state_change\nStats: min percent_state_change\n\n")
 	require.NoErrorf(t, err, "query successful")
 	require.Lenf(t, res, 1, "result length")
 
-	assert.Equalf(t, float64(0), res[0][0], "count is correct")
+	assert.InDeltaf(t, float64(0), res[0][0], 0.00001, "count is correct")
 
 	if err := cleanup(); err != nil {
 		panic(err.Error())

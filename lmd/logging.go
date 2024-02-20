@@ -68,7 +68,7 @@ func InitLogging(conf *Config) {
 	if err != nil {
 		panic(fmt.Sprintf("failed to initialize logger: %s", err.Error()))
 	}
-	var LogLevel = "Warn"
+	LogLevel := "Warn"
 	if conf.LogLevel != "" {
 		LogLevel = conf.LogLevel
 	}
