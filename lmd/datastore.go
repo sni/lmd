@@ -376,8 +376,13 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 
 		switch {
 		case lastUpdateResIndex != -1:
-			// if there is a last_update column, we simply trust the core if an update is required
-			if interface2int64(resRow[lastUpdateResIndex]) == prepared.DataRow.dataInt64[lastUpdateDataIndex] {
+			if lastCheckResIndex != -1 {
+				// check both, last_check and last_update to catch up very fast checks which finish within the same second
+				if interface2int64(resRow[lastUpdateResIndex]) == prepared.DataRow.dataInt64[lastUpdateDataIndex] && interface2int64(resRow[lastCheckResIndex]) != prepared.DataRow.dataInt64[lastCheckDataIndex] {
+					continue
+				}
+			} else if interface2int64(resRow[lastUpdateResIndex]) == prepared.DataRow.dataInt64[lastUpdateDataIndex] {
+				// if there is only a last_update column, we simply trust the core if an update is required
 				// skip update completely
 				continue
 			}
