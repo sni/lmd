@@ -358,7 +358,7 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 		switch {
 		case lastUpdateResIndex != -1 && lastCheckResIndex != -1:
 			// check both, last_check and last_update to catch up very fast checks which finish within the same second
-			if interface2int64(resRow[lastUpdateResIndex]) == prepared.DataRow.dataInt64[lastUpdateDataIndex] && interface2int64(resRow[lastCheckResIndex]) != prepared.DataRow.dataInt64[lastCheckDataIndex] {
+			if interface2int64(resRow[lastUpdateResIndex]) == prepared.DataRow.dataInt64[lastUpdateDataIndex] && interface2int64(resRow[lastCheckResIndex]) == prepared.DataRow.dataInt64[lastCheckDataIndex] {
 				continue
 			}
 
