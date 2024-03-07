@@ -1626,7 +1626,8 @@ func (p *Peer) checkAvailableTables() (err error) {
 		return
 	}
 
-	for _, optFlag := range columnFlags {
+	for i := range columnFlags {
+		optFlag := columnFlags[i]
 		if _, ok := availableTables[optFlag.Table]; !ok {
 			continue
 		}

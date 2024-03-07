@@ -316,27 +316,8 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 	updateSet = make([]*ResultPrepared, 0, len(res))
 
 	// compare last check date and only update large strings if the last check date has changed
-	lastCheckDataIndex := -1
-	lastCheckResIndex := -1
-	lastCheckCol := d.GetColumn("last_check")
-	if lastCheckCol != nil {
-		lastCheckDataIndex = lastCheckCol.Index
-		lastCheckResIndex = d.DynamicColumnCache.GetColumnIndex("last_check") + dataOffset
-		if lastCheckCol.DataType != Int64Col {
-			log.Panicf("%s: assumption about column type for %s is wrong, expected %s and got %s", d.Table.Name.String(), lastCheckCol.Name, Int64Col.String(), lastCheckCol.DataType.String())
-		}
-	}
-
-	lastUpdateDataIndex := -1
-	lastUpdateResIndex := -1
-	lastUpdateCol := d.GetColumn("last_update")
-	if lastUpdateCol != nil && d.Peer.HasFlag(HasLastUpdateColumn) {
-		lastUpdateDataIndex = lastUpdateCol.Index
-		lastUpdateResIndex = d.DynamicColumnCache.GetColumnIndex("last_update") + dataOffset
-		if lastUpdateCol.DataType != Int64Col {
-			log.Panicf("%s: assumption about column type for %s is wrong, expected %s and got %s", d.Table.Name.String(), lastUpdateCol.Name, Int64Col.String(), lastUpdateCol.DataType.String())
-		}
-	}
+	lastCheckDataIndex, lastCheckResIndex := d.getUpdateColumn("last_check", dataOffset)
+	lastUpdateDataIndex, lastUpdateResIndex := d.getUpdateColumn("last_update", dataOffset)
 
 	useIndex := dataOffset == 0 || len(res) == len(d.Data)
 
@@ -375,18 +356,21 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 		}
 
 		switch {
+		case lastUpdateResIndex != -1 && lastCheckResIndex != -1:
+			// check both, last_check and last_update to catch up very fast checks which finish within the same second
+			if interface2int64(resRow[lastUpdateResIndex]) == prepared.DataRow.dataInt64[lastUpdateDataIndex] && interface2int64(resRow[lastCheckResIndex]) != prepared.DataRow.dataInt64[lastCheckDataIndex] {
+				continue
+			}
+
+			// last_update has changed -> always do a full update
+			prepared.FullUpdate = true
 		case lastUpdateResIndex != -1:
-			if lastCheckResIndex != -1 {
-				// check both, last_check and last_update to catch up very fast checks which finish within the same second
-				if interface2int64(resRow[lastUpdateResIndex]) == prepared.DataRow.dataInt64[lastUpdateDataIndex] && interface2int64(resRow[lastCheckResIndex]) != prepared.DataRow.dataInt64[lastCheckDataIndex] {
-					continue
-				}
-			} else if interface2int64(resRow[lastUpdateResIndex]) == prepared.DataRow.dataInt64[lastUpdateDataIndex] {
+			if interface2int64(resRow[lastUpdateResIndex]) == prepared.DataRow.dataInt64[lastUpdateDataIndex] {
 				// if there is only a last_update column, we simply trust the core if an update is required
 				// skip update completely
 				continue
 			}
-			// last_update has change -> always do a full update
+			// last_update has changed -> always do a full update
 			prepared.FullUpdate = true
 		case lastCheckResIndex == -1:
 			// no last_check column and no last_update -> always do a full update
@@ -405,6 +389,22 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 		updateSet = append(updateSet, prepared)
 	}
 	return updateSet, nil
+}
+
+// getUpdateColumn returns data and result index for given column name, it panics if the column is not type int64
+func (d *DataStore) getUpdateColumn(columnName string, dataOffset int) (dataIndex, resIndex int) {
+	dataIndex = -1
+	resIndex = -1
+	checkCol := d.GetColumn(columnName)
+	if checkCol != nil {
+		dataIndex = checkCol.Index
+		resIndex = d.DynamicColumnCache.GetColumnIndex(columnName) + dataOffset
+		if checkCol.DataType != Int64Col {
+			log.Panicf("%s: assumption about column type for %s is wrong, expected %s and got %s", d.Table.Name.String(), checkCol.Name, Int64Col.String(), checkCol.DataType.String())
+		}
+	}
+
+	return
 }
 
 // TryFilterIndex returns list of hostname which can be used to reduce the initial dataset
