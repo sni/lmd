@@ -145,7 +145,7 @@ func TestAllOps(t *testing.T) {
 		}
 		tableName, _ := NewTableName(*interface2string(row[0]))
 		col := Objects.Tables[tableName].GetColumn(row[1].(string))
-		for _, op := range ops {
+		for _, operator := range ops {
 			if col.Optional != NoFlags {
 				continue
 			}
@@ -154,8 +154,8 @@ func TestAllOps(t *testing.T) {
 			}
 			for _, value := range values {
 				testqueryCol(t, peer, col.Table.Name, col.Name)
-				testqueryFilter(t, peer, col.Table.Name, col.Name, op, value)
-				testqueryGroup(t, peer, col.Table.Name, col.Name, op, value)
+				testqueryFilter(t, peer, col.Table.Name, col.Name, operator, value)
+				testqueryGroup(t, peer, col.Table.Name, col.Name, operator, value)
 			}
 		}
 	}
@@ -175,8 +175,8 @@ func testqueryCol(t *testing.T, peer *Peer, table TableName, column string) {
 	)
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("Recovered in f", r)
-			t.Fatalf("paniced for query:\n%s", query)
+			t.Logf("Recovered in f: %v", r)
+			t.Fatalf("panicked for query:\n%s", query)
 		}
 	}()
 	buf := bufio.NewReader(bytes.NewBufferString(query))
@@ -192,20 +192,20 @@ func testqueryCol(t *testing.T, peer *Peer, table TableName, column string) {
 	}
 }
 
-func testqueryFilter(t *testing.T, peer *Peer, table TableName, column, op, value string) {
+func testqueryFilter(t *testing.T, peer *Peer, table TableName, column, operator, value string) {
 	t.Helper()
 	lmd := createTestLMDInstance()
 	query := fmt.Sprintf("GET %s\nColumns: %s\nFilter: %s %s%s\n\n",
 		table.String(),
 		column,
 		column,
-		op,
+		operator,
 		value,
 	)
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("Recovered in f", r)
-			t.Fatalf("paniced for query:\n%s", query)
+			t.Logf("Recovered in f: %v", r)
+			t.Fatalf("panicked for query:\n%s", query)
 		}
 	}()
 	buf := bufio.NewReader(bytes.NewBufferString(query))
@@ -221,20 +221,20 @@ func testqueryFilter(t *testing.T, peer *Peer, table TableName, column, op, valu
 	}
 }
 
-func testqueryGroup(t *testing.T, peer *Peer, table TableName, column, op, value string) {
+func testqueryGroup(t *testing.T, peer *Peer, table TableName, column, operator, value string) {
 	t.Helper()
 	lmd := createTestLMDInstance()
 	query := fmt.Sprintf("GET %s\nColumns: %s\nStats: %s %s%s\n\n",
 		table.String(),
 		column,
 		column,
-		op,
+		operator,
 		value,
 	)
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("Recovered in f", r)
-			t.Fatalf("paniced for query:\n%s", query)
+			t.Logf("Recovered in f: %v", r)
+			t.Fatalf("panicked for query:\n%s", query)
 		}
 	}()
 	buf := bufio.NewReader(bytes.NewBufferString(query))
@@ -260,8 +260,8 @@ func TestAllTables(t *testing.T) {
 	query := ""
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("Recovered in f", r)
-			t.Fatalf("paniced for query:\n%s", query)
+			t.Logf("Recovered in f: %v", r)
+			t.Fatalf("panicked for query:\n%s", query)
 		}
 	}()
 	for table := range Objects.Tables {

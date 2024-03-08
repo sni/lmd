@@ -27,6 +27,7 @@ func (raw *RawResultSet) PostProcessing(res *Response) {
 	// offset outside
 	if res.Request.Offset > raw.Total {
 		raw.DataResult = make([]*DataRow, 0)
+
 		return
 	}
 
@@ -58,47 +59,47 @@ func (raw *RawResultSet) Len() int {
 }
 
 // Less returns the sort result of two data rows
-func (raw *RawResultSet) Less(i, j int) bool {
-	for _, s := range raw.Sort {
-		switch s.Column.DataType {
-		case IntCol:
-			fallthrough
-		case Int64Col:
-			fallthrough
-		case FloatCol:
-			valueA := raw.DataResult[i].GetFloat(s.Column)
-			valueB := raw.DataResult[j].GetFloat(s.Column)
+func (raw *RawResultSet) Less(idx1, idx2 int) bool {
+	for _, field := range raw.Sort {
+		switch field.Column.DataType {
+		case IntCol, Int64Col, FloatCol:
+			valueA := raw.DataResult[idx1].GetFloat(field.Column)
+			valueB := raw.DataResult[idx2].GetFloat(field.Column)
 			if valueA == valueB {
 				continue
 			}
-			if s.Direction == Asc {
+			if field.Direction == Asc {
 				return valueA < valueB
 			}
+
 			return valueA > valueB
 		case StringCol, StringLargeCol, StringListCol, ServiceMemberListCol, InterfaceListCol, JSONCol, CustomVarCol:
-			s1 := raw.DataResult[i].GetString(s.Column)
-			s2 := raw.DataResult[j].GetString(s.Column)
-			if s1 == s2 {
+			str1 := raw.DataResult[idx1].GetString(field.Column)
+			str2 := raw.DataResult[idx2].GetString(field.Column)
+			if str1 == str2 {
 				continue
 			}
-			if s.Direction == Asc {
-				return s1 < s2
+			if field.Direction == Asc {
+				return str1 < str2
 			}
-			return s1 > s2
+
+			return str1 > str2
 		case Int64ListCol:
 			// join numbers to string
-			s1 := raw.DataResult[i].GetString(s.Column)
-			s2 := raw.DataResult[j].GetString(s.Column)
-			if s1 == s2 {
+			str1 := raw.DataResult[idx1].GetString(field.Column)
+			str2 := raw.DataResult[idx2].GetString(field.Column)
+			if str1 == str2 {
 				continue
 			}
-			if s.Direction == Asc {
-				return s1 < s2
+			if field.Direction == Asc {
+				return str1 < str2
 			}
-			return s1 > s2
+
+			return str1 > str2
 		}
-		panic(fmt.Sprintf("sorting not implemented for type %s", s.Column.DataType))
+		panic(fmt.Sprintf("sorting not implemented for type %s", field.Column.DataType))
 	}
+
 	return true
 }
 

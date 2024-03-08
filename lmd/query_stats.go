@@ -27,7 +27,7 @@ type QueryStats struct {
 
 // NewQueryStats creates a new query stats object
 func NewQueryStats() *QueryStats {
-	qs := &QueryStats{
+	stats := &QueryStats{
 		Stats:      make(map[string]*QueryStat),
 		In:         make(chan QueryStatIn),
 		LogTrigger: make(chan bool),
@@ -36,21 +36,21 @@ func NewQueryStats() *QueryStats {
 	go func() {
 		for {
 			select {
-			case in := <-qs.In:
-				item, ok := qs.Stats[in.Query]
+			case stat := <-stats.In:
+				item, ok := stats.Stats[stat.Query]
 				if !ok {
 					item = &QueryStat{}
-					qs.Stats[in.Query] = item
+					stats.Stats[stat.Query] = item
 				}
 				item.Count++
-				item.TotalDuration += in.Duration
-			case <-qs.LogTrigger:
-				qs.LogStats()
+				item.TotalDuration += stat.Duration
+			case <-stats.LogTrigger:
+				stats.LogStats()
 			}
 		}
 	}()
 
-	return qs
+	return stats
 }
 
 // LogStats returns the string result

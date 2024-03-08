@@ -62,7 +62,8 @@ func NewResponse(ctx context.Context, req *Request, w net.Conn) (res *Response, 
 	if res.Request.OutputFormat != OutputFormatWrappedJSON && len(res.Failed) > 0 && len(res.Failed) == len(req.Backends) {
 		res.Code = 502
 		err = &PeerError{msg: res.Failed[req.Backends[0]], kind: ConnectionError}
-		return
+
+		return res, 0, err
 	}
 
 	table := Objects.Tables[req.Table]
@@ -94,6 +95,7 @@ func NewResponse(ctx context.Context, req *Request, w net.Conn) (res *Response, 
 				res.Lock.Lock()
 				res.Failed[p.ID] = err2.Error()
 				res.Lock.Unlock()
+
 				continue
 			}
 			if !table.WorksUnlocked {
@@ -119,6 +121,7 @@ func NewResponse(ctx context.Context, req *Request, w net.Conn) (res *Response, 
 
 	if w != nil {
 		size, err = res.Send(w)
+
 		return nil, size, err
 	}
 
@@ -197,6 +200,7 @@ func (res *Response) Less(i, j int) bool {
 			if s.Direction == Asc {
 				return valueA < valueB
 			}
+
 			return valueA > valueB
 		case JSONCol:
 			fallthrough
@@ -213,6 +217,7 @@ func (res *Response) Less(i, j int) bool {
 			if s.Direction == Asc {
 				return s1 < s2
 			}
+
 			return s1 > s2
 		case StringListCol:
 			// not implemented
@@ -223,6 +228,7 @@ func (res *Response) Less(i, j int) bool {
 		}
 		panic(fmt.Sprintf("sorting not implemented for type %s", sortType))
 	}
+
 	return true
 }
 
@@ -244,6 +250,7 @@ func (req *Request) ExpandRequestedBackends() (err error) {
 			p := req.lmd.PeerMap[id]
 			req.BackendsMap[p.ID] = p.ID
 		}
+
 		return
 	}
 
@@ -251,10 +258,12 @@ func (req *Request) ExpandRequestedBackends() (err error) {
 		_, Ok := req.lmd.PeerMap[b]
 		if !Ok {
 			req.BackendErrors[b] = fmt.Sprintf("bad request: backend %s does not exist", b)
+
 			continue
 		}
 		req.BackendsMap[b] = b
 	}
+
 	return
 }
 
@@ -334,6 +343,7 @@ func (res *Response) CalculateFinalStats() {
 
 			if res.Request.SendStatsData {
 				res.Result[j][i] = []interface{}{s.Stats, s.StatsCount}
+
 				continue
 			}
 		}
@@ -374,6 +384,7 @@ func finalStatsApply(s *Filter) (res float64) {
 	if s.StatsCount == 0 {
 		res = 0
 	}
+
 	return
 }
 
@@ -395,7 +406,7 @@ func (res *Response) Send(c net.Conn) (size int64, err error) {
 func (res *Response) SendFixed16(c io.Writer) (size int64, err error) {
 	resBuffer, err := res.Buffer()
 	if err != nil {
-		return
+		return 0, err
 	}
 	size = int64(resBuffer.Len())
 	headerFixed16 := fmt.Sprintf("%d %11d", res.Code, size+1)
@@ -403,7 +414,8 @@ func (res *Response) SendFixed16(c io.Writer) (size int64, err error) {
 	_, err = fmt.Fprintf(c, "%s\n", headerFixed16)
 	if err != nil {
 		logWith(res).Warnf("write error: %s", err.Error())
-		return
+
+		return 0, fmt.Errorf("write: %s", err.Error())
 	}
 	if log.IsV(LogVerbosityTrace) {
 		logWith(res).Tracef("write: %s", resBuffer.Bytes())
@@ -411,15 +423,23 @@ func (res *Response) SendFixed16(c io.Writer) (size int64, err error) {
 	written, err := resBuffer.WriteTo(c)
 	if err != nil {
 		logWith(res).Warnf("write error: %s", err.Error())
-		return
+
+		return 0, fmt.Errorf("writeTo: %s", err.Error())
 	}
 	if written != size {
 		logWith(res).Warnf("write error: written %d, size: %d", written, size)
-		return
-	}
-	_, err = c.Write([]byte("\n"))
 
-	return
+		return written, nil
+	}
+
+	_, err = c.Write([]byte("\n"))
+	if err != nil {
+		logWith(res).Warnf("write error: %s", err.Error())
+
+		return 0, fmt.Errorf("writeTo: %s", err.Error())
+	}
+
+	return written, nil
 }
 
 // SendUnbuffered directly prints the result to the client connection
@@ -433,6 +453,7 @@ func (res *Response) SendUnbuffered(c io.Writer) (size int64, err error) {
 		}
 		_, err = countingWriter.Write([]byte("\n"))
 		size = countingWriter.Count
+
 		return
 	}
 	if res.Request.OutputFormat == OutputFormatWrappedJSON {
@@ -442,10 +463,12 @@ func (res *Response) SendUnbuffered(c io.Writer) (size int64, err error) {
 	}
 	if err != nil {
 		logWith(res).Warnf("write error: %s", err.Error())
+
 		return
 	}
 	_, err = countingWriter.Write([]byte("\n"))
 	size = countingWriter.Count
+
 	return
 }
 
@@ -455,12 +478,14 @@ func (res *Response) Buffer() (*bytes.Buffer, error) {
 	if res.Error != nil {
 		logWith(res).Warnf("sending error response: %d - %s", res.Code, res.Error.Error())
 		buf.WriteString(res.Error.Error())
+
 		return buf, nil
 	}
 
 	if res.Request.OutputFormat == OutputFormatWrappedJSON {
 		return buf, res.WrappedJSON(buf)
 	}
+
 	return buf, res.JSON(buf)
 }
 
@@ -488,6 +513,7 @@ func (res *Response) JSON(buf io.Writer) error {
 		return fmt.Errorf("json flush failed: %s", err.Error())
 	}
 	json.Reset(nil)
+
 	return nil
 }
 
@@ -523,6 +549,7 @@ func (res *Response) WrappedJSON(buf io.Writer) error {
 		return fmt.Errorf("WrappedJSON: %w", err)
 	}
 	json.Reset(nil)
+
 	return nil
 }
 
@@ -553,6 +580,7 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 		// PeerLockModeFull means we have to lock all peers before creating the result
 		if len(res.RawResults.DataResult) > 0 && res.RawResults.DataResult[0].DataStore.PeerLockMode == PeerLockModeFull {
 			res.WriteDataResponseRowLocked(json)
+
 			return
 		}
 
@@ -640,6 +668,7 @@ func (res *Response) buildLocalResponse(ctx context.Context, stores map[*Peer]*D
 		// process virtual tables serially without go routines to maintain the correct order, ex.: from the sites table
 		if store.Table.Virtual != nil {
 			res.buildLocalResponseData(ctx, store, resultcollector)
+
 			continue
 		}
 
@@ -682,6 +711,7 @@ func (res *Response) waitTrigger(ctx context.Context, p *Peer) {
 		res.Lock.Lock()
 		res.Failed[p.ID] = err.Error()
 		res.Lock.Unlock()
+
 		return
 	}
 }
@@ -764,6 +794,7 @@ func (res *Response) BuildPassThroughResult() {
 			res.Lock.Lock()
 			res.Failed[p.ID] = fmt.Sprintf("%v", p.StatusGet(LastError))
 			res.Lock.Unlock()
+
 			continue
 		}
 
@@ -791,6 +822,7 @@ func (res *Response) SendColumnsHeader() bool {
 	if res.Request.ColumnsHeaders || len(res.Request.Columns) == 0 {
 		return true
 	}
+
 	return false
 }
 
@@ -900,6 +932,7 @@ Rows:
 			if breakOnLimit {
 				return
 			}
+
 			continue Rows
 		}
 		result.Rows = append(result.Rows, row)

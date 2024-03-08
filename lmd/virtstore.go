@@ -12,6 +12,7 @@ func GetTableBackendsStore(table *Table, peer *Peer) *DataStore {
 	if err != nil {
 		log.Errorf("store error: %s", err.Error())
 	}
+
 	return store
 }
 
@@ -62,6 +63,7 @@ func GetTableColumnsStore(table *Table, _ *Peer) *DataStore {
 	if err != nil {
 		log.Errorf("store error: %s", err.Error())
 	}
+
 	return store
 }
 
@@ -119,5 +121,6 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 	if err != nil {
 		log.Errorf("store error: %s", err.Error())
 	}
+
 	return store
 }

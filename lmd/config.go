@@ -46,6 +46,7 @@ func (c *Connection) Equals(other *Connection) bool {
 	equal = equal && c.NoConfigTool == other.NoConfigTool
 	equal = equal && strings.Join(c.Source, ":") == strings.Join(other.Source, ":")
 	equal = equal && strings.Join(c.Flags, ":") == strings.Join(other.Flags, ":")
+
 	return equal
 }
 
@@ -65,44 +66,45 @@ func (c *configFiles) Set(value string) (err error) {
 	}
 	err = nil
 	*c = append(*c, value)
+
 	return
 }
 
 // Config defines the available configuration options from supplied config files.
 type Config struct {
-	Listen                     []string
-	Nodes                      []string
-	TLSCertificate             string
-	TLSKey                     string
-	TLSClientPems              []string
-	Updateinterval             int64
-	FullUpdateInterval         int64
-	Connections                []Connection
-	LogFile                    string
-	LogLevel                   string
-	LogSlowQueryThreshold      int
-	LogHugeQueryThreshold      int
-	LogQueryStats              bool
-	ConnectTimeout             int
-	NetTimeout                 int
-	ListenTimeout              int
-	SaveTempRequests           bool
-	ListenPrometheus           string
-	SkipSSLCheck               int
-	IdleTimeout                int64
-	IdleInterval               int64
-	StaleBackendTimeout        int
-	BackendKeepAlive           bool
-	ServiceAuthorization       string
-	GroupAuthorization         string
-	SyncIsExecuting            bool
-	CompressionMinimumSize     int
-	CompressionLevel           int
-	MaxClockDelta              float64
-	UpdateOffset               int64
-	TLSMinVersion              string
-	MaxParallelPeerConnections int
-	MaxQueryFilter             int
+	Listen                     []string     `toml:"Listen"`
+	Nodes                      []string     `toml:"Nodes"`
+	TLSCertificate             string       `toml:"TLSCertificate"`
+	TLSKey                     string       `toml:"TLSKey"`
+	TLSClientPems              []string     `toml:"TLSClientPems"`
+	Updateinterval             int64        `toml:"Updateinterval"`
+	FullUpdateInterval         int64        `toml:"FullUpdateInterval"`
+	Connections                []Connection `toml:"Connections"`
+	LogFile                    string       `toml:"LogFile"`
+	LogLevel                   string       `toml:"LogLevel"`
+	LogSlowQueryThreshold      int          `toml:"LogSlowQueryThreshold"`
+	LogHugeQueryThreshold      int          `toml:"LogHugeQueryThreshold"`
+	LogQueryStats              bool         `toml:"LogQueryStats"`
+	ConnectTimeout             int          `toml:"ConnectTimeout"`
+	NetTimeout                 int          `toml:"NetTimeout"`
+	ListenTimeout              int          `toml:"ListenTimeout"`
+	SaveTempRequests           bool         `toml:"SaveTempRequests"`
+	ListenPrometheus           string       `toml:"ListenPrometheus"`
+	SkipSSLCheck               int          `toml:"SkipSSLCheck"`
+	IdleTimeout                int64        `toml:"IdleTimeout"`
+	IdleInterval               int64        `toml:"IdleInterval"`
+	StaleBackendTimeout        int          `toml:"StaleBackendTimeout"`
+	BackendKeepAlive           bool         `toml:"BackendKeepAlive"`
+	ServiceAuthorization       string       `toml:"ServiceAuthorization"`
+	GroupAuthorization         string       `toml:"GroupAuthorization"`
+	SyncIsExecuting            bool         `toml:"SyncIsExecuting"`
+	CompressionMinimumSize     int          `toml:"CompressionMinimumSize"`
+	CompressionLevel           int          `toml:"CompressionLevel"`
+	MaxClockDelta              float64      `toml:"MaxClockDelta"`
+	UpdateOffset               int64        `toml:"UpdateOffset"`
+	TLSMinVersion              string       `toml:"TLSMinVersion"`
+	MaxParallelPeerConnections int          `toml:"MaxParallelPeerConnections"`
+	MaxQueryFilter             int          `toml:"MaxQueryFilter"`
 }
 
 // NewConfig reads all config files.
@@ -145,6 +147,7 @@ func NewConfig(files []string) *Config {
 		}
 		if configFiles == nil {
 			log.Debugf("config file pattern %s did not match any files", pattern)
+
 			continue
 		}
 		for _, configFile := range configFiles {
@@ -296,5 +299,6 @@ func parseTLSMinVersion(version string) (tlsminversion uint16, err error) {
 	default:
 		err = fmt.Errorf("cannot parse %s into tls version valid values are: tls1.0, tls1.1, tls1.2, tls1.3", version)
 	}
+
 	return
 }

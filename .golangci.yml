@@ -1,27 +1,21 @@
 linters-settings:
+  gocritic:
+    enabled-tags:
+      - performance
+      - style
+      - experimental
   gocyclo:
     min-complexity: 20
   goconst:
     min-len: 8
     min-occurrences: 12
   lll:
-    line-length: 120
-  gocritic:
-    enabled-tags:
-      - performance
-      - style
-      - experimental
-    disabled-checks:
-      - emptyFallthrough
-      - exitAfterDefer
-      - paramTypeCombine
-      - unnamedResult
-    settings:
-      rangeValCopy:
-        sizeThreshold: 32
+    line-length: 165
   funlen:
     lines: 150
     statements: 100
+  gomoddirectives:
+    replace-local: true
   gocognit:
     min-complexity: 35
   exhaustive:
@@ -43,38 +37,38 @@ linters-settings:
           - Panicf
 linters:
   enable-all: true
+  fast: false
   disable:
-    - contextcheck
     - cyclop
     - depguard
-    - errorlint
-    - exhaustive
     - exhaustivestruct
     - exhaustruct
-    - forbidigo
-    - forcetypeassert
+    - gochecknoglobals
     - gochecknoinits
     - godot
     - gofumpt
-    - golint
     - ifshort
     - interfacer
-    - lll
     - maligned
-    - musttag
-    - nakedret
-    - nilerr
-    - nlreturn
     - nonamedreturns
     - paralleltest
     - perfsprint
-    - scopelint
-    - varnamelen
-    - wastedassign
+    - tagliatelle
+    - testpackage
     - wsl
-  fast: false
+    # deprecated
+    - deadcode
+    - structcheck
+    - varcheck
+    - scopelint
+    - nosnakecase
+    - golint
+    # TODO:
+    - forcetypeassert
+    - contextcheck
 issues:
   max-same-issues: 0
+  max-issues-per-linter: 0
   exclude-use-default: true
   exclude:
     - 'data.Options.Sub.*_raw_query.*is deeply nested'
@@ -84,6 +78,8 @@ issues:
     - 'lines are duplicate of.*objects.go:'
     - 'Magic number: 0o644\D '
     - 'Magic number: 1\D '
+    - 'Magic number: 5\D '
+    - 'Magic number: 7\D '
     - 'Magic number: 10\D '
     - 'Magic number: 100\D '
     - 'Magic number: 1024\D '
@@ -91,11 +87,13 @@ issues:
     - 'Magic number: 2\D '
     - 'Magic number: 200\D '
     - 'Magic number: 3\D '
+    - 'Magic number: 30\D '
     - 'Magic number: 32\D '
     - 'Magic number: 4\D '
-    - 'Magic number: 400\D '
-    - 'Magic number: 502\D '
+    - 'Magic number: 60\D '
     - 'Magic number: 64\D '
+    - 'Magic number: 120\D '
+    - 'Magic number: 1800\D '
     - 'Magic number: 65536\D '
     - 'missing cases in switch of type GroupOperator: _'
     - 'missing cases in switch of type Operator: _'
@@ -145,11 +143,14 @@ issues:
     - "VirtualColumnList is a global variable"
     - "VirtualColumnMap is a global variable"
     - "LogPrefixer.*does not support error-wrapping"
+    - "constant name 'Or' is too short"
   exclude-rules:
     # Exclude some linters from running on tests files.
-    - path: _test\.go
+    - path: _test.*\.go
       linters:
+        - errcheck
+        - errorlint
         - gomnd
-    - path: config\.go
-      linters:
-        - gomnd
+        - dupword
+        - funlen
+        - lll

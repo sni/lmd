@@ -49,13 +49,13 @@ func TestColumnList(t *testing.T) {
 }
 
 func TestColumnEmpty(t *testing.T) {
-	c := Column{Name: "Test1", DataType: IntCol}
-	if err := assertEq(-1, c.GetEmptyValue()); err != nil {
+	col := Column{Name: "Test1", DataType: IntCol}
+	if err := assertEq(-1, col.GetEmptyValue()); err != nil {
 		t.Error(err)
 	}
 
-	c.DataType = StringCol
-	if err := assertEq("", c.GetEmptyValue()); err != nil {
+	col.DataType = StringCol
+	if err := assertEq("", col.GetEmptyValue()); err != nil {
 		t.Error(err)
 	}
 }

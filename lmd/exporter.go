@@ -45,19 +45,19 @@ func (ex *Exporter) Export(file string) (err error) {
 
 	userinfo, err := user.Current()
 	if err != nil {
-		return fmt.Errorf("failed to fetch user info: %s", err)
+		return fmt.Errorf("failed to fetch user info: %s", err.Error())
 	}
 	ex.user = userinfo
 
 	groupinfo, err := user.LookupGroupId(userinfo.Gid)
 	if err != nil {
-		return fmt.Errorf("failed to fetch group info: %s", err)
+		return fmt.Errorf("failed to fetch group info: %s", err.Error())
 	}
 	ex.group = groupinfo
 
 	tarball, err := os.Create(file)
 	if err != nil {
-		return fmt.Errorf("failed to create tarball: %s", err)
+		return fmt.Errorf("failed to create tarball: %s", err.Error())
 	}
 	defer tarball.Close()
 
@@ -75,56 +75,57 @@ func (ex *Exporter) Export(file string) (err error) {
 		return err
 	}
 
-	return
+	return nil
 }
 
 func (ex *Exporter) exportPeers() (err error) {
 	err = ex.addDir("sites/")
 	if err != nil {
-		return
+		return err
 	}
 	ex.lmd.PeerMapLock.RLock()
 	defer ex.lmd.PeerMapLock.RUnlock()
 	for _, id := range ex.lmd.PeerMapOrder {
-		p := ex.lmd.PeerMap[id]
-		if p.HasFlag(MultiBackend) {
+		peer := ex.lmd.PeerMap[id]
+		if peer.HasFlag(MultiBackend) {
 			continue
 		}
-		log.Debugf("exporting %s (%s)", p.Name, p.ID)
-		err = ex.addDir(fmt.Sprintf("sites/%s/", p.ID))
+		log.Debugf("exporting %s (%s)", peer.Name, peer.ID)
+		err = ex.addDir(fmt.Sprintf("sites/%s/", peer.ID))
 		if err != nil {
-			return
+			return err
 		}
-		total := int64(0)
-		written := int64(0)
-		written, err = ex.addTable(p, Objects.Tables[TableSites])
+		var total int64
+		var written int64
+		written, err = ex.addTable(peer, Objects.Tables[TableSites])
 		if err != nil {
-			return
+			return err
 		}
 		total += written
-		for _, t := range Objects.Tables {
+		for _, table := range Objects.Tables {
 			switch {
-			case t.PassthroughOnly:
+			case table.PassthroughOnly:
 				continue
-			case t.Name == TableBackends:
+			case table.Name == TableBackends:
 				continue
-			case t.Name == TableSites:
+			case table.Name == TableSites:
 				continue
-			case t.Name == TableColumns:
+			case table.Name == TableColumns:
 				continue
-			case t.Virtual != nil:
+			case table.Virtual != nil:
 				continue
 			default:
-				written, err = ex.addTable(p, t)
+				written, err = ex.addTable(peer, table)
 				if err != nil {
-					return
+					return err
 				}
 				total += written
 			}
 		}
-		log.Infof("exported %10s (%5s), used space: %8d kb", p.Name, p.ID, total/1024)
+		log.Infof("exported %10s (%5s), used space: %8d kb", peer.Name, peer.ID, total/1024)
 	}
-	return
+
+	return nil
 }
 
 func (ex *Exporter) addDir(name string) (err error) {
@@ -137,37 +138,38 @@ func (ex *Exporter) addDir(name string) (err error) {
 		Gid:     interface2int(ex.user.Gid),
 		Gname:   ex.group.Name,
 	})
+
 	return
 }
 
-func (ex *Exporter) addTable(p *Peer, t *Table) (written int64, err error) {
-	logWith(p).Debugf("exporting table: %s", t.Name.String())
+func (ex *Exporter) addTable(peer *Peer, table *Table) (written int64, err error) {
+	logWith(peer).Debugf("exporting table: %s", table.Name.String())
 	req := &Request{
-		Table:           t.Name,
-		Columns:         ex.exportableColumns(p, t),
+		Table:           table.Name,
+		Columns:         ex.exportableColumns(peer, table),
 		ColumnsHeaders:  true,
 		ResponseFixed16: true,
 		OutputFormat:    OutputFormatJSON,
-		Backends:        []string{p.ID},
+		Backends:        []string{peer.ID},
 		lmd:             ex.lmd,
 	}
 	err = req.ExpandRequestedBackends()
 	if err != nil {
-		return
+		return 0, err
 	}
 	req.SetRequestColumns()
 	res, _, err := NewResponse(context.TODO(), req, nil)
 	if err != nil {
-		return
+		return 0, err
 	}
 
 	buf, err := res.Buffer()
 	if err != nil {
-		return
+		return 0, err
 	}
 
 	header := &tar.Header{
-		Name:    fmt.Sprintf("sites/%s/%s.json", p.ID, t.Name.String()),
+		Name:    fmt.Sprintf("sites/%s/%s.json", peer.ID, table.Name.String()),
 		Size:    int64(buf.Len()),
 		Mode:    DefaultFilePerm,
 		ModTime: ex.exportTime,
@@ -179,13 +181,14 @@ func (ex *Exporter) addTable(p *Peer, t *Table) (written int64, err error) {
 
 	err = ex.tar.WriteHeader(header)
 	if err != nil {
-		return
+		return 0, fmt.Errorf("tar error: %s", err.Error())
 	}
 	written, err = io.Copy(ex.tar, buf)
 	if err != nil {
-		return
+		return 0, fmt.Errorf("io error: %s", err.Error())
 	}
-	return
+
+	return written, nil
 }
 
 func (ex *Exporter) initPeers() {
@@ -197,21 +200,21 @@ func (ex *Exporter) initPeers() {
 
 	for i := range ex.lmd.Config.Connections {
 		c := ex.lmd.Config.Connections[i]
-		p := NewPeer(ex.lmd, &c)
-		log.Debugf("creating peer: %s", p.Name)
+		peer := NewPeer(ex.lmd, &c)
+		log.Debugf("creating peer: %s", peer.Name)
 		ex.lmd.PeerMapLock.Lock()
-		ex.lmd.PeerMap[p.ID] = p
-		ex.lmd.PeerMapOrder = append(ex.lmd.PeerMapOrder, p.ID)
+		ex.lmd.PeerMap[peer.ID] = peer
+		ex.lmd.PeerMapOrder = append(ex.lmd.PeerMapOrder, peer.ID)
 		ex.lmd.PeerMapLock.Unlock()
 		waitGroupPeers.Add(1)
 		go func() {
 			// make sure we log panics properly
-			defer logPanicExitPeer(p)
-			err := p.InitAllTables()
+			defer logPanicExitPeer(peer)
+			err := peer.InitAllTables()
 			if err != nil {
-				logWith(p).Warnf("failed to initialize peer: %s", err)
+				logWith(peer).Warnf("failed to initialize peer: %s", err)
 			}
-			logWith(p).Debugf("peer ready")
+			logWith(peer).Debugf("peer ready")
 			waitGroupPeers.Done()
 		}()
 	}
@@ -223,20 +226,20 @@ func (ex *Exporter) initPeers() {
 	defer ex.lmd.PeerMapLock.RUnlock()
 	hasSubPeers := false
 	for _, id := range ex.lmd.PeerMapOrder {
-		p := ex.lmd.PeerMap[id]
-		if p.ParentID == "" {
+		peer := ex.lmd.PeerMap[id]
+		if peer.ParentID == "" {
 			continue
 		}
 		hasSubPeers = true
 		waitGroupPeers.Add(1)
 		go func() {
 			// make sure we log panics properly
-			defer logPanicExitPeer(p)
-			err := p.InitAllTables()
+			defer logPanicExitPeer(peer)
+			err := peer.InitAllTables()
 			if err != nil {
-				logWith(p).Warnf("failed to initialize peer: %s", err)
+				logWith(peer).Warnf("failed to initialize peer: %s", err)
 			}
-			logWith(p).Debugf("peer ready")
+			logWith(peer).Debugf("peer ready")
 			waitGroupPeers.Done()
 		}()
 	}
@@ -255,6 +258,7 @@ func (ex *Exporter) exportableColumns(p *Peer, t *Table) (columns []string) {
 			columns = append(columns, col.Name)
 		}
 	}
+
 	return
 }
 
@@ -281,5 +285,6 @@ func (ex *Exporter) isExportColumn(p *Peer, col *Column) bool {
 	if col.Name == "custom_variables" {
 		return false
 	}
+
 	return true
 }

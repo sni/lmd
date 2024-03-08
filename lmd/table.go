@@ -94,6 +94,7 @@ func NewTableName(name string) (TableName, error) {
 	case "servicesbyhostgroup":
 		return TableServicesbyhostgroup, nil
 	}
+
 	return TableNone, fmt.Errorf("table %s does not exist", name)
 }
 
@@ -141,6 +142,7 @@ func (t *TableName) String() string {
 	}
 
 	log.Panicf("unsupported tablename: %#v", t)
+
 	return ""
 }
 
@@ -175,6 +177,7 @@ func (t *Table) GetColumnWithFallback(name string) *Column {
 	if !fixBrokenClientsRequestColumn(&name, t.Name) {
 		return t.GetEmptyColumn()
 	}
+
 	return t.ColumnsIndex[name]
 }
 
@@ -184,6 +187,7 @@ func (t *Table) GetColumns(names []string) ColumnList {
 	for i := range names {
 		columns = append(columns, t.ColumnsIndex[names[i]])
 	}
+
 	return columns
 }
 

@@ -52,6 +52,7 @@ func (a *NodeAddress) String() string {
 	if a.id != "" {
 		return fmt.Sprintf("[%s] %s", a.id, addr)
 	}
+
 	return addr
 }
 
@@ -60,17 +61,18 @@ type NodeAddressList []*NodeAddress
 
 // String returns the stringified node address list.
 func (a *NodeAddressList) String() string {
-	s := []string{}
+	str := []string{}
 	for _, l := range *a {
-		s = append(s, l.String())
+		str = append(str, l.String())
 	}
-	sort.Strings(s)
-	return strings.Join(s, ",")
+	sort.Strings(str)
+
+	return strings.Join(str, ",")
 }
 
 // NewNodes creates a new cluster manager.
 func NewNodes(lmd *LMDInstance, addresses []string, listen string) *Nodes {
-	n := &Nodes{
+	node := &Nodes{
 		WaitGroupInit:   lmd.waitGroupInit,
 		ShutdownChannel: lmd.shutdownChannel,
 		stopChannel:     make(chan bool),
@@ -78,18 +80,18 @@ func NewNodes(lmd *LMDInstance, addresses []string, listen string) *Nodes {
 		lmd:             lmd,
 	}
 	tlsConfig := getMinimalTLSConfig(lmd.Config)
-	n.HTTPClient = NewLMDHTTPClient(tlsConfig, "")
+	node.HTTPClient = NewLMDHTTPClient(tlsConfig, "")
 	for i := range lmd.Config.Connections {
-		n.backends = append(n.backends, lmd.Config.Connections[i].ID)
+		node.backends = append(node.backends, lmd.Config.Connections[i].ID)
 	}
 	partsListen := reNodeAddress.FindStringSubmatch(listen)
 	for _, address := range addresses {
 		parts := reNodeAddress.FindStringSubmatch(address)
 		nodeAddress := &NodeAddress{}
-		var ip, port, url string
+		var ipAddress, port, url string
 		if parts[1] != "" && parts[2] != "" { // "http", "://"
 			// HTTP address
-			ip = parts[3]
+			ipAddress = parts[3]
 			port = parts[5]
 			if port == "" {
 				port = partsListen[5]
@@ -97,29 +99,29 @@ func NewNodes(lmd *LMDInstance, addresses []string, listen string) *Nodes {
 			url = address
 		} else {
 			// IP or TCP address
-			ip = parts[3]
+			ipAddress = parts[3]
 			port = parts[5]
 			if port == "" {
 				port = partsListen[5]
 			}
 			url = partsListen[1] + partsListen[2] // "http://"
-			url += ip + ":" + port
+			url += ipAddress + ":" + port
 		}
 		if url[len(url)-1] != '/' {
 			url += "/" // url must end in a slash
 		}
-		nodeAddress.ip = ip
+		nodeAddress.ip = ipAddress
 		nodeAddress.port, _ = strconv.Atoi(port)
 		nodeAddress.url = url
-		for _, otherNodeAddress := range n.nodeAddresses {
+		for _, otherNodeAddress := range node.nodeAddresses {
 			if otherNodeAddress.url == nodeAddress.url {
 				log.Fatalf("Duplicate node url: %s", nodeAddress.url)
 			}
 		}
-		n.nodeAddresses = append(n.nodeAddresses, nodeAddress)
+		node.nodeAddresses = append(node.nodeAddresses, nodeAddress)
 	}
 
-	return n
+	return node
 }
 
 // IsClustered checks if cluster mode is enabled.
@@ -128,18 +130,20 @@ func (n *Nodes) IsClustered() bool {
 }
 
 // Node returns the NodeAddress object for the specified node id.
-func (n *Nodes) Node(id string) *NodeAddress {
+func (n *Nodes) Node(nodeID string) *NodeAddress {
 	var nodeAddress NodeAddress
 	for _, otherNodeAddress := range n.nodeAddresses {
-		if otherNodeAddress.id != "" && otherNodeAddress.id == id {
+		if otherNodeAddress.id != "" && otherNodeAddress.id == nodeID {
 			nodeAddress = *otherNodeAddress
+
 			break
 		}
 	}
 	if nodeAddress.id == "" {
 		// Not found
-		nodeAddress.id = id
+		nodeAddress.id = nodeID
 	}
+
 	return &nodeAddress
 }
 
@@ -211,9 +215,11 @@ func (n *Nodes) loop() {
 		select {
 		case <-n.ShutdownChannel:
 			ticker.Stop()
+
 			return
 		case <-n.stopChannel:
 			ticker.Stop()
+
 			return
 		case <-ticker.C:
 			n.checkNodeAvailability()
@@ -226,7 +232,7 @@ func (n *Nodes) loop() {
 func (n *Nodes) checkNodeAvailability() {
 	// Send ping to all nodes
 	// First ping (initializing) detects and assigns own address.
-	wg := sync.WaitGroup{}
+	waitGroup := sync.WaitGroup{}
 	ownIdentifier := n.ID
 	if ownIdentifier == "" {
 		panic("not initialized")
@@ -246,8 +252,8 @@ func (n *Nodes) checkNodeAvailability() {
 		requestData["identifier"] = ownIdentifier
 		requestData["peers"] = strings.Join(n.nodeBackends[node.id], ";")
 		log.Tracef("pinging node %s...", node)
-		wg.Add(1)
-		go func(wg *sync.WaitGroup, node *NodeAddress) {
+		waitGroup.Add(1)
+		go func(waitGroup *sync.WaitGroup, node *NodeAddress) {
 			defer n.lmd.logPanicExit()
 			isOnline, forceRedistribute := n.sendPing(node, initializing, requestData)
 			if forceRedistribute {
@@ -256,12 +262,12 @@ func (n *Nodes) checkNodeAvailability() {
 			if isOnline {
 				newOnlineNodes = append(newOnlineNodes, node)
 			}
-			wg.Done()
-		}(&wg, node)
+			waitGroup.Done()
+		}(&waitGroup, node)
 	}
 	// Handle timeout
 	timeout := n.heartbeatTimeout
-	if waitTimeout(context.TODO(), &wg, time.Duration(timeout)*time.Second) {
+	if waitTimeout(context.TODO(), &waitGroup, time.Duration(timeout)*time.Second) {
 		// Not all nodes have responded, but that's ok
 		log.Tracef("node timeout")
 		if initializing && n.thisNode == nil {
@@ -300,15 +306,15 @@ func (n *Nodes) redistribute() {
 			assignedNumberBackends[i] = 1
 		}
 	} else {
-		for i := range allNodes {
-			if !nodeOnline[i] {
+		for idx := range allNodes {
+			if !nodeOnline[idx] {
 				continue
 			}
 			numberPerNode := numberBackends / numberAvailableNodes
 			if numberBackends%numberAvailableNodes != 0 {
 				numberPerNode++
 			}
-			assignedNumberBackends[i] = numberPerNode
+			assignedNumberBackends[idx] = numberPerNode
 		}
 	}
 
@@ -316,7 +322,7 @@ func (n *Nodes) redistribute() {
 	assignedBackends := make([][]string, numberAllNodes) // for each node
 	nodeBackends := make(map[string][]string)
 	distributedCount := 0
-	for i, number := range assignedNumberBackends {
+	for idx, number := range assignedNumberBackends {
 		if number <= 0 {
 			continue
 		}
@@ -329,8 +335,8 @@ func (n *Nodes) redistribute() {
 			}
 		}
 		distributedCount += number
-		assignedBackends[i] = list
-		id := allNodes[i].id
+		assignedBackends[idx] = list
+		id := allNodes[idx].id
 		nodeBackends[id] = list
 	}
 	n.nodeBackends = nodeBackends
@@ -343,13 +349,14 @@ func (n *Nodes) updateBackends(ourBackends []string) {
 	// append sub peers
 	n.lmd.PeerMapLock.RLock()
 	for id := range n.lmd.PeerMap {
-		p := n.lmd.PeerMap[id]
-		if p.ParentID == "" {
+		peer := n.lmd.PeerMap[id]
+		if peer.ParentID == "" {
 			continue
 		}
 		for _, id := range ourBackends {
-			if id == p.ParentID {
-				ourBackends = append(ourBackends, p.ID)
+			if id == peer.ParentID {
+				ourBackends = append(ourBackends, peer.ID)
+
 				break
 			}
 		}
@@ -401,13 +408,13 @@ func (n *Nodes) updateBackends(ourBackends []string) {
 	n.lmd.PeerMapLock.RUnlock()
 }
 
-func (n *Nodes) getOnlineNodes() (ownIndex int, nodeOnline []bool, numberAllNodes int, numberAvailableNodes int) {
+func (n *Nodes) getOnlineNodes() (ownIndex int, nodeOnline []bool, numberAllNodes, numberAvailableNodes int) {
 	allNodes := n.nodeAddresses
 	numberAllNodes = len(allNodes)
 	numberAvailableNodes = 0
 	nodeOnline = make([]bool, numberAllNodes)
 	ownIndex = -1
-	for i, node := range allNodes {
+	for idx, node := range allNodes {
 		isOnline := false
 		for _, otherNode := range n.onlineNodes {
 			if otherNode.url == node.url {
@@ -415,13 +422,14 @@ func (n *Nodes) getOnlineNodes() (ownIndex int, nodeOnline []bool, numberAllNode
 			}
 		}
 		if node.isMe {
-			ownIndex = i
+			ownIndex = idx
 		}
 		if isOnline {
-			nodeOnline[i] = true
+			nodeOnline[idx] = true
 			numberAvailableNodes++
 		}
 	}
+
 	return
 }
 
@@ -436,6 +444,7 @@ func (n *Nodes) IsOurBackend(backend string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -468,6 +477,7 @@ func (n *Nodes) SendQuery(node *NodeAddress, name string, parameters map[string]
 	res, err := n.HTTPClient.Do(req)
 	if err != nil {
 		log.Debugf("error sending query (%s) to node (%s): %s", name, node, err.Error())
+
 		return fmt.Errorf("httpclient: %w", err)
 	}
 
@@ -478,6 +488,7 @@ func (n *Nodes) SendQuery(node *NodeAddress, name string, parameters map[string]
 	if err := decoder.Decode(&responseData); err != nil {
 		// Parsing response failed
 		log.Tracef("%s", err.Error())
+
 		return fmt.Errorf("decoder.Decode: %w", err)
 	}
 
@@ -491,6 +502,7 @@ func (n *Nodes) SendQuery(node *NodeAddress, name string, parameters map[string]
 			err = fmt.Errorf("node request failed: %s (code %d)", name, res.StatusCode)
 		}
 		log.Tracef("%s", err.Error())
+
 		return err
 	}
 
@@ -505,18 +517,19 @@ func (n *Nodes) SendQuery(node *NodeAddress, name string, parameters map[string]
 }
 
 func generateUUID() (uuid string) {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		fmt.Println("Error: ", err)
+	byteList := make([]byte, 16)
+	if _, err := rand.Read(byteList); err != nil {
+		log.Errorf("rand failed: %s", err.Error())
+
 		return
 	}
 
-	uuid = fmt.Sprintf("%X-%X-%X-%X-%X", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+	uuid = fmt.Sprintf("%X-%X-%X-%X-%X", byteList[0:4], byteList[4:6], byteList[6:8], byteList[8:10], byteList[10:])
 
 	return
 }
 
-func (n *Nodes) sendPing(node *NodeAddress, initializing bool, requestData map[string]interface{}) (isOnline bool, forceRedistribute bool) {
+func (n *Nodes) sendPing(node *NodeAddress, initializing bool, requestData map[string]interface{}) (isOnline, forceRedistribute bool) {
 	done := make(chan bool)
 	ownIdentifier := n.ID
 	err := n.SendQuery(node, "ping", requestData, func(responseData interface{}) {
@@ -585,5 +598,6 @@ func (n *Nodes) sendPing(node *NodeAddress, initializing bool, requestData map[s
 	}
 
 	<-done
-	return
+
+	return isOnline, forceRedistribute
 }

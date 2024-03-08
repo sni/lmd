@@ -24,6 +24,7 @@ type StringContainer struct {
 func NewStringContainer(data *string) *StringContainer {
 	c := &StringContainer{}
 	c.Set(data)
+
 	return c
 }
 
@@ -33,6 +34,7 @@ func (s *StringContainer) Set(data *string) {
 	if len(*data) < CompressionMinimumSize {
 		s.StringData = *data
 		s.CompressedData = nil
+
 		return
 	}
 	s.StringData = ""
@@ -43,6 +45,7 @@ func (s *StringContainer) Set(data *string) {
 		log.Errorf("gzip error: %s", err.Error())
 		s.StringData = *data
 		s.CompressedData = nil
+
 		return
 	}
 	err = gz.Close()
@@ -50,6 +53,7 @@ func (s *StringContainer) Set(data *string) {
 		log.Errorf("gzip error: %s", err.Error())
 		s.StringData = *data
 		s.CompressedData = nil
+
 		return
 	}
 	s.CompressedData = b.Bytes()
@@ -63,6 +67,7 @@ func (s *StringContainer) String() string {
 	if s.CompressedData == nil {
 		return s.StringData
 	}
+
 	return *s.StringRef()
 }
 
@@ -75,6 +80,7 @@ func (s *StringContainer) StringRef() *string {
 	if err != nil {
 		log.Errorf("failed to create gzip reader: %s", err.Error())
 		str := ""
+
 		return &str
 	}
 	b, err := io.ReadAll(r)
@@ -82,8 +88,11 @@ func (s *StringContainer) StringRef() *string {
 	if err != nil {
 		log.Errorf("failed to read compressed data: %s", err.Error())
 		str := ""
+
 		return &str
 	}
+
 	str := string(b)
+
 	return &str
 }

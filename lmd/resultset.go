@@ -22,6 +22,7 @@ type ResultSetStats struct {
 func NewResultSetStats() *ResultSetStats {
 	res := ResultSetStats{}
 	res.Stats = make(map[string][]*Filter)
+
 	return &res
 }
 
@@ -31,6 +32,7 @@ func NewResultSet(data []byte) (res ResultSet, err error) {
 	offset, jErr := jsonparser.ArrayEach(data, func(rowBytes []byte, _ jsonparser.ValueType, _ int, aErr error) {
 		if aErr != nil {
 			err = aErr
+
 			return
 		}
 		row, dErr := djson.DecodeArray(rowBytes)
@@ -43,6 +45,7 @@ func NewResultSet(data []byte) (res ResultSet, err error) {
 			// still failing
 			if dErr != nil {
 				err = dErr
+
 				return
 			}
 		}
@@ -55,6 +58,7 @@ func NewResultSet(data []byte) (res ResultSet, err error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return res, nil
 }
 
@@ -86,6 +90,7 @@ func (res *ResultSet) SortByPrimaryKey(table *Table, req *Request) ResultSet {
 		}
 	}
 	sort.Sort(&sorted)
+
 	return sorted.Data
 }
 
@@ -99,6 +104,7 @@ func (res *ResultSet) Result2Hash(columns []string) []map[string]interface{} {
 		}
 		hash = append(hash, rowHash)
 	}
+
 	return hash
 }
 
@@ -130,6 +136,7 @@ func (res *ResultSetSorted) Less(i, j int) bool {
 			if valueA == valueB {
 				continue
 			}
+
 			return valueA < valueB
 		case StringCol:
 			s1 := interface2stringNoDedup(res.Data[i][dataIndex])
@@ -137,10 +144,12 @@ func (res *ResultSetSorted) Less(i, j int) bool {
 			if s1 == s2 {
 				continue
 			}
+
 			return s1 < s2
 		}
 		panic(fmt.Sprintf("sorting not implemented for type %s", sortType))
 	}
+
 	return true
 }
 

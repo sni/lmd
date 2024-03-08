@@ -18,7 +18,7 @@ var reImportFileTable = regexp.MustCompile(`/([a-z]+)\.json$`)
 func initializePeersWithImport(lmd *LMDInstance, importFile string) (err error) {
 	stat, err := os.Stat(importFile)
 	if err != nil {
-		return fmt.Errorf("cannot read %s: %s", importFile, err)
+		return fmt.Errorf("cannot read %s: %s", importFile, err.Error())
 	}
 
 	lmd.PeerMapLock.RLock()
@@ -26,7 +26,8 @@ func initializePeersWithImport(lmd *LMDInstance, importFile string) (err error) 
 	lmd.PeerMapLock.RUnlock()
 	if peerSize > 0 {
 		log.Warnf("reload from import file is not possible")
-		return
+
+		return nil
 	}
 
 	var peers []*Peer
@@ -37,22 +38,22 @@ func initializePeersWithImport(lmd *LMDInstance, importFile string) (err error) 
 		peers, err = importPeersFromTar(lmd, importFile)
 	}
 	if err != nil {
-		return fmt.Errorf("import failed: %s", err)
+		return fmt.Errorf("import failed: %s", err.Error())
 	}
 
 	PeerMapNew := make(map[string]*Peer)
 	PeerMapOrderNew := make([]string, 0)
 	for i := range peers {
-		p := peers[i]
+		peer := peers[i]
 
 		// finish peer import
-		err = p.data.SetReferences()
+		err = peer.data.SetReferences()
 		if err != nil {
-			return fmt.Errorf("failed to set references: %s", err)
+			return fmt.Errorf("failed to set references: %s", err.Error())
 		}
 
-		PeerMapNew[p.ID] = p
-		PeerMapOrderNew = append(PeerMapOrderNew, p.ID)
+		PeerMapNew[peer.ID] = peer
+		PeerMapOrderNew = append(PeerMapOrderNew, peer.ID)
 	}
 
 	lmd.PeerMapLock.Lock()
@@ -67,7 +68,8 @@ func initializePeersWithImport(lmd *LMDInstance, importFile string) (err error) 
 	log.Infof("imported %d peers successfully", len(PeerMapOrderNew))
 
 	lmd.nodeAccessor = NewNodes(lmd, []string{}, "")
-	return
+
+	return nil
 }
 
 // importPeersFromDir imports all peers recursively for given folder
@@ -75,8 +77,7 @@ func importPeersFromDir(lmd *LMDInstance, folder string) (peers []*Peer, err err
 	folder = strings.TrimRight(folder, "/")
 	files, err := os.ReadDir(folder)
 	if err != nil {
-		err = fmt.Errorf("cannot read %s: %s", folder, err)
-		return
+		return nil, fmt.Errorf("cannot read %s: %s", folder, err.Error())
 	}
 	if _, err := os.Stat(folder + "/backends.json"); err == nil {
 		return importPeerFromDir(peers, folder, lmd)
@@ -90,6 +91,7 @@ func importPeersFromDir(lmd *LMDInstance, folder string) (peers []*Peer, err err
 			peers = append(peers, peer...)
 		}
 	}
+
 	return
 }
 
@@ -98,35 +100,35 @@ func importPeerFromDir(peers []*Peer, folder string, lmd *LMDInstance) ([]*Peer,
 	folder = strings.TrimRight(folder, "/")
 	files, err := os.ReadDir(folder)
 	if err != nil {
-		err = fmt.Errorf("cannot read %s: %s", folder, err)
-		return nil, err
+		return nil, fmt.Errorf("cannot read %s: %s", folder, err.Error())
 	}
 	peers, err = importPeerFromFile(peers, folder+"/backends.json", lmd)
 	if err != nil {
-		return nil, fmt.Errorf("import error in file %s: %s", folder+"/backends.json", err)
+		return nil, fmt.Errorf("import error in file %s: %s", folder+"/backends.json", err.Error())
 	}
 	peers, err = importPeerFromFile(peers, folder+"/status.json", lmd)
 	if err != nil {
-		return nil, fmt.Errorf("import error in file %s: %s", folder+"/status.json", err)
+		return nil, fmt.Errorf("import error in file %s: %s", folder+"/status.json", err.Error())
 	}
-	for _, f := range files {
-		fInfo, err := f.Info()
+	for _, file := range files {
+		fInfo, err := file.Info()
 		if err != nil {
-			return nil, fmt.Errorf("import error in file %s: %s", f.Name(), err)
+			return nil, fmt.Errorf("import error in file %s: %s", file.Name(), err.Error())
 		}
 		if fInfo.Mode().IsRegular() {
-			if strings.Contains(f.Name(), "backends.json") {
+			if strings.Contains(file.Name(), "backends.json") {
 				continue
 			}
-			if strings.Contains(f.Name(), "status.json") {
+			if strings.Contains(file.Name(), "status.json") {
 				continue
 			}
-			peers, err = importPeerFromFile(peers, folder+"/"+f.Name(), lmd)
+			peers, err = importPeerFromFile(peers, folder+"/"+file.Name(), lmd)
 			if err != nil {
-				return nil, fmt.Errorf("import error in file %s: %s", folder+"/"+f.Name(), err)
+				return nil, fmt.Errorf("import error in file %s: %s", folder+"/"+file.Name(), err.Error())
 			}
 		}
 	}
+
 	return peers, nil
 }
 
@@ -139,45 +141,44 @@ func importPeerFromFile(peers []*Peer, filename string, lmd *LMDInstance) ([]*Pe
 	}
 	file, err := os.Open(filename)
 	if err != nil {
-		return nil, fmt.Errorf("read error: %s", err)
+		return nil, fmt.Errorf("read error: %s", err.Error())
 	}
 	stat, err := file.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("read error: %s", err)
+		return nil, fmt.Errorf("read error: %s", err.Error())
 	}
 	table, rows, columns, err := importReadFile(matches[1], file, stat.Size())
 	if err != nil {
-		return nil, fmt.Errorf("import error: %s", err)
+		return nil, fmt.Errorf("import error: %s", err.Error())
 	}
 	log.Debugf("adding %d %s rows", len(rows), table.Name.String())
+
 	return importData(peers, table, rows, columns, lmd)
 }
 
 // importPeersFromTar imports all peers from tarball
 func importPeersFromTar(lmd *LMDInstance, tarFile string) (peers []*Peer, err error) {
-	f, err := os.Open(tarFile)
+	file, err := os.Open(tarFile)
 	if err != nil {
-		err = fmt.Errorf("cannot read %s: %s", tarFile, err)
-		return
+		return nil, fmt.Errorf("cannot read %s: %s", tarFile, err.Error())
 	}
-	defer f.Close()
+	defer file.Close()
 
-	gzf, err := gzip.NewReader(f)
+	gzf, err := gzip.NewReader(file)
 	if err != nil {
-		err = fmt.Errorf("gzip error %s: %s", tarFile, err)
-		return
+		return nil, fmt.Errorf("gzip error %s: %s", tarFile, err.Error())
 	}
 
 	tarReader := tar.NewReader(gzf)
 	for {
 		header, err := tarReader.Next()
 
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("gzip/tarball error %s: %s", tarFile, err)
+			return nil, fmt.Errorf("gzip/tarball error %s: %s", tarFile, err.Error())
 		}
 
 		switch header.Typeflag {
@@ -185,14 +186,14 @@ func importPeersFromTar(lmd *LMDInstance, tarFile string) (peers []*Peer, err er
 		case tar.TypeReg:
 			peers, err = importPeerFromTar(peers, header, tarReader, lmd)
 			if err != nil {
-				return nil, fmt.Errorf("gzip/tarball error %s in file %s: %s", tarFile, header.Name, err)
+				return nil, fmt.Errorf("gzip/tarball error %s in file %s: %s", tarFile, header.Name, err.Error())
 			}
 		default:
 			return nil, fmt.Errorf("gzip/tarball error %s: unsupported type in file %s: %c", tarFile, header.Name, header.Typeflag)
 		}
 	}
 
-	return
+	return peers, nil
 }
 
 // importPeerFromTar imports next file from tarball
@@ -205,16 +206,17 @@ func importPeerFromTar(peers []*Peer, header *tar.Header, tarReader io.Reader, l
 	}
 	table, rows, columns, err := importReadFile(matches[1], tarReader, header.Size)
 	if err != nil {
-		return nil, fmt.Errorf("import error: %s", err)
+		return nil, fmt.Errorf("import error: %s", err.Error())
 	}
+
 	return importData(peers, table, rows, columns, lmd)
 }
 
 // importData creates/extends peer from given table data
 func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, lmd *LMDInstance) ([]*Peer, error) {
-	var p *Peer
+	var peer *Peer
 	if len(peers) > 0 {
-		p = peers[len(peers)-1]
+		peer = peers[len(peers)-1]
 	}
 
 	colIndex := make(map[string]int)
@@ -235,29 +237,29 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, l
 			Section: interface2stringNoDedup(rows[0][colIndex["section"]]),
 			Flags:   interface2stringlist(rows[0][colIndex["flags"]]),
 		}
-		p = NewPeer(lmd, con)
-		peers = append(peers, p)
-		logWith(p).Infof("restoring peer id %s", p.ID)
+		peer = NewPeer(lmd, con)
+		peers = append(peers, peer)
+		logWith(peer).Infof("restoring peer id %s", peer.ID)
 
-		p.Status[PeerState] = PeerStatus(interface2int(rows[0][colIndex["status"]]))
-		p.Status[LastUpdate] = interface2float64(rows[0][colIndex["last_update"]])
-		p.Status[LastError] = interface2stringNoDedup(rows[0][colIndex["last_error"]])
-		p.Status[LastOnline] = interface2float64(rows[0][colIndex["last_online"]])
-		p.Status[Queries] = interface2int64(rows[0][colIndex["queries"]])
-		p.Status[ResponseTime] = interface2float64(rows[0][colIndex["response_time"]])
-		p.data = NewDataStoreSet(p)
+		peer.Status[PeerState] = PeerStatus(interface2int(rows[0][colIndex["status"]]))
+		peer.Status[LastUpdate] = interface2float64(rows[0][colIndex["last_update"]])
+		peer.Status[LastError] = interface2stringNoDedup(rows[0][colIndex["last_error"]])
+		peer.Status[LastOnline] = interface2float64(rows[0][colIndex["last_online"]])
+		peer.Status[Queries] = interface2int64(rows[0][colIndex["queries"]])
+		peer.Status[ResponseTime] = interface2float64(rows[0][colIndex["response_time"]])
+		peer.data = NewDataStoreSet(peer)
 
 		flags := NoFlags
 		flags.Load(con.Flags)
-		atomic.StoreUint32(&p.Flags, uint32(flags))
+		atomic.StoreUint32(&peer.Flags, uint32(flags))
 	}
 	if table.Virtual != nil {
 		return peers, nil
 	}
 
-	if p != nil && p.isOnline() {
-		store := NewDataStore(table, p)
-		store.DataSet = p.data
+	if peer != nil && peer.isOnline() {
+		store := NewDataStore(table, peer)
+		store.DataSet = peer.data
 		columnsList := ColumnList{}
 		for _, name := range columns {
 			col := store.GetColumn(name)
@@ -272,10 +274,11 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, l
 
 		err := store.InsertData(rows, columnsList, false)
 		if err != nil {
-			return peers, fmt.Errorf("failed to insert data: %s", err)
+			return peers, fmt.Errorf("failed to insert data: %s", err.Error())
 		}
-		p.data.Set(table.Name, store)
+		peer.data.Set(table.Name, store)
 	}
+
 	return peers, nil
 }
 
@@ -287,28 +290,23 @@ func importReadFile(tableName string, tarReader io.Reader, size int64) (table *T
 		}
 	}
 	if table == nil {
-		err = fmt.Errorf("no table found by name: %s", tableName)
-		return
+		return nil, nil, nil, fmt.Errorf("no table found by name: %s", tableName)
 	}
 	data := make([]byte, 0, size)
 	buf := bytes.NewBuffer(data)
 	read, err := io.Copy(buf, tarReader)
 	if err != nil && !errors.Is(err, io.EOF) {
-		err = fmt.Errorf("read error: %s", err)
-		return
+		return nil, nil, nil, fmt.Errorf("read error: %s", err.Error())
 	}
 	if read != size {
-		err = fmt.Errorf("expected size %d but got %d", size, read)
-		return
+		return nil, nil, nil, fmt.Errorf("expected size %d but got %d", size, read)
 	}
 	rows, err = NewResultSet(buf.Bytes())
 	if err != nil {
-		err = fmt.Errorf("parse error: %s", err)
-		return
+		return nil, nil, nil, fmt.Errorf("parse error: %s", err.Error())
 	}
 	if len(rows) == 0 {
-		err = fmt.Errorf("missing column header")
-		return
+		return nil, nil, nil, fmt.Errorf("missing column header")
 	}
 	columns = []string{}
 	columnRow := rows[0]
@@ -317,5 +315,6 @@ func importReadFile(tableName string, tarReader io.Reader, size int64) (table *T
 		col := interface2stringNoDedup(columnRow[i])
 		columns = append(columns, col)
 	}
-	return
+
+	return table, rows, columns, nil
 }

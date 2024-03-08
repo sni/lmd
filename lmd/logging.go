@@ -109,12 +109,14 @@ func (l *LogWriter) Write(p []byte) (n int, err error) {
 	case "info":
 		log.Info(msg)
 	}
+
 	return 0, nil
 }
 
 func NewLogWriter(level string) *LogWriter {
 	l := new(LogWriter)
 	l.level = level
+
 	return l
 }
 
@@ -180,45 +182,48 @@ func (l *LogPrefixer) LogErrors(v ...interface{}) {
 }
 
 func (l *LogPrefixer) prefix() (prefix string) {
-	for _, p := range l.pre {
-		if v, ok := p.(string); ok {
-			prefix = fmt.Sprintf("%s[%s]", prefix, v)
+	for _, pre := range l.pre {
+		if val, ok := pre.(string); ok {
+			prefix = fmt.Sprintf("%s[%s]", prefix, val)
+
 			continue
 		}
 
-		if p == nil || reflect.ValueOf(p).Pointer() == 0 {
-			prefix = fmt.Sprintf("%s[%T(nil)]", prefix, p)
+		if pre == nil || reflect.ValueOf(pre).Pointer() == 0 {
+			prefix = fmt.Sprintf("%s[%T(nil)]", prefix, pre)
+
 			continue
 		}
-		switch v := p.(type) {
+		switch val := pre.(type) {
 		case string:
-			prefix = fmt.Sprintf("%s[%s]", prefix, v)
+			prefix = fmt.Sprintf("%s[%s]", prefix, val)
 		case *Peer:
-			prefix = fmt.Sprintf("%s[%s]", prefix, v.Name)
+			prefix = fmt.Sprintf("%s[%s]", prefix, val.Name)
 		case *Request:
-			prefix = fmt.Sprintf("%s[%s]", prefix, v.ID())
+			prefix = fmt.Sprintf("%s[%s]", prefix, val.ID())
 		case *Response:
-			prefix = fmt.Sprintf("%s[%s]", prefix, v.Request.ID())
+			prefix = fmt.Sprintf("%s[%s]", prefix, val.Request.ID())
 		case *ClientConnection:
-			prefix = fmt.Sprintf("%s[%s->%s]", prefix, v.remoteAddr, v.localAddr)
+			prefix = fmt.Sprintf("%s[%s->%s]", prefix, val.remoteAddr, val.localAddr)
 		case *DataRow:
-			prefix = fmt.Sprintf("%s[%s]", prefix, v.DataStore.PeerName)
+			prefix = fmt.Sprintf("%s[%s]", prefix, val.DataStore.PeerName)
 		case *DataStore:
-			prefix = fmt.Sprintf("%s[%s]", prefix, v.PeerName)
+			prefix = fmt.Sprintf("%s[%s]", prefix, val.PeerName)
 		case *DataStoreSet:
-			prefix = fmt.Sprintf("%s[%s]", prefix, v.peer.Name)
+			prefix = fmt.Sprintf("%s[%s]", prefix, val.peer.Name)
 		case context.Context:
 			for _, key := range []ContextKey{CtxPeer, CtxClient, CtxRequest} {
-				value := v.Value(key)
+				value := val.Value(key)
 				if value == nil {
 					continue
 				}
 				prefix = fmt.Sprintf("%s[%v]", prefix, value)
 			}
 		default:
-			log.Panicf("unsupported prefix type: %#v (%T)", p, p)
+			log.Panicf("unsupported prefix type: %#v (%T)", pre, pre)
 		}
 	}
+
 	return prefix
 }
 

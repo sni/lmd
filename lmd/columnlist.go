@@ -13,6 +13,7 @@ func (cl *ColumnList) String() string {
 	for i := range *cl {
 		names = append(names, (*cl)[i].String())
 	}
+
 	return strings.Join(names, ", ")
 }
 
@@ -22,5 +23,6 @@ func (cl *ColumnList) GetColumnIndex(name string) int {
 			return i
 		}
 	}
+
 	return -1
 }

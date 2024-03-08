@@ -110,6 +110,7 @@ func NewBackendsTable() (t *Table) {
 	t.AddPeerInfoColumn("federation_addr", StringListCol, "original addresses when using nested federation")
 	t.AddPeerInfoColumn("federation_type", StringListCol, "original types when using nested federation")
 	t.AddExtraColumn("localtime", VirtualStore, None, FloatCol, NoFlags, "The unix timestamp of the local lmd host.")
+
 	return
 }
 
@@ -124,6 +125,7 @@ func NewColumnsTable() (t *Table) {
 	t.AddExtraColumn("lmd_datatype", LocalStore, None, StringCol, NoFlags, "The lmd column type")
 	t.AddExtraColumn("lmd_storagetype", LocalStore, None, StringCol, NoFlags, "The lmd storage type")
 	t.AddExtraColumn("lmd_flags", LocalStore, None, StringListCol, NoFlags, "The lmd flags for this column")
+
 	return
 }
 
@@ -183,7 +185,8 @@ func NewStatusTable() (t *Table) {
 	t.AddPeerInfoColumn("thruk", JSONCol, "Thruks extra information if available")
 
 	t.AddExtraColumn("localtime", VirtualStore, None, FloatCol, NoFlags, "The unix timestamp of the local lmd host.")
-	return
+
+	return t
 }
 
 // NewTimeperiodsTable returns a new timeperiods table
@@ -206,6 +209,7 @@ func NewTimeperiodsTable() (t *Table) {
 	t.AddPeerInfoColumn("lmd_last_cache_update", FloatCol, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
+
 	return
 }
 
@@ -248,7 +252,8 @@ func NewContactsTable() (t *Table) {
 	t.AddPeerInfoColumn("lmd_last_cache_update", FloatCol, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
-	return
+
+	return t
 }
 
 // NewContactgroupsTable returns a new contactgroups table
@@ -260,6 +265,7 @@ func NewContactgroupsTable() (t *Table) {
 
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
+
 	return
 }
 
@@ -271,6 +277,7 @@ func NewCommandsTable() (t *Table) {
 
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
+
 	return
 }
 
@@ -411,10 +418,12 @@ func NewHostsTable() (t *Table) {
 	t.AddPeerInfoColumn("lmd_last_cache_update", FloatCol, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
-	t.AddExtraColumn("last_state_change_order", VirtualStore, None, Int64Col, NoFlags, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked")
+	t.AddExtraColumn("last_state_change_order", VirtualStore, None, Int64Col, NoFlags,
+		"The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked")
 	t.AddExtraColumn("has_long_plugin_output", VirtualStore, None, IntCol, NoFlags, "Flag wether this host has long_plugin_output or not")
 	t.AddExtraColumn("total_services", VirtualStore, None, IntCol, NoFlags, "The total number of services of the host")
-	return
+
+	return t
 }
 
 // NewHostgroupsTable returns a new hostgroups table
@@ -449,8 +458,10 @@ func NewHostgroupsTable() (t *Table) {
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
 
-	t.AddExtraColumn("members_with_state", VirtualStore, None, InterfaceListCol, NoFlags, "A list of all host names that are members of the hostgroup together with state and has_been_checked")
-	return
+	t.AddExtraColumn("members_with_state", VirtualStore, None, InterfaceListCol, NoFlags,
+		"A list of all host names that are members of the hostgroup together with state and has_been_checked")
+
+	return t
 }
 
 // NewServicesTable returns a new services table
@@ -572,10 +583,12 @@ func NewServicesTable() (t *Table) {
 	t.AddPeerInfoColumn("lmd_last_cache_update", FloatCol, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
-	t.AddExtraColumn("last_state_change_order", VirtualStore, None, Int64Col, NoFlags, "The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked")
+	t.AddExtraColumn("last_state_change_order", VirtualStore, None, Int64Col, NoFlags,
+		"The last_state_change of this host suitable for sorting. Returns program_start from the core if host has been never checked")
 	t.AddExtraColumn("state_order", VirtualStore, None, IntCol, NoFlags, "The service state suitable for sorting. Unknown and Critical state are switched")
 	t.AddExtraColumn("has_long_plugin_output", VirtualStore, None, IntCol, NoFlags, "Flag wether this service has long_plugin_output or not")
-	return
+
+	return t
 }
 
 // NewServicegroupsTable returns a new hostgroups table
@@ -604,7 +617,8 @@ func NewServicegroupsTable() (t *Table) {
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
 
 	t.AddExtraColumn("members_with_state", VirtualStore, None, InterfaceListCol, NoFlags, "A list of all members of the service group with state and has_been_checked")
-	return
+
+	return t
 }
 
 // NewCommentsTable returns a new comments table
@@ -629,7 +643,8 @@ func NewCommentsTable() (t *Table) {
 
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
-	return
+
+	return t
 }
 
 // NewDowntimesTable returns a new downtimes table
@@ -654,7 +669,8 @@ func NewDowntimesTable() (t *Table) {
 
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
-	return
+
+	return t
 }
 
 // NewLogTable returns a new log table
@@ -680,7 +696,8 @@ func NewLogTable() (t *Table) {
 
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
-	return
+
+	return t
 }
 
 // NewHostsByGroupTable returns a new hostsbygroup table
@@ -694,7 +711,8 @@ func NewHostsByGroupTable() (t *Table) {
 
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
-	return
+
+	return t
 }
 
 // NewServicesByGroupTable returns a new servicesbygroup table
@@ -710,7 +728,8 @@ func NewServicesByGroupTable() (t *Table) {
 
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
-	return
+
+	return t
 }
 
 // NewServicesByHostgroupTable returns a new servicesbyhostgroup table
@@ -726,5 +745,6 @@ func NewServicesByHostgroupTable() (t *Table) {
 
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
-	return
+
+	return t
 }
