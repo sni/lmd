@@ -364,8 +364,7 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 				serviceName := interface2stringNoDedup(resRow[1])
 				dataRow := nameIndex2[hostName][serviceName]
 				if dataRow == nil {
-					return updateSet, fmt.Errorf("cannot update service, no service named '%s' - '%s' found",
-						interface2stringNoDedup(resRow[0]), interface2stringNoDedup(resRow[1]))
+					return updateSet, fmt.Errorf("cannot update service, no service named '%s' - '%s' found", hostName, serviceName)
 				}
 
 				prep.DataRow = dataRow
