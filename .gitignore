@@ -1,5 +1,4 @@
-lmd
-pkg/lmd/lmd
+/lmd
 lmd.ini
 lmd.log
 *.swp
