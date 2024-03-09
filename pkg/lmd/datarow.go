@@ -1302,7 +1302,7 @@ func cast2Type(val interface{}, col *Column) interface{} {
 	return nil
 }
 
-// WriteJSON store duplicate string lists only once.
+// WriteJSON directly writes all columns to output buffer.
 func (d *DataRow) WriteJSON(jsonwriter *jsoniter.Stream, columns []*Column) {
 	jsonwriter.WriteArrayStart()
 	for i, col := range columns {
@@ -1314,7 +1314,7 @@ func (d *DataRow) WriteJSON(jsonwriter *jsoniter.Stream, columns []*Column) {
 	jsonwriter.WriteArrayEnd()
 }
 
-// WriteJSONColumn directly writes columns to output buffer.
+// WriteJSONColumn directly writes one column to the output buffer.
 func (d *DataRow) WriteJSONColumn(jsonwriter *jsoniter.Stream, col *Column) {
 	if col.Optional != NoFlags && !d.DataStore.Peer.HasFlag(col.Optional) {
 		d.WriteJSONEmptyColumn(jsonwriter, col)
