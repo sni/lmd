@@ -92,7 +92,7 @@ test: dump vendor
 
 # test with filter
 testf: vendor
-	$(GO) test -short -v $(TEST_FLAGS) pkg/* pkg/*/cmd -run "$(filter-out $@,$(MAKECMDGOALS))" 2>&1 | grep -v "no test files" | grep -v "no tests to run" | grep -v "^PASS"
+	$(GO) test -short -v $(TEST_FLAGS) pkg/* -run "$(filter-out $@,$(MAKECMDGOALS))" 2>&1 | grep -v "no test files" | grep -v "no tests to run" | grep -v "^PASS"
 
 longtest: vendor
 	$(GO) test -v $(TEST_FLAGS) pkg/*
