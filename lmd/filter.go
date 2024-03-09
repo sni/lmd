@@ -83,31 +83,31 @@ type Operator uint8
 // data columns.
 const (
 	_ Operator = iota
-	// Generic
+	// Generic Operators.
 	Equal         // =
 	Unequal       // !=
 	EqualNocase   // =~
 	UnequalNocase // !=~
 
-	// Text
+	// Text Regexp Operators.
 	RegexMatch          // ~
 	RegexMatchNot       // !~
 	RegexNoCaseMatch    // ~~
 	RegexNoCaseMatchNot // !~~
 
-	// String Matching
+	// String Matching.
 	Contains          // internal only
 	ContainsNot       // internal only
 	ContainsNoCase    // internal only
 	ContainsNoCaseNot // internal only
 
-	// Numeric
+	// Numeric.
 	Less        // <
 	LessThan    // <=
 	Greater     // >
 	GreaterThan // >=
 
-	// Groups
+	// Groups.
 	GroupContainsNot // !>=
 )
 
@@ -207,7 +207,7 @@ func (f *Filter) String(prefix string) (str string) {
 	return str
 }
 
-// Equals returns true if both filter are exactly identical
+// Equals returns true if both filter are exactly identical.
 func (f *Filter) Equals(other *Filter) bool {
 	if f.Column != other.Column {
 		return false
@@ -268,7 +268,7 @@ func (f *Filter) strValue() string {
 	return value
 }
 
-// ApplyValue add the given value to this stats filter
+// ApplyValue add the given value to this stats filter.
 func (f *Filter) ApplyValue(val float64, count int) {
 	switch f.StatsType {
 	case Counter:
@@ -344,7 +344,7 @@ func ParseFilter(value []byte, table TableName, stack *[]*Filter, options ParseO
 	return nil
 }
 
-// setFilterValue converts the text value into the given filters type value
+// setFilterValue converts the text value into the given filters type value.
 func (f *Filter) setRegexFilter(options ParseOptions) error {
 	val := strings.TrimPrefix(f.StrValue, ".*")
 	val = strings.TrimSuffix(val, ".*")
@@ -390,7 +390,7 @@ func (f *Filter) setRegexFilter(options ParseOptions) error {
 	return nil
 }
 
-// setFilterValue converts the text value into the given filters type value
+// setFilterValue converts the text value into the given filters type value.
 func (f *Filter) setFilterValue(strVal string) (err error) {
 	colType := f.Column.DataType
 	if strVal == "" {
@@ -445,7 +445,7 @@ func (f *Filter) setFilterValue(strVal string) (err error) {
 	return nil
 }
 
-// setLowerCaseColumn tries to use the lowercase column if possible
+// setLowerCaseColumn tries to use the lowercase column if possible.
 func (f *Filter) setLowerCaseColumn() {
 	col := f.Column
 	table := col.Table
@@ -593,7 +593,7 @@ func parseFilterGroupOp(groupOp GroupOperator, value []byte, stack *[]*Filter) (
 	return nil
 }
 
-// ParseFilterNegate sets the last filter or stats group to be negated
+// ParseFilterNegate sets the last filter or stats group to be negated.
 func ParseFilterNegate(stack []*Filter) (err error) {
 	stackLen := len(stack)
 	if stackLen == 0 {
@@ -899,7 +899,7 @@ func fixBrokenClientsRequestColumn(columnName *string, table TableName) bool {
 	return false
 }
 
-// hasRegexpCharacters returns true if string is a probably a regular expression
+// hasRegexpCharacters returns true if string is a probably a regular expression.
 func hasRegexpCharacters(val string) bool {
 	if strings.ContainsAny(val, `|([{*+?^\$`) {
 		return true

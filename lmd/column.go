@@ -5,10 +5,10 @@ import (
 	"strings"
 )
 
-// VirtualColumnResolveFunc is used to define the virtual key mapping in the VirtualColumnMap
+// VirtualColumnResolveFunc is used to define the virtual key mapping in the VirtualColumnMap.
 type VirtualColumnResolveFunc func(d *DataRow, col *Column) interface{}
 
-// VirtualColumnMapEntry is used to define the virtual key mapping in the VirtualColumnMap
+// VirtualColumnMapEntry is used to define the virtual key mapping in the VirtualColumnMap.
 type VirtualColumnMapEntry struct {
 	noCopy      noCopy
 	Name        string
@@ -17,7 +17,7 @@ type VirtualColumnMapEntry struct {
 }
 
 // VirtualColumnList maps the virtual columns with the peer status map entry.
-// Must have either a StatusKey or a ResolveFunc set
+// Must have either a StatusKey or a ResolveFunc set.
 var VirtualColumnList = []VirtualColumnMapEntry{
 	// access things from the peer status by StatusKey
 	{Name: "key", StatusKey: PeerKey},
@@ -60,10 +60,10 @@ var VirtualColumnList = []VirtualColumnMapEntry{
 	{Name: "empty", ResolveFunc: func(_ *DataRow, _ *Column) interface{} { return "" }}, // return empty string as placeholder for nonexisting columns
 }
 
-// VirtualColumnMap maps is the lookup map for the VirtualColumnList
+// VirtualColumnMap maps is the lookup map for the VirtualColumnList.
 var VirtualColumnMap = map[string]*VirtualColumnMapEntry{}
 
-// ServiceMember is a host_name / description pair
+// ServiceMember is a host_name / description pair.
 type ServiceMember [2]string
 
 // FetchType defines if and how the column is updated.
@@ -71,7 +71,7 @@ type ServiceMember [2]string
 //go:generate stringer -type=FetchType
 type FetchType uint8
 
-// placeholder to return in GetEmptyValue, no need to create empty lists over and over
+// placeholder to return in GetEmptyValue, no need to create empty lists over and over.
 var (
 	emptyInterfaceList = make([]interface{}, 0)
 	emptyStringMap     = make(map[string]string)
@@ -83,7 +83,7 @@ const (
 	Static FetchType = iota + 1
 	// Dynamic columns are updated periodically.
 	Dynamic
-	// None columns are never updated and either calculated on the fly
+	// None columns are never updated and either calculated on the fly.
 	None
 )
 
@@ -107,13 +107,13 @@ const (
 	FloatCol
 	// JSONCol is used for generic json data columns (handled as string).
 	JSONCol
-	// CustomVarCol is a list of custom variables
+	// CustomVarCol is a list of custom variables.
 	CustomVarCol
-	// ServiceMemberListCol is a list of host_name/servicename pairs
+	// ServiceMemberListCol is a list of host_name/servicename pairs.
 	ServiceMemberListCol
-	// InterfaceListCol is a list of arbitrary data
+	// InterfaceListCol is a list of arbitrary data.
 	InterfaceListCol
-	// StringLargeCol is used for large strings
+	// StringLargeCol is used for large strings.
 	StringLargeCol
 )
 
@@ -123,11 +123,11 @@ const (
 type StorageType uint8
 
 const (
-	// LocalStore columns are store in the DataRow.data* fields
+	// LocalStore columns are store in the DataRow.data* fields.
 	LocalStore StorageType = iota + 1
-	// RefStore are referenced columns
+	// RefStore are referenced columns.
 	RefStore
-	// VirtualStore is calculated on the fly
+	// VirtualStore is calculated on the fly.
 	VirtualStore
 )
 
@@ -141,13 +141,13 @@ const (
 	// LMD flag is set if the remote site is a LMD backend.
 	LMD OptionalFlags = 1 << iota
 
-	// MultiBackend flag is set if the remote connection returns more than one site
+	// MultiBackend flag is set if the remote connection returns more than one site.
 	MultiBackend
 
-	// LMDSub is a sub peer from within a remote LMD connection
+	// LMDSub is a sub peer from within a remote LMD connection.
 	LMDSub
 
-	// HTTPSub is a sub peer from within a remote HTTP connection (MultiBackend)
+	// HTTPSub is a sub peer from within a remote HTTP connection (MultiBackend).
 	HTTPSub
 
 	// Shinken flag is set if the remote site is a shinken installation.
@@ -159,38 +159,38 @@ const (
 	// Naemon flag is set if the remote site is a naemon installation.
 	Naemon
 
-	// HasDependencyColumn flag is set if the remote site has depends_exec and depends_notify columns
+	// HasDependencyColumn flag is set if the remote site has depends_exec and depends_notify columns.
 	HasDependencyColumn
 
-	// HasLastUpdateColumn flag is set if the remote site has a last_update column for hosts and services
+	// HasLastUpdateColumn flag is set if the remote site has a last_update column for hosts and services.
 	HasLastUpdateColumn
 
-	// HasLMDLastCacheUpdateColumn flag is set if the remote site has a lmd_last_cache_update column for hosts and services
+	// HasLMDLastCacheUpdateColumn flag is set if the remote site has a lmd_last_cache_update column for hosts and services.
 	HasLMDLastCacheUpdateColumn
 
-	// HasLocaltimeColumn flag is set if the remote site has a localtime column
+	// HasLocaltimeColumn flag is set if the remote site has a localtime column.
 	HasLocaltimeColumn
 
-	// HasCheckFreshnessColumn flag is set if the remote site has a check_freshness column for services
+	// HasCheckFreshnessColumn flag is set if the remote site has a check_freshness column for services.
 	HasCheckFreshnessColumn
 
-	// HasEventHandlerColumn flag is set if the remote site has a event_handler column for hosts
+	// HasEventHandlerColumn flag is set if the remote site has a event_handler column for hosts.
 	HasEventHandlerColumn
 
-	// HasStalenessColumn flag is set if the remote site has a staleness column for hosts and services
+	// HasStalenessColumn flag is set if the remote site has a staleness column for hosts and services.
 	HasStalenessColumn
 
-	// HasServiceParentsColumn flag is set if remote site support service parents column
+	// HasServiceParentsColumn flag is set if remote site support service parents column.
 	HasServiceParentsColumn
 
-	// HasContactsGroupColumn flag is set if remote site support contacts groups column
+	// HasContactsGroupColumn flag is set if remote site support contacts groups column.
 	HasContactsGroupColumn
 
-	// HasContactsCommandsColumn flag is set if remote site support contacts notification commands column
+	// HasContactsCommandsColumn flag is set if remote site support contacts notification commands column.
 	HasContactsCommandsColumn
 )
 
-// OptionalFlagsStrings maps available backend flags to their string value
+// OptionalFlagsStrings maps available backend flags to their string value.
 var OptionalFlagsStrings = []struct {
 	flag OptionalFlags
 	name string
@@ -214,7 +214,7 @@ var OptionalFlagsStrings = []struct {
 	{HasContactsCommandsColumn, "HasContactsCommandsColumn"},
 }
 
-// Load set flags from list of strings
+// Load set flags from list of strings.
 func (f *OptionalFlags) Load(list []string) {
 	f.Clear()
 	for _, flag := range list {
@@ -228,7 +228,7 @@ func (f *OptionalFlags) Load(list []string) {
 	}
 }
 
-// String returns the string representation of used flags
+// String returns the string representation of used flags.
 func (f *OptionalFlags) String() string {
 	if *f == NoFlags {
 		return "[<none>]"
@@ -237,7 +237,7 @@ func (f *OptionalFlags) String() string {
 	return ("[" + strings.Join(f.List(), ", ") + "]")
 }
 
-// List returns a string list of used flags
+// List returns a string list of used flags.
 func (f *OptionalFlags) List() (list []string) {
 	list = make([]string, 0)
 	if *f == NoFlags {
@@ -252,7 +252,7 @@ func (f *OptionalFlags) List() (list []string) {
 	return
 }
 
-// HasFlag returns true if flags are present
+// HasFlag returns true if flags are present.
 func (f *OptionalFlags) HasFlag(flag OptionalFlags) bool {
 	if flag == 0 {
 		return true
@@ -264,12 +264,12 @@ func (f *OptionalFlags) HasFlag(flag OptionalFlags) bool {
 	return false
 }
 
-// SetFlag set a flag
+// SetFlag sets a flag.
 func (f *OptionalFlags) SetFlag(flag OptionalFlags) {
 	*f |= flag
 }
 
-// Clear removes all flags
+// Clear removes all flags.
 func (f *OptionalFlags) Clear() {
 	*f = NoFlags
 }
@@ -325,12 +325,12 @@ func NewColumn(table *Table, name string, storage StorageType, update FetchType,
 	table.Columns = append(table.Columns, col)
 }
 
-// String returns the string representation of a column list
+// String returns the string representation of a column list.
 func (c *Column) String() string {
 	return c.Name
 }
 
-// GetEmptyValue returns an empty placeholder representation for the given column type
+// GetEmptyValue returns an empty placeholder representation for the given column type.
 func (c *Column) GetEmptyValue() interface{} {
 	switch c.DataType {
 	case StringCol, StringLargeCol:

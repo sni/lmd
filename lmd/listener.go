@@ -16,20 +16,20 @@ import (
 )
 
 const (
-	// HTTPServerRequestTimeout sets the read/write timeout for the HTTP Server
+	// HTTPServerRequestTimeout sets the read/write timeout for the HTTP Server.
 	HTTPServerRequestTimeout = 30 * time.Second
 
-	// RequestReadTimeout sets the read timeout when listening to incoming requests
+	// RequestReadTimeout sets the read timeout when listening to incoming requests.
 	RequestReadTimeout = 2 * time.Minute
 
-	// KeepAliveWaitInterval sets the interval at which the listeners checks for new requests in keepalive connections
+	// KeepAliveWaitInterval sets the interval at which the listeners checks for new requests in keepalive connections.
 	KeepAliveWaitInterval = 100 * time.Millisecond
 
-	// PeerCommandTimeout sets the timeout when waiting for peers to process commands
+	// PeerCommandTimeout sets the timeout when waiting for peers to process commands.
 	PeerCommandTimeout = 9500 * time.Millisecond
 )
 
-// Listener is the object which handles incoming connections
+// Listener is the object which handles incoming connections.
 type Listener struct {
 	noCopy           noCopy
 	Lock             *deadlock.RWMutex // must be used for when changing config
@@ -43,7 +43,7 @@ type Listener struct {
 	cleanup          func()
 }
 
-// NewListener creates a new Listener object
+// NewListener creates a new Listener object.
 func NewListener(lmd *LMDInstance, listen string, qStat *QueryStats) *Listener {
 	listener := Listener{
 		Lock:             new(deadlock.RWMutex),
@@ -63,7 +63,7 @@ func NewListener(lmd *LMDInstance, listen string, qStat *QueryStats) *Listener {
 	return &listener
 }
 
-// handle starts listening on the actual connection
+// handle starts listening on the actual connection.
 func (l *Listener) handle() {
 	defer func() {
 		l.lmd.ListenersLock.Lock()

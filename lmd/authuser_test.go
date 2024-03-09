@@ -5,7 +5,7 @@ import (
 )
 
 /**
- * Tests that only one host entry is returned when setting the AuthUser
+ * Tests that only one host entry is returned when setting the AuthUser.
  */
 func TestAuthuserHost(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 2, 2)
@@ -26,7 +26,7 @@ func TestAuthuserHost(t *testing.T) {
 }
 
 /**
- * Tests that only two host stats are returned with AuthUser is set
+ * Tests that only two host stats are returned with AuthUser is set.
  */
 func TestAuthuserHostStats(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 2, 2)
@@ -46,7 +46,7 @@ func TestAuthuserHostStats(t *testing.T) {
 }
 
 /**
- * Tests that only one service entries is returned when setting the AuthUser
+ * Tests that only one service entries is returned when setting the AuthUser.
  */
 func TestAuthuserService(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 2, 2)
@@ -68,7 +68,7 @@ func TestAuthuserService(t *testing.T) {
 }
 
 /**
- * Tests that only two services stats are returned with AuthUser is set
+ * Tests that only two services stats are returned with AuthUser is set.
  */
 func TestAuthuserServiceStats(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
@@ -88,7 +88,7 @@ func TestAuthuserServiceStats(t *testing.T) {
 }
 
 /**
- * Tests that only one hostgroup entry is returned when setting the AuthUser
+ * Tests that only one hostgroup entry is returned when setting the AuthUser.
  */
 func TestAuthuserHostgroupsLoose(t *testing.T) {
 	extraConfig := `
@@ -111,7 +111,7 @@ func TestAuthuserHostgroupsLoose(t *testing.T) {
 }
 
 /**
- * Tests that only one hostgroup entry is returned when setting the AuthUser
+ * Tests that only one hostgroup entry is returned when setting the AuthUser.
  */
 func TestAuthuserHostgroupsStrict(t *testing.T) {
 	extraConfig := `
@@ -155,7 +155,7 @@ func TestAuthuserServicegroups(t *testing.T) {
 }
 
 /**
- * Tests that only one comment entry is returned when setting the AuthUser
+ * Tests that only one comment entry is returned when setting the AuthUser.
  */
 func TestAuthuserComments(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 2, 2)
@@ -175,7 +175,7 @@ func TestAuthuserComments(t *testing.T) {
 }
 
 /**
- * Tests that we get a correct number of services back when ServiceAuthorization is set to strict
+ * Tests that we get a correct number of services back when ServiceAuthorization is set to strict.
  */
 func TestAuthuserServiceAuth(t *testing.T) {
 	extraConfig := `
@@ -198,7 +198,7 @@ func TestAuthuserServiceAuth(t *testing.T) {
 }
 
 /**
- * Tests that only one host entry is returned when setting the AuthUser
+ * Tests that only one host entry is returned when setting the AuthUser.
  */
 func TestAuthuserHostsbygroup(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 2, 2)
@@ -241,7 +241,7 @@ func TestAuthuserServicesbygroup(t *testing.T) {
 }
 
 /**
- * Tests that only one service entries is returned when setting the AuthUser
+ * Tests that only one service entries is returned when setting the AuthUser.
  */
 func TestAuthuserServicesbyhostgroup(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 2, 2)

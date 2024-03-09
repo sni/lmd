@@ -834,7 +834,7 @@ func TestHTTPPeer(t *testing.T) {
 	peer, cleanup := GetHTTPMockServerPeer(t, lmd)
 	defer cleanup()
 
-	if err := peer.InitAllTables(); err != nil {
+	if err := peer.InitAllTables(context.TODO()); err != nil {
 		t.Error(err)
 	}
 }
@@ -920,7 +920,7 @@ func TestRequestSites(t *testing.T) {
 	}
 }
 
-/* Tests that getting columns based on <table>_<colum-name> works */
+// Tests that getting columns based on <table>_<colum-name> works.
 func TestTableNameColName(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 2, 2)
 	PauseTestPeers(peer)

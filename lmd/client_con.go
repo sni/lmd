@@ -19,7 +19,7 @@ const (
 	ReturnCodeConnectionError = 502
 )
 
-// ClientConnection handles a single client connection
+// ClientConnection handles a single client connection.
 type ClientConnection struct {
 	noCopy                noCopy
 	lmd                   *LMDInstance
@@ -35,7 +35,7 @@ type ClientConnection struct {
 	curRequest            *Request
 }
 
-// NewClientConnection creates a new client connection object
+// NewClientConnection creates a new client connection object.
 func NewClientConnection(lmd *LMDInstance, c net.Conn, listenTimeout, logSlowThreshold, logHugeThreshold int, qStat *QueryStats) *ClientConnection {
 	clCon := &ClientConnection{
 		lmd:                   lmd,
@@ -133,7 +133,7 @@ func (cl *ClientConnection) answer(ctx context.Context) error {
 	}
 }
 
-// sendErrorResponse creates response for all given requests
+// sendErrorResponse creates response for all given requests.
 func (cl *ClientConnection) sendErrorResponse(err error) error {
 	var netErr net.Error
 	if errors.As(err, &netErr) {
@@ -153,7 +153,7 @@ func (cl *ClientConnection) sendErrorResponse(err error) error {
 	return err
 }
 
-// processRequests creates response for all given requests
+// processRequests creates response for all given requests.
 func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request) (err error) {
 	if len(reqs) == 0 {
 		return nil
@@ -242,7 +242,7 @@ func (cl *ClientConnection) processRequest(ctx context.Context, req *Request) (s
 	return
 }
 
-// sendRemainingCommands sends all queued commands
+// sendRemainingCommands sends all queued commands.
 func (cl *ClientConnection) sendRemainingCommands(ctx context.Context, commandsByPeer *map[string][]string) (err error) {
 	if len(*commandsByPeer) == 0 {
 		return

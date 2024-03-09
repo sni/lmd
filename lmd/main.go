@@ -43,52 +43,52 @@ import (
 var Build string
 
 const (
-	// VERSION contains the actual lmd version
+	// VERSION contains the actual lmd version.
 	VERSION = "2.1.9"
-	// NAME defines the name of this project
+	// NAME defines the name of this project.
 	NAME = "lmd"
 
-	// AuthLoose is used for loose authorization when host contacts are granted all services
+	// AuthLoose is used for loose authorization when host contacts are granted all services.
 	AuthLoose = "loose"
 
-	// AuthStrict is used for strict authorization when host contacts are not granted all services
+	// AuthStrict is used for strict authorization when host contacts are not granted all services.
 	AuthStrict = "strict"
 
-	// ExitCritical is used to non-ok exits
+	// ExitCritical is used to non-ok exits.
 	ExitCritical = 2
 
-	// ExitUnknown is used as exit code for help
+	// ExitUnknown is used as exit code for help.
 	ExitUnknown = 3
 
-	// StatsTimerInterval sets the interval at which statistics will be updated
+	// StatsTimerInterval sets the interval at which statistics will be updated.
 	StatsTimerInterval = 60 * time.Second
 
-	// HTTPClientTimeout sets the default HTTP client timeout
+	// HTTPClientTimeout sets the default HTTP client timeout.
 	HTTPClientTimeout = 30 * time.Second
 
-	// BlockProfileRateInterval sets the profiling interval when started with -profile
+	// BlockProfileRateInterval sets the profiling interval when started with -profile.
 	BlockProfileRateInterval = 10
 
-	// GCPercentage sets gc level like GOGC environment
+	// GCPercentage sets gc level like GOGC environment.
 	GCPercentage = 30
 
-	// DefaultFilePerm set default permissions for new files
+	// DefaultFilePerm set default permissions for new files.
 	DefaultFilePerm = 0o644
 
-	// DefaultDirPerm set default permissions for new folders
+	// DefaultDirPerm set default permissions for new folders.
 	DefaultDirPerm = 0o755
 
-	// DefaultMaxQueryFilter sets the default number of max query filters
+	// DefaultMaxQueryFilter sets the default number of max query filters.
 	DefaultMaxQueryFilter = 1000
 
-	// ThrukMultiBackendMinVersion is the minimum required thruk version
+	// ThrukMultiBackendMinVersion is the minimum required thruk version.
 	ThrukMultiBackendMinVersion = 2.23
 )
 
-// ContextKey is a key used as context key
+// ContextKey is a key used as context key.
 type ContextKey string
 
-// available ContextKeys
+// available ContextKeys.
 const (
 	CtxPeer    ContextKey = "peer"
 	CtxClient  ContextKey = "client"
@@ -101,10 +101,10 @@ type noCopy struct{}
 func (*noCopy) Lock()   {}
 func (*noCopy) Unlock() {}
 
-// ConnectionType contains the different connection types
+// ConnectionType contains the different connection types.
 type ConnectionType uint8
 
-// sets available connection types
+// sets available connection types.
 const (
 	ConnTypeTCP ConnectionType = iota
 	ConnTypeUnix
@@ -179,7 +179,7 @@ func (i *arrayFlags) Set(value string) error {
 	return nil
 }
 
-// Objects contains the static definition of all available tables and columns
+// Objects contains the static definition of all available tables and columns.
 var Objects *ObjectsType
 
 var (
@@ -187,7 +187,7 @@ var (
 	reHTTPHostPort = regexp.MustCompile("^(https?)://(.*?):(.*)")
 )
 
-// initialize objects structure
+// initialize objects structure.
 func init() {
 	InitObjects()
 }
@@ -298,6 +298,7 @@ func (lmd *LMDInstance) mainLoop() (exitCode int) {
 	once.Do(lmd.PrintVersion)
 	log.Infof("%s - version %s started with config %s", NAME, Version(), lmd.flags.flagConfigFile)
 	localConfig.LogConfig()
+	ctx := context.Background()
 
 	// initialize prometheus
 	prometheusListener := initPrometheus(lmd)
@@ -318,7 +319,7 @@ func (lmd *LMDInstance) mainLoop() (exitCode int) {
 		if len(localConfig.Connections) == 0 {
 			log.Fatalf("no connections defined")
 		}
-		lmd.initializePeers()
+		lmd.initializePeers(ctx)
 	}
 
 	if lmd.initChannel != nil {
@@ -396,7 +397,7 @@ func (lmd *LMDInstance) ApplyFlags(conf *Config) {
 	}
 }
 
-// Version returns the LMD version string
+// Version returns the LMD version string.
 func Version() string {
 	return fmt.Sprintf("%s (Build: %s, %s)", VERSION, Build, runtime.Version())
 }
@@ -436,7 +437,7 @@ func (lmd *LMDInstance) initializeListeners(qStat *QueryStats) {
 	lmd.ListenersLock.Unlock()
 }
 
-func (lmd *LMDInstance) initializePeers() {
+func (lmd *LMDInstance) initializePeers(ctx context.Context) {
 	// This node's http address (http://*:1234), to be used as address pattern
 	var nodeListenAddress string
 	for _, listen := range lmd.Config.Listen {
@@ -515,8 +516,8 @@ func (lmd *LMDInstance) initializePeers() {
 	// Node accessor
 	nodeAddresses := lmd.Config.Nodes
 	lmd.nodeAccessor = NewNodes(lmd, nodeAddresses, nodeListenAddress)
-	lmd.nodeAccessor.Initialize() // starts peers in single mode
-	lmd.nodeAccessor.Start()      // nodes loop starts/stops peers in cluster mode
+	lmd.nodeAccessor.Initialize(ctx) // starts peers in single mode
+	lmd.nodeAccessor.Start(ctx)      // nodes loop starts/stops peers in cluster mode
 }
 
 func (lmd *LMDInstance) checkFlags() {
@@ -589,7 +590,7 @@ func createPidFile(path string) {
 	}
 }
 
-// checkPidFile returns false if pidfile is stale
+// checkPidFile returns false if pidfile is stale.
 func checkPidFile(path string) bool {
 	dat, err := os.ReadFile(path)
 	if err != nil {
@@ -684,7 +685,7 @@ func applyArgFlags(opts arrayFlags, localConfig *Config) {
 	}
 }
 
-// NewLMDHTTPClient creates a http.Client with the given tls.Config
+// NewLMDHTTPClient creates a http.Client with the given tls.Config.
 func NewLMDHTTPClient(tlsConfig *tls.Config, proxy string) *http.Client {
 	transport := &http.Transport{
 		Dial: (&net.Dialer{
@@ -836,7 +837,7 @@ func waitTimeout(ctx context.Context, waitGroup *sync.WaitGroup, timeout time.Du
 	}
 }
 
-// PrintVersion prints the version
+// PrintVersion prints the version.
 func (lmd *LMDInstance) PrintVersion() {
 	fmt.Fprintf(os.Stdout, "%s - version %s started with config %s\n", NAME, Version(), lmd.flags.flagConfigFile)
 }
@@ -861,7 +862,7 @@ func timeOrNever(timestamp float64) string {
 	return "never"
 }
 
-// PeerMapRemove deletes a peer from PeerMap and PeerMapOrder
+// PeerMapRemove deletes a peer from PeerMap and PeerMapOrder.
 func (lmd *LMDInstance) PeerMapRemove(peerID string) {
 	// find id in order array
 	for i, id := range lmd.PeerMapOrder {
@@ -875,7 +876,7 @@ func (lmd *LMDInstance) PeerMapRemove(peerID string) {
 }
 
 // completePeerHTTPAddr returns autocompleted address for peer
-// it appends /thruk/cgi-bin/remote.cgi or parts of it
+// it appends /thruk/cgi-bin/remote.cgi or parts of it.
 func completePeerHTTPAddr(addr string) string {
 	addr = strings.TrimSuffix(addr, "cgi-bin/remote.cgi")
 	addr = strings.TrimSuffix(addr, "/")
@@ -885,7 +886,7 @@ func completePeerHTTPAddr(addr string) string {
 	return addr + "/thruk/cgi-bin/remote.cgi"
 }
 
-// byteCountBinary returns human readable byte string
+// byteCountBinary returns human readable byte string.
 func byteCountBinary(bytes int64) string {
 	const unit = 1024
 	if bytes < unit {
@@ -948,7 +949,7 @@ func (lmd *LMDInstance) finalFlagsConfig(stdoutLogging bool) *Config {
 	return localConfig
 }
 
-// returns the current unix time with sub second precision
+// returns the current unix time with sub second precision.
 func currentUnixTime() float64 {
 	return float64(time.Now().UnixNano()) / float64(time.Second)
 }

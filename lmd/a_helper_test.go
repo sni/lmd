@@ -184,7 +184,7 @@ func handleMockConnection(lmd *LMDInstance, conn net.Conn, dataFolder string, mo
 }
 
 // prepareTmpData creates static json files which will be used to generate mocked backend response
-// if numServices is  0, empty test data will be used
+// if numServices is  0, empty test data will be used.
 func prepareTmpData(dataFolder string, nr, numHosts, numServices int) (tempFolder string) {
 	tempFolder, err := os.MkdirTemp("", fmt.Sprintf("mockdata%d_", nr))
 	if err != nil {
@@ -345,7 +345,7 @@ LogFile        = "` + testLogTarget + `"
 }
 
 // StartTestPeer just call StartTestPeerExtra
-// if numServices is  0, empty test data will be used
+// if numServices is  0, empty test data will be used.
 func StartTestPeer(numPeers, numHosts, numServices int) (*Peer, func() error, *LMDInstance) {
 	return (StartTestPeerExtra(numPeers, numHosts, numServices, ""))
 }
@@ -355,7 +355,7 @@ func StartTestPeer(numPeers, numHosts, numServices int) (*Peer, func() error, *L
 //   - a main loop which has the mock server(s) as backend
 //
 // It returns a peer with the "mainloop" connection configured
-// if numServices is  0, empty test data will be used
+// if numServices is  0, empty test data will be used.
 func StartTestPeerExtra(numPeers, numHosts, numServices int, extraConfig string) (peer *Peer, cleanup func() error, mocklmd *LMDInstance) {
 	if testLogTarget != "stderr" {
 		os.Remove(testLogTarget)
@@ -374,7 +374,7 @@ func StartTestPeerExtra(numPeers, numHosts, numServices int, extraConfig string)
 	// wait till backend is available
 	waitUntil := time.Now().Add(10 * time.Second)
 	for {
-		err := peer.InitAllTables()
+		err := peer.InitAllTables(context.TODO())
 		if err == nil {
 			peer.Lock.RLock()
 			peer.data.Lock.RLock()
@@ -665,7 +665,7 @@ func panicFailedStartup(mocklmd *LMDInstance, peer *Peer, numPeers int, err erro
 	panic(strings.Join(info, "\n"))
 }
 
-// make sure our test helpers are working correctly
+// make sure our test helpers are working correctly.
 func TestMock1(t *testing.T) {
 	if testLogTarget != "stderr" {
 		os.Remove(testLogTarget)
@@ -678,7 +678,7 @@ func TestMock1(t *testing.T) {
 		Name:   "TestPeer",
 	})
 
-	err := peer.InitAllTables()
+	err := peer.InitAllTables(context.TODO())
 	require.NoErrorf(t, err, "init tables failed")
 
 	// tear down

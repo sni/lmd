@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strconv"
@@ -12,7 +13,7 @@ import (
 
 const missedTimestampMaxFilter = 150
 
-// DataStoreSet is the handle to a peers datastores
+// DataStoreSet is the handle to a peers datastore.
 type DataStoreSet struct {
 	peer   *Peer
 	Lock   *deadlock.RWMutex
@@ -46,7 +47,7 @@ func (ds *DataStoreSet) Get(name TableName) *DataStore {
 
 // CreateObjectByType fetches all static and dynamic data from the remote site and creates the initial table.
 // It returns any error encountered.
-func (ds *DataStoreSet) CreateObjectByType(table *Table) (store *DataStore, err error) {
+func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (store *DataStore, err error) {
 	peer := ds.peer
 
 	store = NewDataStore(table, peer)
@@ -59,7 +60,7 @@ func (ds *DataStoreSet) CreateObjectByType(table *Table) (store *DataStore, err 
 		Columns: keys,
 	}
 	peer.setQueryOptions(req)
-	res, resMeta, err := peer.Query(req)
+	res, resMeta, err := peer.Query(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +114,7 @@ func (ds *DataStoreSet) CreateObjectByType(table *Table) (store *DataStore, err 
 	return store, nil
 }
 
-// SetReferences creates reference entries for all tables
+// SetReferences creates reference entries for all tables.
 func (ds *DataStoreSet) SetReferences() (err error) {
 	for _, t := range ds.tables {
 		t := t
@@ -128,16 +129,16 @@ func (ds *DataStoreSet) SetReferences() (err error) {
 	return
 }
 
-func (ds *DataStoreSet) hasChanged() (changed bool) {
+func (ds *DataStoreSet) hasChanged(ctx context.Context) (changed bool) {
 	changed = false
 	tablenames := []TableName{TableCommands, TableContactgroups, TableContacts, TableHostgroups, TableHosts, TableServicegroups, TableTimeperiods}
 	for _, name := range tablenames {
-		counter := ds.peer.countFromServer(name.String(), "name !=")
+		counter := ds.peer.countFromServer(ctx, name.String(), "name !=")
 		ds.Lock.RLock()
 		changed = changed || (counter != len(ds.tables[name].Data))
 		ds.Lock.RUnlock()
 	}
-	counter := ds.peer.countFromServer("services", "host_name !=")
+	counter := ds.peer.countFromServer(ctx, "services", "host_name !=")
 	ds.Lock.RLock()
 	changed = changed || (counter != len(ds.tables[TableServices].Data))
 	ds.Lock.RUnlock()
@@ -148,9 +149,9 @@ func (ds *DataStoreSet) hasChanged() (changed bool) {
 
 // UpdateFull runs a full update on all dynamic values for all tables which have dynamic updated columns.
 // It returns any error occurred or nil if the update was successful.
-func (ds *DataStoreSet) UpdateFull(tables []TableName) (err error) {
+func (ds *DataStoreSet) UpdateFull(ctx context.Context, tables []TableName) (err error) {
 	time1 := time.Now()
-	err = ds.UpdateFullTablesList(tables)
+	err = ds.UpdateFullTablesList(ctx, tables)
 	if err != nil {
 		return
 	}
@@ -175,11 +176,11 @@ func (ds *DataStoreSet) UpdateFull(tables []TableName) (err error) {
 	return
 }
 
-// UpdateFullTablesList updates list of tables and returns any error
-func (ds *DataStoreSet) UpdateFullTablesList(tables []TableName) (err error) {
+// UpdateFullTablesList updates list of tables and returns any error.
+func (ds *DataStoreSet) UpdateFullTablesList(ctx context.Context, tables []TableName) (err error) {
 	for i := range tables {
 		name := tables[i]
-		err = ds.UpdateFullTable(name)
+		err = ds.UpdateFullTable(ctx, name)
 		if err != nil {
 			logWith(ds).Debugf("update failed: %s", err.Error())
 
@@ -192,10 +193,10 @@ func (ds *DataStoreSet) UpdateFullTablesList(tables []TableName) (err error) {
 
 // UpdateDelta runs a delta update on all status, hosts, services, comments and downtimes table.
 // It returns true if the update was successful or false otherwise.
-func (ds *DataStoreSet) UpdateDelta(from, until float64) (err error) {
+func (ds *DataStoreSet) UpdateDelta(ctx context.Context, from, until float64) (err error) {
 	time1 := time.Now()
 
-	err = ds.UpdateFullTablesList(Objects.StatusTables)
+	err = ds.UpdateFullTablesList(ctx, Objects.StatusTables)
 	if err != nil {
 		return err
 	}
@@ -220,19 +221,19 @@ func (ds *DataStoreSet) UpdateDelta(from, until float64) (err error) {
 			}
 		}
 	}
-	err = ds.UpdateDeltaHosts(filterStr, true, updateThreshold)
+	err = ds.UpdateDeltaHosts(ctx, filterStr, true, updateThreshold)
 	if err != nil {
 		return err
 	}
-	err = ds.UpdateDeltaServices(filterStr, true, updateThreshold)
+	err = ds.UpdateDeltaServices(ctx, filterStr, true, updateThreshold)
 	if err != nil {
 		return err
 	}
-	err = ds.UpdateDeltaCommentsOrDowntimes(TableComments)
+	err = ds.UpdateDeltaCommentsOrDowntimes(ctx, TableComments)
 	if err != nil {
 		return err
 	}
-	err = ds.UpdateDeltaCommentsOrDowntimes(TableDowntimes)
+	err = ds.UpdateDeltaCommentsOrDowntimes(ctx, TableDowntimes)
 	if err != nil {
 		return err
 	}
@@ -261,21 +262,21 @@ func (ds *DataStoreSet) UpdateDelta(from, until float64) (err error) {
 // UpdateDeltaHosts update hosts by fetching all dynamic data with a last_check filter on the timestamp since
 // the previous update with additional updateOffset seconds.
 // It returns any error encountered.
-func (ds *DataStoreSet) UpdateDeltaHosts(filterStr string, tryFullScan bool, updateThreshold int64) (err error) {
-	return ds.updateDeltaHostsServices(TableHosts, filterStr, tryFullScan, updateThreshold)
+func (ds *DataStoreSet) UpdateDeltaHosts(ctx context.Context, filterStr string, tryFullScan bool, updateThreshold int64) (err error) {
+	return ds.updateDeltaHostsServices(ctx, TableHosts, filterStr, tryFullScan, updateThreshold)
 }
 
 // UpdateDeltaServices update services by fetching all dynamic data with a last_check filter on the timestamp since
 // the previous update with additional updateOffset seconds.
 // It returns any error encountered.
-func (ds *DataStoreSet) UpdateDeltaServices(filterStr string, tryFullScan bool, updateThreshold int64) (err error) {
-	return ds.updateDeltaHostsServices(TableServices, filterStr, tryFullScan, updateThreshold)
+func (ds *DataStoreSet) UpdateDeltaServices(ctx context.Context, filterStr string, tryFullScan bool, updateThreshold int64) (err error) {
+	return ds.updateDeltaHostsServices(ctx, TableServices, filterStr, tryFullScan, updateThreshold)
 }
 
 // updateDeltaHostsServices update hosts / services by fetching all dynamic data with a last_check filter on the timestamp since
 // the previous update with additional updateOffset seconds.
 // It returns any error encountered.
-func (ds *DataStoreSet) updateDeltaHostsServices(tableName TableName, filterStr string, tryFullScan bool, updateThreshold int64) (err error) {
+func (ds *DataStoreSet) updateDeltaHostsServices(ctx context.Context, tableName TableName, filterStr string, tryFullScan bool, updateThreshold int64) (err error) {
 	// update changed services
 	table := ds.Get(tableName)
 	if table == nil {
@@ -285,7 +286,7 @@ func (ds *DataStoreSet) updateDeltaHostsServices(tableName TableName, filterStr 
 
 	if tryFullScan {
 		// run regular delta update and lets check if all last_check dates match
-		updated, uErr := ds.UpdateDeltaFullScanHostsServices(table, filterStr, updateThreshold)
+		updated, uErr := ds.UpdateDeltaFullScanHostsServices(ctx, table, filterStr, updateThreshold)
 		if updated || uErr != nil {
 			return uErr
 		}
@@ -296,7 +297,7 @@ func (ds *DataStoreSet) updateDeltaHostsServices(tableName TableName, filterStr 
 		FilterStr: filterStr,
 	}
 	peer.setQueryOptions(req)
-	res, meta, err := peer.Query(req)
+	res, meta, err := peer.Query(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -362,12 +363,12 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 
 // UpdateDeltaFullScanHostsServices is a table independent wrapper for UpdateDeltaFullScan
 // It returns true if an update was done and any error encountered.
-func (ds *DataStoreSet) UpdateDeltaFullScanHostsServices(store *DataStore, filterStr string, updateThreshold int64) (updated bool, err error) {
+func (ds *DataStoreSet) UpdateDeltaFullScanHostsServices(ctx context.Context, store *DataStore, filterStr string, updateThreshold int64) (updated bool, err error) {
 	switch store.Table.Name {
 	case TableServices:
-		updated, err = ds.UpdateFullScan(store, LastFullServiceUpdate, filterStr, updateThreshold, ds.UpdateDeltaServices)
+		updated, err = ds.UpdateFullScan(ctx, store, LastFullServiceUpdate, filterStr, updateThreshold, ds.UpdateDeltaServices)
 	case TableHosts:
-		updated, err = ds.UpdateFullScan(store, LastFullHostUpdate, filterStr, updateThreshold, ds.UpdateDeltaHosts)
+		updated, err = ds.UpdateFullScan(ctx, store, LastFullHostUpdate, filterStr, updateThreshold, ds.UpdateDeltaHosts)
 	default:
 		p := ds.peer
 		logWith(p).Panicf("not implemented for: " + store.Table.Name.String())
@@ -376,14 +377,16 @@ func (ds *DataStoreSet) UpdateDeltaFullScanHostsServices(store *DataStore, filte
 	return
 }
 
-type fullUpdateCb func(string, bool, int64) error
+type fullUpdateCb func(context.Context, string, bool, int64) error
 
 // UpdateFullScan updates hosts and services tables by fetching some key indicator fields like last_check
 // downtimes or acknowledged status. If an update is required, the last_check timestamp is used as filter for a
 // delta update.
 // The full scan just returns false without any update if the last update was less then MinFullScanInterval seconds ago.
 // It returns true if an update was done and any error encountered.
-func (ds *DataStoreSet) UpdateFullScan(store *DataStore, statusKey PeerStatusKey, filter string, updateThr int64, updateFn fullUpdateCb) (updated bool, err error) {
+//
+//nolint:lll // it is what it is...
+func (ds *DataStoreSet) UpdateFullScan(ctx context.Context, store *DataStore, statusKey PeerStatusKey, filter string, updateThr int64, updateFn fullUpdateCb) (updated bool, err error) {
 	peer := ds.peer
 	lastUpdate := peer.StatusGet(statusKey).(float64)
 
@@ -408,7 +411,7 @@ func (ds *DataStoreSet) UpdateFullScan(store *DataStore, statusKey PeerStatusKey
 		Columns: scanColumns,
 	}
 	peer.setQueryOptions(req)
-	res, _, err := peer.Query(req)
+	res, _, err := peer.Query(ctx, req)
 	if err != nil {
 		return false, err
 	}
@@ -422,7 +425,7 @@ func (ds *DataStoreSet) UpdateFullScan(store *DataStore, statusKey PeerStatusKey
 		columns[i] = col
 	}
 
-	missing, err := ds.getMissingTimestamps(store, res, columns, updateThr)
+	missing, err := ds.getMissingTimestamps(ctx, store, res, columns, updateThr)
 	if err != nil {
 		return false, err
 	}
@@ -454,7 +457,7 @@ func (ds *DataStoreSet) UpdateFullScan(store *DataStore, statusKey PeerStatusKey
 		filterList = append(filterList, timestampFilter...)
 	}
 
-	err = updateFn(strings.Join(filterList, ""), false, 0)
+	err = updateFn(ctx, strings.Join(filterList, ""), false, 0)
 	if err != nil {
 		return false, err
 	}
@@ -464,15 +467,15 @@ func (ds *DataStoreSet) UpdateFullScan(store *DataStore, statusKey PeerStatusKey
 	return true, nil
 }
 
-// getMissingTimestamps returns list of last_check dates which can be used to delta update
-func (ds *DataStoreSet) getMissingTimestamps(store *DataStore, res ResultSet, columns ColumnList, updateThreshold int64) (missing []int64, err error) {
+// getMissingTimestamps returns list of last_check dates which can be used to delta update.
+func (ds *DataStoreSet) getMissingTimestamps(ctx context.Context, store *DataStore, res ResultSet, columns ColumnList, updateThreshold int64) (missing []int64, err error) {
 	ds.Lock.RLock()
 	peer := ds.peer
 	data := store.Data
 	if len(data) < len(res) {
 		ds.Lock.RUnlock()
 		if peer.HasFlag(Icinga2) || len(data) == 0 {
-			err = ds.reloadIfNumberOfObjectsChanged()
+			err = ds.reloadIfNumberOfObjectsChanged(ctx)
 
 			return missing, err
 		}
@@ -509,9 +512,9 @@ func (ds *DataStoreSet) getMissingTimestamps(store *DataStore, res ResultSet, co
 	return missing, nil
 }
 
-func (ds *DataStoreSet) reloadIfNumberOfObjectsChanged() (err error) {
-	if ds.hasChanged() {
-		return (ds.peer.InitAllTables())
+func (ds *DataStoreSet) reloadIfNumberOfObjectsChanged(ctx context.Context) (err error) {
+	if ds.hasChanged(ctx) {
+		return (ds.peer.InitAllTables(ctx))
 	}
 
 	return
@@ -521,8 +524,8 @@ func (ds *DataStoreSet) reloadIfNumberOfObjectsChanged() (err error) {
 // the remote comments/downtimes. If an update is required, it then fetches all ids to check which are new and
 // which have to be removed.
 // It returns any error encountered.
-func (ds *DataStoreSet) UpdateDeltaCommentsOrDowntimes(name TableName) (err error) {
-	changed, err := ds.maxIDOrSizeChanged(name)
+func (ds *DataStoreSet) UpdateDeltaCommentsOrDowntimes(ctx context.Context, name TableName) (err error) {
+	changed, err := ds.maxIDOrSizeChanged(ctx, name)
 	if !changed || err != nil {
 		return err
 	}
@@ -534,7 +537,7 @@ func (ds *DataStoreSet) UpdateDeltaCommentsOrDowntimes(name TableName) (err erro
 		Columns: []string{"id"},
 	}
 	peer.setQueryOptions(req)
-	res, _, err := peer.Query(req)
+	res, _, err := peer.Query(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -581,7 +584,7 @@ func (ds *DataStoreSet) UpdateDeltaCommentsOrDowntimes(name TableName) (err erro
 		}
 		req2.FilterStr += fmt.Sprintf("Or: %d\n", len(missingIDs))
 		peer.setQueryOptions(req2)
-		res, _, err = peer.Query(req2)
+		res, _, err = peer.Query(ctx, req2)
 		if err != nil {
 			return err
 		}
@@ -613,8 +616,8 @@ func (ds *DataStoreSet) UpdateDeltaCommentsOrDowntimes(name TableName) (err erro
 	return nil
 }
 
-// maxIDOrSizeChanged returns true if table data changed in size or max id
-func (ds *DataStoreSet) maxIDOrSizeChanged(name TableName) (changed bool, err error) {
+// maxIDOrSizeChanged returns true if table data changed in size or max id.
+func (ds *DataStoreSet) maxIDOrSizeChanged(ctx context.Context, name TableName) (changed bool, err error) {
 	peer := ds.peer
 	// get number of entries and max id
 	req := &Request{
@@ -622,7 +625,7 @@ func (ds *DataStoreSet) maxIDOrSizeChanged(name TableName) (changed bool, err er
 		FilterStr: "Stats: id != -1\nStats: max id\n",
 	}
 	peer.setQueryOptions(req)
-	res, _, err := peer.Query(req)
+	res, _, err := peer.Query(ctx, req)
 	if err != nil {
 		return false, err
 	}
@@ -648,7 +651,7 @@ func (ds *DataStoreSet) maxIDOrSizeChanged(name TableName) (changed bool, err er
 // UpdateFullTable updates a given table by requesting all dynamic columns from the remote peer.
 // Assuming we get the objects always in the same order, we can just iterate over the index and update the fields.
 // It returns a boolean flag whether the remote site has been restarted and any error encountered.
-func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
+func (ds *DataStoreSet) UpdateFullTable(ctx context.Context, tableName TableName) (err error) {
 	peer := ds.peer
 	store := ds.Get(tableName)
 	if store == nil {
@@ -668,7 +671,7 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 		Columns: columns,
 	}
 	peer.setQueryOptions(req)
-	res, resMeta, err := peer.Query(req)
+	res, resMeta, err := peer.Query(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -695,7 +698,7 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 	switch tableName {
 	case TableTimeperiods:
 		// check for changed timeperiods, because we have to update the linked hosts and services as well
-		err = ds.updateTimeperiodsData(primaryKeysLen, store, res, store.DynamicColumnCache)
+		err = ds.updateTimeperiodsData(ctx, primaryKeysLen, store, res, store.DynamicColumnCache)
 		lastTimeperiodUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
 		peer.StatusSet(LastTimeperiodUpdateMinute, lastTimeperiodUpdateMinute)
 		if err != nil {
@@ -718,7 +721,7 @@ func (ds *DataStoreSet) UpdateFullTable(tableName TableName) (err error) {
 	}
 
 	if tableName == TableStatus {
-		LogErrors(peer.checkStatusFlags(ds))
+		LogErrors(peer.checkStatusFlags(ctx, ds))
 	}
 
 	logWith(peer, req).Debugf("up full  table: %15s - fetch: %9s - sort: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
@@ -748,7 +751,7 @@ func (ds *DataStoreSet) skipTableUpdate(store *DataStore, table TableName) (bool
 	return false, nil
 }
 
-func (ds *DataStoreSet) updateTimeperiodsData(dataOffset int, store *DataStore, res ResultSet, columns ColumnList) (err error) {
+func (ds *DataStoreSet) updateTimeperiodsData(ctx context.Context, dataOffset int, store *DataStore, res ResultSet, columns ColumnList) (err error) {
 	changedTimeperiods := make(map[string]bool)
 	ds.Lock.Lock()
 	data := store.Data
@@ -768,11 +771,11 @@ func (ds *DataStoreSet) updateTimeperiodsData(dataOffset int, store *DataStore, 
 	// Update hosts and services with those changed timeperiods
 	for name, state := range changedTimeperiods {
 		logWith(ds).Debugf("timeperiod %s has changed to %v, need to update affected hosts/services", name, state)
-		err = ds.UpdateDeltaHosts("Filter: check_period = "+name+"\nFilter: notification_period = "+name+"\nOr: 2\n", false, 0)
+		err = ds.UpdateDeltaHosts(ctx, "Filter: check_period = "+name+"\nFilter: notification_period = "+name+"\nOr: 2\n", false, 0)
 		if err != nil {
 			return err
 		}
-		err = ds.UpdateDeltaServices("Filter: check_period = "+name+"\nFilter: notification_period = "+name+"\nOr: 2\n", false, 0)
+		err = ds.UpdateDeltaServices(ctx, "Filter: check_period = "+name+"\nFilter: notification_period = "+name+"\nOr: 2\n", false, 0)
 		if err != nil {
 			return err
 		}
@@ -781,7 +784,7 @@ func (ds *DataStoreSet) updateTimeperiodsData(dataOffset int, store *DataStore, 
 	return nil
 }
 
-// RebuildCommentsList updates the comments column of hosts/services based on the comments table ids
+// RebuildCommentsList updates the comments column of hosts/services based on the comments table ids.
 func (ds *DataStoreSet) RebuildCommentsList() (err error) {
 	time1 := time.Now()
 	err = ds.buildDowntimeCommentsList(TableComments)
@@ -795,7 +798,7 @@ func (ds *DataStoreSet) RebuildCommentsList() (err error) {
 	return
 }
 
-// RebuildDowntimesList updates the downtimes column of hosts/services based on the downtimes table ids
+// RebuildDowntimesList updates the downtimes column of hosts/services based on the downtimes table ids.
 func (ds *DataStoreSet) RebuildDowntimesList() (err error) {
 	time1 := time.Now()
 	err = ds.buildDowntimeCommentsList(TableDowntimes)
@@ -809,7 +812,7 @@ func (ds *DataStoreSet) RebuildDowntimesList() (err error) {
 	return
 }
 
-// buildDowntimeCommentsList updates the downtimes/comments id list for all hosts and services
+// buildDowntimeCommentsList updates the downtimes/comments id list for all hosts and services.
 func (ds *DataStoreSet) buildDowntimeCommentsList(name TableName) (err error) {
 	ds.Lock.Lock()
 	defer ds.Lock.Unlock()

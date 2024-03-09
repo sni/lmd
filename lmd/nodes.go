@@ -36,7 +36,7 @@ type Nodes struct {
 	lmd              *LMDInstance
 }
 
-// NodeAddress contains the ip of a node (plus url/port, if necessary)
+// NodeAddress contains the ip of a node (plus url/port, if necessary).
 type NodeAddress struct {
 	id   string
 	ip   string
@@ -56,7 +56,7 @@ func (a *NodeAddress) String() string {
 	return addr
 }
 
-// NodeAddressList is a list of nodeaddresses
+// NodeAddressList is a list of nodeaddresses.
 type NodeAddressList []*NodeAddress
 
 // String returns the stringified node address list.
@@ -150,7 +150,7 @@ func (n *Nodes) Node(nodeID string) *NodeAddress {
 // Initialize generates the node's identifier and identifies this node.
 // In single mode, it starts all peers.
 // In cluster mode, the peers are started later, while the loop is running.
-func (n *Nodes) Initialize() {
+func (n *Nodes) Initialize(ctx context.Context) {
 	// Default values
 	if n.loopInterval == 0 {
 		n.loopInterval = 10
@@ -173,7 +173,7 @@ func (n *Nodes) Initialize() {
 		for id := range n.lmd.PeerMap {
 			peer := n.lmd.PeerMap[id]
 			if peer.StatusGet(Paused).(bool) {
-				peer.Start()
+				peer.Start(ctx)
 			}
 		}
 		n.lmd.PeerMapLock.RUnlock()
@@ -182,13 +182,13 @@ func (n *Nodes) Initialize() {
 	// Send first ping (detect own ip) and wait for it to finish
 	// This needs to be done before the loop is started.
 	if n.IsClustered() {
-		n.checkNodeAvailability()
+		n.checkNodeAvailability(ctx)
 	}
 }
 
 // Start starts the loop that periodically checks which nodes are online.
 // Does nothing in single mode.
-func (n *Nodes) Start() {
+func (n *Nodes) Start(ctx context.Context) {
 	// Do nothing in single mode
 	if !n.IsClustered() {
 		return
@@ -197,7 +197,7 @@ func (n *Nodes) Start() {
 	// Start loop in background
 	go func() {
 		defer n.lmd.logPanicExit()
-		n.loop()
+		n.loop(ctx)
 	}()
 }
 
@@ -208,7 +208,7 @@ func (n *Nodes) Stop() {
 }
 
 // loop triggers periodic checks until stopped.
-func (n *Nodes) loop() {
+func (n *Nodes) loop(ctx context.Context) {
 	interval := n.loopInterval
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	for {
@@ -222,14 +222,14 @@ func (n *Nodes) loop() {
 
 			return
 		case <-ticker.C:
-			n.checkNodeAvailability()
+			n.checkNodeAvailability(ctx)
 		}
 	}
 }
 
 // checkNodeAvailability pings all partner nodes to determine which ones are online.
 // When called for the first time during initialization, it also identifies this node.
-func (n *Nodes) checkNodeAvailability() {
+func (n *Nodes) checkNodeAvailability(ctx context.Context) {
 	// Send ping to all nodes
 	// First ping (initializing) detects and assigns own address.
 	waitGroup := sync.WaitGroup{}
@@ -267,7 +267,7 @@ func (n *Nodes) checkNodeAvailability() {
 	}
 	// Handle timeout
 	timeout := n.heartbeatTimeout
-	if waitTimeout(context.TODO(), &waitGroup, time.Duration(timeout)*time.Second) {
+	if waitTimeout(ctx, &waitGroup, time.Duration(timeout)*time.Second) {
 		// Not all nodes have responded, but that's ok
 		log.Tracef("node timeout")
 		if initializing && n.thisNode == nil {
@@ -282,13 +282,13 @@ func (n *Nodes) checkNodeAvailability() {
 	// Redistribute backends
 	if redistribute || n.onlineNodes.String() != newOnlineNodes.String() {
 		n.onlineNodes = newOnlineNodes
-		n.redistribute()
+		n.redistribute(ctx)
 	}
 }
 
 // redistribute assigns the peers to the available nodes.
 // It starts peers assigned to this node and stops other peers.
-func (n *Nodes) redistribute() {
+func (n *Nodes) redistribute(ctx context.Context) {
 	// Nodes and backends
 	numberBackends := len(n.backends)
 	ownIndex, nodeOnline, numberAllNodes, numberAvailableNodes := n.getOnlineNodes()
@@ -342,10 +342,10 @@ func (n *Nodes) redistribute() {
 	n.nodeBackends = nodeBackends
 	ourBackends := assignedBackends[ownIndex]
 
-	n.updateBackends(ourBackends)
+	n.updateBackends(ctx, ourBackends)
 }
 
-func (n *Nodes) updateBackends(ourBackends []string) {
+func (n *Nodes) updateBackends(ctx context.Context, ourBackends []string) {
 	// append sub peers
 	n.lmd.PeerMapLock.RLock()
 	for id := range n.lmd.PeerMap {
@@ -403,7 +403,7 @@ func (n *Nodes) updateBackends(ourBackends []string) {
 	}
 	for _, newBackend := range addBackends {
 		peer := n.lmd.PeerMap[newBackend]
-		peer.Start()
+		peer.Start(ctx)
 	}
 	n.lmd.PeerMapLock.RUnlock()
 }
@@ -451,7 +451,7 @@ func (n *Nodes) IsOurBackend(backend string) bool {
 // SendQuery sends a query to a node.
 // It will be sent as http request; name is the api function to be called.
 // The returned data will be passed to the callback.
-func (n *Nodes) SendQuery(node *NodeAddress, name string, parameters map[string]interface{}, callback func(interface{})) error {
+func (n *Nodes) SendQuery(ctx context.Context, node *NodeAddress, name string, parameters map[string]interface{}, callback func(interface{})) error {
 	// Prepare request data
 	requestData := make(map[string]interface{})
 	for key, value := range parameters {
@@ -471,7 +471,6 @@ func (n *Nodes) SendQuery(node *NodeAddress, name string, parameters map[string]
 		log.Fatalf("uninitialized node address provided to SendQuery %s", node.id)
 	}
 	url := node.url + "query"
-	ctx := context.Background()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(rawRequest))
 	req.Header.Set("Content-Type", contentType)
 	res, err := n.HTTPClient.Do(req)
@@ -532,7 +531,8 @@ func generateUUID() (uuid string) {
 func (n *Nodes) sendPing(node *NodeAddress, initializing bool, requestData map[string]interface{}) (isOnline, forceRedistribute bool) {
 	done := make(chan bool)
 	ownIdentifier := n.ID
-	err := n.SendQuery(node, "ping", requestData, func(responseData interface{}) {
+	ctx := context.Background()
+	err := n.SendQuery(ctx, node, "ping", requestData, func(responseData interface{}) {
 		defer func() { done <- true }()
 		// Parse response
 		dataMap, ok := responseData.(map[string]interface{})

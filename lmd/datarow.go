@@ -13,7 +13,7 @@ import (
 
 const ListSepChar1 = "\x00"
 
-// DataRow represents a single entry in a DataTable
+// DataRow represents a single entry in a DataTable.
 type DataRow struct {
 	noCopy                noCopy                 // we don't want to make copies, use references
 	DataStore             *DataStore             // reference to the datastore itself
@@ -30,7 +30,7 @@ type DataRow struct {
 	dataInterfaceList     [][]interface{}
 }
 
-// NewDataRow creates a new DataRow
+// NewDataRow creates a new DataRow.
 func NewDataRow(store *DataStore, raw []interface{}, columns ColumnList, timestamp float64, setReferences bool) (d *DataRow, err error) {
 	d = &DataRow{
 		LastUpdate: timestamp,
@@ -59,7 +59,7 @@ func NewDataRow(store *DataStore, raw []interface{}, columns ColumnList, timesta
 	return
 }
 
-// GetID calculates and returns the ID value (nul byte concatenated primary key values)
+// GetID calculates and returns the ID value (nul byte concatenated primary key values).
 func (d *DataRow) GetID() string {
 	if len(d.DataStore.Table.PrimaryKey) == 0 {
 		return ""
@@ -88,7 +88,7 @@ func (d *DataRow) GetID() string {
 	return id
 }
 
-// GetID2 returns the 2 strings for tables with 2 primary keys
+// GetID2 returns the 2 strings for tables with 2 primary keys.
 func (d *DataRow) GetID2() (id1, id2 string) {
 	id1 = d.GetStringByName(d.DataStore.Table.PrimaryKey[0])
 	if id1 == "" {
@@ -102,7 +102,7 @@ func (d *DataRow) GetID2() (id1, id2 string) {
 	return id1, id2
 }
 
-// SetData creates initial data
+// SetData creates initial data.
 func (d *DataRow) SetData(raw []interface{}, columns ColumnList, timestamp float64) error {
 	d.dataString = make([]string, d.DataStore.Table.DataSizes[StringCol])
 	d.dataStringList = make([][]string, d.DataStore.Table.DataSizes[StringListCol])
@@ -117,14 +117,14 @@ func (d *DataRow) SetData(raw []interface{}, columns ColumnList, timestamp float
 	return d.UpdateValues(0, raw, columns, timestamp)
 }
 
-// setLowerCaseCache sets lowercase columns
+// setLowerCaseCache sets lowercase columns.
 func (d *DataRow) setLowerCaseCache() {
 	for from, to := range d.DataStore.LowerCaseColumns {
 		d.dataString[to] = strings.ToLower(d.dataString[from])
 	}
 }
 
-// SetReferences creates reference entries for cross referenced objects
+// SetReferences creates reference entries for cross referenced objects.
 func (d *DataRow) SetReferences() (err error) {
 	store := d.DataStore
 	for i := range store.Table.RefTables {
@@ -152,12 +152,12 @@ func (d *DataRow) SetReferences() (err error) {
 	return
 }
 
-// GetColumn returns the column by name
+// GetColumn returns the column by name.
 func (d *DataRow) GetColumn(name string) *Column {
 	return d.DataStore.Table.ColumnsIndex[name]
 }
 
-// GetString returns the string value for given column
+// GetString returns the string value for given column.
 func (d *DataRow) GetString(col *Column) string {
 	switch col.StorageType {
 	case LocalStore:
@@ -196,12 +196,12 @@ func (d *DataRow) GetString(col *Column) string {
 	panic(fmt.Sprintf("unsupported type: %s", col.DataType))
 }
 
-// GetStringByName returns the string value for given column name
+// GetStringByName returns the string value for given column name.
 func (d *DataRow) GetStringByName(name string) string {
 	return d.GetString(d.DataStore.Table.ColumnsIndex[name])
 }
 
-// GetStringList returns the string list for given column
+// GetStringList returns the string list for given column.
 func (d *DataRow) GetStringList(col *Column) []string {
 	switch col.StorageType {
 	case LocalStore:
@@ -222,12 +222,12 @@ func (d *DataRow) GetStringList(col *Column) []string {
 	panic(fmt.Sprintf("unsupported type: %s", col.DataType))
 }
 
-// GetStringListByName returns the string list for given column name
+// GetStringListByName returns the string list for given column name.
 func (d *DataRow) GetStringListByName(name string) []string {
 	return d.GetStringList(d.DataStore.Table.ColumnsIndex[name])
 }
 
-// GetFloat returns the float64 value for given column
+// GetFloat returns the float64 value for given column.
 func (d *DataRow) GetFloat(col *Column) float64 {
 	switch col.StorageType {
 	case LocalStore:
@@ -254,7 +254,7 @@ func (d *DataRow) GetFloat(col *Column) float64 {
 	panic(fmt.Sprintf("unsupported type: %s", col.DataType))
 }
 
-// GetInt returns the int value for given column
+// GetInt returns the int value for given column.
 func (d *DataRow) GetInt(col *Column) int {
 	switch col.StorageType {
 	case LocalStore:
@@ -279,7 +279,7 @@ func (d *DataRow) GetInt(col *Column) int {
 	panic(fmt.Sprintf("unsupported type: %s", col.StorageType))
 }
 
-// GetInt64 returns the int64 value for given column
+// GetInt64 returns the int64 value for given column.
 func (d *DataRow) GetInt64(col *Column) int64 {
 	switch col.StorageType {
 	case LocalStore:
@@ -306,17 +306,17 @@ func (d *DataRow) GetInt64(col *Column) int64 {
 	panic(fmt.Sprintf("unsupported type: %s", col.StorageType))
 }
 
-// GetIntByName returns the int value for given column name
+// GetIntByName returns the int value for given column name.
 func (d *DataRow) GetIntByName(name string) int {
 	return d.GetInt(d.DataStore.Table.ColumnsIndex[name])
 }
 
-// GetInt64ByName returns the int value for given column name
+// GetInt64ByName returns the int value for given column name.
 func (d *DataRow) GetInt64ByName(name string) int64 {
 	return d.GetInt64(d.DataStore.Table.ColumnsIndex[name])
 }
 
-// GetInt64List returns the int64 list for given column
+// GetInt64List returns the int64 list for given column.
 func (d *DataRow) GetInt64List(col *Column) []int64 {
 	switch col.StorageType {
 	case LocalStore:
@@ -337,12 +337,12 @@ func (d *DataRow) GetInt64List(col *Column) []int64 {
 	panic(fmt.Sprintf("unsupported type: %s", col.StorageType))
 }
 
-// GetInt64ListByName returns the int64 list for given column name
+// GetInt64ListByName returns the int64 list for given column name.
 func (d *DataRow) GetInt64ListByName(name string) []int64 {
 	return d.GetInt64List(d.DataStore.Table.ColumnsIndex[name])
 }
 
-// GetHashMap returns the hashmap for given column
+// GetHashMap returns the hashmap for given column.
 func (d *DataRow) GetHashMap(col *Column) map[string]string {
 	switch col.StorageType {
 	case LocalStore:
@@ -360,7 +360,7 @@ func (d *DataRow) GetHashMap(col *Column) map[string]string {
 	panic(fmt.Sprintf("unsupported type: %s", col.StorageType))
 }
 
-// GetServiceMemberList returns the a list of service members
+// GetServiceMemberList returns the a list of service members.
 func (d *DataRow) GetServiceMemberList(col *Column) []ServiceMember {
 	switch col.StorageType {
 	case LocalStore:
@@ -381,12 +381,12 @@ func (d *DataRow) GetServiceMemberList(col *Column) []ServiceMember {
 	panic(fmt.Sprintf("unsupported type: %s", col.StorageType))
 }
 
-// GetServiceMemberListByName returns the service member list for given column name
+// GetServiceMemberListByName returns the service member list for given column name.
 func (d *DataRow) GetServiceMemberListByName(name string) []ServiceMember {
 	return d.GetServiceMemberList(d.DataStore.Table.ColumnsIndex[name])
 }
 
-// GetInterfaceList returns the a list of interfaces
+// GetInterfaceList returns the a list of interfaces.
 func (d *DataRow) GetInterfaceList(col *Column) []interface{} {
 	switch col.StorageType {
 	case LocalStore:
@@ -407,7 +407,7 @@ func (d *DataRow) GetInterfaceList(col *Column) []interface{} {
 	panic(fmt.Sprintf("unsupported type: %s", col.StorageType))
 }
 
-// GetValueByColumn returns the raw value for given column
+// GetValueByColumn returns the raw value for given column.
 func (d *DataRow) GetValueByColumn(col *Column) interface{} {
 	if col.Optional != NoFlags && !d.DataStore.Peer.HasFlag(col.Optional) {
 		return col.GetEmptyValue()
@@ -480,7 +480,7 @@ func (d *DataRow) getVirtualRowValue(col *Column) interface{} {
 	return cast2Type(value, col)
 }
 
-// GetCustomVarValue returns custom variable value for given name
+// GetCustomVarValue returns custom variable value for given name.
 func (d *DataRow) GetCustomVarValue(col *Column, name string) string {
 	if col.StorageType == RefStore {
 		ref := d.Refs[col.RefColTableName]
@@ -505,12 +505,12 @@ func (d *DataRow) GetCustomVarValue(col *Column, name string) string {
 	return ""
 }
 
-// VirtualColLocaltime returns current unix timestamp
+// VirtualColLocaltime returns current unix timestamp.
 func VirtualColLocaltime(_ *DataRow, _ *Column) interface{} {
 	return currentUnixTime()
 }
 
-// VirtualColLastStateChangeOrder returns sortable state
+// VirtualColLastStateChangeOrder returns sortable state.
 func VirtualColLastStateChangeOrder(d *DataRow, _ *Column) interface{} {
 	// return last_state_change or program_start
 	lastStateChange := d.GetIntByName("last_state_change")
@@ -521,7 +521,7 @@ func VirtualColLastStateChangeOrder(d *DataRow, _ *Column) interface{} {
 	return lastStateChange
 }
 
-// VirtualColStateOrder returns sortable state
+// VirtualColStateOrder returns sortable state.
 func VirtualColStateOrder(d *DataRow, _ *Column) interface{} {
 	// return 4 instead of 2, which makes critical come first
 	// this way we can use this column to sort by state
@@ -533,7 +533,7 @@ func VirtualColStateOrder(d *DataRow, _ *Column) interface{} {
 	return state
 }
 
-// VirtualColHasLongPluginOutput returns 1 if there is long plugin output, 0 if not
+// VirtualColHasLongPluginOutput returns 1 if there is long plugin output, 0 if not.
 func VirtualColHasLongPluginOutput(d *DataRow, _ *Column) interface{} {
 	val := d.GetStringByName("long_plugin_output")
 	if val != "" {
@@ -543,7 +543,7 @@ func VirtualColHasLongPluginOutput(d *DataRow, _ *Column) interface{} {
 	return 0
 }
 
-// VirtualColServicesWithInfo returns list of services with additional information
+// VirtualColServicesWithInfo returns list of services with additional information.
 func VirtualColServicesWithInfo(d *DataRow, col *Column) interface{} {
 	services := d.GetStringListByName("services")
 	hostName := d.GetStringByName("name")
@@ -569,7 +569,7 @@ func VirtualColServicesWithInfo(d *DataRow, col *Column) interface{} {
 	return res
 }
 
-// VirtualColMembersWithState returns a list of hostgroup/servicegroup members with their states
+// VirtualColMembersWithState returns a list of hostgroup/servicegroup members with their states.
 func VirtualColMembersWithState(dRow *DataRow, _ *Column) interface{} {
 	switch dRow.DataStore.Table.Name {
 	case TableHostgroups:
@@ -619,7 +619,7 @@ func VirtualColMembersWithState(dRow *DataRow, _ *Column) interface{} {
 	return nil
 }
 
-// VirtualColCommentsWithInfo returns list of comment IDs with additional information
+// VirtualColCommentsWithInfo returns list of comment IDs with additional information.
 func VirtualColCommentsWithInfo(d *DataRow, _ *Column) interface{} {
 	commentsStore := d.DataStore.DataSet.tables[TableComments]
 	commentsTable := commentsStore.Table
@@ -645,7 +645,7 @@ func VirtualColCommentsWithInfo(d *DataRow, _ *Column) interface{} {
 	return res
 }
 
-// VirtualColDowntimesWithInfo returns list of downtimes IDs with additional information
+// VirtualColDowntimesWithInfo returns list of downtimes IDs with additional information.
 func VirtualColDowntimesWithInfo(d *DataRow, _ *Column) interface{} {
 	downtimesStore := d.DataStore.DataSet.tables[TableDowntimes]
 	downtimesTable := downtimesStore.Table
@@ -671,7 +671,7 @@ func VirtualColDowntimesWithInfo(d *DataRow, _ *Column) interface{} {
 	return res
 }
 
-// VirtualColCustomVariables returns a custom variables hash
+// VirtualColCustomVariables returns a custom variables hash.
 func VirtualColCustomVariables(d *DataRow, _ *Column) interface{} {
 	namesCol := d.DataStore.GetColumn("custom_variable_names")
 	valuesCol := d.DataStore.GetColumn("custom_variable_values")
@@ -685,19 +685,19 @@ func VirtualColCustomVariables(d *DataRow, _ *Column) interface{} {
 	return res
 }
 
-// VirtualColTotalServices returns number of services
+// VirtualColTotalServices returns number of services.
 func VirtualColTotalServices(d *DataRow, _ *Column) interface{} {
 	return d.GetIntByName("num_services")
 }
 
-// VirtualColFlags returns flags for peer
+// VirtualColFlags returns flags for peer.
 func VirtualColFlags(d *DataRow, _ *Column) interface{} {
 	peerflags := OptionalFlags(atomic.LoadUint32(&d.DataStore.Peer.Flags))
 
 	return peerflags.List()
 }
 
-// getVirtualSubLMDValue returns status values for LMDSub backends
+// getVirtualSubLMDValue returns status values for LMDSub backends.
 func (d *DataRow) getVirtualSubLMDValue(col *Column) (val interface{}, ok bool) {
 	ok = true
 	peer := d.DataStore.Peer
@@ -803,7 +803,7 @@ func (d *DataRow) getStatsKey(res *Response) string {
 	return strings.Join(keyValues, ListSepChar1)
 }
 
-// UpdateValues updates this datarow with new values
+// UpdateValues updates this datarow with new values.
 func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns ColumnList, timestamp float64) error {
 	if len(columns) != len(data)-dataOffset {
 		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.DataStore.Table.Name.String(), len(columns), len(data))
@@ -853,7 +853,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 	return nil
 }
 
-// UpdateValuesNumberOnly updates this datarow with new values but skips strings
+// UpdateValuesNumberOnly updates this datarow with new values but skips strings.
 func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, columns ColumnList, timestamp float64) error {
 	if len(columns) != len(data)-dataOffset {
 		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.DataStore.Table.Name.String(), len(columns), len(data))
@@ -881,7 +881,7 @@ func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, col
 	return nil
 }
 
-// CheckChangedIntValues returns true if the given data results in an update
+// CheckChangedIntValues returns true if the given data results in an update.
 func (d *DataRow) CheckChangedIntValues(dataOffset int, data []interface{}, columns ColumnList) bool {
 	for colNum, col := range columns {
 		switch col.DataType {
@@ -1128,7 +1128,7 @@ func interface2int64list(raw interface{}) []int64 {
 	return val
 }
 
-// interface2hashmap converts an interface to a hashmap
+// interface2hashmap converts an interface to a hashmap.
 func interface2hashmap(raw interface{}) map[string]string {
 	if raw == nil {
 		val := make(map[string]string)
@@ -1172,7 +1172,7 @@ func interface2hashmap(raw interface{}) map[string]string {
 	}
 }
 
-// interface2interfacelist converts anything to a list of interfaces
+// interface2interfacelist converts anything to a list of interfaces.
 func interface2interfacelist(in interface{}) []interface{} {
 	if list, ok := in.([]interface{}); ok {
 		return (list)
@@ -1232,7 +1232,7 @@ func interface2jsonstring(in interface{}) string {
 	}
 }
 
-// deduplicateStringlist store duplicate string lists only once
+// deduplicateStringlist store duplicate string lists only once.
 func (d *DataRow) deduplicateStringlist(list []string) []string {
 	sum := sha256.Sum256([]byte(joinStringlist(list, ListSepChar1)))
 	if l, ok := d.DataStore.dupStringList[sum]; ok {
@@ -1243,7 +1243,7 @@ func (d *DataRow) deduplicateStringlist(list []string) []string {
 	return list
 }
 
-// joinStringlist joins list with given character
+// joinStringlist joins list with given character.
 func joinStringlist(list []string, join string) string {
 	var joined strings.Builder
 	for _, s := range list {
@@ -1285,7 +1285,7 @@ func cast2Type(val interface{}, col *Column) interface{} {
 	return nil
 }
 
-// WriteJSON store duplicate string lists only once
+// WriteJSON store duplicate string lists only once.
 func (d *DataRow) WriteJSON(jsonwriter *jsoniter.Stream, columns []*Column) {
 	jsonwriter.WriteArrayStart()
 	for i, col := range columns {
@@ -1297,7 +1297,7 @@ func (d *DataRow) WriteJSON(jsonwriter *jsoniter.Stream, columns []*Column) {
 	jsonwriter.WriteArrayEnd()
 }
 
-// WriteJSONColumn directly writes columns to output buffer
+// WriteJSONColumn directly writes columns to output buffer.
 func (d *DataRow) WriteJSONColumn(jsonwriter *jsoniter.Stream, col *Column) {
 	if col.Optional != NoFlags && !d.DataStore.Peer.HasFlag(col.Optional) {
 		d.WriteJSONEmptyColumn(jsonwriter, col)
@@ -1319,7 +1319,7 @@ func (d *DataRow) WriteJSONColumn(jsonwriter *jsoniter.Stream, col *Column) {
 	}
 }
 
-// WriteJSONLocalColumn directly writes local storage columns to output buffer
+// WriteJSONLocalColumn directly writes local storage columns to output buffer.
 func (d *DataRow) WriteJSONLocalColumn(jsonwriter *jsoniter.Stream, col *Column) {
 	switch col.DataType {
 	case StringCol:
@@ -1379,7 +1379,7 @@ func (d *DataRow) WriteJSONLocalColumn(jsonwriter *jsoniter.Stream, col *Column)
 	}
 }
 
-// WriteJSONEmptyColumn directly writes an empty columns to output buffer
+// WriteJSONEmptyColumn directly writes an empty columns to output buffer.
 func (d *DataRow) WriteJSONEmptyColumn(jsonwriter *jsoniter.Stream, col *Column) {
 	switch col.DataType {
 	case StringCol, StringLargeCol:
@@ -1397,7 +1397,7 @@ func (d *DataRow) WriteJSONEmptyColumn(jsonwriter *jsoniter.Stream, col *Column)
 	}
 }
 
-// WriteJSONVirtualColumn directly writes calculated columns to output buffer
+// WriteJSONVirtualColumn directly writes calculated columns to output buffer.
 func (d *DataRow) WriteJSONVirtualColumn(jsonwriter *jsoniter.Stream, col *Column) {
 	switch col.DataType {
 	case StringCol:

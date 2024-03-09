@@ -10,7 +10,7 @@ linters-settings:
     min-len: 8
     min-occurrences: 12
   lll:
-    line-length: 165
+    line-length: 175
   funlen:
     lines: 150
     statements: 100
@@ -45,7 +45,6 @@ linters:
     - exhaustruct
     - gochecknoglobals
     - gochecknoinits
-    - godot
     - gofumpt
     - ifshort
     - interfacer
@@ -65,7 +64,6 @@ linters:
     - golint
     # TODO:
     - forcetypeassert
-    - contextcheck
 issues:
   max-same-issues: 0
   max-issues-per-linter: 0

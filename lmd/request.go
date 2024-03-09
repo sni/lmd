@@ -55,7 +55,7 @@ type Request struct {
 	AuthUser            string
 }
 
-// SortDirection can be either Asc or Desc
+// SortDirection can be either Asc or Desc.
 type SortDirection uint8
 
 // The only possible SortDirection are "Asc" and "Desc" for
@@ -66,16 +66,16 @@ const (
 	Desc
 )
 
-// ParseOptions can be used to customize the request parser
+// ParseOptions can be used to customize the request parser.
 type ParseOptions int
 
 // The only possible SortDirection are "Asc" and "Desc" for
 // sorting ascending or descending.
 const (
-	// ParseDefault parses the request as is
+	// ParseDefault parses the request as is.
 	ParseDefault ParseOptions = 0
 
-	// ParseOptimize trys to use lower case columns and string matches instead of regular expressions
+	// ParseOptimize trys to use lower case columns and string matches instead of regular expressions.
 	ParseOptimize ParseOptions = 1 << iota
 )
 
@@ -92,10 +92,10 @@ func (s *SortDirection) String() string {
 	return ""
 }
 
-// OutputFormat defines the format used to return the result
+// OutputFormat defines the format used to return the result.
 type OutputFormat uint8
 
-// available output formats
+// available output formats.
 const (
 	OutputFormatDefault OutputFormat = iota
 	OutputFormatJSON
@@ -121,7 +121,7 @@ func (o *OutputFormat) String() string {
 	return ""
 }
 
-// SortField defines a single sort entry
+// SortField defines a single sort entry.
 type SortField struct {
 	noCopy    noCopy
 	Name      string
@@ -135,7 +135,7 @@ type SortField struct {
 // GroupOperator is the operator used to combine multiple filter or stats header.
 type GroupOperator uint8
 
-// The only possible GroupOperator are "And" and "Or"
+// The only possible GroupOperator are "And" and "Or".
 const (
 	_ GroupOperator = iota
 	And
@@ -155,7 +155,7 @@ func (op *GroupOperator) String() string {
 	return ""
 }
 
-// ResultMetaData contains meta from the response data
+// ResultMetaData contains meta from the response data.
 type ResultMetaData struct {
 	Total       int64         // total number of result rows
 	RowsScanned int64         // total number of scanned rows for this result
@@ -302,7 +302,7 @@ func NewRequest(ctx context.Context, lmd *LMDInstance, buf *bufio.Reader, option
 
 	// Network errors will be logged in the listener
 	var netErr net.Error
-	if errors.Is(err, netErr) {
+	if err != nil && errors.Is(err, netErr) {
 		return nil, 0, err
 	}
 
@@ -358,7 +358,7 @@ func NewRequest(ctx context.Context, lmd *LMDInstance, buf *bufio.Reader, option
 	return req, size, err
 }
 
-// ID returns the uniq request id
+// ID returns the uniq request id.
 func (req *Request) ID() string {
 	if req.id != "" {
 		return req.id
@@ -369,7 +369,7 @@ func (req *Request) ID() string {
 }
 
 // ParseRequestAction parses the first line from a request which
-// may start with GET or COMMAND
+// may start with GET or COMMAND.
 func (req *Request) ParseRequestAction(firstLine *string) (valid bool, err error) {
 	// normal get request?
 	if strings.HasPrefix(*firstLine, "GET ") {
@@ -458,7 +458,7 @@ func (req *Request) BuildResponseSend(ctx context.Context, con net.Conn) (int64,
 	return res.Send(con)
 }
 
-// getDistributedResponse builds the response from a distributed setup
+// getDistributedResponse builds the response from a distributed setup.
 func (req *Request) getDistributedResponse(ctx context.Context) (*Response, error) {
 	// Type of request
 	allBackendsRequested := len(req.Backends) == 0
@@ -501,7 +501,7 @@ func (req *Request) getDistributedResponse(ctx context.Context) (*Response, erro
 		requestData := req.buildDistributedRequestData(subBackends)
 		waitGroup.Add(1)
 		// Send query to remote node
-		err := req.lmd.nodeAccessor.SendQuery(node, "table", requestData, func(responseData interface{}) {
+		err := req.lmd.nodeAccessor.SendQuery(ctx, node, "table", requestData, func(responseData interface{}) {
 			defer waitGroup.Done()
 
 			// Hash containing metadata in addition to rows
@@ -668,7 +668,7 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 	return requestData
 }
 
-// mergeDistributedResponse returns response object with merged result from distributed requests
+// mergeDistributedResponse returns response object with merged result from distributed requests.
 func (req *Request) mergeDistributedResponse(collectedDatasets chan ResultSet, collectedFailedHashes chan map[string]string) *Response {
 	// Build response object
 	res := &Response{
@@ -953,7 +953,7 @@ func (req *Request) SetRequestColumns() {
 	req.RequestColumns = columns
 }
 
-// SetSortColumns set the requestcolumn for the sortfields
+// SetSortColumns set the requestcolumn for the sortfields.
 func (req *Request) SetSortColumns() (err error) {
 	logWith(req).Tracef("SetSortColumns")
 	if req.Command != "" {
@@ -973,7 +973,7 @@ func (req *Request) SetSortColumns() (err error) {
 	return
 }
 
-// parseResult parses the result bytes and returns the data table and optional meta data for wrapped_json requests
+// parseResult parses the result bytes and returns the data table and optional meta data for wrapped_json requests.
 func (req *Request) parseResult(resBytes []byte) (ResultSet, *ResultMetaData, error) {
 	var err error
 	meta := &ResultMetaData{Request: req}
@@ -1066,7 +1066,7 @@ func (req *Request) optimizeResultLimit() (limit int) {
 	return
 }
 
-// optimizeFilterIndentation removes unnecessary filter indentation unless it is negated
+// optimizeFilterIndentation removes unnecessary filter indentation unless it is negated.
 func (req *Request) optimizeFilterIndentation() {
 	for {
 		if len(req.Filter) == 1 && len(req.Filter[0].Filter) > 0 &&

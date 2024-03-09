@@ -12,10 +12,10 @@ import (
 	"github.com/kdar/factorlog"
 )
 
-// LogFormat sets the log format
+// LogFormat sets the log format.
 var LogFormat string
 
-// DateTimeLogFormat sets the log format for the date/time portion
+// DateTimeLogFormat sets the log format for the date/time portion.
 var DateTimeLogFormat string
 
 func init() {
@@ -24,26 +24,26 @@ func init() {
 }
 
 const (
-	// LogColors sets colors for some log levels
+	// LogColors sets colors for some log levels.
 	LogColors = `%{Color "yellow" "WARN"}%{Color "red" "ERROR"}%{Color "red" "FATAL"}`
 
-	// LogColorReset resets colors from LogColors
+	// LogColorReset resets colors from LogColors.
 	LogColorReset = `%{Color "reset"}`
 
-	// LogVerbosityNone disables logging
+	// LogVerbosityNone disables logging.
 	LogVerbosityNone = 0
 
-	// LogVerbosityDefault sets the default log level
+	// LogVerbosityDefault sets the default log level.
 	LogVerbosityDefault = 1
 
-	// LogVerbosityDebug sets the debug log level
+	// LogVerbosityDebug sets the debug log level.
 	LogVerbosityDebug = 2
 
-	// LogVerbosityTrace sets trace log level
+	// LogVerbosityTrace sets trace log level.
 	LogVerbosityTrace = 3
 )
 
-// initialize standard logger which will be configured later from the configuration file options
+// initialize standard logger which will be configured later from the configuration file options.
 var log = factorlog.New(os.Stdout, factorlog.NewStdFormatter(LogFormat))
 
 // InitLogging initializes the logging system.
@@ -89,12 +89,12 @@ func InitLogging(conf *Config) {
 	}
 }
 
-// LogErrors can be used as error handler, logs error with debug log level
+// LogErrors can be used as error handler, logs error with debug log level.
 func LogErrors(v ...interface{}) {
 	logWith().LogErrors(v...)
 }
 
-// LogWriter implements the io.Writer interface and simply logs everything with given level
+// LogWriter implements the io.Writer interface and simply logs everything with given level.
 type LogWriter struct {
 	level string
 }
@@ -163,7 +163,7 @@ func (l *LogPrefixer) Tracef(format string, v ...interface{}) {
 	log.Output(factorlog.TRACE, LoggerCalldepth, fmt.Sprintf(l.prefix()+" "+format, v...))
 }
 
-// LogErrors can be used as generic logger with a prefix
+// LogErrors can be used as generic logger with a prefix.
 func (l *LogPrefixer) LogErrors(v ...interface{}) {
 	if !log.IsV(LogVerbosityDebug) {
 		return
@@ -227,7 +227,7 @@ func (l *LogPrefixer) prefix() (prefix string) {
 	return prefix
 }
 
-// return logger with prefixed strings from given objects
+// return logger with prefixed strings from given objects.
 func logWith(pre ...interface{}) *LogPrefixer {
 	return &LogPrefixer{pre: pre}
 }

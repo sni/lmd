@@ -8,19 +8,19 @@ import (
 
 const DefaultCompressionMinimumSize = 500
 
-// CompressionMinimumSize sets the minimum number of characters to use compression
+// CompressionMinimumSize sets the minimum number of characters to use compression..
 var CompressionMinimumSize = DefaultCompressionMinimumSize
 
-// CompressionLevel sets the minimum number of characters to use compression
+// CompressionLevel sets the minimum number of characters to use compression.
 var CompressionLevel = gzip.DefaultCompression
 
-// StringContainer wraps large strings
+// StringContainer wraps large strings.
 type StringContainer struct {
 	StringData     string
 	CompressedData []byte
 }
 
-// NewStringContainer returns a new StringContainer
+// NewStringContainer returns a new StringContainer.
 func NewStringContainer(data *string) *StringContainer {
 	c := &StringContainer{}
 	c.Set(data)
@@ -28,7 +28,7 @@ func NewStringContainer(data *string) *StringContainer {
 	return c
 }
 
-// Set sets the current string
+// Set sets the current string.
 func (s *StringContainer) Set(data *string) {
 	// it only makes sense to compress larger strings
 	if len(*data) < CompressionMinimumSize {
@@ -62,7 +62,7 @@ func (s *StringContainer) Set(data *string) {
 	}
 }
 
-// String returns the string data
+// String returns the string data.
 func (s *StringContainer) String() string {
 	if s.CompressedData == nil {
 		return s.StringData
@@ -71,7 +71,7 @@ func (s *StringContainer) String() string {
 	return *s.StringRef()
 }
 
-// StringRef returns the string data
+// StringRef returns the string data.
 func (s *StringContainer) StringRef() *string {
 	if s.CompressedData == nil {
 		return &s.StringData

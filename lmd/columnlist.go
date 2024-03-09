@@ -4,10 +4,10 @@ import (
 	"strings"
 )
 
-// ColumnList defines a set of Columns
+// ColumnList defines a set of Columns.
 type ColumnList []*Column
 
-// String returns the string representation of a column list
+// String returns the string representation of a column list.
 func (cl *ColumnList) String() string {
 	names := make([]string, 0, len(*cl))
 	for i := range *cl {

@@ -25,7 +25,7 @@ type DataStore struct {
 	LowerCaseColumns        map[int]int                    // list of string column indexes with their coresponding lower case index
 }
 
-// NewDataStore creates a new datastore with columns based on given flags
+// NewDataStore creates a new datastore with columns based on given flags.
 func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 	d = &DataStore{
 		Data:                    make([]*DataRow, 0),
@@ -96,7 +96,7 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 	return d
 }
 
-// InsertData adds a list of results and initializes the store table
+// InsertData adds a list of results and initializes the store table.
 func (d *DataStore) InsertData(rows ResultSet, columns ColumnList, setReferences bool) error {
 	now := currentUnixTime()
 	switch len(d.Table.PrimaryKey) {
@@ -132,7 +132,7 @@ func (d *DataStore) InsertData(rows ResultSet, columns ColumnList, setReferences
 	return nil
 }
 
-// AppendData append a list of results and initializes the store table
+// AppendData append a list of results and initializes the store table.
 func (d *DataStore) AppendData(data ResultSet, columns ColumnList) error {
 	d.DataSet.Lock.Lock()
 	defer d.DataSet.Lock.Unlock()
@@ -209,7 +209,7 @@ func (d *DataStore) RemoveItem(row *DataRow) {
 	log.Panicf("element not found")
 }
 
-// SetReferences creates reference entries for this tables
+// SetReferences creates reference entries for this tables.
 func (d *DataStore) SetReferences() (err error) {
 	for _, row := range d.Data {
 		err = row.SetReferences()
@@ -223,12 +223,12 @@ func (d *DataStore) SetReferences() (err error) {
 	return
 }
 
-// GetColumn returns column by name
+// GetColumn returns column by name.
 func (d *DataStore) GetColumn(name string) *Column {
 	return d.Table.ColumnsIndex[name]
 }
 
-// GetInitialColumns returns list of columns required to fill initial dataset
+// GetInitialColumns returns list of columns required to fill initial dataset.
 func (d *DataStore) GetInitialColumns() ([]string, ColumnList) {
 	columns := make(ColumnList, 0)
 	keys := make([]string, 0)
@@ -265,7 +265,7 @@ func (d *DataStore) GetWaitObject(req *Request) (*DataRow, bool) {
 
 type getPreFilteredDataFilter func(*DataStore, map[string]bool, *Filter) bool
 
-// GetPreFilteredData returns d.Data but try to return reduced dataset by using host / service index if table supports it
+// GetPreFilteredData returns d.Data but try to return reduced dataset by using host / service index if table supports it.
 func (d *DataStore) GetPreFilteredData(filter []*Filter) []*DataRow {
 	if len(filter) == 0 {
 		return d.Data
@@ -415,7 +415,7 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 	return updateSet, nil
 }
 
-// getUpdateColumn returns data and result index for given column name, it panics if the column is not type int64
+// getUpdateColumn returns data and result index for given column name, it panics if the column is not type int64.
 func (d *DataStore) getUpdateColumn(columnName string, dataOffset int) (dataIndex, resIndex int) {
 	dataIndex = -1
 	resIndex = -1
@@ -432,7 +432,7 @@ func (d *DataStore) getUpdateColumn(columnName string, dataOffset int) (dataInde
 	return
 }
 
-// TryFilterIndex returns list of hostname which can be used to reduce the initial dataset
+// TryFilterIndex returns list of hostname which can be used to reduce the initial dataset.
 func (d *DataStore) TryFilterIndex(uniqHosts map[string]bool, filter []*Filter, filterCb getPreFilteredDataFilter, breakOnNoneIndexableFilter bool) bool {
 	filterFound := 0
 	for _, fil := range filter {

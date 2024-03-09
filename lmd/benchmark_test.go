@@ -29,7 +29,7 @@ func BenchmarkParseResultJSON(b *testing.B) {
 	if err != nil {
 		panic(err.Error())
 	}
-	resBytes, _, err := peer.getQueryResponse(req, req.String(), peer.Status[PeerAddr].(string), conn, connType)
+	resBytes, _, err := peer.getQueryResponse(context.TODO(), req, req.String(), peer.Status[PeerAddr].(string), conn, connType)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -74,7 +74,7 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 	if err != nil {
 		panic(err.Error())
 	}
-	resBytes, _, err := peer.getQueryResponse(req, req.String(), peer.Status[PeerAddr].(string), conn, connType)
+	resBytes, _, err := peer.getQueryResponse(context.TODO(), req, req.String(), peer.Status[PeerAddr].(string), conn, connType)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -104,9 +104,10 @@ func BenchmarkPeerUpdate(b *testing.B) {
 	peer, cleanup, _ := StartTestPeer(1, 1000, 10000)
 	PauseTestPeers(peer)
 
+	ctx := context.TODO()
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		err := peer.data.UpdateFull(Objects.UpdateTables)
+		err := peer.data.UpdateFull(ctx, Objects.UpdateTables)
 		if err != nil {
 			panic("Update failed")
 		}
@@ -131,7 +132,7 @@ func BenchmarkPeerUpdateServiceInsert(b *testing.B) {
 		OutputFormat:    OutputFormatJSON,
 		FilterStr:       "Filter: host_name !=\n",
 	}
-	res, meta, err := peer.Query(req)
+	res, meta, err := peer.Query(context.TODO(), req)
 	if err != nil {
 		return
 	}
@@ -391,7 +392,6 @@ func BenchmarkServicesearchLimit_1k_svc_10Peer(b *testing.B) {
 	}
 }
 
-// Test queries
 const tacPageStatsQuery = `GET services
 Stats: description !=
 Stats: check_type = 0

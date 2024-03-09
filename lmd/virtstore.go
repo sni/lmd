@@ -67,7 +67,7 @@ func GetTableColumnsStore(table *Table, _ *Peer) *DataStore {
 	return store
 }
 
-// GetGroupByData returns fake query result for given groupby table
+// GetGroupByData returns fake query result for given groupby table.
 func GetGroupByData(table *Table, peer *Peer) *DataStore {
 	if !peer.isOnline() {
 		return nil

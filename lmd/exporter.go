@@ -21,7 +21,7 @@ type Exporter struct {
 	lmd        *LMDInstance
 }
 
-// export peer data to tarball containing json files
+// export peer data to tarball containing json files.
 func exportData(lmd *LMDInstance) (err error) {
 	file := lmd.flags.flagExport
 	localConfig := lmd.finalFlagsConfig(true)
@@ -41,7 +41,7 @@ func exportData(lmd *LMDInstance) (err error) {
 }
 
 func (ex *Exporter) Export(file string) (err error) {
-	ex.initPeers()
+	ex.initPeers(context.TODO())
 
 	userinfo, err := user.Current()
 	if err != nil {
@@ -191,7 +191,7 @@ func (ex *Exporter) addTable(peer *Peer, table *Table) (written int64, err error
 	return written, nil
 }
 
-func (ex *Exporter) initPeers() {
+func (ex *Exporter) initPeers(ctx context.Context) {
 	log.Debugf("starting peers")
 	waitGroupPeers := &sync.WaitGroup{}
 	shutdownChannel := make(chan bool)
@@ -210,7 +210,7 @@ func (ex *Exporter) initPeers() {
 		go func() {
 			// make sure we log panics properly
 			defer logPanicExitPeer(peer)
-			err := peer.InitAllTables()
+			err := peer.InitAllTables(ctx)
 			if err != nil {
 				logWith(peer).Warnf("failed to initialize peer: %s", err)
 			}
@@ -235,7 +235,7 @@ func (ex *Exporter) initPeers() {
 		go func() {
 			// make sure we log panics properly
 			defer logPanicExitPeer(peer)
-			err := peer.InitAllTables()
+			err := peer.InitAllTables(ctx)
 			if err != nil {
 				logWith(peer).Warnf("failed to initialize peer: %s", err)
 			}
@@ -251,7 +251,7 @@ func (ex *Exporter) initPeers() {
 	log.Infof("all peers ready for export")
 }
 
-// exportableColumns generates list of columns to export
+// exportableColumns generates list of columns to export.
 func (ex *Exporter) exportableColumns(p *Peer, t *Table) (columns []string) {
 	for _, col := range t.Columns {
 		if ex.isExportColumn(p, col) {
@@ -262,7 +262,7 @@ func (ex *Exporter) exportableColumns(p *Peer, t *Table) (columns []string) {
 	return
 }
 
-// isExportColumn returns true if column should be exported
+// isExportColumn returns true if column should be exported.
 func (ex *Exporter) isExportColumn(p *Peer, col *Column) bool {
 	if col.Optional != NoFlags && !p.HasFlag(col.Optional) {
 		return false

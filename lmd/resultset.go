@@ -9,10 +9,10 @@ import (
 	"github.com/buger/jsonparser"
 )
 
-// ResultSet is a list of result rows
+// ResultSet is a list of result rows.
 type ResultSet [][]interface{}
 
-// ResultSetStats contains a result from a stats query
+// ResultSetStats contains a result from a stats query.
 type ResultSetStats struct {
 	Stats       map[string][]*Filter
 	Total       int // total number of matched rows regardless of any limits or offsets
@@ -26,7 +26,7 @@ func NewResultSetStats() *ResultSetStats {
 	return &res
 }
 
-// NewResultSet parses resultset from given bytes
+// NewResultSet parses resultset from given bytes.
 func NewResultSet(data []byte) (res ResultSet, err error) {
 	res = make(ResultSet, 0)
 	offset, jErr := jsonparser.ArrayEach(data, func(rowBytes []byte, _ jsonparser.ValueType, _ int, aErr error) {
@@ -62,7 +62,7 @@ func NewResultSet(data []byte) (res ResultSet, err error) {
 	return res, nil
 }
 
-// Precompress compresses large strings in result set to allow faster updates (compressing would happen during locked update loop otherwise)
+// Precompress compresses large strings in result set to allow faster updates (compressing would happen during locked update loop otherwise).
 func (res *ResultSet) Precompress(offset int, columns ColumnList) {
 	for i := range columns {
 		col := columns[i]
@@ -75,7 +75,7 @@ func (res *ResultSet) Precompress(offset int, columns ColumnList) {
 	}
 }
 
-// SortByPrimaryKey sorts the resultset by their primary columns
+// SortByPrimaryKey sorts the resultset by their primary columns.
 func (res *ResultSet) SortByPrimaryKey(table *Table, req *Request) ResultSet {
 	if len(table.PrimaryKey) == 0 {
 		return *res
@@ -94,7 +94,7 @@ func (res *ResultSet) SortByPrimaryKey(table *Table, req *Request) ResultSet {
 	return sorted.Data
 }
 
-// Result2Hash converts list result into hashes
+// Result2Hash converts list result into hashes.
 func (res *ResultSet) Result2Hash(columns []string) []map[string]interface{} {
 	hash := make([]map[string]interface{}, 0)
 	for _, row := range *res {
@@ -108,7 +108,7 @@ func (res *ResultSet) Result2Hash(columns []string) []map[string]interface{} {
 	return hash
 }
 
-// ResultSetSorted is a sorted list of result rows
+// ResultSetSorted is a sorted list of result rows.
 type ResultSetSorted struct {
 	Data  ResultSet
 	Keys  []int
@@ -120,7 +120,7 @@ func (res *ResultSetSorted) Len() int {
 	return len(res.Data)
 }
 
-// Less returns the sort result of two data rows
+// Less returns the sort result of two data rows.
 func (res *ResultSetSorted) Less(idx1, idx2 int) bool {
 	for x := range res.Keys {
 		dataIndex := res.Keys[x]
@@ -155,7 +155,7 @@ func (res *ResultSetSorted) Swap(i, j int) {
 	res.Data[i], res.Data[j] = res.Data[j], res.Data[i]
 }
 
-// ResultPrepared is a list of result rows prepared to insert faster
+// ResultPrepared is a list of result rows prepared to insert faster.
 type ResultPrepared struct {
 	ResultRow  []interface{}
 	DataRow    *DataRow

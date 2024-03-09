@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// RawResultSet contains references to the result rows or stats objects
+// RawResultSet contains references to the result rows or stats objects.
 type RawResultSet struct {
 	noCopy      noCopy
 	Total       int            // total number of results for this set
@@ -17,7 +17,7 @@ type RawResultSet struct {
 }
 
 // PostProcessing does all the post processing required for a request like sorting
-// and cutting of limits, applying offsets
+// and cutting of limits, applying offsets.
 func (raw *RawResultSet) PostProcessing(res *Response) {
 	if len(res.Request.Stats) > 0 {
 		return
@@ -58,7 +58,7 @@ func (raw *RawResultSet) Len() int {
 	return len(raw.DataResult)
 }
 
-// Less returns the sort result of two data rows
+// Less returns the sort result of two data rows.
 func (raw *RawResultSet) Less(idx1, idx2 int) bool {
 	for _, field := range raw.Sort {
 		switch field.Column.DataType {

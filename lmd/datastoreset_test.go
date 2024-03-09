@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -46,7 +47,7 @@ func TestDSHasChanged(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	err := peer.data.reloadIfNumberOfObjectsChanged()
+	err := peer.data.reloadIfNumberOfObjectsChanged(context.TODO())
 	if err != nil {
 		t.Error(err)
 	}
@@ -62,14 +63,14 @@ func TestDSFullUpdate(t *testing.T) {
 
 	peer.StatusSet(LastUpdate, float64(0))
 	peer.StatusSet(LastFullServiceUpdate, float64(0))
-	err := peer.data.UpdateDeltaServices(fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), false, 0)
+	err := peer.data.UpdateDeltaServices(context.TODO(), fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), false, 0)
 	if err != nil {
 		t.Error(err)
 	}
 
 	peer.StatusSet(LastUpdate, float64(0))
 	peer.StatusSet(LastFullServiceUpdate, float64(0))
-	err = peer.data.UpdateDeltaServices(fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), true, time.Now().Unix())
+	err = peer.data.UpdateDeltaServices(context.TODO(), fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), true, time.Now().Unix())
 	if err != nil {
 		t.Error(err)
 	}

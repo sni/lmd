@@ -23,5 +23,6 @@ func SDump(v interface{}) string {
 	spew.Config.Indent = "\t"
 	spew.Config.MaxDepth = 3
 	spew.Config.DisableMethods = true
+
 	return spew.Sdump(v)
 }

@@ -81,7 +81,7 @@ func (o *ObjectsType) AddTable(name TableName, table *Table) {
 	}
 }
 
-// NewBackendsTable returns a new backends table
+// NewBackendsTable returns a new backends table.
 func NewBackendsTable() (t *Table) {
 	t = &Table{Virtual: GetTableBackendsStore, WorksUnlocked: true, PeerLockMode: PeerLockModeFull}
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
@@ -114,7 +114,7 @@ func NewBackendsTable() (t *Table) {
 	return
 }
 
-// NewColumnsTable returns a new columns table
+// NewColumnsTable returns a new columns table.
 func NewColumnsTable() (t *Table) {
 	t = &Table{Virtual: GetTableColumnsStore, DefaultSort: []string{"table", "name"}, WorksUnlocked: true}
 	t.AddExtraColumn("name", LocalStore, None, StringCol, NoFlags, "The name of the column within the table")
@@ -129,7 +129,7 @@ func NewColumnsTable() (t *Table) {
 	return
 }
 
-// NewStatusTable returns a new status table
+// NewStatusTable returns a new status table.
 func NewStatusTable() (t *Table) {
 	t = &Table{}
 	t.AddColumn("program_start", Dynamic, Int64Col, "The time of the last program start as UNIX timestamp")
@@ -189,7 +189,7 @@ func NewStatusTable() (t *Table) {
 	return t
 }
 
-// NewTimeperiodsTable returns a new timeperiods table
+// NewTimeperiodsTable returns a new timeperiods table.
 func NewTimeperiodsTable() (t *Table) {
 	t = &Table{DefaultSort: []string{"name"}}
 	t.AddColumn("alias", Static, StringCol, "The alias of the timeperiod")
@@ -213,7 +213,7 @@ func NewTimeperiodsTable() (t *Table) {
 	return
 }
 
-// NewContactsTable returns a new contacts table
+// NewContactsTable returns a new contacts table.
 func NewContactsTable() (t *Table) {
 	t = &Table{DefaultSort: []string{"name"}}
 	t.AddColumn("alias", Static, StringCol, "The full name of the contact")
@@ -256,7 +256,7 @@ func NewContactsTable() (t *Table) {
 	return t
 }
 
-// NewContactgroupsTable returns a new contactgroups table
+// NewContactgroupsTable returns a new contactgroups table.
 func NewContactgroupsTable() (t *Table) {
 	t = &Table{DefaultSort: []string{"name"}}
 	t.AddColumn("alias", Static, StringCol, "The alias of the contactgroup")
@@ -269,7 +269,7 @@ func NewContactgroupsTable() (t *Table) {
 	return
 }
 
-// NewCommandsTable returns a new commands table
+// NewCommandsTable returns a new commands table.
 func NewCommandsTable() (t *Table) {
 	t = &Table{DefaultSort: []string{"name"}}
 	t.AddColumn("name", Static, StringCol, "The name of the command")
@@ -281,7 +281,7 @@ func NewCommandsTable() (t *Table) {
 	return
 }
 
-// NewHostsTable returns a new hosts table
+// NewHostsTable returns a new hosts table.
 func NewHostsTable() (t *Table) {
 	t = &Table{PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
 	t.AddColumn("accept_passive_checks", Dynamic, IntCol, "Whether passive host checks are accepted (0/1)")
@@ -426,7 +426,7 @@ func NewHostsTable() (t *Table) {
 	return t
 }
 
-// NewHostgroupsTable returns a new hostgroups table
+// NewHostgroupsTable returns a new hostgroups table.
 func NewHostgroupsTable() (t *Table) {
 	t = &Table{PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
 	t.AddColumn("action_url", Static, StringCol, "An optional URL to custom actions or information about the hostgroup")
@@ -464,7 +464,7 @@ func NewHostgroupsTable() (t *Table) {
 	return t
 }
 
-// NewServicesTable returns a new services table
+// NewServicesTable returns a new services table.
 func NewServicesTable() (t *Table) {
 	t = &Table{PrimaryKey: []string{"host_name", "description"}, DefaultSort: []string{"host_name", "description"}}
 	t.AddColumn("accept_passive_checks", Dynamic, IntCol, "Whether the service accepts passive checks (0/1)")
@@ -591,7 +591,7 @@ func NewServicesTable() (t *Table) {
 	return t
 }
 
-// NewServicegroupsTable returns a new hostgroups table
+// NewServicegroupsTable returns a new hostgroups table.
 func NewServicegroupsTable() (t *Table) {
 	t = &Table{PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
 	t.AddColumn("action_url", Static, StringCol, "An optional URL to custom notes or actions on the service group")
@@ -621,7 +621,7 @@ func NewServicegroupsTable() (t *Table) {
 	return t
 }
 
-// NewCommentsTable returns a new comments table
+// NewCommentsTable returns a new comments table.
 func NewCommentsTable() (t *Table) {
 	t = &Table{PrimaryKey: []string{"id"}, DefaultSort: []string{"id"}}
 	t.AddColumn("author", Static, StringCol, "The contact that entered the comment")
@@ -647,7 +647,7 @@ func NewCommentsTable() (t *Table) {
 	return t
 }
 
-// NewDowntimesTable returns a new downtimes table
+// NewDowntimesTable returns a new downtimes table.
 func NewDowntimesTable() (t *Table) {
 	t = &Table{PrimaryKey: []string{"id"}, DefaultSort: []string{"id"}}
 	t.AddColumn("author", Static, StringCol, "The contact that scheduled the downtime")
@@ -673,7 +673,7 @@ func NewDowntimesTable() (t *Table) {
 	return t
 }
 
-// NewLogTable returns a new log table
+// NewLogTable returns a new log table.
 func NewLogTable() (t *Table) {
 	t = &Table{PassthroughOnly: true, DefaultSort: []string{"time"}}
 
@@ -700,7 +700,7 @@ func NewLogTable() (t *Table) {
 	return t
 }
 
-// NewHostsByGroupTable returns a new hostsbygroup table
+// NewHostsByGroupTable returns a new hostsbygroup table.
 func NewHostsByGroupTable() (t *Table) {
 	t = &Table{Virtual: GetGroupByData}
 	t.AddColumn("name", Static, StringCol, "Host name")
@@ -715,7 +715,7 @@ func NewHostsByGroupTable() (t *Table) {
 	return t
 }
 
-// NewServicesByGroupTable returns a new servicesbygroup table
+// NewServicesByGroupTable returns a new servicesbygroup table.
 func NewServicesByGroupTable() (t *Table) {
 	t = &Table{Virtual: GetGroupByData}
 	t.AddColumn("host_name", Static, StringCol, "Host name")
@@ -732,7 +732,7 @@ func NewServicesByGroupTable() (t *Table) {
 	return t
 }
 
-// NewServicesByHostgroupTable returns a new servicesbyhostgroup table
+// NewServicesByHostgroupTable returns a new servicesbyhostgroup table.
 func NewServicesByHostgroupTable() (t *Table) {
 	t = &Table{Virtual: GetGroupByData}
 	t.AddColumn("host_name", Static, StringCol, "Host name")

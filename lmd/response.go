@@ -17,14 +17,14 @@ import (
 )
 
 const (
-	// SpinUpPeersTimeout sets timeout to wait for peers after spin up
+	// SpinUpPeersTimeout sets timeout to wait for peers after spin up.
 	SpinUpPeersTimeout = 5 * time.Second
 
-	// Number of processes rows after which the context is checked again
+	// Number of processes rows after which the context is checked again.
 	RowContextCheck = 10000
 )
 
-// Response contains the livestatus response data as long with some meta data
+// Response contains the livestatus response data as long with some meta data.
 type Response struct {
 	noCopy        noCopy
 	Lock          *deadlock.RWMutex // must be used for Result and Failed access
@@ -39,7 +39,7 @@ type Response struct {
 	SelectedPeers []*Peer
 }
 
-// PeerResponse is the sub result from a peer before merged into the end result
+// PeerResponse is the sub result from a peer before merged into the end result.
 type PeerResponse struct {
 	Rows        []*DataRow // set of datarows
 	Total       int        // total number of matched rows regardless of any limits or offsets
@@ -74,7 +74,7 @@ func NewResponse(ctx context.Context, req *Request, conn net.Conn) (res *Respons
 		res.Result = make(ResultSet, 0)
 	case table.PassthroughOnly:
 		// passthrough requests, ex.: log table
-		res.BuildPassThroughResult()
+		res.BuildPassThroughResult(ctx)
 		res.PostProcessing()
 	default:
 		// normal requests
@@ -176,7 +176,7 @@ func (res *Response) Len() int {
 	return len(res.Result)
 }
 
-// Less returns the sort result of two data rows
+// Less returns the sort result of two data rows.
 func (res *Response) Less(idx1, idx2 int) bool {
 	for k := range res.Request.Sort {
 		field := res.Request.Sort[k]
@@ -232,7 +232,7 @@ func (res *Response) Swap(i, j int) {
 	res.Result[i], res.Result[j] = res.Result[j], res.Result[i]
 }
 
-// ExpandRequestedBackends fills the requests backends map
+// ExpandRequestedBackends fills the requests backends map.
 func (req *Request) ExpandRequestedBackends() (err error) {
 	req.BackendsMap = make(map[string]string)
 	req.BackendErrors = make(map[string]string)
@@ -302,7 +302,7 @@ func (res *Response) PostProcessing() {
 	}
 }
 
-// CalculateFinalStats calculates final averages and sums from stats queries
+// CalculateFinalStats calculates final averages and sums from stats queries.
 func (res *Response) CalculateFinalStats() {
 	if len(res.Request.Stats) == 0 {
 		return
@@ -437,7 +437,7 @@ func (res *Response) SendFixed16(conn io.Writer) (size int64, err error) {
 	return written, nil
 }
 
-// SendUnbuffered directly prints the result to the client connection
+// SendUnbuffered directly prints the result to the client connection.
 func (res *Response) SendUnbuffered(c io.Writer) (size int64, err error) {
 	countingWriter := NewWriteCounter(c)
 	if res.Error != nil {
@@ -467,7 +467,7 @@ func (res *Response) SendUnbuffered(c io.Writer) (size int64, err error) {
 	return
 }
 
-// Buffer fills buffer with the response as bytes array
+// Buffer fills buffer with the response as bytes array.
 func (res *Response) Buffer() (*bytes.Buffer, error) {
 	buf := new(bytes.Buffer)
 	if res.Error != nil {
@@ -484,7 +484,7 @@ func (res *Response) Buffer() (*bytes.Buffer, error) {
 	return buf, res.JSON(buf)
 }
 
-// JSON converts the response into a json structure
+// JSON converts the response into a json structure.
 func (res *Response) JSON(buf io.Writer) error {
 	json := jsoniter.ConfigCompatibleWithStandardLibrary.BorrowStream(buf)
 	defer jsoniter.ConfigCompatibleWithStandardLibrary.ReturnStream(json)
@@ -512,7 +512,7 @@ func (res *Response) JSON(buf io.Writer) error {
 	return nil
 }
 
-// WrappedJSON converts the response into a wrapped json structure
+// WrappedJSON converts the response into a wrapped json structure.
 func (res *Response) WrappedJSON(buf io.Writer) error {
 	json := jsoniter.ConfigCompatibleWithStandardLibrary.BorrowStream(buf)
 	defer jsoniter.ConfigCompatibleWithStandardLibrary.ReturnStream(json)
@@ -548,7 +548,7 @@ func (res *Response) WrappedJSON(buf io.Writer) error {
 	return nil
 }
 
-// WriteDataResponse writes the data part of the result
+// WriteDataResponse writes the data part of the result.
 func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 	switch {
 	case res.Result != nil:
@@ -591,7 +591,7 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 	}
 }
 
-// WriteDataResponseRowLocked appends each row but locks the peer before doing so. We don't have to lock for each column then
+// WriteDataResponseRowLocked appends each row but locks the peer before doing so. We don't have to lock for each column then.
 func (res *Response) WriteDataResponseRowLocked(json *jsoniter.Stream) {
 	for i := range res.RawResults.DataResult {
 		if i > 0 {
@@ -604,7 +604,7 @@ func (res *Response) WriteDataResponseRowLocked(json *jsoniter.Stream) {
 	}
 }
 
-// WriteColumnsResponse writes the columns header
+// WriteColumnsResponse writes the columns header.
 func (res *Response) WriteColumnsResponse(json *jsoniter.Stream) {
 	cols := make([]string, len(res.Request.RequestColumns)+len(res.Request.Stats))
 	for k := 0; k < len(res.Request.RequestColumns); k++ {
@@ -632,7 +632,7 @@ func (res *Response) WriteColumnsResponse(json *jsoniter.Stream) {
 	json.WriteRaw("\n")
 }
 
-// buildLocalResponse builds local data table result for all selected peers
+// buildLocalResponse builds local data table result for all selected peers.
 func (res *Response) buildLocalResponse(ctx context.Context, stores map[*Peer]*DataStore) {
 	var resultcollector chan *PeerResponse
 	var waitChan chan bool
@@ -691,7 +691,7 @@ func (res *Response) buildLocalResponse(ctx context.Context, stores map[*Peer]*D
 	logWith(res).Tracef("waiting for all local data computations done")
 }
 
-// waitTrigger waits till all trigger are fulfilled
+// waitTrigger waits till all trigger are fulfilled.
 func (res *Response) waitTrigger(ctx context.Context, peer *Peer) {
 	// if a WaitTrigger is supplied, wait max ms till the condition is true
 	if res.Request.WaitTrigger == "" {
@@ -711,7 +711,7 @@ func (res *Response) waitTrigger(ctx context.Context, peer *Peer) {
 	}
 }
 
-// MergeStats merges stats result into final result set
+// MergeStats merges stats result into final result set.
 func (res *Response) MergeStats(stats *ResultSetStats) {
 	if stats == nil {
 		return
@@ -738,7 +738,7 @@ func (res *Response) MergeStats(stats *ResultSetStats) {
 
 // BuildPassThroughResult passes a query transparently to one or more remote sites and builds the response
 // from that.
-func (res *Response) BuildPassThroughResult() {
+func (res *Response) BuildPassThroughResult(ctx context.Context) {
 	res.Result = make(ResultSet, 0)
 
 	// build columns list
@@ -801,7 +801,7 @@ func (res *Response) BuildPassThroughResult() {
 			logWith(peer, passthroughRequest).Debugf("starting passthrough request")
 			defer wg.Done()
 
-			peer.PassThroughQuery(res, passthroughRequest, virtualColumns, columnsIndex)
+			peer.PassThroughQuery(ctx, res, passthroughRequest, virtualColumns, columnsIndex)
 		}(peer, waitgroup)
 	}
 	logWith(passthroughRequest).Tracef("waiting...")
@@ -809,7 +809,7 @@ func (res *Response) BuildPassThroughResult() {
 	logWith(passthroughRequest).Debugf("waiting for passed through requests done")
 }
 
-// SendColumnsHeader determines if the response should contain the columns header
+// SendColumnsHeader determines if the response should contain the columns header.
 func (res *Response) SendColumnsHeader() bool {
 	if len(res.Request.Stats) > 0 {
 		return false
@@ -821,7 +821,7 @@ func (res *Response) SendColumnsHeader() bool {
 	return false
 }
 
-// SetResultData populates Result table with data from the RawResultSet
+// SetResultData populates Result table with data from the RawResultSet.
 func (res *Response) SetResultData() {
 	res.Result = make(ResultSet, 0, len(res.RawResults.DataResult))
 	rowSize := len(res.Request.RequestColumns)
@@ -845,14 +845,14 @@ func SpinUpPeers(ctx context.Context, peers []*Peer) {
 			// make sure we log panics properly
 			defer logPanicExitPeer(peer)
 			defer wg.Done()
-			LogErrors(peer.ResumeFromIdle())
+			LogErrors(peer.ResumeFromIdle(ctx))
 		}(peer, waitgroup)
 	}
 	waitTimeout(ctx, waitgroup, SpinUpPeersTimeout)
 	log.Debugf("spin up completed")
 }
 
-// buildLocalResponseData returns the result data for a given request
+// buildLocalResponseData returns the result data for a given request.
 func (res *Response) buildLocalResponseData(ctx context.Context, store *DataStore, resultcollector chan *PeerResponse) {
 	logWith(store.PeerName, res).Tracef("BuildLocalResponseData")
 

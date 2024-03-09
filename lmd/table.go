@@ -7,17 +7,17 @@ import (
 	"github.com/sasha-s/go-deadlock"
 )
 
-// TableRef contains data for referenced tables
+// TableRef contains data for referenced tables.
 type TableRef struct {
 	noCopy  noCopy
 	Table   *Table     // name of the table itself, ex.: hosts table
-	Columns ColumnList // local column(s) which holds the values to determince the ID of the referenced item, ex.: host_name
+	Columns ColumnList // local column(s) which holds the values to determince the ID of the referenced item, ex.: host_name.
 }
 
-// TableName contains all table names
+// TableName contains all table names.
 type TableName int
 
-// available table names
+// available table names.
 const (
 	TableNone TableName = iota
 	TableBackends
@@ -41,18 +41,18 @@ const (
 	TableServicesbyhostgroup
 )
 
-// PeerLockMode sets full or simple lock mode
+// PeerLockMode sets full or simple lock mode.
 type PeerLockMode int
 
 const (
-	// PeerLockModeSimple locks each peer.Status access separately
+	// PeerLockModeSimple locks each peer.Status access separately.
 	PeerLockModeSimple PeerLockMode = iota
 
-	// PeerLockModeFull locks peer once before createing the result
+	// PeerLockModeFull locks peer once before createing the result.
 	PeerLockModeFull
 )
 
-// NewTableName returns a table for given name or an error
+// NewTableName returns a table for given name or an error.
 func NewTableName(name string) (TableName, error) {
 	switch strings.ToLower(name) {
 	case "backends":
@@ -98,7 +98,7 @@ func NewTableName(name string) (TableName, error) {
 	return TableNone, fmt.Errorf("table %s does not exist", name)
 }
 
-// String returns the name of this table as String
+// String returns the name of this table as String.
 func (t *TableName) String() string {
 	switch *t {
 	case TableBackends:
@@ -146,7 +146,7 @@ func (t *TableName) String() string {
 	return ""
 }
 
-// Table defines available columns and table options
+// Table defines available columns and table options.
 type Table struct {
 	noCopy          noCopy
 	Name            TableName
@@ -163,12 +163,12 @@ type Table struct {
 	DataSizes       map[DataType]int  // contains size used for the datastore
 }
 
-// GetColumn returns a column for given name or nil if not found
+// GetColumn returns a column for given name or nil if not found.
 func (t *Table) GetColumn(name string) *Column {
 	return t.ColumnsIndex[name]
 }
 
-// GetColumnWithFallback returns a column for list of names, returns empty column as fallback
+// GetColumnWithFallback returns a column for list of names, returns empty column as fallback.
 func (t *Table) GetColumnWithFallback(name string) *Column {
 	col, ok := t.ColumnsIndex[name]
 	if ok {
@@ -181,7 +181,7 @@ func (t *Table) GetColumnWithFallback(name string) *Column {
 	return t.ColumnsIndex[name]
 }
 
-// GetColumns returns a column list for list of names
+// GetColumns returns a column list for list of names.
 func (t *Table) GetColumns(names []string) ColumnList {
 	columns := make(ColumnList, 0, len(names))
 	for i := range names {
@@ -191,7 +191,7 @@ func (t *Table) GetColumns(names []string) ColumnList {
 	return columns
 }
 
-// GetEmptyColumn returns an empty column
+// GetEmptyColumn returns an empty column.
 func (t *Table) GetEmptyColumn() *Column {
 	return &Column{
 		Name:        "empty",
@@ -204,17 +204,17 @@ func (t *Table) GetEmptyColumn() *Column {
 	}
 }
 
-// AddColumn adds a new column
+// AddColumn adds a new column.
 func (t *Table) AddColumn(name string, update FetchType, datatype DataType, description string) {
 	NewColumn(t, name, LocalStore, update, datatype, NoFlags, nil, description)
 }
 
-// AddExtraColumn adds a new column with extra attributes
+// AddExtraColumn adds a new column with extra attributes.
 func (t *Table) AddExtraColumn(name string, storage StorageType, update FetchType, datatype DataType, restrict OptionalFlags, description string) {
 	NewColumn(t, name, storage, update, datatype, restrict, nil, description)
 }
 
-// AddPeerInfoColumn adds a new column related to peer information
+// AddPeerInfoColumn adds a new column related to peer information.
 func (t *Table) AddPeerInfoColumn(name string, datatype DataType, description string) {
 	NewColumn(t, name, VirtualStore, None, datatype, NoFlags, nil, description)
 }
@@ -222,7 +222,7 @@ func (t *Table) AddPeerInfoColumn(name string, datatype DataType, description st
 // AddRefColumns adds a reference column.
 // tableName: name of the referenced table
 // Prefix: column prefix for the added columns
-// LocalName: column(s) which holds the reference value(s)
+// LocalName: column(s) which holds the reference value(s).
 func (t *Table) AddRefColumns(tableName TableName, prefix string, localName []string) {
 	refTable, Ok := Objects.Tables[tableName]
 	if !Ok {

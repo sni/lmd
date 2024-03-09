@@ -6,26 +6,26 @@ import (
 	"time"
 )
 
-// QueryStat is a single item of query statistics
+// QueryStat is a single item of query statistics.
 type QueryStat struct {
 	Count         int64
 	TotalDuration time.Duration
 }
 
-// QueryStatIn is the transport object for incoming count commands
+// QueryStatIn is the transport object for incoming count commands.
 type QueryStatIn struct {
 	Query    string
 	Duration time.Duration
 }
 
-// QueryStats is the stats collector
+// QueryStats is the stats collector.
 type QueryStats struct {
 	Stats      map[string]*QueryStat
 	In         chan QueryStatIn
 	LogTrigger chan bool
 }
 
-// NewQueryStats creates a new query stats object
+// NewQueryStats creates a new query stats object.
 func NewQueryStats() *QueryStats {
 	stats := &QueryStats{
 		Stats:      make(map[string]*QueryStat),
@@ -53,7 +53,7 @@ func NewQueryStats() *QueryStats {
 	return stats
 }
 
-// LogStats returns the string result
+// LogStats returns the string result.
 func (qs *QueryStats) LogStats() {
 	if len(qs.Stats) == 0 {
 		return

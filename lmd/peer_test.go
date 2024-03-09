@@ -186,7 +186,7 @@ func TestPeerUpdate(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	err := peer.data.UpdateFull(Objects.UpdateTables)
+	err := peer.data.UpdateFull(context.TODO(), Objects.UpdateTables)
 	if err != nil {
 		t.Error(err)
 	}
@@ -198,39 +198,40 @@ func TestPeerUpdate(t *testing.T) {
 	for _, row := range svcTbl.Data {
 		row.dataInt64[lastCheckCol.Index] = 2
 	}
-	err = data.UpdateDelta(float64(5), float64(time.Now().Unix()+5))
+	ctx := context.TODO()
+	err = data.UpdateDelta(ctx, float64(5), float64(time.Now().Unix()+5))
 	if err != nil {
 		t.Error(err)
 	}
 
 	peer.StatusSet(LastUpdate, float64(0))
-	err = peer.periodicUpdate()
+	err = peer.periodicUpdate(context.TODO())
 	if err != nil {
 		t.Error(err)
 	}
 
 	peer.StatusSet(LastUpdate, float64(0))
 	peer.StatusSet(PeerState, PeerStatusWarning)
-	err = peer.periodicUpdate()
+	err = peer.periodicUpdate(context.TODO())
 	if err != nil {
 		t.Error(err)
 	}
 
 	peer.StatusSet(LastUpdate, float64(0))
 	peer.StatusSet(PeerState, PeerStatusDown)
-	err = peer.periodicUpdate()
+	err = peer.periodicUpdate(context.TODO())
 	if err != nil {
 		t.Error(err)
 	}
 
-	err = peer.periodicTimeperiodsUpdate(peer.data)
+	err = peer.periodicTimeperiodsUpdate(context.TODO(), peer.data)
 	if err != nil {
 		t.Error(err)
 	}
 
 	peer.StatusSet(LastUpdate, float64(0))
 	peer.StatusSet(PeerState, PeerStatusBroken)
-	err = peer.periodicUpdate()
+	err = peer.periodicUpdate(context.TODO())
 	if err == nil {
 		t.Fatalf("got no error but expected broken peer")
 	}
@@ -247,7 +248,7 @@ func TestPeerDeltaUpdate(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	err := peer.data.UpdateDelta(0, 0)
+	err := peer.data.UpdateDelta(context.TODO(), 0, 0)
 	if err != nil {
 		t.Error(err)
 	}
@@ -261,7 +262,8 @@ func TestPeerUpdateResume(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	err := peer.ResumeFromIdle()
+	ctx := context.TODO()
+	err := peer.ResumeFromIdle(ctx)
 	if err != nil {
 		t.Error(err)
 	}
@@ -275,7 +277,7 @@ func TestPeerInitSerial(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	err := peer.initAllTablesSerial(peer.data)
+	err := peer.initAllTablesSerial(context.TODO(), peer.data)
 	if err != nil {
 		t.Error(err)
 	}
@@ -292,7 +294,7 @@ func TestLMDPeerUpdate(t *testing.T) {
 	peer.StatusSet(LastUpdate, float64(0))
 	peer.SetFlag(LMD)
 	peer.SetFlag(MultiBackend)
-	err := peer.periodicUpdateLMD(nil, true)
+	err := peer.periodicUpdateLMD(context.TODO(), nil, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -300,7 +302,7 @@ func TestLMDPeerUpdate(t *testing.T) {
 	peer.StatusSet(LastUpdate, float64(0))
 	peer.ResetFlags()
 	peer.SetFlag(MultiBackend)
-	err = peer.periodicUpdateMultiBackends(nil, true)
+	err = peer.periodicUpdateMultiBackends(context.TODO(), nil, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -316,7 +318,7 @@ func TestPeerLog(t *testing.T) {
 
 	peer.setBroken("test")
 	peer.logPeerStatus(log.Debugf)
-	err := peer.initTablesIfRestartRequiredError(fmt.Errorf("test"))
+	err := peer.initTablesIfRestartRequiredError(context.TODO(), fmt.Errorf("test"))
 	if err == nil {
 		t.Fatalf("got no error but expected broken peer")
 	}

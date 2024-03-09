@@ -72,7 +72,7 @@ func initializePeersWithImport(lmd *LMDInstance, importFile string) (err error) 
 	return nil
 }
 
-// importPeersFromDir imports all peers recursively for given folder
+// importPeersFromDir imports all peers recursively for given folder.
 func importPeersFromDir(lmd *LMDInstance, folder string) (peers []*Peer, err error) {
 	folder = strings.TrimRight(folder, "/")
 	files, err := os.ReadDir(folder)
@@ -95,7 +95,7 @@ func importPeersFromDir(lmd *LMDInstance, folder string) (peers []*Peer, err err
 	return
 }
 
-// importPeerFromDir imports single peer from folder which must contain all required json files
+// importPeerFromDir imports single peer from folder which must contain all required json files.
 func importPeerFromDir(peers []*Peer, folder string, lmd *LMDInstance) ([]*Peer, error) {
 	folder = strings.TrimRight(folder, "/")
 	files, err := os.ReadDir(folder)
@@ -132,7 +132,7 @@ func importPeerFromDir(peers []*Peer, folder string, lmd *LMDInstance) ([]*Peer,
 	return peers, nil
 }
 
-// importPeerFromFile imports next file
+// importPeerFromFile imports next file.
 func importPeerFromFile(peers []*Peer, filename string, lmd *LMDInstance) ([]*Peer, error) {
 	log.Debugf("reading %s", filename)
 	matches := reImportFileTable.FindStringSubmatch(filename)
@@ -156,7 +156,7 @@ func importPeerFromFile(peers []*Peer, filename string, lmd *LMDInstance) ([]*Pe
 	return importData(peers, table, rows, columns, lmd)
 }
 
-// importPeersFromTar imports all peers from tarball
+// importPeersFromTar imports all peers from tarball.
 func importPeersFromTar(lmd *LMDInstance, tarFile string) (peers []*Peer, err error) {
 	file, err := os.Open(tarFile)
 	if err != nil {
@@ -196,7 +196,7 @@ func importPeersFromTar(lmd *LMDInstance, tarFile string) (peers []*Peer, err er
 	return peers, nil
 }
 
-// importPeerFromTar imports next file from tarball
+// importPeerFromTar imports next file from tarball.
 func importPeerFromTar(peers []*Peer, header *tar.Header, tarReader io.Reader, lmd *LMDInstance) ([]*Peer, error) {
 	filename := header.Name
 	log.Debugf("reading %s", filename)
@@ -212,7 +212,7 @@ func importPeerFromTar(peers []*Peer, header *tar.Header, tarReader io.Reader, l
 	return importData(peers, table, rows, columns, lmd)
 }
 
-// importData creates/extends peer from given table data
+// importData creates/extends peer from given table data.
 func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, lmd *LMDInstance) ([]*Peer, error) {
 	var peer *Peer
 	if len(peers) > 0 {
@@ -282,7 +282,7 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, l
 	return peers, nil
 }
 
-// importReadFile returns table, data and columns from json file
+// importReadFile returns table, data and columns from json file.
 func importReadFile(tableName string, tarReader io.Reader, size int64) (table *Table, rows ResultSet, columns []string, err error) {
 	for _, t := range Objects.Tables {
 		if strings.EqualFold(t.Name.String(), tableName) {
