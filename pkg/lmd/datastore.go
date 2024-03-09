@@ -374,7 +374,7 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 		}
 
 		switch {
-		case lastUpdateResIdx != -1 && lastCheckResIdx != -1:
+		case lastUpdateResIdx >= 0 && lastCheckResIdx >= 0:
 			switch {
 			case interface2int64(resRow[lastUpdateResIdx]) != prep.DataRow.dataInt64[lastUpdateDataIdx]:
 				// last_update has changed -> always do a full update
@@ -386,7 +386,7 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 				// check both, last_check and last_update to catch up very fast checks which finish within the same second
 				continue
 			}
-		case lastUpdateResIdx != -1:
+		case lastUpdateResIdx >= 0:
 			if interface2int64(resRow[lastUpdateResIdx]) == prep.DataRow.dataInt64[lastUpdateDataIdx] {
 				// if there is only a last_update column, we simply trust the core if an update is required
 				// skip update completely
@@ -394,7 +394,7 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 			}
 			// last_update has changed -> always do a full update
 			prep.FullUpdate = true
-		case lastCheckResIdx == -1:
+		case lastCheckResIdx < 0:
 			// no last_check column and no last_update -> always do a full update
 			prep.FullUpdate = true
 		case interface2int64(resRow[lastCheckResIdx]) != prep.DataRow.dataInt64[lastCheckDataIdx]:
@@ -415,17 +415,24 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 }
 
 // getUpdateColumn returns data and result index for given column name, it panics if the column is not type int64.
+// the index will be -1 if the column is not available.
 func (d *DataStore) getUpdateColumn(columnName string, dataOffset int) (dataIndex, resIndex int) {
 	dataIndex = -1
 	resIndex = -1
 	checkCol := d.GetColumn(columnName)
-	if checkCol != nil {
-		dataIndex = checkCol.Index
-		resIndex = d.DynamicColumnCache.GetColumnIndex(columnName) + dataOffset
-		if checkCol.DataType != Int64Col {
-			log.Panicf("%s: assumption about column type for %s is wrong, expected %s and got %s",
-				d.Table.Name.String(), checkCol.Name, Int64Col.String(), checkCol.DataType.String())
-		}
+	if checkCol == nil {
+		return
+	}
+	// double  check last_update column
+	if columnName == "last_update" && !d.Peer.HasFlag(HasLastUpdateColumn) {
+		return
+	}
+
+	dataIndex = checkCol.Index
+	resIndex = d.DynamicColumnCache.GetColumnIndex(columnName) + dataOffset
+	if checkCol.DataType != Int64Col {
+		log.Panicf("%s: assumption about column type for %s is wrong, expected %s and got %s",
+			d.Table.Name.String(), checkCol.Name, Int64Col.String(), checkCol.DataType.String())
 	}
 
 	return
