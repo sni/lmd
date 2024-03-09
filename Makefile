@@ -7,7 +7,7 @@ GOVERSION:=$(shell \
     go version | \
     awk -F'go| ' '{ split($$5, a, /\./); printf ("%04d%04d", a[1], a[2]); exit; }' \
 )
-# also update README.md when changing minumum version
+# also update README.md and .github/workflows/citest.yml when changing minumum version
 MINGOVERSION:=00010021
 MINGOVERSIONSTR:=1.21
 BUILD:=$(shell git rev-parse --short HEAD)
