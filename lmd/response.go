@@ -154,8 +154,8 @@ func (res *Response) prepareResponse(ctx context.Context, req *Request) {
 		res.SelectedPeers = append(res.SelectedPeers, peer)
 
 		// spin up required?
-		if peer.StatusGet(Idling).(bool) && table.Virtual == nil {
-			peer.StatusSet(LastQuery, currentUnixTime())
+		if peer.statusGetLocked(Idling).(bool) && table.Virtual == nil {
+			peer.statusSetLocked(LastQuery, currentUnixTime())
 			spinUpPeers = append(spinUpPeers, peer)
 		}
 	}
@@ -598,9 +598,9 @@ func (res *Response) WriteDataResponseRowLocked(json *jsoniter.Stream) {
 			json.WriteRaw(",\n")
 		}
 		row := res.RawResults.DataResult[i]
-		row.DataStore.Peer.Lock.RLock()
+		row.DataStore.Peer.lock.RLock()
 		row.WriteJSON(json, res.Request.RequestColumns)
-		row.DataStore.Peer.Lock.RUnlock()
+		row.DataStore.Peer.lock.RUnlock()
 	}
 }
 
@@ -653,7 +653,7 @@ func (res *Response) buildLocalResponse(ctx context.Context, stores map[*Peer]*D
 	waitgroup := &sync.WaitGroup{}
 	for i := range res.SelectedPeers {
 		peer := res.SelectedPeers[i]
-		peer.StatusSet(LastQuery, currentUnixTime())
+		peer.statusSetLocked(LastQuery, currentUnixTime())
 
 		store, ok := stores[peer]
 		if !ok {
@@ -787,7 +787,7 @@ func (res *Response) BuildPassThroughResult(ctx context.Context) {
 
 		if !peer.isOnline() {
 			res.Lock.Lock()
-			res.Failed[peer.ID] = fmt.Sprintf("%v", peer.StatusGet(LastError))
+			res.Failed[peer.ID] = fmt.Sprintf("%v", peer.statusGetLocked(LastError))
 			res.Lock.Unlock()
 
 			continue
@@ -863,8 +863,8 @@ func (res *Response) buildLocalResponseData(ctx context.Context, store *DataStor
 	// for some tables its faster to lock the table only once
 	ds := store.DataSet
 	if store.PeerLockMode == PeerLockModeFull && ds != nil && ds.peer != nil {
-		ds.peer.Lock.RLock()
-		defer ds.peer.Lock.RUnlock()
+		ds.peer.lock.RLock()
+		defer ds.peer.lock.RUnlock()
 	}
 
 	if len(res.Request.Stats) > 0 {

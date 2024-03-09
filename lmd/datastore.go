@@ -41,10 +41,10 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 
 	if peer != nil {
 		d.Peer = peer.(*Peer)
-		d.Peer.Lock.RLock()
+		d.Peer.lock.RLock()
 		d.PeerName = d.Peer.Name
 		d.PeerKey = d.Peer.ID
-		d.Peer.Lock.RUnlock()
+		d.Peer.lock.RUnlock()
 	}
 
 	// create columns list

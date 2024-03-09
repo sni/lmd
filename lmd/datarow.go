@@ -459,7 +459,7 @@ func (d *DataRow) getVirtualRowValue(col *Column) interface{} {
 		if !ok {
 			switch d.DataStore.PeerLockMode {
 			case PeerLockModeFull:
-				value = peer.Status[col.VirtualMap.StatusKey]
+				value = peer.statusGet(col.VirtualMap.StatusKey)
 			case PeerLockModeSimple:
 				switch col.VirtualMap.StatusKey {
 				case PeerName:
@@ -469,7 +469,7 @@ func (d *DataRow) getVirtualRowValue(col *Column) interface{} {
 				case ProgramStart:
 					return &(peer.ProgramStart)
 				default:
-					value = peer.StatusGet(col.VirtualMap.StatusKey)
+					value = peer.statusGetLocked(col.VirtualMap.StatusKey)
 				}
 			}
 		}
@@ -701,14 +701,14 @@ func VirtualColFlags(d *DataRow, _ *Column) interface{} {
 func (d *DataRow) getVirtualSubLMDValue(col *Column) (val interface{}, ok bool) {
 	ok = true
 	peer := d.DataStore.Peer
-	peerData := peer.StatusGet(SubPeerStatus).(map[string]interface{})
+	peerData := peer.statusGetLocked(SubPeerStatus).(map[string]interface{})
 	if peerData == nil {
 		return nil, false
 	}
 	switch col.Name {
 	case "status":
 		// return worst state of LMD and LMDSubs state
-		parentVal := peer.StatusGet(PeerState).(PeerStatus)
+		parentVal := peer.statusGetLocked(PeerState).(PeerStatus)
 		if parentVal != PeerStatusUp {
 			val = parentVal
 		} else {
@@ -716,7 +716,7 @@ func (d *DataRow) getVirtualSubLMDValue(col *Column) (val interface{}, ok bool) 
 		}
 	case "last_error":
 		// return worst state of LMD and LMDSubs state
-		parentVal := peer.StatusGet(LastError).(string)
+		parentVal := peer.statusGetLocked(LastError).(string)
 		val, ok = peerData[col.Name]
 		if parentVal != "" && (!ok || val.(string) == "") {
 			val = parentVal
@@ -1230,6 +1230,18 @@ func interface2jsonstring(in interface{}) string {
 
 		return (string(str))
 	}
+}
+
+func interface2mapinterface(raw interface{}) map[string]interface{} {
+	switch list := raw.(type) {
+	case map[string]interface{}:
+		return list
+	}
+
+	log.Warnf("unsupported stringlist type: %#v (%T)", raw, raw)
+	val := make(map[string]interface{}, 0)
+
+	return val
 }
 
 // deduplicateStringlist store duplicate string lists only once.

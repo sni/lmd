@@ -204,21 +204,21 @@ func TestPeerUpdate(t *testing.T) {
 		t.Error(err)
 	}
 
-	peer.StatusSet(LastUpdate, float64(0))
+	peer.statusSetLocked(LastUpdate, float64(0))
 	err = peer.periodicUpdate(context.TODO())
 	if err != nil {
 		t.Error(err)
 	}
 
-	peer.StatusSet(LastUpdate, float64(0))
-	peer.StatusSet(PeerState, PeerStatusWarning)
+	peer.statusSetLocked(LastUpdate, float64(0))
+	peer.statusSetLocked(PeerState, PeerStatusWarning)
 	err = peer.periodicUpdate(context.TODO())
 	if err != nil {
 		t.Error(err)
 	}
 
-	peer.StatusSet(LastUpdate, float64(0))
-	peer.StatusSet(PeerState, PeerStatusDown)
+	peer.statusSetLocked(LastUpdate, float64(0))
+	peer.statusSetLocked(PeerState, PeerStatusDown)
 	err = peer.periodicUpdate(context.TODO())
 	if err != nil {
 		t.Error(err)
@@ -229,8 +229,8 @@ func TestPeerUpdate(t *testing.T) {
 		t.Error(err)
 	}
 
-	peer.StatusSet(LastUpdate, float64(0))
-	peer.StatusSet(PeerState, PeerStatusBroken)
+	peer.statusSetLocked(LastUpdate, float64(0))
+	peer.statusSetLocked(PeerState, PeerStatusBroken)
 	err = peer.periodicUpdate(context.TODO())
 	if err == nil {
 		t.Fatalf("got no error but expected broken peer")
@@ -291,7 +291,7 @@ func TestLMDPeerUpdate(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(3, 10, 10)
 	PauseTestPeers(peer)
 
-	peer.StatusSet(LastUpdate, float64(0))
+	peer.statusSetLocked(LastUpdate, float64(0))
 	peer.SetFlag(LMD)
 	peer.SetFlag(MultiBackend)
 	err := peer.periodicUpdateLMD(context.TODO(), nil, true)
@@ -299,7 +299,7 @@ func TestLMDPeerUpdate(t *testing.T) {
 		t.Error(err)
 	}
 
-	peer.StatusSet(LastUpdate, float64(0))
+	peer.statusSetLocked(LastUpdate, float64(0))
 	peer.ResetFlags()
 	peer.SetFlag(MultiBackend)
 	err = peer.periodicUpdateMultiBackends(context.TODO(), nil, true)

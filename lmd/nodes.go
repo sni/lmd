@@ -172,7 +172,7 @@ func (n *Nodes) Initialize(ctx context.Context) {
 		n.lmd.PeerMapLock.RLock()
 		for id := range n.lmd.PeerMap {
 			peer := n.lmd.PeerMap[id]
-			if peer.StatusGet(Paused).(bool) {
+			if peer.statusGetLocked(Paused).(bool) {
 				peer.Start(ctx)
 			}
 		}

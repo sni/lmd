@@ -480,11 +480,11 @@ func (lmd *LMDInstance) initializePeers(ctx context.Context) {
 		if v, ok := lmd.PeerMap[conn.ID]; ok {
 			if conn.Equals(v.Config) {
 				peer = v
-				peer.Lock.Lock()
+				peer.lock.Lock()
 				peer.waitGroup = lmd.waitGroupPeers
 				peer.shutdownChannel = lmd.shutdownChannel
 				peer.SetHTTPClient()
-				peer.Lock.Unlock()
+				peer.lock.Unlock()
 			}
 		}
 		lmd.PeerMapLock.RUnlock()

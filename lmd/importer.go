@@ -241,12 +241,12 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, l
 		peers = append(peers, peer)
 		logWith(peer).Infof("restoring peer id %s", peer.ID)
 
-		peer.Status[PeerState] = PeerStatus(interface2int(rows[0][colIndex["status"]]))
-		peer.Status[LastUpdate] = interface2float64(rows[0][colIndex["last_update"]])
-		peer.Status[LastError] = interface2stringNoDedup(rows[0][colIndex["last_error"]])
-		peer.Status[LastOnline] = interface2float64(rows[0][colIndex["last_online"]])
-		peer.Status[Queries] = interface2int64(rows[0][colIndex["queries"]])
-		peer.Status[ResponseTime] = interface2float64(rows[0][colIndex["response_time"]])
+		peer.PeerState = PeerStatus(interface2int(rows[0][colIndex["status"]]))
+		peer.LastUpdate = interface2float64(rows[0][colIndex["last_update"]])
+		peer.LastError = interface2stringNoDedup(rows[0][colIndex["last_error"]])
+		peer.LastOnline = interface2float64(rows[0][colIndex["last_online"]])
+		peer.Queries = interface2int64(rows[0][colIndex["queries"]])
+		peer.ResponseTime = interface2float64(rows[0][colIndex["response_time"]])
 		peer.data = NewDataStoreSet(peer)
 
 		flags := NoFlags
