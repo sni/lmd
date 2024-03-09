@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -44,7 +45,7 @@ type Listener struct {
 
 // NewListener creates a new Listener object
 func NewListener(lmd *LMDInstance, listen string, qStat *QueryStats) *Listener {
-	l := Listener{
+	listener := Listener{
 		Lock:             new(deadlock.RWMutex),
 		lmd:              lmd,
 		connectionString: listen,
@@ -56,9 +57,10 @@ func NewListener(lmd *LMDInstance, listen string, qStat *QueryStats) *Listener {
 	}
 	go func() {
 		defer lmd.logPanicExit()
-		l.handle()
+		listener.handle()
 	}()
-	return &l
+
+	return &listener
 }
 
 // handle starts listening on the actual connection
@@ -93,7 +95,7 @@ func (l *Listener) handle() {
 // localListenerLivestatus starts a listening socket with livestatus protocol.
 func (l *Listener) localListenerLivestatus(connType ConnectionType, listen string) {
 	var err error
-	var c net.Listener
+	var listener net.Listener
 
 	switch connType {
 	case ConnTypeTLS:
@@ -103,9 +105,9 @@ func (l *Listener) localListenerLivestatus(connType ConnectionType, listen strin
 		if tErr != nil {
 			log.Fatalf("failed to initialize tls %s", tErr.Error())
 		}
-		c, err = tls.Listen("tcp", listen, tlsConfig)
+		listener, err = tls.Listen("tcp", listen, tlsConfig)
 	case ConnTypeTCP:
-		c, err = net.Listen("tcp", listen)
+		listener, err = net.Listen("tcp", listen)
 	case ConnTypeUnix:
 		// remove stale sockets on start
 		_, sErr := os.Stat(listen)
@@ -116,17 +118,18 @@ func (l *Listener) localListenerLivestatus(connType ConnectionType, listen strin
 				log.Warnf("removing stale socket failed: %s", sErr)
 			}
 		}
-		c, err = net.Listen("unix", listen)
+		listener, err = net.Listen("unix", listen)
 	default:
 		log.Panicf("not implemented: %#v", connType)
 	}
 
-	l.Connection = c
+	l.Connection = listener
 	if err != nil {
 		log.Fatalf("listen error: %s", err.Error())
+
 		return
 	}
-	defer c.Close()
+	defer listener.Close()
 	if connType == ConnTypeUnix {
 		l.cleanup = func() {
 			os.Remove(listen)
@@ -138,18 +141,20 @@ func (l *Listener) localListenerLivestatus(connType ConnectionType, listen strin
 	l.waitGroupInit.Done()
 
 	for {
-		fd, err := c.Accept()
-		if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
+		conn, err := listener.Accept()
+		var opErr *net.OpError
+		if errors.As(err, &opErr) && opErr.Timeout() {
 			continue
 		}
 		if err != nil {
 			log.Infof("stopping %s listener on %s", connType, listen)
+
 			return
 		}
 
 		l.Lock.Lock()
 		l.openConnections++
-		cl := NewClientConnection(l.lmd, fd, l.lmd.Config.ListenTimeout, l.lmd.Config.LogSlowQueryThreshold, l.lmd.Config.LogHugeQueryThreshold, l.queryStats)
+		clConn := NewClientConnection(l.lmd, conn, l.lmd.Config.ListenTimeout, l.lmd.Config.LogSlowQueryThreshold, l.lmd.Config.LogHugeQueryThreshold, l.queryStats)
 		promFrontendOpenConnections.WithLabelValues(l.connectionString).Set(float64(l.openConnections))
 		l.Lock.Unlock()
 
@@ -158,7 +163,7 @@ func (l *Listener) localListenerLivestatus(connType ConnectionType, listen strin
 			// make sure we log panics properly
 			defer l.lmd.logPanicExit()
 
-			cl.Handle()
+			clConn.Handle()
 			l.Lock.Lock()
 			l.openConnections--
 			promFrontendOpenConnections.WithLabelValues(l.connectionString).Set(float64(l.openConnections))
@@ -168,12 +173,11 @@ func (l *Listener) localListenerLivestatus(connType ConnectionType, listen strin
 }
 
 // localListenerHTTP starts a listening socket with http protocol.
-func (l *Listener) localListenerHTTP(httpType string, listen string) {
+func (l *Listener) localListenerHTTP(httpType, listen string) {
 	// Parse listener address
 	listen = strings.TrimPrefix(listen, "*") // * means all interfaces
 
 	// Listener
-	var c net.Listener
 	if httpType == "https" {
 		l.Lock.RLock()
 		tlsConfig, err := GetTLSListenerConfig(l.lmd.Config)
@@ -181,21 +185,22 @@ func (l *Listener) localListenerHTTP(httpType string, listen string) {
 		if err != nil {
 			log.Fatalf("failed to initialize https %s", err.Error())
 		}
-		ln, err := tls.Listen("tcp", listen, tlsConfig)
+		listener, err := tls.Listen("tcp", listen, tlsConfig)
 		if err != nil {
 			log.Fatalf("listen error: %s", err.Error())
+
 			return
 		}
-		c = ln
+		l.Connection = listener
 	} else {
-		ln, err := net.Listen("tcp", listen)
+		listener, err := net.Listen("tcp", listen)
 		if err != nil {
 			log.Fatalf("listen error: %s", err.Error())
+
 			return
 		}
-		c = ln
+		l.Connection = listener
 	}
-	l.Connection = c
 
 	// Initialize HTTP router
 	router := initializeHTTPRouter(l.lmd)
@@ -209,7 +214,7 @@ func (l *Listener) localListenerHTTP(httpType string, listen string) {
 		WriteTimeout:      HTTPServerRequestTimeout,
 		ReadHeaderTimeout: HTTPServerRequestTimeout,
 	}
-	if err := server.Serve(c); err != nil {
+	if err := server.Serve(l.Connection); err != nil {
 		log.Infof("stopping listener on %s", listen)
 		log.Debugf("http listener finished with: %e", err)
 	}
@@ -249,5 +254,6 @@ func GetTLSListenerConfig(localConfig *Config) (config *tls.Config, err error) {
 		config.ClientAuth = tls.RequireAndVerifyClientCert
 		config.ClientCAs = caCertPool
 	}
+
 	return
 }

@@ -233,6 +233,7 @@ func (f *OptionalFlags) String() string {
 	if *f == NoFlags {
 		return "[<none>]"
 	}
+
 	return ("[" + strings.Join(f.List(), ", ") + "]")
 }
 
@@ -247,6 +248,7 @@ func (f *OptionalFlags) List() (list []string) {
 			list = append(list, fl.name)
 		}
 	}
+
 	return
 }
 
@@ -258,6 +260,7 @@ func (f *OptionalFlags) HasFlag(flag OptionalFlags) bool {
 	if *f&flag != 0 {
 		return true
 	}
+
 	return false
 }
 
@@ -288,12 +291,12 @@ type Column struct {
 }
 
 // NewColumn adds a column object.
-func NewColumn(table *Table, name string, storage StorageType, update FetchType, datatype DataType, restrict OptionalFlags, refCol *Column, description string) {
+func NewColumn(table *Table, name string, storage StorageType, update FetchType, datatype DataType, restrict OptionalFlags, refCol *Column, descr string) {
 	col := &Column{
 		Table:       table,
 		Name:        name,
 		Index:       -1,
-		Description: description,
+		Description: descr,
 		StorageType: storage,
 		FetchType:   update,
 		DataType:    datatype,
@@ -345,5 +348,6 @@ func (c *Column) GetEmptyValue() interface{} {
 	default:
 		log.Panicf("type %s not supported", c.DataType)
 	}
+
 	return ""
 }

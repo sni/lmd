@@ -52,6 +52,7 @@ func assertEq(exp, got interface{}) error {
 	if !reflect.DeepEqual(exp, got) {
 		return fmt.Errorf("\nWanted \n%#v\nGot\n%#v", exp, got)
 	}
+
 	return nil
 }
 
@@ -59,10 +60,11 @@ func assertNeq(exp, got interface{}) error {
 	if reflect.DeepEqual(exp, got) {
 		return fmt.Errorf("\n%#v\nIs equal to\n%#v", exp, got)
 	}
+
 	return nil
 }
 
-func assertLike(exp string, got string) error {
+func assertLike(exp, got string) error {
 	regex, err := regexp.Compile(exp)
 	if err != nil {
 		panic(err.Error())
@@ -70,21 +72,22 @@ func assertLike(exp string, got string) error {
 	if !regex.MatchString(got) {
 		return fmt.Errorf("\nWanted \n%#v\nGot\n%#v", exp, got)
 	}
+
 	return nil
 }
 
-func StartMockLivestatusSource(lmd *LMDInstance, nr int, numHosts int, numServices int) (listen string) {
+func StartMockLivestatusSource(lmd *LMDInstance, srcNum, numHosts, numServices int) (listen string) {
 	startedChannel := make(chan bool)
-	listen = fmt.Sprintf("mock%d_%d.sock", nr, time.Now().Nanosecond())
+	listen = fmt.Sprintf("mock%d_%d.sock", srcNum, time.Now().Nanosecond())
 	mockLog := logWith("mock_ls", listen)
 
 	// prepare data files
-	dataFolder := prepareTmpData("../t/data", nr, numHosts, numServices)
+	dataFolder := prepareTmpData("../t/data", srcNum, numHosts, numServices)
 
 	go func() {
 		mockLog.Debugf("starting listener on: %s", listen)
 		os.Remove(listen)
-		l, err := net.Listen("unix", listen)
+		listener, err := net.Listen("unix", listen)
 		if err != nil {
 			mockLog.Errorf("failed: %s", err)
 			panic(err.Error())
@@ -102,7 +105,7 @@ func StartMockLivestatusSource(lmd *LMDInstance, nr int, numHosts int, numServic
 		startedChannel <- true
 
 		for {
-			conn, err := l.Accept()
+			conn, err := listener.Accept()
 			if err != nil {
 				// probably closed
 				return
@@ -113,7 +116,8 @@ func StartMockLivestatusSource(lmd *LMDInstance, nr int, numHosts int, numServic
 					clientConns.Done()
 				}()
 				if handleMockConnection(lmd, conn, dataFolder, mockLog) {
-					l.Close()
+					listener.Close()
+
 					return
 				}
 			}(conn)
@@ -121,7 +125,8 @@ func StartMockLivestatusSource(lmd *LMDInstance, nr int, numHosts int, numServic
 	}()
 	<-startedChannel
 	mockLog.Debugf("ready")
-	return
+
+	return listen
 }
 
 func handleMockConnection(lmd *LMDInstance, conn net.Conn, dataFolder string, mockLog *LogPrefixer) (closeServer bool) {
@@ -142,7 +147,8 @@ func handleMockConnection(lmd *LMDInstance, conn net.Conn, dataFolder string, mo
 			_checkErr2(conn.Write([]byte("400: command broken\n")))
 		}
 		_checkErr(conn.Close())
-		return
+
+		return closeServer
 	}
 
 	mockLog.Debugf("request: %s", req.Table.String())
@@ -156,13 +162,15 @@ func handleMockConnection(lmd *LMDInstance, conn net.Conn, dataFolder string, mo
 		_checkErr2(conn.Write(b))
 		_checkErr2(conn.Write([]byte("\n")))
 		_checkErr(conn.Close())
-		return
+
+		return closeServer
 	}
 
 	if len(req.Filter) > 0 || len(req.Stats) > 0 {
 		_checkErr2(conn.Write([]byte("200           3\n[]\n")))
 		_checkErr(conn.Close())
-		return
+
+		return closeServer
 	}
 
 	filename := fmt.Sprintf("%s/%s", dataFolder, req.Table.String())
@@ -171,12 +179,13 @@ func handleMockConnection(lmd *LMDInstance, conn net.Conn, dataFolder string, mo
 	_checkErr2(conn.Write(dat))
 	_checkErr(conn.Close())
 	mockLog.Debugf("%s response written: %d bytes", req.Table.String(), len(dat))
-	return
+
+	return closeServer
 }
 
 // prepareTmpData creates static json files which will be used to generate mocked backend response
 // if numServices is  0, empty test data will be used
-func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (tempFolder string) {
+func prepareTmpData(dataFolder string, nr, numHosts, numServices int) (tempFolder string) {
 	tempFolder, err := os.MkdirTemp("", fmt.Sprintf("mockdata%d_", nr))
 	if err != nil {
 		panic("failed to create temp data folder: " + err.Error())
@@ -209,10 +218,11 @@ func prepareTmpData(dataFolder string, nr int, numHosts int, numServices int) (t
 			panic("failed to create temp file: " + err.Error())
 		}
 	}
-	return
+
+	return tempFolder
 }
 
-func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Table, numHosts int, numServices int) {
+func prepareTmpDataHostService(dataFolder, tempFolder string, table *Table, numHosts, numServices int) {
 	name := table.Name
 	dat, _ := os.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, name.String()))
 	raw := make([]map[string]interface{}, 0)
@@ -229,16 +239,16 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 		hostname string
 		services []string
 	}, numHosts)
-	for x := 0; x < numHosts; x++ {
-		hosts[x].hostname = fmt.Sprintf("%s_%d", "testhost", x+1)
-		hosts[x].services = make([]string, 0)
-		if x == 2 {
-			hosts[x].hostname = strings.ToUpper(hosts[x].hostname)
-			hosts[x].hostname = strings.ReplaceAll(hosts[x].hostname, "TESTHOST", "UPPER")
+	for curNum := 0; curNum < numHosts; curNum++ {
+		hosts[curNum].hostname = fmt.Sprintf("%s_%d", "testhost", curNum+1)
+		hosts[curNum].services = make([]string, 0)
+		if curNum == 2 {
+			hosts[curNum].hostname = strings.ToUpper(hosts[curNum].hostname)
+			hosts[curNum].hostname = strings.ReplaceAll(hosts[curNum].hostname, "TESTHOST", "UPPER")
 		}
 		for y := 1; y <= numServices/numHosts; y++ {
 			service := fmt.Sprintf("%s_%d", "testsvc", y)
-			hosts[x].services = append(hosts[x].services, service)
+			hosts[curNum].services = append(hosts[curNum].services, service)
 			serviceCount++
 			if serviceCount == numServices {
 				break
@@ -268,9 +278,9 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 	}
 	if name == TableServices {
 		count := 0
-		for x := range hosts {
-			host := hosts[x]
-			for y := range host.services {
+		for numH := range hosts {
+			host := hosts[numH]
+			for numS := range host.services {
 				count++
 				src := last
 				if count <= num {
@@ -281,7 +291,7 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 					newObj[key] = src[key]
 				}
 				newObj["host_name"] = host.hostname
-				newObj["description"] = host.services[y]
+				newObj["description"] = host.services[numS]
 				newData = append(newData, newObj)
 			}
 		}
@@ -289,13 +299,13 @@ func prepareTmpDataHostService(dataFolder string, tempFolder string, table *Tabl
 
 	buf := new(bytes.Buffer)
 	_checkErr2(buf.WriteString("["))
-	for i, row := range newData {
+	for num, row := range newData {
 		enc, err := json.Marshal(row)
 		if err != nil {
 			panic(err)
 		}
 		_checkErr2(buf.Write(enc))
-		if i < len(newData)-1 {
+		if num < len(newData)-1 {
 			_checkErr2(buf.WriteString(",\n"))
 		}
 	}
@@ -336,7 +346,7 @@ LogFile        = "` + testLogTarget + `"
 
 // StartTestPeer just call StartTestPeerExtra
 // if numServices is  0, empty test data will be used
-func StartTestPeer(numPeers int, numHosts int, numServices int) (*Peer, func() error, *LMDInstance) {
+func StartTestPeer(numPeers, numHosts, numServices int) (*Peer, func() error, *LMDInstance) {
 	return (StartTestPeerExtra(numPeers, numHosts, numServices, ""))
 }
 
@@ -346,7 +356,7 @@ func StartTestPeer(numPeers int, numHosts int, numServices int) (*Peer, func() e
 //
 // It returns a peer with the "mainloop" connection configured
 // if numServices is  0, empty test data will be used
-func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig string) (peer *Peer, cleanup func() error, mocklmd *LMDInstance) {
+func StartTestPeerExtra(numPeers, numHosts, numServices int, extraConfig string) (peer *Peer, cleanup func() error, mocklmd *LMDInstance) {
 	if testLogTarget != "stderr" {
 		os.Remove(testLogTarget)
 	}
@@ -406,10 +416,11 @@ func StartTestPeerExtra(numPeers int, numHosts int, numServices int, extraConfig
 		if waitTimeout(context.TODO(), mocklmd.waitGroupListener, 10*time.Second) {
 			err = fmt.Errorf("timeout while waiting for mock listenern to stop")
 		}
+
 		return
 	}
 
-	return
+	return peer, cleanup, mocklmd
 }
 
 func PauseTestPeers(peer *Peer) {
@@ -432,50 +443,53 @@ func CheckOpenFilesLimit(b *testing.B, minimum uint64) {
 	}
 }
 
-func StartHTTPMockServer(t *testing.T, lmd *LMDInstance) (*httptest.Server, func()) {
+func StartHTTPMockServer(t *testing.T, lmd *LMDInstance) (testserver *httptest.Server, cleanup func()) {
 	t.Helper()
 	nr := 0
 	numHosts := 5
 	numServices := 10
 	dataFolder := prepareTmpData("../t/data", nr, numHosts, numServices)
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { httpMockHandler(t, w, r, lmd, dataFolder) }))
-	cleanup := func() {
-		ts.Close()
+	testserver = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { httpMockHandler(r.Context(), t, w, r, lmd, dataFolder) }))
+	cleanup = func() {
+		testserver.Close()
 		os.RemoveAll(dataFolder)
 	}
-	return ts, cleanup
+
+	return testserver, cleanup
 }
 
-func httpMockHandler(t *testing.T, w io.Writer, r *http.Request, lmd *LMDInstance, dataFolder string) {
+func httpMockHandler(ctx context.Context, t *testing.T, wrt io.Writer, rdr *http.Request, lmd *LMDInstance, dataFolder string) {
 	t.Helper()
 	var data struct {
 		// Credential string  // unused
 		Options struct {
 			// Action string // unused
-			Args []string
-			Sub  string
-		}
+			Args []string `json:"args"`
+			Sub  string   `json:"sub"`
+		} `json:"options"`
 	}
-	err := json.Unmarshal([]byte(r.PostFormValue("data")), &data)
+	err := json.Unmarshal([]byte(rdr.PostFormValue("data")), &data)
 	if err != nil {
 		t.Fatalf("failed to parse request: %s", err.Error())
 	}
 	if data.Options.Sub == "_raw_query" {
-		req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(strings.NewReader(data.Options.Args[0])), ParseDefault)
+		req, _, err := NewRequest(ctx, lmd, bufio.NewReader(strings.NewReader(data.Options.Args[0])), ParseDefault)
 		if err != nil {
 			t.Fatalf("failed to parse request: %s", err.Error())
 		}
-		httpMockHandlerRaw(t, w, r, dataFolder, req)
+		httpMockHandlerRaw(t, wrt, rdr, dataFolder, req)
+
 		return
 	}
 	if data.Options.Sub == "get_processinfo" {
-		fmt.Fprintln(w, "{\"rc\":0, \"version\":\"2.20\", \"output\":[]}")
+		fmt.Fprintln(wrt, "{\"rc\":0, \"version\":\"2.20\", \"output\":[]}")
+
 		return
 	}
-	t.Fatalf("unknown test request: %v", r)
+	t.Fatalf("unknown test request: %v", rdr)
 }
 
-func httpMockHandlerRaw(t *testing.T, w io.Writer, r *http.Request, dataFolder string, req *Request) {
+func httpMockHandlerRaw(t *testing.T, wrt io.Writer, rdr *http.Request, dataFolder string, req *Request) {
 	t.Helper()
 
 	switch {
@@ -485,24 +499,24 @@ func httpMockHandlerRaw(t *testing.T, w io.Writer, r *http.Request, dataFolder s
 		if err != nil {
 			panic(err)
 		}
-		fmt.Fprintf(w, "%d %11d\n", 200, len(b))
-		fmt.Fprint(w, string(b))
+		fmt.Fprintf(wrt, "%d %11d\n", 200, len(b))
+		fmt.Fprint(wrt, string(b))
 	case req.Table != TableNone:
 		filename := fmt.Sprintf("%s/%s", dataFolder, req.Table.String())
 		dat := readTestData(filename, req.Columns)
-		fmt.Fprintf(w, "%d %11d\n", 200, len(dat))
-		fmt.Fprint(w, string(dat))
+		fmt.Fprintf(wrt, "%d %11d\n", 200, len(dat))
+		fmt.Fprint(wrt, string(dat))
 	case req.Command == "COMMAND [0] test_ok":
-		if v, ok := r.Header["Accept"]; ok && v[0] == "application/livestatus" {
-			fmt.Fprintln(w, "")
+		if v, ok := rdr.Header["Accept"]; ok && v[0] == "application/livestatus" {
+			fmt.Fprintln(wrt, "")
 		} else {
-			fmt.Fprintln(w, "{\"rc\":0,\"version \":\"2.20\",\"branch\":\"1\",\"output\":[null,0,\"\",null]}")
+			fmt.Fprintln(wrt, "{\"rc\":0,\"version \":\"2.20\",\"branch\":\"1\",\"output\":[null,0,\"\",null]}")
 		}
 	case req.Command == "COMMAND [0] test_broken":
-		if v, ok := r.Header["Accept"]; ok && v[0] == "application/livestatus" {
-			fmt.Fprintln(w, "400: command broken")
+		if v, ok := rdr.Header["Accept"]; ok && v[0] == "application/livestatus" {
+			fmt.Fprintln(wrt, "400: command broken")
 		} else {
-			fmt.Fprintln(w, "{\"rc\":0,\"version\":\"2.20\",\"branch\":\"1\",\"output\":[null,0,\"400: command broken\",null]}")
+			fmt.Fprintln(wrt, "{\"rc\":0,\"version\":\"2.20\",\"branch\":\"1\",\"output\":[null,0,\"400: command broken\",null]}")
 		}
 	}
 }
@@ -511,6 +525,7 @@ func GetHTTPMockServerPeer(t *testing.T, lmd *LMDInstance) (peer *Peer, cleanup 
 	t.Helper()
 	ts, cleanup := StartHTTPMockServer(t, lmd)
 	peer = NewPeer(lmd, &Connection{Source: []string{ts.URL}, Name: "TestPeer", ID: "testid"})
+
 	return
 }
 
@@ -527,21 +542,21 @@ func convertTestDataMapToList(filename string, columns []string) []byte {
 
 	result := make([]byte, 0)
 	result = append(result, []byte("[")...)
-	for k, rowIn := range hashedData {
+	for rowNum, rowIn := range hashedData {
 		rowOut := make([]interface{}, len(columns))
-		for i, col := range columns {
+		for idx, col := range columns {
 			val, ok := rowIn[col]
 			if !ok {
 				panic(fmt.Sprintf("missing column %s in testdata for file %s.map", col, filename))
 			}
-			rowOut[i] = val
+			rowOut[idx] = val
 		}
 		rowBytes, err2 := json.Marshal(rowOut)
 		if err2 != nil {
 			panic("could not convert row to json: " + err2.Error())
 		}
 		result = append(result, rowBytes...)
-		if k < len(hashedData)-1 {
+		if rowNum < len(hashedData)-1 {
 			result = append(result, []byte(",\n")...)
 		}
 	}
@@ -570,6 +585,7 @@ func readTestData(filename string, columns []string) []byte {
 	} else if err != nil {
 		panic("could not read file: " + err.Error())
 	}
+
 	return dat
 }
 
@@ -593,6 +609,7 @@ func getTestDataColumns(dataFolder string) (columns [][]string) {
 			columns = append(columns, []string{tableName, col})
 		}
 	}
+
 	return
 }
 
@@ -614,6 +631,7 @@ func createTestLMDInstance() *LMDInstance {
 	lmd.Config.ValidateConfig()
 	lmd.flags.flagDeadlock = 15
 	lmd.nodeAccessor = NewNodes(lmd, []string{}, "")
+
 	return lmd
 }
 

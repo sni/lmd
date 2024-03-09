@@ -278,13 +278,13 @@ func TestResponseErrorsFunc(t *testing.T) {
 		{"GET hosts\nKeepalive: broke", "bad request: must be 'on' or 'off' in: Keepalive: broke"},
 	}
 
-	for _, er := range testRequestStrings {
-		_, _, err := peer.QueryString(er.Request)
+	for _, req := range testRequestStrings {
+		_, _, err := peer.QueryString(req.Request)
 		if err == nil {
-			t.Fatalf("No Error in Request: " + er.Request)
+			t.Fatalf("No Error in Request: " + req.Request)
 		}
-		if err = assertEq(er.Error, err.Error()); err != nil {
-			t.Error("Request: " + er.Request)
+		if err = assertEq(req.Error, err.Error()); err != nil {
+			t.Error("Request: " + req.Request)
 			t.Fatalf(err.Error())
 		}
 	}
@@ -1548,6 +1548,7 @@ func TestRequestKeepalive(t *testing.T) {
 		l.Lock.RLock()
 		num := l.openConnections
 		l.Lock.RUnlock()
+
 		return num
 	}
 

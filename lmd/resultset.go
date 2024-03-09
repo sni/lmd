@@ -22,6 +22,7 @@ type ResultSetStats struct {
 func NewResultSetStats() *ResultSetStats {
 	res := ResultSetStats{}
 	res.Stats = make(map[string][]*Filter)
+
 	return &res
 }
 
@@ -31,6 +32,7 @@ func NewResultSet(data []byte) (res ResultSet, err error) {
 	offset, jErr := jsonparser.ArrayEach(data, func(rowBytes []byte, _ jsonparser.ValueType, _ int, aErr error) {
 		if aErr != nil {
 			err = aErr
+
 			return
 		}
 		row, dErr := djson.DecodeArray(rowBytes)
@@ -43,6 +45,7 @@ func NewResultSet(data []byte) (res ResultSet, err error) {
 			// still failing
 			if dErr != nil {
 				err = dErr
+
 				return
 			}
 		}
@@ -55,6 +58,7 @@ func NewResultSet(data []byte) (res ResultSet, err error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return res, nil
 }
 
@@ -86,6 +90,7 @@ func (res *ResultSet) SortByPrimaryKey(table *Table, req *Request) ResultSet {
 		}
 	}
 	sort.Sort(&sorted)
+
 	return sorted.Data
 }
 
@@ -99,6 +104,7 @@ func (res *ResultSet) Result2Hash(columns []string) []map[string]interface{} {
 		}
 		hash = append(hash, rowHash)
 	}
+
 	return hash
 }
 
@@ -115,32 +121,32 @@ func (res *ResultSetSorted) Len() int {
 }
 
 // Less returns the sort result of two data rows
-func (res *ResultSetSorted) Less(i, j int) bool {
+func (res *ResultSetSorted) Less(idx1, idx2 int) bool {
 	for x := range res.Keys {
 		dataIndex := res.Keys[x]
 		sortType := res.Types[x]
 		switch sortType {
-		case IntCol:
-			fallthrough
-		case Int64Col:
-			fallthrough
-		case FloatCol:
-			valueA := interface2float64(res.Data[i][dataIndex])
-			valueB := interface2float64(res.Data[j][dataIndex])
+		case IntCol, Int64Col, FloatCol:
+			valueA := interface2float64(res.Data[idx1][dataIndex])
+			valueB := interface2float64(res.Data[idx2][dataIndex])
 			if valueA == valueB {
 				continue
 			}
+
 			return valueA < valueB
 		case StringCol:
-			s1 := interface2stringNoDedup(res.Data[i][dataIndex])
-			s2 := interface2stringNoDedup(res.Data[j][dataIndex])
-			if s1 == s2 {
+			str1 := interface2stringNoDedup(res.Data[idx1][dataIndex])
+			str2 := interface2stringNoDedup(res.Data[idx2][dataIndex])
+			if str1 == str2 {
 				continue
 			}
-			return s1 < s2
+
+			return str1 < str2
+		default:
+			panic(fmt.Sprintf("sorting not implemented for type %s", sortType))
 		}
-		panic(fmt.Sprintf("sorting not implemented for type %s", sortType))
 	}
+
 	return true
 }
 

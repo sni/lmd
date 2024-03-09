@@ -12,6 +12,7 @@ func GetTableBackendsStore(table *Table, peer *Peer) *DataStore {
 	if err != nil {
 		log.Errorf("store error: %s", err.Error())
 	}
+
 	return store
 }
 
@@ -19,14 +20,14 @@ func GetTableBackendsStore(table *Table, peer *Peer) *DataStore {
 func GetTableColumnsStore(table *Table, _ *Peer) *DataStore {
 	store := NewDataStore(table, nil)
 	data := make(ResultSet, 0)
-	for _, t := range Objects.Tables {
-		for i := range t.Columns {
-			c := t.Columns[i]
-			if c.StorageType == RefStore {
+	for _, table := range Objects.Tables {
+		for i := range table.Columns {
+			col := table.Columns[i]
+			if col.StorageType == RefStore {
 				continue
 			}
 			colTypeName := ""
-			switch c.DataType {
+			switch col.DataType {
 			case IntCol, Int64Col:
 				colTypeName = "int"
 			case StringCol, StringLargeCol, JSONCol:
@@ -36,17 +37,17 @@ func GetTableColumnsStore(table *Table, _ *Peer) *DataStore {
 			case StringListCol, Int64ListCol, ServiceMemberListCol, InterfaceListCol, CustomVarCol:
 				colTypeName = "list"
 			default:
-				log.Panicf("type not handled in table %s: %#v", t.Name.String(), c)
+				log.Panicf("type not handled in table %s: %#v", table.Name.String(), col)
 			}
 			row := []interface{}{
-				c.Name,
-				t.Name.String(),
+				col.Name,
+				table.Name.String(),
 				colTypeName,
-				c.Description,
-				c.FetchType.String(),
-				c.DataType.String(),
-				c.StorageType.String(),
-				c.Optional.List(),
+				col.Description,
+				col.FetchType.String(),
+				col.DataType.String(),
+				col.StorageType.String(),
+				col.Optional.List(),
 			}
 			data = append(data, row)
 		}
@@ -62,6 +63,7 @@ func GetTableColumnsStore(table *Table, _ *Peer) *DataStore {
 	if err != nil {
 		log.Errorf("store error: %s", err.Error())
 	}
+
 	return store
 }
 
@@ -73,14 +75,14 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 	store := NewDataStore(table, peer)
 	store.DataSet = peer.data
 	data := make(ResultSet, 0)
-	ds := store.DataSet
-	ds.Lock.RLock()
-	defer ds.Lock.RUnlock()
+	dataSet := store.DataSet
+	dataSet.Lock.RLock()
+	defer dataSet.Lock.RUnlock()
 	switch store.Table.Name {
 	case TableHostsbygroup:
-		nameCol := ds.tables[TableHosts].GetColumn("name")
-		groupCol := ds.tables[TableHosts].GetColumn("groups")
-		for _, row := range ds.tables[TableHosts].Data {
+		nameCol := dataSet.tables[TableHosts].GetColumn("name")
+		groupCol := dataSet.tables[TableHosts].GetColumn("groups")
+		for _, row := range dataSet.tables[TableHosts].Data {
 			name := row.GetString(nameCol)
 			groups := row.GetStringList(groupCol)
 			for i := range groups {
@@ -88,10 +90,10 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 			}
 		}
 	case TableServicesbygroup:
-		hostNameCol := ds.tables[TableServices].GetColumn("host_name")
-		descCol := ds.tables[TableServices].GetColumn("description")
-		groupCol := ds.tables[TableServices].GetColumn("groups")
-		for _, row := range ds.tables[TableServices].Data {
+		hostNameCol := dataSet.tables[TableServices].GetColumn("host_name")
+		descCol := dataSet.tables[TableServices].GetColumn("description")
+		groupCol := dataSet.tables[TableServices].GetColumn("groups")
+		for _, row := range dataSet.tables[TableServices].Data {
 			hostName := row.GetString(hostNameCol)
 			description := row.GetString(descCol)
 			groups := row.GetStringList(groupCol)
@@ -100,10 +102,10 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 			}
 		}
 	case TableServicesbyhostgroup:
-		hostNameCol := ds.tables[TableServices].GetColumn("host_name")
-		descCol := ds.tables[TableServices].GetColumn("description")
-		hostGroupsCol := ds.tables[TableServices].GetColumn("host_groups")
-		for _, row := range ds.tables[TableServices].Data {
+		hostNameCol := dataSet.tables[TableServices].GetColumn("host_name")
+		descCol := dataSet.tables[TableServices].GetColumn("description")
+		hostGroupsCol := dataSet.tables[TableServices].GetColumn("host_groups")
+		for _, row := range dataSet.tables[TableServices].Data {
 			hostName := row.GetString(hostNameCol)
 			description := row.GetString(descCol)
 			groups := row.GetStringList(hostGroupsCol)
@@ -119,5 +121,6 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 	if err != nil {
 		log.Errorf("store error: %s", err.Error())
 	}
+
 	return store
 }

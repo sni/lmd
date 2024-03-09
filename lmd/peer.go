@@ -125,6 +125,7 @@ func (ps *PeerStatus) String() string {
 	default:
 		log.Panicf("not implemented")
 	}
+
 	return ""
 }
 
@@ -185,13 +186,13 @@ const (
 
 // HTTPResult contains the livestatus result as long with some meta data.
 type HTTPResult struct {
-	Rc      int
-	Version string
-	Branch  string
-	Output  json.RawMessage
-	Raw     []byte
-	Code    int
-	Message string
+	Rc      int             `json:"rc"`
+	Version string          `json:"version"`
+	Branch  string          `json:"branch"`
+	Output  json.RawMessage `json:"output"`
+	Raw     []byte          `json:"raw"`
+	Code    int             `json:"code"`
+	Message string          `json:"message"`
 }
 
 // PeerError is a custom error to distinguish between connection and response errors.
@@ -217,6 +218,7 @@ func (e *PeerError) Error() string {
 	if e.resBytes != nil {
 		msg += fmt.Sprintf("\nResponse: %s", string(e.resBytes))
 	}
+
 	return msg
 }
 
@@ -238,7 +240,7 @@ func (e *PeerCommandError) Error() string {
 // NewPeer creates a new peer object.
 // It returns the created peer.
 func NewPeer(lmd *LMDInstance, config *Connection) *Peer {
-	p := Peer{
+	peer := Peer{
 		Name:            config.Name,
 		ID:              config.ID,
 		Source:          config.Source,
@@ -251,48 +253,48 @@ func NewPeer(lmd *LMDInstance, config *Connection) *Peer {
 		lmd:             lmd,
 		Flags:           uint32(NoFlags),
 	}
-	p.cache.connectionPool = make(chan net.Conn, lmd.Config.MaxParallelPeerConnections)
-	p.cache.maxParallelConnections = make(chan bool, lmd.Config.MaxParallelPeerConnections)
-	if len(p.Source) == 0 {
-		logWith(&p).Fatalf("peer requires at least one source")
+	peer.cache.connectionPool = make(chan net.Conn, lmd.Config.MaxParallelPeerConnections)
+	peer.cache.maxParallelConnections = make(chan bool, lmd.Config.MaxParallelPeerConnections)
+	if len(peer.Source) == 0 {
+		logWith(&peer).Fatalf("peer requires at least one source")
 	}
-	p.Status[PeerKey] = p.ID
-	p.Status[PeerName] = p.Name
-	p.Status[CurPeerAddrNum] = 0
-	p.Status[PeerAddr] = p.Source[p.Status[CurPeerAddrNum].(int)]
-	p.Status[PeerState] = PeerStatusPending
-	p.Status[LastUpdate] = float64(0)
-	p.Status[LastFullUpdate] = float64(0)
-	p.Status[LastFullHostUpdate] = float64(0)
-	p.Status[LastFullServiceUpdate] = float64(0)
-	p.Status[LastQuery] = float64(0)
-	p.Status[LastError] = "connecting..."
-	p.Status[LastOnline] = float64(0)
-	p.Status[LastTimeperiodUpdateMinute] = 0
-	p.Status[LastHTTPRequestSuccessful] = false
-	p.Status[ForceFull] = false
-	p.Status[ProgramStart] = int64(0)
-	p.Status[LastPid] = 0
-	p.Status[BytesSend] = int64(0)
-	p.Status[BytesReceived] = int64(0)
-	p.Status[Queries] = int64(0)
-	p.Status[ResponseTime] = float64(0)
-	p.Status[Idling] = false
-	p.Status[Paused] = true
-	p.Status[Section] = config.Section
-	p.Status[PeerParent] = ""
-	p.Status[ThrukVersion] = float64(-1)
-	p.Status[SubKey] = []string{}
-	p.Status[SubName] = []string{}
-	p.Status[SubAddr] = []string{}
-	p.Status[SubType] = []string{}
+	peer.Status[PeerKey] = peer.ID
+	peer.Status[PeerName] = peer.Name
+	peer.Status[CurPeerAddrNum] = 0
+	peer.Status[PeerAddr] = peer.Source[peer.Status[CurPeerAddrNum].(int)]
+	peer.Status[PeerState] = PeerStatusPending
+	peer.Status[LastUpdate] = float64(0)
+	peer.Status[LastFullUpdate] = float64(0)
+	peer.Status[LastFullHostUpdate] = float64(0)
+	peer.Status[LastFullServiceUpdate] = float64(0)
+	peer.Status[LastQuery] = float64(0)
+	peer.Status[LastError] = "connecting..."
+	peer.Status[LastOnline] = float64(0)
+	peer.Status[LastTimeperiodUpdateMinute] = 0
+	peer.Status[LastHTTPRequestSuccessful] = false
+	peer.Status[ForceFull] = false
+	peer.Status[ProgramStart] = int64(0)
+	peer.Status[LastPid] = 0
+	peer.Status[BytesSend] = int64(0)
+	peer.Status[BytesReceived] = int64(0)
+	peer.Status[Queries] = int64(0)
+	peer.Status[ResponseTime] = float64(0)
+	peer.Status[Idling] = false
+	peer.Status[Paused] = true
+	peer.Status[Section] = config.Section
+	peer.Status[PeerParent] = ""
+	peer.Status[ThrukVersion] = float64(-1)
+	peer.Status[SubKey] = []string{}
+	peer.Status[SubName] = []string{}
+	peer.Status[SubAddr] = []string{}
+	peer.Status[SubType] = []string{}
 
 	/* initialize http client if there are any http(s) connections */
-	p.SetHTTPClient()
+	peer.SetHTTPClient()
 
-	p.ResetFlags()
+	peer.ResetFlags()
 
-	return &p
+	return &peer
 }
 
 // Start creates the initial objects and starts the update loop in a separate goroutine.
@@ -327,6 +329,7 @@ func (p *Peer) SetHTTPClient() {
 	for _, addr := range p.Source {
 		if strings.HasPrefix(addr, "http") {
 			hasHTTP = true
+
 			break
 		}
 	}
@@ -345,12 +348,13 @@ func (p *Peer) SetHTTPClient() {
 	p.cache.HTTPClient = client
 }
 
-func (p *Peer) countFromServer(name string, queryCondition string) (count int) {
+func (p *Peer) countFromServer(name, queryCondition string) (count int) {
 	count = -1
 	res, _, err := p.QueryString("GET " + name + "\nOutputFormat: json\nStats: " + queryCondition + "\n\n")
 	if err == nil && len(res) > 0 && len(res[0]) > 0 {
 		count = int(interface2float64(res[0][0]))
 	}
+
 	return
 }
 
@@ -369,33 +373,36 @@ func (p *Peer) updateLoop() {
 		peer.clearLastRequest()
 	}
 
+	var lastErr error
 	ticker := time.NewTicker(UpdateLoopTickerInterval)
 	for {
-		err = nil
-		t1 := time.Now()
+		var loopErr error
+		time1 := time.Now()
 		select {
 		case <-p.shutdownChannel:
 			shutdownStop(p, ticker)
+
 			return
 		case <-p.stopChannel:
 			shutdownStop(p, ticker)
+
 			return
 		case <-ticker.C:
 			switch {
 			case p.HasFlag(MultiBackend):
-				err = p.periodicUpdateMultiBackends(nil, false)
+				loopErr = p.periodicUpdateMultiBackends(nil, false)
 			default:
-				err = p.periodicUpdate()
+				loopErr = p.periodicUpdate()
 			}
 		}
-		duration := time.Since(t1)
-		err = p.initTablesIfRestartRequiredError(err)
-		if err != nil {
+		duration := time.Since(time1)
+		lastErr = p.initTablesIfRestartRequiredError(loopErr)
+		if lastErr != nil {
 			if !p.ErrorLogged {
-				logWith(p).Infof("updating objects failed after: %s: %s", duration.String(), err.Error())
+				logWith(p).Infof("updating objects failed after: %s: %s", duration.String(), lastErr.Error())
 				p.ErrorLogged = true
 			} else {
-				logWith(p).Debugf("updating objects failed after: %s: %s", duration.String(), err.Error())
+				logWith(p).Debugf("updating objects failed after: %s: %s", duration.String(), lastErr.Error())
 			}
 		}
 		p.clearLastRequest()
@@ -424,18 +431,18 @@ func (p *Peer) periodicUpdate() (err error) {
 		p.StatusSet(LastTimeperiodUpdateMinute, currentMinute)
 		err = p.periodicTimeperiodsUpdate(data)
 		if err != nil {
-			return
+			return err
 		}
 	}
 
-	nextUpdate := float64(0)
+	var nextUpdate float64
 	if idling {
 		nextUpdate = lastUpdate + float64(p.lmd.Config.IdleInterval)
 	} else {
 		nextUpdate = lastUpdate + float64(p.lmd.Config.Updateinterval)
 	}
 	if now < nextUpdate {
-		return
+		return nil
 	}
 
 	// set last update timestamp, otherwise we would retry the connection every 500ms instead
@@ -450,13 +457,16 @@ func (p *Peer) periodicUpdate() (err error) {
 	case PeerStatusWarning:
 		if data == nil {
 			logWith(p).Warnf("inconsistent state, no data with state: %s", lastStatus.String())
+
 			return p.InitAllTables()
 		}
+
 		// run update if it was just a short outage
 		return data.UpdateFull(Objects.UpdateTables)
 	case PeerStatusUp, PeerStatusSyncing:
 		if data == nil {
 			logWith(p).Warnf("inconsistent state, no data with state: %s", lastStatus.String())
+
 			return p.InitAllTables()
 		}
 		// full update interval
@@ -467,10 +477,13 @@ func (p *Peer) periodicUpdate() (err error) {
 			lastUpdate = 0
 			p.StatusSet(ForceFull, false)
 		}
+
 		return data.UpdateDelta(lastUpdate, now)
 	}
+
 	logWith(p).Panicf("unhandled status case: %s", lastStatus.String())
-	return
+
+	return nil
 }
 
 // it fetches the sites table and creates and updates LMDSub backends for them
@@ -479,6 +492,7 @@ func (p *Peer) handleBrokenPeer() (err error) {
 	res, _, err = p.QueryString("GET status\nOutputFormat: json\nColumns: program_start nagios_pid\n\n")
 	if err != nil {
 		logWith(p).Debugf("waiting for reload")
+
 		return
 	}
 	if len(res) > 0 && len(res[0]) == 2 {
@@ -486,10 +500,13 @@ func (p *Peer) handleBrokenPeer() (err error) {
 		corePid := interface2int(res[0][1])
 		if p.ProgramStart != programStart || p.StatusGet(LastPid) != corePid {
 			logWith(p).Debugf("broken peer has reloaded, trying again.")
+
 			return p.InitAllTables()
 		}
+
 		return fmt.Errorf("waiting for peer to recover: program_start: %s (%d)  - pid: %d", time.Unix(programStart, 0).String(), programStart, corePid)
 	}
+
 	return fmt.Errorf("unknown result while waiting for peer to recover: %v", res)
 }
 
@@ -503,19 +520,19 @@ func (p *Peer) periodicUpdateLMD(data *DataStoreSet, force bool) (err error) {
 	if data == nil {
 		data, err = p.GetDataStoreSet()
 		if err != nil {
-			return
+			return err
 		}
 	}
 
 	now := currentUnixTime()
 	if !force && now < lastUpdate+float64(p.lmd.Config.Updateinterval) {
-		return
+		return nil
 	}
 
 	// check main connection and update status table
 	err = data.UpdateFull(Objects.StatusTables)
 	if err != nil {
-		return
+		return err
 	}
 
 	// set last update timestamp, otherwise we would retry the connection every 500ms instead
@@ -531,7 +548,8 @@ func (p *Peer) periodicUpdateLMD(data *DataStoreSet, force bool) (err error) {
 	res, _, err := p.query(req)
 	if err != nil {
 		logWith(p, req).Infof("failed to fetch sites information: %s", err.Error())
-		return
+
+		return err
 	}
 	resHash := res.Result2Hash(columns)
 
@@ -546,18 +564,19 @@ func (p *Peer) periodicUpdateLMD(data *DataStoreSet, force bool) (err error) {
 	}
 
 	// remove exceeding peers
-	for id := range p.lmd.PeerMap {
-		peer := p.lmd.PeerMap[id]
+	for peerKey := range p.lmd.PeerMap {
+		peer := p.lmd.PeerMap[peerKey]
 		if peer.ParentID == p.ID {
-			if _, ok := existing[id]; !ok {
+			if _, ok := existing[peerKey]; !ok {
 				logWith(peer, req).Debugf("removing sub peer")
 				peer.Stop()
 				peer.ClearData(true)
-				p.lmd.PeerMapRemove(id)
+				p.lmd.PeerMapRemove(peerKey)
 			}
 		}
 	}
-	return
+
+	return nil
 }
 
 // periodicUpdateMultiBackends runs the periodic updates from the update loop for multi backends
@@ -572,27 +591,28 @@ func (p *Peer) periodicUpdateMultiBackends(data *DataStoreSet, force bool) (err 
 
 	now := currentUnixTime()
 	if !force && now < lastUpdate+float64(p.lmd.Config.Updateinterval) {
-		return
+		return nil
 	}
 
 	if data == nil {
 		data, err = p.GetDataStoreSet()
 		if err != nil {
-			return
+			return err
 		}
 	}
 
 	// check main connection and update status table
 	err = data.UpdateFull(Objects.StatusTables)
 	if err != nil {
-		return
+		return err
 	}
 
 	sites, err := p.fetchRemotePeers(data)
 	if err != nil {
 		logWith(p).Infof("failed to fetch sites information: %s", err.Error())
 		p.ErrorLogged = true
-		return
+
+		return err
 	}
 
 	// set last update timestamp, otherwise we would retry the connection every 500ms instead
@@ -616,18 +636,19 @@ func (p *Peer) periodicUpdateMultiBackends(data *DataStoreSet, force bool) (err 
 	// remove exceeding peers
 	p.lmd.PeerMapLock.Lock()
 	defer p.lmd.PeerMapLock.Unlock()
-	for id := range p.lmd.PeerMap {
-		peer := p.lmd.PeerMap[id]
+	for peerKey := range p.lmd.PeerMap {
+		peer := p.lmd.PeerMap[peerKey]
 		if peer.ParentID == p.ID {
-			if _, ok := existing[id]; !ok {
+			if _, ok := existing[peerKey]; !ok {
 				logWith(peer).Debugf("removing sub peer")
 				peer.Stop()
 				peer.ClearData(true)
-				p.lmd.PeerMapRemove(id)
+				p.lmd.PeerMapRemove(peerKey)
 			}
 		}
 	}
-	return
+
+	return nil
 }
 
 func (p *Peer) updateIdleStatus(idling bool, lastQuery float64) bool {
@@ -643,6 +664,7 @@ func (p *Peer) updateIdleStatus(idling bool, lastQuery float64) bool {
 		p.StatusSet(Idling, true)
 		idling = true
 	}
+
 	return idling
 }
 
@@ -664,6 +686,7 @@ func (p *Peer) periodicTimeperiodsUpdate(data *DataStoreSet) (err error) {
 
 		return
 	}
+
 	return
 }
 
@@ -671,11 +694,13 @@ func (p *Peer) initTablesIfRestartRequiredError(err error) error {
 	if err == nil {
 		return nil
 	}
-	if e, ok := err.(*PeerError); ok {
-		if e.kind == RestartRequiredError {
+	var peerErr *PeerError
+	if errors.As(err, &peerErr) {
+		if peerErr.kind == RestartRequiredError {
 			return p.InitAllTables()
 		}
 	}
+
 	return err
 }
 
@@ -683,12 +708,15 @@ func (p *Peer) scheduleUpdateIfRestartRequiredError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if e, ok := err.(*PeerError); ok {
-		if e.kind == RestartRequiredError {
+	var peerErr *PeerError
+	if errors.As(err, &peerErr) {
+		if peerErr.kind == RestartRequiredError {
 			p.ScheduleImmediateUpdate()
+
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -704,6 +732,7 @@ func (p *Peer) StatusGet(key PeerStatusKey) interface{} {
 	p.Lock.RLock()
 	value := p.Status[key]
 	p.Lock.RUnlock()
+
 	return value
 }
 
@@ -728,7 +757,7 @@ func (p *Peer) InitAllTables() (err error) {
 	p.Status[LastFullHostUpdate] = now
 	p.Lock.Unlock()
 	data := NewDataStoreSet(p)
-	t1 := time.Now()
+	time1 := time.Now()
 
 	if p.lmd.Config.MaxParallelPeerConnections <= 1 {
 		err = p.initAllTablesSerial(data)
@@ -736,32 +765,32 @@ func (p *Peer) InitAllTables() (err error) {
 		err = p.initAllTablesParallel(data)
 	}
 	if err != nil {
-		return
+		return err
 	}
 
 	if !p.HasFlag(MultiBackend) {
 		err = data.SetReferences()
 		if err != nil {
-			return
+			return err
 		}
 
 		err = data.RebuildCommentsList()
 		if err != nil {
-			return
+			return err
 		}
 
 		err = data.RebuildDowntimesList()
 		if err != nil {
-			return
+			return err
 		}
 	}
 
 	err = p.requestLocaltime()
 	if err != nil {
-		return
+		return err
 	}
 
-	duration := time.Since(t1)
+	duration := time.Since(time1)
 	p.Lock.Lock()
 	p.SetDataStoreSet(data, false)
 	p.Status[ResponseTime] = duration.Seconds()
@@ -780,12 +809,13 @@ func (p *Peer) InitAllTables() (err error) {
 	promPeerUpdateDuration.WithLabelValues(p.Name).Set(duration.Seconds())
 
 	p.clearLastRequest()
-	return
+
+	return nil
 }
 
 // fetches all objects one at a time
 func (p *Peer) initAllTablesSerial(data *DataStoreSet) (err error) {
-	t1 := time.Now()
+	time1 := time.Now()
 
 	// fetch one at a time
 	for _, n := range Objects.UpdateTables {
@@ -793,22 +823,24 @@ func (p *Peer) initAllTablesSerial(data *DataStoreSet) (err error) {
 		err = p.initTable(data, t)
 		if err != nil {
 			logWith(p).Debugf("fetching %s objects failed: %s", t.Name.String(), err.Error())
+
 			return
 		}
 	}
 
-	logWith(p).Debugf("objects fetched serially in %s", time.Since(t1).String())
+	logWith(p).Debugf("objects fetched serially in %s", time.Since(time1).String())
+
 	return
 }
 
 // fetches all objects at once
 func (p *Peer) initAllTablesParallel(data *DataStoreSet) (err error) {
-	t1 := time.Now()
+	time1 := time.Now()
 
 	// go with status table first
 	err = p.initTable(data, Objects.Tables[TableStatus])
 	if err != nil {
-		return
+		return err
 	}
 
 	// then fetch all others in parallel
@@ -818,7 +850,7 @@ func (p *Peer) initAllTablesParallel(data *DataStoreSet) (err error) {
 		if n == TableStatus {
 			continue
 		}
-		t := Objects.Tables[n]
+		table := Objects.Tables[n]
 		wait.Add(1)
 		go func(data *DataStoreSet, table *Table) {
 			// make sure we log panics properly
@@ -831,9 +863,10 @@ func (p *Peer) initAllTablesParallel(data *DataStoreSet) (err error) {
 			results <- err2
 			if err2 != nil {
 				logWith(p).Debugf("fetching %s objects failed: %s", table.Name.String(), err2.Error())
+
 				return
 			}
-		}(data, t)
+		}(data, table)
 	}
 
 	// wait till fetching all tables finished
@@ -845,12 +878,13 @@ func (p *Peer) initAllTablesParallel(data *DataStoreSet) (err error) {
 	// read results till channel is closed
 	for e := range results {
 		if e != nil {
-			err = e
-			return
+			return e
 		}
 	}
-	logWith(p).Debugf("objects fetched parallel in %s", time.Since(t1).String())
-	return
+
+	logWith(p).Debugf("objects fetched parallel in %s", time.Since(time1).String())
+
+	return nil
 }
 
 // resetErrors reset the error counter after the site has recovered
@@ -858,20 +892,23 @@ func (p *Peer) initTable(data *DataStoreSet, table *Table) (err error) {
 	if p.HasFlag(MultiBackend) && table.Name != TableStatus {
 		// just create empty data pools
 		// real data is handled by separate peers
-		return
+		return nil
 	}
 	var store *DataStore
-	store, err = data.CreateObjectByType(table)
-	if err != nil {
-		logWith(p).Debugf("creating initial objects failed in table %s: %s", table.Name.String(), err.Error())
-		return
+	if !table.PassthroughOnly && table.Virtual == nil {
+		store, err = data.CreateObjectByType(table)
+		if err != nil {
+			logWith(p).Debugf("creating initial objects failed in table %s: %s", table.Name.String(), err.Error())
+
+			return err
+		}
+		data.Set(table.Name, store)
 	}
-	data.Set(table.Name, store)
 	switch table.Name {
 	case TableStatus:
 		err = p.updateInitialStatus(store)
 		if err != nil {
-			return
+			return err
 		}
 		// got an answer, remove last error and let clients know we are reconnecting
 		if p.StatusGet(PeerState).(PeerStatus) != PeerStatusPending {
@@ -881,8 +918,11 @@ func (p *Peer) initTable(data *DataStoreSet, table *Table) (err error) {
 	case TableTimeperiods:
 		lastTimeperiodUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
 		p.StatusSet(LastTimeperiodUpdateMinute, lastTimeperiodUpdateMinute)
+	default:
+		// nothing special happens for the other tables
 	}
-	return
+
+	return nil
 }
 
 // updateInitialStatus updates peer meta data from last status request
@@ -896,6 +936,7 @@ func (p *Peer) updateInitialStatus(store *DataStore) (err error) {
 		p.Status[LastError] = "peered partner not ready yet"
 		p.ClearData(false)
 		p.Lock.Unlock()
+
 		return fmt.Errorf("peered partner not ready yet")
 	}
 
@@ -919,7 +960,7 @@ func (p *Peer) updateInitialStatus(store *DataStore) (err error) {
 
 	err = p.checkAvailableTables() // must be done after checkStatusFlags, because it does not work on Icinga2
 	if err != nil {
-		return
+		return err
 	}
 
 	programStart := statusData[0].GetInt64ByName("program_start")
@@ -942,7 +983,8 @@ func (p *Peer) updateInitialStatus(store *DataStore) (err error) {
 			p.StatusSet(ThrukExtras, interface2jsonstring(thrukextras))
 		}
 	}
-	return
+
+	return nil
 }
 
 // resetErrors reset the error counter after the site has recovered
@@ -989,6 +1031,7 @@ func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 	if err != nil {
 		logWith(p, req).Tracef("query: %s", req.String())
 		logWith(p, req).Debugf("connection failed: %s", err)
+
 		return nil, nil, err
 	}
 	if connType == ConnTypeHTTP {
@@ -1017,6 +1060,7 @@ func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 	duration := time.Since(t1)
 	if err != nil {
 		logWith(p, req).Debugf("backend query failed: %w", err)
+
 		return nil, nil, err
 	}
 	if newConn != nil {
@@ -1028,10 +1072,13 @@ func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 			tmp := strings.SplitN(strings.TrimSpace(string(resBytes)), ":", 2)
 			if len(tmp) == 2 {
 				code, _ := strconv.Atoi(tmp[0])
+
 				return nil, nil, &PeerCommandError{err: fmt.Errorf("%s", strings.TrimSpace(tmp[1])), code: code, peer: p}
 			}
+
 			return nil, nil, fmt.Errorf("%s", tmp[0])
 		}
+
 		return nil, nil, nil
 	}
 
@@ -1052,6 +1099,7 @@ func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 		logWith(p, req).Debugf("fetched table %20s time: %s, size: %d kB", req.Table.String(), duration, len(resBytes)/1024)
 		logWith(p, req).Errorf("result json string: %s", string(resBytes))
 		logWith(p, req).Errorf("result parse error: %s", err.Error())
+
 		return nil, nil, &PeerError{msg: err.Error(), kind: ResponseError, srcErr: err}
 	}
 
@@ -1061,20 +1109,22 @@ func (p *Peer) query(req *Request) (ResultSet, *ResultMetaData, error) {
 	logWith(p, req).Tracef("fetched table: %15s - time: %8s - count: %8d - size: %8d kB", req.Table.String(), duration, len(data), len(resBytes)/1024)
 
 	if duration > time.Duration(p.lmd.Config.LogSlowQueryThreshold)*time.Second {
-		logWith(p, req).Warnf("slow query finished after %s, response size: %s\n%s", duration, ByteCountBinary(int64(len(resBytes))), strings.TrimSpace(req.String()))
+		logWith(p, req).Warnf("slow query finished after %s, response size: %s\n%s", duration, byteCountBinary(int64(len(resBytes))), strings.TrimSpace(req.String()))
 	}
+
 	return data, meta, nil
 }
 
-func (p *Peer) getQueryResponse(req *Request, query string, peerAddr string, conn net.Conn, connType ConnectionType) ([]byte, net.Conn, error) {
+func (p *Peer) getQueryResponse(req *Request, query, peerAddr string, conn net.Conn, connType ConnectionType) ([]byte, net.Conn, error) {
 	// http connections
 	if connType == ConnTypeHTTP {
 		return p.getHTTPQueryResponse(req, query, peerAddr)
 	}
+
 	return p.getSocketQueryResponseWithTemporaryRetries(req, query, conn)
 }
 
-func (p *Peer) getHTTPQueryResponse(req *Request, query string, peerAddr string) ([]byte, net.Conn, error) {
+func (p *Peer) getHTTPQueryResponse(req *Request, query, peerAddr string) ([]byte, net.Conn, error) {
 	res, err := p.HTTPQueryWithRetries(req, peerAddr, query, 2)
 	if err != nil {
 		return nil, nil, err
@@ -1084,6 +1134,7 @@ func (p *Peer) getHTTPQueryResponse(req *Request, query string, peerAddr string)
 		if err != nil {
 			logWith(p, req).Debugf("LastQuery:")
 			logWith(p, req).Debugf("%s", req.String())
+
 			return nil, nil, err
 		}
 		res = res[16:]
@@ -1092,9 +1143,11 @@ func (p *Peer) getHTTPQueryResponse(req *Request, query string, peerAddr string)
 		if err != nil {
 			logWith(p, req).Debugf("LastQuery:")
 			logWith(p, req).Debugf("%s", req.String())
+
 			return nil, nil, err
 		}
 	}
+
 	return res, nil, nil
 }
 
@@ -1112,6 +1165,7 @@ func (p *Peer) getSocketQueryResponse(req *Request, query string, conn net.Conn)
 	}
 
 	b, err := p.parseResponse(req, conn)
+
 	return b, err
 }
 
@@ -1149,6 +1203,7 @@ func (p *Peer) parseResponse(req *Request, conn net.Conn) (b []byte, err error) 
 	// read result with fixed result size
 	if req.ResponseFixed16 {
 		b, err = p.parseResponseFixedSize(req, conn)
+
 		return
 	}
 
@@ -1159,6 +1214,7 @@ func (p *Peer) parseResponse(req *Request, conn net.Conn) (b []byte, err error) 
 		logWith(p, req).Tracef("ignoring error while reading command response: %s", err.Error())
 		err = nil
 	}
+
 	return
 }
 
@@ -1173,11 +1229,13 @@ func isTemporary(err error) bool {
 	case errors.Is(err, syscall.EPIPE):
 		return true
 	}
-	if e, ok := err.(*PeerError); ok {
-		if e.srcErr != nil {
-			return isTemporary((e.srcErr))
+	var peerErr *PeerError
+	if errors.As(err, &peerErr) {
+		if peerErr.srcErr != nil {
+			return isTemporary((peerErr.srcErr))
 		}
 	}
+
 	return false
 }
 
@@ -1191,6 +1249,7 @@ func CloseWrite(conn net.Conn) (err error) {
 	if err != nil {
 		err = fmt.Errorf("net.Conn.CloseWrite: %w", err)
 	}
+
 	return err
 }
 
@@ -1203,23 +1262,25 @@ func (p *Peer) socketSendQuery(query string, conn net.Conn) (int, error) {
 
 	if strings.HasSuffix(query, "\n\n") {
 		query = strings.TrimSuffix(query, "\n\n")
-		n, err2 := fmt.Fprintf(conn, "%s\n", query)
+		written, err2 := fmt.Fprintf(conn, "%s\n", query)
 		if err2 != nil {
-			return n, fmt.Errorf("socket error: %w", err2)
+			return written, fmt.Errorf("socket error: %w", err2)
 		}
 		// send an extra newline to finish the query but ignore errors because the connection might have closed right after the query
 		n2, err2 := fmt.Fprintf(conn, "\n")
 		if err2 != nil {
 			log.Tracef("sending final newline failed: %s", err2.Error())
 		}
-		n += n2
-		return n, nil
+		written += n2
+
+		return written, nil
 	}
 
 	n, err := fmt.Fprintf(conn, "%s", query)
 	if err != nil {
 		err = fmt.Errorf("socket error: %w", err)
 	}
+
 	return n, err
 }
 
@@ -1232,10 +1293,12 @@ func (p *Peer) parseResponseUndefinedSize(conn io.Reader) ([]byte, error) {
 			if !errors.Is(err, io.EOF) {
 				return nil, fmt.Errorf("io.CopyN: %w", err)
 			}
+
 			break
 		}
 	}
 	res := body.Bytes()
+
 	return res, nil
 }
 
@@ -1249,12 +1312,14 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) ([]byte,
 	if bytes.Contains(resBytes, []byte("No UNIX socket /")) {
 		p.LogErrors(io.CopyN(header, conn, ErrorContentPreviewSize))
 		resBytes = bytes.TrimSpace(header.Bytes())
+
 		return nil, &PeerError{msg: string(resBytes), kind: ConnectionError}
 	}
 	code, expSize, err := p.parseResponseHeader(&resBytes)
 	if err != nil {
 		logWith(p, req).Debugf("LastQuery:")
 		logWith(p, req).Debugf("%s", req.String())
+
 		return nil, err
 	}
 	body := new(bytes.Buffer)
@@ -1272,8 +1337,10 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) ([]byte,
 	if err != nil {
 		logWith(p, req).Debugf("LastQuery:")
 		logWith(p, req).Debugf("%s", req.String())
+
 		return nil, err
 	}
+
 	return res, nil
 }
 
@@ -1285,6 +1352,7 @@ func (p *Peer) Query(req *Request) (result ResultSet, meta *ResultMetaData, err 
 	if err != nil {
 		p.setNextAddrFromErr(err, req)
 	}
+
 	return
 }
 
@@ -1296,10 +1364,13 @@ func (p *Peer) QueryString(str string) (ResultSet, *ResultMetaData, error) {
 	if err != nil {
 		if errors.Is(err, io.EOF) {
 			err = errors.New("bad request: empty request")
+
 			return nil, nil, err
 		}
+
 		return nil, nil, err
 	}
+
 	return p.Query(req)
 }
 
@@ -1308,12 +1379,10 @@ func (p *Peer) QueryString(str string) (ResultSet, *ResultMetaData, error) {
 func (p *Peer) parseResponseHeader(resBytes *[]byte) (code int, expSize int64, err error) {
 	resSize := len(*resBytes)
 	if resSize == 0 {
-		err = fmt.Errorf("empty response, got 0 bytes")
-		return
+		return 0, 0, fmt.Errorf("empty response, got 0 bytes")
 	}
 	if resSize < 16 {
-		err = fmt.Errorf("incomplete response header: '%s'", string(*resBytes))
-		return
+		return 0, 0, fmt.Errorf("incomplete response header: '%s'", string(*resBytes))
 	}
 	header := string((*resBytes)[0:15])
 	matched := reResponseHeader.FindStringSubmatch(header)
@@ -1321,21 +1390,19 @@ func (p *Peer) parseResponseHeader(resBytes *[]byte) (code int, expSize int64, e
 		if len(*resBytes) > ErrorContentPreviewSize {
 			*resBytes = (*resBytes)[:ErrorContentPreviewSize]
 		}
-		err = fmt.Errorf("incorrect response header: '%s'", string((*resBytes)))
-		return
+
+		return 0, 0, fmt.Errorf("incorrect response header: '%s'", string((*resBytes)))
 	}
 	code, err = strconv.Atoi(matched[1])
 	if err != nil {
-		err = fmt.Errorf("header parse error - %s: %s", err.Error(), string(*resBytes))
-		return
+		return 0, 0, fmt.Errorf("header parse error - %s: %s", err.Error(), string(*resBytes))
 	}
 	expSize, err = strconv.ParseInt(matched[2], 10, 64)
 	if err != nil {
-		err = fmt.Errorf("header parse error - %s: %s", err.Error(), string(*resBytes))
-		return
+		return 0, 0, fmt.Errorf("header parse error - %s: %s", err.Error(), string(*resBytes))
 	}
 
-	return
+	return code, expSize, nil
 }
 
 // validateResponseHeader checks if the response header returned a valid size and return code
@@ -1346,15 +1413,19 @@ func (p *Peer) validateResponseHeader(resBytes []byte, req *Request, code int, e
 	default:
 		if expSize > 0 && expSize < 300 && int64(len(resBytes)) == expSize {
 			msg := fmt.Sprintf("bad response code: %d - %s", code, string(resBytes))
+
 			return &PeerError{msg: msg, kind: ResponseError, req: req, resBytes: resBytes, code: code}
 		}
 		msg := fmt.Sprintf("bad response code: %d", code)
+
 		return &PeerError{msg: msg, kind: ResponseError, req: req, resBytes: resBytes, code: code}
 	}
 	if int64(len(resBytes)) != expSize {
 		err = fmt.Errorf("bad response size, expected %d, got %d", expSize, len(resBytes))
+
 		return &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes, code: code}
 	}
+
 	return
 }
 
@@ -1365,18 +1436,18 @@ func (p *Peer) validateResponseHeader(resBytes []byte, req *Request, code int, e
 func (p *Peer) GetConnection(req *Request) (conn net.Conn, connType ConnectionType, err error) {
 	numSources := len(p.Source)
 
-	for x := 0; x < numSources; x++ {
+	for num := 0; num < numSources; num++ {
 		var peerAddr string
 		peerAddr, connType = extractConnType(p.StatusGet(PeerAddr).(string))
 		if connType == ConnTypeHTTP {
 			// return ok if status is ok, don't create a new connection every time
 			if p.StatusGet(LastHTTPRequestSuccessful).(bool) {
-				return
+				return conn, connType, nil
 			}
 		}
 		conn = p.GetCachedConnection(req)
 		if conn != nil {
-			return
+			return conn, connType, nil
 		}
 
 		conn, err = p.OpenConnection(peerAddr, connType)
@@ -1384,11 +1455,12 @@ func (p *Peer) GetConnection(req *Request) (conn net.Conn, connType ConnectionTy
 		// connection successful
 		if err == nil {
 			promPeerConnections.WithLabelValues(p.Name).Inc()
-			if x > 0 {
+			if num > 0 {
 				logWith(p).Infof("active source changed to %s", peerAddr)
 				p.ResetFlags()
 			}
-			return
+
+			return conn, connType, nil
 		}
 
 		// connection error
@@ -1420,8 +1492,7 @@ func (p *Peer) OpenConnection(peerAddr string, connType ConnectionType) (conn ne
 		// test at least basic tcp connect
 		uri, uErr := url.Parse(peerAddr)
 		if uErr != nil {
-			err = uErr
-			return
+			return nil, fmt.Errorf("url parse error: %s", uErr.Error())
 		}
 		host := uri.Host
 		if !strings.Contains(host, ":") {
@@ -1431,8 +1502,7 @@ func (p *Peer) OpenConnection(peerAddr string, connType ConnectionType) (conn ne
 			case "https":
 				host += ":443"
 			default:
-				err = &PeerError{msg: fmt.Sprintf("unknown scheme: %s", uri.Scheme), kind: ConnectionError}
-				return
+				return nil, &PeerError{msg: fmt.Sprintf("unknown scheme: %s", uri.Scheme), kind: ConnectionError}
 			}
 		}
 		logWith(p).Tracef("doing http connection test: %s", host)
@@ -1444,10 +1514,13 @@ func (p *Peer) OpenConnection(peerAddr string, connType ConnectionType) (conn ne
 	}
 	if err != nil {
 		logWith(p).Tracef("connection test failed: %s", err.Error())
-	} else {
-		logWith(p).Tracef("connection ok")
+
+		return nil, fmt.Errorf("connection error %w: %s", err, err.Error())
 	}
-	return
+
+	logWith(p).Tracef("connection ok")
+
+	return conn, nil
 }
 
 // GetCachedConnection returns the next free cached connection or nil of none found
@@ -1459,9 +1532,11 @@ func (p *Peer) GetCachedConnection(req *Request) (conn net.Conn) {
 		} else {
 			logWith(p, req).Tracef("using new connection")
 		}
+
 		return
 	default:
 		logWith(p, req).Tracef("no cached connection found")
+
 		return nil
 	}
 }
@@ -1477,11 +1552,13 @@ func extractConnType(rawAddr string) (string, ConnectionType) {
 	case strings.Contains(rawAddr, ":"):
 		connType = ConnTypeTCP
 	}
+
 	return rawAddr, connType
 }
 
 func (p *Peer) setNextAddrFromErr(err error, req *Request) {
-	if _, ok := err.(*PeerCommandError); ok {
+	var peerCmdErr *PeerCommandError
+	if errors.As(err, &peerCmdErr) {
 		// client errors do not affect remote site status
 		return
 	}
@@ -1519,6 +1596,8 @@ func (p *Peer) setNextAddrFromErr(err error, req *Request) {
 	switch p.Status[PeerState].(PeerStatus) {
 	case PeerStatusUp, PeerStatusPending, PeerStatusSyncing:
 		p.Status[PeerState] = PeerStatusWarning
+	default:
+		// peer state won't be updated, because it is worse than warning already
 	}
 	now := currentUnixTime()
 	lastOnline := p.Status[LastOnline].(float64)
@@ -1553,7 +1632,7 @@ func (p *Peer) closeConnectionPool() {
 func (p *Peer) checkStatusFlags(store *DataStoreSet) (err error) {
 	data := store.Get(TableStatus).Data
 	if len(data) == 0 {
-		return
+		return nil
 	}
 	p.Lock.Lock()
 	row := data[0]
@@ -1579,9 +1658,10 @@ func (p *Peer) checkStatusFlags(store *DataStoreSet) (err error) {
 
 			err = p.periodicUpdateMultiBackends(store, true)
 			if err != nil {
-				return
+				return err
 			}
-			return
+
+			return nil
 		}
 	case len(reIcinga2Version.FindStringSubmatch(livestatusVersion)) > 0:
 		if !p.HasFlag(Icinga2) {
@@ -1594,8 +1674,10 @@ func (p *Peer) checkStatusFlags(store *DataStoreSet) (err error) {
 			p.SetFlag(Naemon)
 		}
 	}
+
 	p.Lock.Unlock()
-	return
+
+	return nil
 }
 
 func (p *Peer) checkAvailableTables() (err error) {
@@ -1618,13 +1700,11 @@ func (p *Peer) checkAvailableTables() (err error) {
 
 	if p.HasFlag(Icinga2) {
 		logWith(p).Debugf("Icinga2 does not support checking tables and columns")
-		return
+
+		return nil
 	}
 
-	availableTables, err := p.GetSupportedColumns()
-	if err != nil {
-		return
-	}
+	availableTables := p.GetSupportedColumns()
 
 	for i := range columnFlags {
 		optFlag := columnFlags[i]
@@ -1638,10 +1718,11 @@ func (p *Peer) checkAvailableTables() (err error) {
 			}
 		}
 	}
-	return
+
+	return nil
 }
 
-func (p *Peer) fetchThrukExtras() (conf map[string]interface{}, thrukextras map[string]interface{}, err error) {
+func (p *Peer) fetchThrukExtras() (conf, thrukextras map[string]interface{}, err error) {
 	// no http client is a sure sign for no http connection
 	if p.cache.HTTPClient == nil {
 		return
@@ -1649,21 +1730,23 @@ func (p *Peer) fetchThrukExtras() (conf map[string]interface{}, thrukextras map[
 	// try all http connections and return first config tool config
 	for _, addr := range p.Config.Source {
 		if strings.HasPrefix(addr, "http") {
-			c, t, e := p.fetchThrukExtrasFromAddr(addr)
-			err = e
-			if t != nil {
-				thrukextras = t
+			configTool, thruk, extraErr := p.fetchThrukExtrasFromAddr(addr)
+			err = extraErr
+			if thruk != nil {
+				thrukextras = thruk
 			}
-			if c != nil {
-				conf = c
+			if configTool != nil {
+				conf = configTool
+
 				return
 			}
 		}
 	}
+
 	return
 }
 
-func (p *Peer) fetchThrukExtrasFromAddr(peerAddr string) (conf map[string]interface{}, thrukextras map[string]interface{}, err error) {
+func (p *Peer) fetchThrukExtrasFromAddr(peerAddr string) (conf, thrukextras map[string]interface{}, err error) {
 	if !strings.HasPrefix(peerAddr, "http") {
 		return
 	}
@@ -1683,14 +1766,16 @@ func (p *Peer) fetchThrukExtrasFromAddr(peerAddr string) (conf map[string]interf
 	if err != nil {
 		return
 	}
+
 	conf, thrukextras, err = p.extractThrukExtrasFromResult(output)
 	if err != nil {
 		return
 	}
+
 	return
 }
 
-func (p *Peer) extractThrukExtrasFromResult(output []interface{}) (map[string]interface{}, map[string]interface{}, error) {
+func (p *Peer) extractThrukExtrasFromResult(output []interface{}) (configtool, thrukextras map[string]interface{}, err error) {
 	if len(output) < 3 {
 		return nil, nil, nil
 	}
@@ -1707,10 +1792,10 @@ func (p *Peer) extractThrukExtrasFromResult(output []interface{}) (map[string]in
 			err := p.CheckLocaltime(interface2float64(ts))
 			if err != nil {
 				p.setNextAddrFromErr(err, nil)
+
 				return nil, nil, err
 			}
 		}
-		var thrukextras map[string]interface{}
 		if c, ok2 := processinfo["thruk"]; ok2 {
 			if v, ok3 := c.(map[string]interface{}); ok3 {
 				thrukextras = v
@@ -1725,21 +1810,23 @@ func (p *Peer) extractThrukExtrasFromResult(output []interface{}) (map[string]in
 			return nil, thrukextras, nil
 		}
 	}
+
 	return nil, nil, nil
 }
 
 func (p *Peer) fetchRemotePeers(store *DataStoreSet) (sites []interface{}, err error) {
 	// no http client is a sure sign for no http connection
 	if p.cache.HTTPClient == nil {
-		return
+		return nil, nil
 	}
 	// we only fetch remote peers if not explicitly requested a single backend
 	if p.Config.RemoteName != "" {
-		return
+		return nil, nil
 	}
 	if p.StatusGet(ThrukVersion).(float64) < ThrukMultiBackendMinVersion {
 		logWith(p).Warnf("remote thruk version too old (%.2f < %.2f) cannot fetch all sites.", p.StatusGet(ThrukVersion).(float64), ThrukMultiBackendMinVersion)
-		return
+
+		return nil, nil
 	}
 	// try all http connections and use first working connection
 	for _, addr := range p.Config.Source {
@@ -1763,12 +1850,14 @@ func (p *Peer) fetchRemotePeers(store *DataStoreSet) (sites []interface{}, err e
 			p.Lock.Unlock()
 			err = p.periodicUpdateMultiBackends(store, true)
 			if err != nil {
-				return
+				return nil, err
 			}
 		}
-		return
+
+		return sites, nil
 	}
-	return
+
+	return nil, err
 }
 
 func (p *Peer) fetchRemotePeersFromAddr(peerAddr string) (sites []interface{}, err error) {
@@ -1778,6 +1867,7 @@ func (p *Peer) fetchRemotePeersFromAddr(peerAddr string) (sites []interface{}, e
 	data, res, err := p.HTTPRestQuery(peerAddr, "/thruk/r/v1/sites")
 	if err != nil {
 		logWith(p).Warnf("rest query failed, cannot fetch all sites: %s", err.Error())
+
 		return
 	}
 	if s, ok := data.([]interface{}); ok {
@@ -1785,6 +1875,7 @@ func (p *Peer) fetchRemotePeersFromAddr(peerAddr string) (sites []interface{}, e
 	} else {
 		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %v", res), kind: ResponseError, srcErr: err}
 	}
+
 	return
 }
 
@@ -1795,16 +1886,16 @@ func (p *Peer) WaitCondition(ctx context.Context, req *Request) {
 	if req.WaitTimeout <= 0 {
 		req.WaitTimeout = WaitTimeoutDefault
 	}
-	c := make(chan struct{})
+	waitChan := make(chan struct{})
 	go func(p *Peer, c chan struct{}, req *Request) {
 		// make sure we log panics properly
 		defer logPanicExitPeer(p)
 
 		p.LogErrors(p.waitcondition(ctx, c, req))
-	}(p, c, req)
+	}(p, waitChan, req)
 	timeout := time.NewTimer(time.Duration(req.WaitTimeout) * time.Millisecond)
 	select {
-	case <-c:
+	case <-waitChan:
 		// finished with condition met
 		timeout.Stop()
 	case <-timeout.C:
@@ -1813,19 +1904,19 @@ func (p *Peer) WaitCondition(ctx context.Context, req *Request) {
 		// contxt closed
 	}
 
-	safeCloseWaitChannel(c)
+	safeCloseWaitChannel(waitChan)
 }
 
-func (p *Peer) waitcondition(ctx context.Context, c chan struct{}, req *Request) (err error) {
+func (p *Peer) waitcondition(ctx context.Context, waitChan chan struct{}, req *Request) (err error) {
 	var lastUpdate float64
 	for {
 		select {
-		case <-c:
+		case <-waitChan:
 			// canceled
-			return
+			return nil
 		case <-ctx.Done():
 			// canceled
-			return
+			return nil
 		default:
 		}
 
@@ -1834,22 +1925,26 @@ func (p *Peer) waitcondition(ctx context.Context, c chan struct{}, req *Request)
 			curUpdate := p.StatusGet(LastUpdate).(float64)
 			// wait up to WaitTimeout till the update is complete
 			if curUpdate > 0 {
-				safeCloseWaitChannel(c)
+				safeCloseWaitChannel(waitChan)
+
 				return nil
 			}
 			time.Sleep(WaitTimeoutCheckInterval)
+
 			continue
 		}
 
 		data, err := p.GetDataStoreSet()
 		if err != nil {
 			time.Sleep(WaitTimeoutCheckInterval)
+
 			continue
 		}
 
 		store, err := p.GetDataStore(req.Table)
 		if err != nil {
 			time.Sleep(WaitTimeoutCheckInterval)
+
 			continue
 		}
 
@@ -1859,7 +1954,8 @@ func (p *Peer) waitcondition(ctx context.Context, c chan struct{}, req *Request)
 			obj, ok := store.GetWaitObject(req)
 			if !ok {
 				logWith(p, req).Warnf("WaitObject did not match any object: %s", req.WaitObject)
-				safeCloseWaitChannel(c)
+				safeCloseWaitChannel(waitChan)
+
 				return nil
 			}
 
@@ -1884,6 +1980,7 @@ func (p *Peer) waitcondition(ctx context.Context, c chan struct{}, req *Request)
 			lastUpdate = p.StatusGet(LastUpdate).(float64)
 			p.ScheduleImmediateUpdate()
 			time.Sleep(WaitTimeoutCheckInterval)
+
 			continue
 		}
 
@@ -1896,7 +1993,8 @@ func (p *Peer) waitcondition(ctx context.Context, c chan struct{}, req *Request)
 			tmp := strings.SplitN(req.WaitObject, ";", 2)
 			if len(tmp) < 2 {
 				logWith(p, req).Errorf("unsupported service wait object: %s", req.WaitObject)
-				safeCloseWaitChannel(c)
+				safeCloseWaitChannel(waitChan)
+
 				return nil
 			}
 			err = data.UpdateDeltaServices(fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", tmp[0], tmp[1]), false, 0)
@@ -1908,7 +2006,8 @@ func (p *Peer) waitcondition(ctx context.Context, c chan struct{}, req *Request)
 				// backend is going to restart, wait a bit and try again
 				time.Sleep(WaitTimeoutCheckInterval)
 			} else {
-				safeCloseWaitChannel(c)
+				safeCloseWaitChannel(waitChan)
+
 				return err
 			}
 		}
@@ -1916,18 +2015,18 @@ func (p *Peer) waitcondition(ctx context.Context, c chan struct{}, req *Request)
 }
 
 // close channel and catch errors of already close channels
-func safeCloseWaitChannel(ch chan struct{}) {
+func safeCloseWaitChannel(waitChan chan struct{}) {
 	defer func() {
 		if recover() != nil {
 			log.Debug("close of closed channel")
 		}
 	}()
 
-	close(ch)
+	close(waitChan)
 }
 
 // HTTPQueryWithRetries calls HTTPQuery with given amount of retries.
-func (p *Peer) HTTPQueryWithRetries(req *Request, peerAddr string, query string, retries int) (res []byte, err error) {
+func (p *Peer) HTTPQueryWithRetries(req *Request, peerAddr, query string, retries int) (res []byte, err error) {
 	res, err = p.HTTPQuery(req, peerAddr, query)
 
 	// retry on broken pipe errors
@@ -1941,12 +2040,13 @@ func (p *Peer) HTTPQueryWithRetries(req *Request, peerAddr string, query string,
 			}
 		}
 	}
+
 	return
 }
 
 // HTTPQuery sends a query over http to a Thruk backend.
 // It returns the livestatus answers and any encountered error.
-func (p *Peer) HTTPQuery(req *Request, peerAddr string, query string) (res []byte, err error) {
+func (p *Peer) HTTPQuery(req *Request, peerAddr, query string) (res []byte, err error) {
 	options := make(map[string]interface{})
 	if p.Config.RemoteName != "" {
 		options["backends"] = []string{p.Config.RemoteName}
@@ -1959,7 +2059,7 @@ func (p *Peer) HTTPQuery(req *Request, peerAddr string, query string) (res []byt
 	options["args"] = []string{strings.TrimSpace(query) + "\n"}
 	optionStr, err := json.Marshal(options)
 	if err != nil {
-		return
+		return nil, fmt.Errorf("json error: %s", err.Error())
 	}
 
 	headers := make(map[string]string)
@@ -1971,22 +2071,23 @@ func (p *Peer) HTTPQuery(req *Request, peerAddr string, query string) (res []byt
 		"data": {fmt.Sprintf("{\"credential\": %q, \"options\": %s}", p.Config.Auth, optionStr)},
 	}, headers)
 	if err != nil {
-		return
+		return nil, err
 	}
 	if result.Raw != nil {
 		res = result.Raw
-		return
+
+		return res, nil
 	}
 	if len(output) <= 2 {
-		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %#v", result), kind: ResponseError}
-		return
+		return nil, &PeerError{msg: fmt.Sprintf("unknown site error, got: %#v", result), kind: ResponseError}
 	}
 	if v, ok := output[2].(string); ok {
 		res = []byte(v)
-	} else {
-		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %#v", result), kind: ResponseError}
+
+		return res, nil
 	}
-	return
+
+	return nil, &PeerError{msg: fmt.Sprintf("unknown site error, got: %#v", result), kind: ResponseError}
 }
 
 // HTTPPostQueryResult returns response array from thruk api
@@ -1995,6 +2096,7 @@ func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, peerAddr, strings.NewReader(postData.Encode()))
 	if err != nil {
 		logWith(p, query).Debugf("http(s) error: %s", fmtHTTPerr(req, err))
+
 		return nil, fmt.Errorf("http request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -2007,29 +2109,34 @@ func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url
 		p.StatusSet(LastHTTPRequestSuccessful, false)
 		logWith(p, query).Debugf("http(s) error: %s", fmtHTTPerr(req, err))
 		p.logHTTPResponse(query, response, []byte{})
-		return
+
+		return nil, fmt.Errorf("http error: %s", err.Error())
 	}
 	p.StatusSet(LastHTTPRequestSuccessful, true)
 	contents, err := ExtractHTTPResponse(response)
 	p.logHTTPResponse(query, response, contents)
 	if err != nil {
 		logWith(p, query).Debugf("http(s) error: %s", fmtHTTPerr(req, err))
-		return
+
+		return nil, err
 	}
 
 	if query != nil && query.Command != "" {
 		if len(contents) == 0 || contents[0] != '{' {
 			result = &HTTPResult{Raw: contents}
-			return
+
+			return result, nil
 		}
 	}
 	if len(contents) > 10 && bytes.HasPrefix(contents, []byte("200 ")) {
 		result = &HTTPResult{Raw: contents}
-		return
+
+		return result, nil
 	}
 	if len(contents) > 1 && contents[0] == '[' {
 		result = &HTTPResult{Raw: contents}
-		return
+
+		return result, nil
 	}
 	if len(contents) < 1 || contents[0] != '{' {
 		if len(contents) > ErrorContentPreviewSize {
@@ -2037,25 +2144,30 @@ func (p *Peer) HTTPPostQueryResult(query *Request, peerAddr string, postData url
 		}
 		err = &PeerError{msg: fmt.Sprintf("site did not return a proper response: %s", contents), kind: ResponseError}
 		logWith(p, query).Debugf("http(s) error: %s", fmtHTTPerr(req, err))
-		return
+
+		return nil, err
 	}
 	err = json.Unmarshal(contents, &result)
 	if err != nil {
 		logWith(p, query).Debugf("http(s) error: %s", fmtHTTPerr(req, err))
-		return
+
+		return nil, fmt.Errorf("json error: %s", err.Error())
 	}
 	if result.Rc != 0 {
 		err = &PeerError{msg: fmt.Sprintf("remote site returned rc: %d - %s", result.Rc, result.Output), kind: ResponseError}
 		logWith(p, query).Debugf("http(s) error: %s", fmtHTTPerr(req, err))
+
+		return nil, err
 	}
-	return
+
+	return result, nil
 }
 
 // HTTPPostQuery returns response array from thruk api
 func (p *Peer) HTTPPostQuery(req *Request, peerAddr string, postData url.Values, headers map[string]string) (output []interface{}, result *HTTPResult, err error) {
 	result, err = p.HTTPPostQueryResult(req, peerAddr, postData, headers)
 	if err != nil {
-		return
+		return nil, nil, err
 	}
 	if result.Version != "" {
 		currentVersion := p.StatusGet(ThrukVersion).(float64)
@@ -2067,12 +2179,13 @@ func (p *Peer) HTTPPostQuery(req *Request, peerAddr string, postData url.Values,
 		}
 	}
 	if result.Raw != nil {
-		return
+		return nil, result, nil
 	}
 	err = json.Unmarshal(result.Output, &output)
 	if err != nil {
 		logWith(p, req).Errorf("%s", err.Error())
-		return
+
+		return nil, nil, fmt.Errorf("json error: %s", err.Error())
 	}
 	if log.IsV(LogVerbosityTrace) {
 		logWith(p, req).Tracef("response: %s", result.Output)
@@ -2086,80 +2199,84 @@ func (p *Peer) HTTPPostQuery(req *Request, peerAddr string, postData url.Values,
 			} else {
 				err = &PeerError{msg: fmt.Sprintf("remote site returned rc: %d - %s", result.Rc, remoteError), kind: ResponseError}
 			}
-			return
+
+			return nil, nil, err
 		}
 	}
-	return
+
+	return output, result, nil
 }
 
 // HTTPRestQuery returns rest response from thruk api
-func (p *Peer) HTTPRestQuery(peerAddr string, uri string) (output interface{}, result *HTTPResult, err error) {
+func (p *Peer) HTTPRestQuery(peerAddr, uri string) (output interface{}, result *HTTPResult, err error) {
 	options := make(map[string]interface{})
 	options["action"] = "url"
 	options["commandoptions"] = []string{uri}
 	optionStr, err := json.Marshal(options)
 	if err != nil {
-		return
+		return nil, nil, fmt.Errorf("json error: %s", err.Error())
 	}
 	result, err = p.HTTPPostQueryResult(nil, peerAddr, url.Values{
 		"data": {fmt.Sprintf("{\"credential\": %q, \"options\": %s}", p.Config.Auth, optionStr)},
 	}, map[string]string{"Accept": "application/json"})
 	if err != nil {
-		return
+		return nil, nil, err
 	}
-	if result.Code >= 400 {
-		err = fmt.Errorf("%d: %s", result.Code, result.Message)
-		return
+	if result.Code >= http.StatusBadRequest {
+		return nil, nil, fmt.Errorf("%d: %s", result.Code, result.Message)
 	}
-	var str string
 	if result.Raw != nil {
 		err = json.Unmarshal(result.Raw, &output)
-		return
+		if err != nil {
+			return nil, nil, fmt.Errorf("json error: %s", err.Error())
+		}
+
+		return output, result, nil
 	}
+	var str string
 	err = json.Unmarshal(result.Output, &str)
 	if err != nil {
-		return
+		return nil, nil, fmt.Errorf("json error: %s", err.Error())
 	}
 	err = json.Unmarshal([]byte(str), &output)
 	if err != nil {
-		return
+		return nil, nil, fmt.Errorf("json error: %s", err.Error())
 	}
-	return
+
+	return output, result, nil
 }
 
 // ExtractHTTPResponse returns the content of a HTTP request.
 func ExtractHTTPResponse(response *http.Response) (contents []byte, err error) {
 	contents, err = io.ReadAll(response.Body)
 	if err != nil {
-		return
+		return nil, fmt.Errorf("io error: %s", err.Error())
 	}
 
 	_, err = io.Copy(io.Discard, response.Body)
 	if err != nil {
-		return
+		return nil, fmt.Errorf("io error: %s", err.Error())
 	}
 
 	err = response.Body.Close()
 	if err != nil {
-		return
+		return nil, fmt.Errorf("io error: %s", err.Error())
 	}
 
 	if response.StatusCode == http.StatusOK {
-		return
+		return contents, nil
 	}
 
 	matched := reHTTPOMDError.FindStringSubmatch(string(contents))
 	if len(matched) > 1 {
-		err = &PeerError{msg: fmt.Sprintf("http request failed: %s - %s", response.Status, matched[1]), kind: ResponseError}
-		return
+		return nil, &PeerError{msg: fmt.Sprintf("http request failed: %s - %s", response.Status, matched[1]), kind: ResponseError}
 	}
 	matched = reHTTPThrukError.FindStringSubmatch(string(contents))
 	if len(matched) > 1 {
-		err = &PeerError{msg: fmt.Sprintf("http request failed: %s - %s", response.Status, matched[1]), kind: ResponseError}
-		return
+		return nil, &PeerError{msg: fmt.Sprintf("http request failed: %s - %s", response.Status, matched[1]), kind: ResponseError}
 	}
-	err = &PeerError{msg: fmt.Sprintf("http request failed: %s", response.Status), kind: ResponseError}
-	return
+
+	return nil, &PeerError{msg: fmt.Sprintf("http request failed: %s", response.Status), kind: ResponseError}
 }
 
 // PassThroughQuery runs a passthrough query on a single peer and appends the result
@@ -2169,7 +2286,8 @@ func (p *Peer) PassThroughQuery(res *Response, passthroughRequest *Request, virt
 	result, _, queryErr := p.query(passthroughRequest)
 	logWith(p, req).Tracef("req done")
 	if queryErr != nil {
-		if peerErr, ok := queryErr.(*PeerError); !ok || peerErr.kind != ResponseError {
+		var peerErr *PeerError
+		if !errors.As(queryErr, &peerErr) || peerErr.kind != ResponseError {
 			// connection issue, need to reset current connection
 			p.setNextAddrFromErr(queryErr, passthroughRequest)
 		}
@@ -2177,6 +2295,7 @@ func (p *Peer) PassThroughQuery(res *Response, passthroughRequest *Request, virt
 		res.Lock.Lock()
 		res.Failed[p.ID] = queryErr.Error()
 		res.Lock.Unlock()
+
 		return
 	}
 	// insert virtual values, like peer_addr or name
@@ -2237,6 +2356,7 @@ func (p *Peer) hasPeerState(states []PeerStatus) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -2248,6 +2368,7 @@ func (p *Peer) getError() string {
 			return errString.(string)
 		}
 	}
+
 	return fmt.Sprintf("%v", p.StatusGet(LastError))
 }
 
@@ -2261,8 +2382,10 @@ Rows:
 				continue Rows
 			}
 		}
+
 		return true
 	}
+
 	return false
 }
 
@@ -2275,6 +2398,7 @@ func createLocalStatsCopy(stats []*Filter) []*Filter {
 			localStats[i].Stats = -1
 		}
 	}
+
 	return localStats
 }
 
@@ -2299,26 +2423,26 @@ func (p *Peer) setBroken(details string) {
 	p.Lock.Unlock()
 }
 
-func logPanicExitPeer(p *Peer) {
-	r := recover()
-	if r == nil {
+func logPanicExitPeer(peer *Peer) {
+	details := recover()
+	if details == nil {
 		return
 	}
 
-	log := logWith(p, p.last.Request)
+	log := logWith(peer, peer.last.Request)
 	log.Errorf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-	log.Errorf("Panic:                 %s", r)
+	log.Errorf("Panic:                 %s", details)
 	log.Errorf("LMD Version:           %s", Version())
-	p.logPeerStatus(log.Errorf)
+	peer.logPeerStatus(log.Errorf)
 	log.Errorf("Stacktrace:\n%s", debug.Stack())
-	if p.last.Request != nil {
+	if peer.last.Request != nil {
 		log.Errorf("LastQuery:")
-		log.Errorf("%s", p.last.Request.String())
+		log.Errorf("%s", peer.last.Request.String())
 		log.Errorf("LastResponse:")
-		log.Errorf("%s", string(p.last.Response))
+		log.Errorf("%s", string(peer.last.Response))
 	}
 	logThreaddump()
-	deletePidFile(p.lmd.flags.flagPidfile)
+	deletePidFile(peer.lmd.flags.flagPidfile)
 	log.Errorf("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
 	os.Exit(1)
 }
@@ -2387,9 +2511,11 @@ func (p *Peer) SendCommandsWithRetry(ctx context.Context, commands []string) (er
 		switch status {
 		case PeerStatusDown:
 			logWith(ctx).Debugf("cannot send command, peer is down")
+
 			return fmt.Errorf("%s", p.StatusGet(LastError))
 		case PeerStatusBroken:
 			logWith(ctx).Debugf("cannot send command, peer is broken")
+
 			return fmt.Errorf("%s", p.StatusGet(LastError))
 		case PeerStatusWarning, PeerStatusPending:
 			// wait till we get either a up or down
@@ -2397,12 +2523,14 @@ func (p *Peer) SendCommandsWithRetry(ctx context.Context, commands []string) (er
 		case PeerStatusUp, PeerStatusSyncing:
 			err = p.SendCommands(ctx, commands)
 			if err == nil {
-				return
+				return nil
 			}
-			switch err := err.(type) {
-			case *PeerError:
+			var peerErr *PeerError
+			var peerCmdErr *PeerCommandError
+			switch {
+			case errors.As(err, &peerErr):
 				// connection error, try again
-				if err.kind == ConnectionError {
+				if peerErr.kind == ConnectionError {
 					if retries > 0 {
 						/* this indicates a problem with the command itself:
 						   the peer is up, we send a command -> peer is down
@@ -2415,11 +2543,13 @@ func (p *Peer) SendCommandsWithRetry(ctx context.Context, commands []string) (er
 					}
 					retries++
 					time.Sleep(1 * time.Second)
+
 					continue
 				}
-			case *PeerCommandError:
+			case errors.As(err, &peerCmdErr):
 				return err
 			}
+
 			return fmt.Errorf("%s", p.StatusGet(LastError))
 		default:
 			logWith(ctx).Panicf("PeerStatus %v not implemented", status)
@@ -2436,12 +2566,13 @@ func (p *Peer) SendCommands(ctx context.Context, commands []string) (err error) 
 	p.setQueryOptions(commandRequest)
 	_, _, err = p.Query(commandRequest)
 	if err != nil {
-		switch err := err.(type) {
-		case *PeerCommandError:
-			logWith(ctx).Debugf("sending command failed (invalid query) - %d: %s", err.code, err.Error())
-		default:
+		var peerCmdErr *PeerCommandError
+		if errors.As(err, &peerCmdErr) {
+			logWith(ctx).Debugf("sending command failed (invalid query) - %d: %s", peerCmdErr.code, peerCmdErr.Error())
+		} else {
 			logWith(ctx).Warnf("sending command failed: %s", err.Error())
 		}
+
 		return
 	}
 	logWith(ctx).Infof("send %d commands successfully.", len(commands))
@@ -2469,11 +2600,13 @@ func (p *Peer) setFederationInfo(data map[string]interface{}, statuskey PeerStat
 				list = append(list, s)
 			}
 			p.Status[statuskey] = list
+
 			return
 		}
 	}
 	if v, ok := data[datakey].(string); ok {
 		p.Status[statuskey] = []string{v}
+
 		return
 	}
 	p.Status[statuskey] = []string{}
@@ -2485,6 +2618,7 @@ func (p *Peer) HasFlag(flag OptionalFlags) bool {
 		return true
 	}
 	f := OptionalFlags(atomic.LoadUint32(&p.Flags))
+
 	return f.HasFlag(flag)
 }
 
@@ -2519,26 +2653,26 @@ func (p *Peer) GetDataStore(tableName TableName) (store *DataStore, err error) {
 	if table.Virtual != nil {
 		store = table.Virtual(table, p)
 		if store == nil {
-			err = fmt.Errorf("peer is down: %s", p.getError())
-			return
+			return nil, fmt.Errorf("peer is down: %s", p.getError())
 		}
-		return
+
+		return store, nil
 	}
 	data, err := p.GetDataStoreSet()
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	store = data.Get(tableName)
 	if store != nil {
-		return
+		return store, nil
 	}
-	err = fmt.Errorf("peer is down: %s", p.getError())
-	return
+
+	return nil, fmt.Errorf("peer is down: %s", p.getError())
 }
 
 // GetSupportedColumns returns a list of supported columns
-func (p *Peer) GetSupportedColumns() (tables map[TableName]map[string]bool, err error) {
+func (p *Peer) GetSupportedColumns() (tables map[TableName]map[string]bool) {
 	req := &Request{
 		Table:   TableColumns,
 		Columns: []string{"table", "name"},
@@ -2547,11 +2681,12 @@ func (p *Peer) GetSupportedColumns() (tables map[TableName]map[string]bool, err 
 	res, _, err := p.query(req) // skip default error handling here
 	if err != nil {
 		if strings.Contains(err.Error(), "Table 'columns' does not exist") {
-			return tables, nil
+			return tables
 		}
 		// not a fatal error, we can assume safe defaults
 		logWith(p, req).Warnf("fetching available columns failed: %w", err)
-		return tables, nil
+
+		return tables
 	}
 	tables = make(map[TableName]map[string]bool)
 	for _, row := range res {
@@ -2566,7 +2701,8 @@ func (p *Peer) GetSupportedColumns() (tables map[TableName]map[string]bool, err 
 		}
 		tables[tableName][column] = true
 	}
-	return
+
+	return tables
 }
 
 // setQueryOptions sets common required query options
@@ -2589,6 +2725,7 @@ func (p *Peer) GetDataStoreSet() (data *DataStoreSet, err error) {
 	if data == nil {
 		err = fmt.Errorf("peer is down: %s", p.getError())
 	}
+
 	return
 }
 
@@ -2631,6 +2768,7 @@ func (p *Peer) ResumeFromIdle() (err error) {
 		// force new update sooner
 		p.StatusSet(LastUpdate, currentUnixTime()-float64(p.lmd.Config.Updateinterval))
 	}
+
 	return
 }
 
@@ -2655,6 +2793,7 @@ func (p *Peer) requestLocaltime() (err error) {
 	if err != nil {
 		p.setNextAddrFromErr(err, req)
 	}
+
 	return
 }
 
@@ -2670,6 +2809,7 @@ func (p *Peer) CheckLocaltime(unix float64) (err error) {
 	if p.lmd.Config.MaxClockDelta > 0 && math.Abs(diff.Seconds()) > p.lmd.Config.MaxClockDelta {
 		return fmt.Errorf("clock error, peer is off by %s (threshold: %vs)", diff.Truncate(time.Millisecond).String(), p.lmd.Config.MaxClockDelta)
 	}
+
 	return
 }
 
@@ -2683,21 +2823,21 @@ func (p *Peer) LogErrors(v ...interface{}) {
 
 func (p *Peer) CheckBackendRestarted(primaryKeysLen int, res ResultSet, columns ColumnList) (err error) {
 	if p.HasFlag(MultiBackend) {
-		return
+		return nil
 	}
 	if len(res) != 1 {
-		return
+		return nil
 	}
 
 	corePid := p.StatusGet(LastPid).(int)
 
 	// not yet started completely
 	if p.ProgramStart == 0 || corePid == 0 {
-		return
+		return nil
 	}
 
 	if len(res[0]) != len(columns)+primaryKeysLen {
-		return
+		return nil
 	}
 
 	newProgramStart := int64(0)
@@ -2717,13 +2857,15 @@ func (p *Peer) CheckBackendRestarted(primaryKeysLen int, res ResultSet, columns 
 			logWith(p).Infof("%s", err.Error())
 			p.ErrorLogged = true
 		}
+
 		return &PeerError{msg: err.Error(), kind: RestartRequiredError}
 	}
-	return
+
+	return nil
 }
 
 // addSubPeer adds new/existing lmd/http sub federated peer
-func (p *Peer) addSubPeer(subFlag OptionalFlags, key string, subName string, data map[string]interface{}) (subID string) {
+func (p *Peer) addSubPeer(subFlag OptionalFlags, key, subName string, data map[string]interface{}) (subID string) {
 	subID = key
 	subPeer, ok := p.lmd.PeerMap[subID]
 	duplicate := ""
@@ -2734,20 +2876,20 @@ func (p *Peer) addSubPeer(subFlag OptionalFlags, key string, subName string, dat
 			subPeer.Lock.Lock()
 			subPeer.Status[SubPeerStatus] = data
 			subPeer.Lock.Unlock()
-			return
+
+			return subID
 		}
 
 		// create dummy peer which is disabled and only shows this error
 		duplicate = fmt.Sprintf("federate site %s/%s id clash %s already taken", p.Name, subName, subID)
 		subID += "dup"
-		_, ok = p.lmd.PeerMap[subID]
-		if ok {
-			return
+		if _, ok := p.lmd.PeerMap[subID]; ok {
+			return subID
 		}
 	}
 
 	logWith(p).Debugf("starting sub peer for %s, id: %s", subName, subID)
-	c := Connection{
+	conn := Connection{
 		ID:             subID,
 		Name:           subName,
 		Source:         p.Source,
@@ -2758,7 +2900,7 @@ func (p *Peer) addSubPeer(subFlag OptionalFlags, key string, subName string, dat
 		TLSSkipVerify:  p.Config.TLSSkipVerify,
 		Auth:           p.Config.Auth,
 	}
-	subPeer = NewPeer(p.lmd, &c)
+	subPeer = NewPeer(p.lmd, &conn)
 	subPeer.ParentID = p.ID
 	subPeer.SetFlag(subFlag)
 	subPeer.Status[PeerParent] = p.ID
@@ -2794,7 +2936,7 @@ func (p *Peer) addSubPeer(subFlag OptionalFlags, key string, subName string, dat
 	subPeer.Status[Section] = section
 
 	p.lmd.PeerMap[subID] = subPeer
-	p.lmd.PeerMapOrder = append(p.lmd.PeerMapOrder, c.ID)
+	p.lmd.PeerMapOrder = append(p.lmd.PeerMapOrder, conn.ID)
 	p.lmd.nodeAccessor.assignedBackends = append(p.lmd.nodeAccessor.assignedBackends, subID)
 
 	if !p.StatusGet(Paused).(bool) {
@@ -2804,7 +2946,8 @@ func (p *Peer) addSubPeer(subFlag OptionalFlags, key string, subName string, dat
 		subPeer.Stop()
 		subPeer.setBroken(duplicate)
 	}
-	return
+
+	return subID
 }
 
 // trace log http request

@@ -92,7 +92,8 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 			d.DynamicColumnNamesCache = append(d.DynamicColumnNamesCache, col.Name)
 		}
 	}
-	return
+
+	return d
 }
 
 // InsertData adds a list of results and initializes the store table
@@ -116,16 +117,18 @@ func (d *DataStore) InsertData(rows ResultSet, columns ColumnList, setReferences
 	}
 
 	d.Data = make([]*DataRow, len(rows))
-	for i, raw := range rows {
+	for idx, raw := range rows {
 		row, err := NewDataRow(d, raw, columns, now, setReferences)
 		if err != nil {
 			log.Errorf("adding new %s failed: %s", d.Table.Name.String(), err.Error())
+
 			return err
 		}
-		d.InsertItem(i, row)
+		d.InsertItem(idx, row)
 	}
 	// only required during initial setup
 	d.dupStringList = nil
+
 	return nil
 }
 
@@ -147,6 +150,7 @@ func (d *DataStore) AppendData(data ResultSet, columns ColumnList) error {
 		}
 		d.AddItem(row)
 	}
+
 	return nil
 }
 
@@ -198,6 +202,7 @@ func (d *DataStore) RemoveItem(row *DataRow) {
 	for i := range d.Data {
 		if d.Data[i] == row {
 			d.Data = append(d.Data[:i], d.Data[i+1:]...)
+
 			return
 		}
 	}
@@ -210,9 +215,11 @@ func (d *DataStore) SetReferences() (err error) {
 		err = row.SetReferences()
 		if err != nil {
 			logWith(d).Debugf("setting references on table %s failed: %s", d.Table.Name.String(), err.Error())
+
 			return
 		}
 	}
+
 	return
 }
 
@@ -239,6 +246,7 @@ func (d *DataStore) GetInitialColumns() ([]string, ColumnList) {
 		columns = append(columns, col)
 		keys = append(keys, col.Name)
 	}
+
 	return keys, columns
 }
 
@@ -246,9 +254,12 @@ func (d *DataStore) GetWaitObject(req *Request) (*DataRow, bool) {
 	if req.Table == TableServices {
 		parts := strings.SplitN(req.WaitObject, ";", 2)
 		obj, ok := d.Index2[parts[0]][parts[1]]
+
 		return obj, ok
 	}
+
 	obj, ok := d.Index[req.WaitObject]
+
 	return obj, ok
 }
 
@@ -259,12 +270,16 @@ func (d *DataStore) GetPreFilteredData(filter []*Filter) []*DataRow {
 	if len(filter) == 0 {
 		return d.Data
 	}
+
 	switch d.Table.Name {
 	case TableHosts:
 		return (d.tryFilterIndexData(filter, appendIndexHostsFromHostColumns))
 	case TableServices:
 		return (d.tryFilterIndexData(filter, appendIndexHostsFromServiceColumns))
+	default:
+		// only hosts and services are supported
 	}
+
 	return d.Data
 }
 
@@ -307,8 +322,11 @@ func (d *DataStore) tryFilterIndexData(filter []*Filter, fn getPreFilteredDataFi
 				}
 			}
 		}
+	default:
+		// only hosts/services are supported
 	}
 	log.Tracef("using indexed %s dataset of size: %d", d.Table.Name.String(), len(indexedData))
+
 	return indexedData
 }
 
@@ -316,8 +334,8 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 	updateSet = make([]*ResultPrepared, 0, len(res))
 
 	// compare last check date and only update large strings if the last check date has changed
-	lastCheckDataIndex, lastCheckResIndex := d.getUpdateColumn("last_check", dataOffset)
-	lastUpdateDataIndex, lastUpdateResIndex := d.getUpdateColumn("last_update", dataOffset)
+	lastCheckDataIdx, lastCheckResIdx := d.getUpdateColumn("last_check", dataOffset)
+	lastUpdateDataIdx, lastUpdateResIdx := d.getUpdateColumn("last_update", dataOffset)
 
 	useIndex := dataOffset == 0 || len(res) == len(d.Data)
 
@@ -326,12 +344,12 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 	nameIndex2 := d.Index2
 	for rowNum := range res {
 		resRow := res[rowNum]
-		prepared := &ResultPrepared{
+		prep := &ResultPrepared{
 			ResultRow:  resRow,
 			FullUpdate: false,
 		}
 		if useIndex {
-			prepared.DataRow = d.Data[rowNum]
+			prep.DataRow = d.Data[rowNum]
 		} else {
 			switch d.Table.Name {
 			case TableHosts:
@@ -340,54 +358,60 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 				if dataRow == nil {
 					return updateSet, fmt.Errorf("cannot update host, no host named '%s' found", hostName)
 				}
-				prepared.DataRow = dataRow
+				prep.DataRow = dataRow
 			case TableServices:
 				hostName := interface2stringNoDedup(resRow[0])
 				serviceName := interface2stringNoDedup(resRow[1])
 				dataRow := nameIndex2[hostName][serviceName]
 				if dataRow == nil {
-					return updateSet, fmt.Errorf("cannot update service, no service named '%s' - '%s' found", interface2stringNoDedup(resRow[0]), interface2stringNoDedup(resRow[1]))
+					return updateSet, fmt.Errorf("cannot update service, no service named '%s' - '%s' found",
+						interface2stringNoDedup(resRow[0]), interface2stringNoDedup(resRow[1]))
 				}
 
-				prepared.DataRow = dataRow
+				prep.DataRow = dataRow
 			default:
 				log.Panicf("table not supported: %s", d.Table.Name.String())
 			}
 		}
 
 		switch {
-		case lastUpdateResIndex != -1 && lastCheckResIndex != -1:
-			// check both, last_check and last_update to catch up very fast checks which finish within the same second
-			if interface2int64(resRow[lastUpdateResIndex]) == prepared.DataRow.dataInt64[lastUpdateDataIndex] && interface2int64(resRow[lastCheckResIndex]) == prepared.DataRow.dataInt64[lastCheckDataIndex] {
+		case lastUpdateResIdx != -1 && lastCheckResIdx != -1:
+			switch {
+			case interface2int64(resRow[lastUpdateResIdx]) != prep.DataRow.dataInt64[lastUpdateDataIdx]:
+				// last_update has changed -> always do a full update
+				prep.FullUpdate = true
+			case interface2int64(resRow[lastCheckResIdx]) != prep.DataRow.dataInt64[lastCheckDataIdx]:
+				// last_check has changed -> always do a full update
+				prep.FullUpdate = true
+			default:
+				// check both, last_check and last_update to catch up very fast checks which finish within the same second
 				continue
 			}
-
-			// last_update has changed -> always do a full update
-			prepared.FullUpdate = true
-		case lastUpdateResIndex != -1:
-			if interface2int64(resRow[lastUpdateResIndex]) == prepared.DataRow.dataInt64[lastUpdateDataIndex] {
+		case lastUpdateResIdx != -1:
+			if interface2int64(resRow[lastUpdateResIdx]) == prep.DataRow.dataInt64[lastUpdateDataIdx] {
 				// if there is only a last_update column, we simply trust the core if an update is required
 				// skip update completely
 				continue
 			}
 			// last_update has changed -> always do a full update
-			prepared.FullUpdate = true
-		case lastCheckResIndex == -1:
+			prep.FullUpdate = true
+		case lastCheckResIdx == -1:
 			// no last_check column and no last_update -> always do a full update
-			prepared.FullUpdate = true
-		case interface2int64(resRow[lastCheckResIndex]) != prepared.DataRow.dataInt64[lastCheckDataIndex]:
+			prep.FullUpdate = true
+		case interface2int64(resRow[lastCheckResIdx]) != prep.DataRow.dataInt64[lastCheckDataIdx]:
 			// compare last check date and do a full update only if last check has changed
-			prepared.FullUpdate = true
+			prep.FullUpdate = true
 		}
 
 		// prepare deduped strings if required
-		if prepared.FullUpdate {
+		if prep.FullUpdate {
 			for i, col := range columns {
 				res[rowNum][i+dataOffset] = cast2Type(res[rowNum][i+dataOffset], col)
 			}
 		}
-		updateSet = append(updateSet, prepared)
+		updateSet = append(updateSet, prep)
 	}
+
 	return updateSet, nil
 }
 
@@ -400,7 +424,8 @@ func (d *DataStore) getUpdateColumn(columnName string, dataOffset int) (dataInde
 		dataIndex = checkCol.Index
 		resIndex = d.DynamicColumnCache.GetColumnIndex(columnName) + dataOffset
 		if checkCol.DataType != Int64Col {
-			log.Panicf("%s: assumption about column type for %s is wrong, expected %s and got %s", d.Table.Name.String(), checkCol.Name, Int64Col.String(), checkCol.DataType.String())
+			log.Panicf("%s: assumption about column type for %s is wrong, expected %s and got %s",
+				d.Table.Name.String(), checkCol.Name, Int64Col.String(), checkCol.DataType.String())
 		}
 	}
 
@@ -408,29 +433,29 @@ func (d *DataStore) getUpdateColumn(columnName string, dataOffset int) (dataInde
 }
 
 // TryFilterIndex returns list of hostname which can be used to reduce the initial dataset
-func (d *DataStore) TryFilterIndex(uniqHosts map[string]bool, filter []*Filter, fn getPreFilteredDataFilter, breakOnNoneIndexableFilter bool) bool {
+func (d *DataStore) TryFilterIndex(uniqHosts map[string]bool, filter []*Filter, filterCb getPreFilteredDataFilter, breakOnNoneIndexableFilter bool) bool {
 	filterFound := 0
-	for _, f := range filter {
-		if f.Negate {
+	for _, fil := range filter {
+		if fil.Negate {
 			// not supported
 			return false
 		}
 
-		switch f.GroupOperator {
+		switch fil.GroupOperator {
 		case And:
-			ok := d.TryFilterIndex(uniqHosts, f.Filter, fn, false)
+			ok := d.TryFilterIndex(uniqHosts, fil.Filter, filterCb, false)
 			if !ok {
 				return false
 			}
 			filterFound++
 		case Or:
-			ok := d.TryFilterIndex(uniqHosts, f.Filter, fn, true)
+			ok := d.TryFilterIndex(uniqHosts, fil.Filter, filterCb, true)
 			if !ok {
 				return false
 			}
 			filterFound++
 		default:
-			if fn(d, uniqHosts, f) {
+			if filterCb(d, uniqHosts, fil) {
 				filterFound++
 			} else if breakOnNoneIndexableFilter {
 				return false
@@ -442,129 +467,153 @@ func (d *DataStore) TryFilterIndex(uniqHosts map[string]bool, filter []*Filter, 
 	return filterFound > 0
 }
 
-func appendIndexHostsFromHostColumns(d *DataStore, uniqHosts map[string]bool, f *Filter) bool {
+func appendIndexHostsFromHostColumns(dStore *DataStore, uniqHosts map[string]bool, fil *Filter) bool {
 	// trim lower case columns prefix, they are used internally only
-	colName := strings.TrimSuffix(f.Column.Name, "_lc")
+	colName := strings.TrimSuffix(fil.Column.Name, "_lc")
 	switch colName {
 	case "name":
 		// name == <value>
-		if f.Operator == Equal {
-			uniqHosts[f.StrValue] = true
+		if fil.Operator == Equal {
+			uniqHosts[fil.StrValue] = true
+
 			return true
 		}
 	case "groups":
 		// get hosts from host groups members
-		switch f.Operator {
+		switch fil.Operator {
 		// groups >= <value>
 		case GreaterThan:
-			store := d.DataSet.tables[TableHostgroups]
-			group, ok := store.Index[f.StrValue]
+			store := dStore.DataSet.tables[TableHostgroups]
+			group, ok := store.Index[fil.StrValue]
 			if ok {
 				members := group.GetStringListByName("members")
 				for _, m := range members {
 					uniqHosts[m] = true
 				}
 			}
+
 			return true
 		case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase:
-			store := d.DataSet.tables[TableHostgroups]
+			store := dStore.DataSet.tables[TableHostgroups]
 			for groupname, group := range store.Index {
-				if f.MatchString(strings.ToLower(groupname)) {
+				if fil.MatchString(strings.ToLower(groupname)) {
 					members := group.GetStringListByName("members")
 					for _, m := range members {
 						uniqHosts[m] = true
 					}
 				}
 			}
+
 			return true
+		default:
+			// other operator are not supported
 		}
 	}
+
 	return false
 }
 
-func appendIndexHostsFromServiceColumns(d *DataStore, uniqHosts map[string]bool, f *Filter) bool {
+func appendIndexHostsFromServiceColumns(dStore *DataStore, uniqHosts map[string]bool, fil *Filter) bool {
 	// trim lower case columns prefix, they are used internally only
-	switch f.Column.Name {
+	switch fil.Column.Name {
 	case "host_name":
-		switch f.Operator {
+		switch fil.Operator {
 		// host_name == <value>
 		case Equal:
-			uniqHosts[f.StrValue] = true
+			uniqHosts[fil.StrValue] = true
+
 			return true
 		// host_name ~ <value>
 		case RegexMatch, Contains:
-			store := d.DataSet.tables[TableHosts]
+			store := dStore.DataSet.tables[TableHosts]
 			for hostname := range store.Index {
-				if f.MatchString(hostname) {
+				if fil.MatchString(hostname) {
 					uniqHosts[hostname] = true
 				}
 			}
+
 			return true
+		default:
+			// other operators are not supported
 		}
 	case "host_name_lc":
-		switch f.Operator {
+		switch fil.Operator {
 		// host_name ~~ <value>
 		case RegexMatch, Contains, RegexNoCaseMatch, ContainsNoCase, EqualNocase:
-			store := d.DataSet.tables[TableHosts]
+			store := dStore.DataSet.tables[TableHosts]
 			for hostname := range store.Index {
-				if f.MatchString(strings.ToLower(hostname)) {
+				if fil.MatchString(strings.ToLower(hostname)) {
 					uniqHosts[hostname] = true
 				}
 			}
+
 			return true
+		default:
+			// other operators are not supported
 		}
 	case "host_groups":
 		// get hosts from host groups members
-		switch f.Operator {
+		switch fil.Operator {
 		// groups >= <value>
 		case GreaterThan:
-			store := d.DataSet.tables[TableHostgroups]
-			group, ok := store.Index[f.StrValue]
+			store := dStore.DataSet.tables[TableHostgroups]
+			group, ok := store.Index[fil.StrValue]
 			if ok {
 				members := group.GetStringListByName("members")
 				for _, m := range members {
 					uniqHosts[m] = true
 				}
 			}
+
 			return true
 		case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase:
-			store := d.DataSet.tables[TableHostgroups]
+			store := dStore.DataSet.tables[TableHostgroups]
 			for groupname, group := range store.Index {
-				if f.MatchString(strings.ToLower(groupname)) {
+				if fil.MatchString(strings.ToLower(groupname)) {
 					members := group.GetStringListByName("members")
 					for _, m := range members {
 						uniqHosts[m] = true
 					}
 				}
 			}
+
 			return true
+		default:
+			// other operators are not supported
 		}
 	case "groups":
 		// get hosts from services groups members
-		switch f.Operator {
+		switch fil.Operator {
 		// groups >= <value>
 		case GreaterThan:
-			store := d.DataSet.tables[TableServicegroups]
-			group, ok := store.Index[f.StrValue]
+			store := dStore.DataSet.tables[TableServicegroups]
+			group, ok := store.Index[fil.StrValue]
 			if ok {
 				members := group.GetServiceMemberListByName("members")
 				for i := range members {
 					uniqHosts[members[i][0]] = true
 				}
 			}
+
 			return true
 		case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase:
-			store := d.DataSet.tables[TableServicegroups]
+			store := dStore.DataSet.tables[TableServicegroups]
 			for groupname, group := range store.Index {
-				if f.MatchString(groupname) {
+				if fil.MatchString(groupname) {
 					members := group.GetServiceMemberListByName("members")
 					for i := range members {
 						uniqHosts[members[i][0]] = true
 					}
 				}
 			}
+
 			return true
+		default:
+			// other operators are not supported
 		}
+	default:
+		// other columns are not supported
 	}
+
 	return false
 }

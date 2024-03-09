@@ -15,12 +15,12 @@ type HTTPServerController struct {
 	lmd *LMDInstance
 }
 
-func (c *HTTPServerController) errorOutput(err error, w http.ResponseWriter) {
+func (c *HTTPServerController) errorOutput(err error, wrt http.ResponseWriter) {
 	j := make(map[string]interface{})
 	j["error"] = err.Error()
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusBadRequest)
-	err = json.NewEncoder(w).Encode(j)
+	wrt.Header().Set("Content-Type", "application/json")
+	wrt.WriteHeader(http.StatusBadRequest)
+	err = json.NewEncoder(wrt).Encode(j)
 	if err != nil {
 		log.Debugf("encoder failed: %e", err)
 	}
@@ -30,27 +30,30 @@ func (c *HTTPServerController) index(w http.ResponseWriter, _ *http.Request, _ h
 	fmt.Fprintf(w, "LMD %s\n", VERSION)
 }
 
-func (c *HTTPServerController) queryTable(ctx context.Context, w http.ResponseWriter, requestData map[string]interface{}) {
-	w.Header().Set("Content-Type", "application/json")
+func (c *HTTPServerController) queryTable(ctx context.Context, wrt http.ResponseWriter, requestData map[string]interface{}) {
+	wrt.Header().Set("Content-Type", "application/json")
 
 	// Requested table (name)
 	_, err := NewTableName(interface2stringNoDedup(requestData["table"]))
 	// Check if table exists
 	if err != nil {
-		c.errorOutput(err, w)
+		c.errorOutput(err, wrt)
+
 		return
 	}
 
 	req, err := parseRequestDataToRequest(requestData)
 	if err != nil {
-		c.errorOutput(err, w)
+		c.errorOutput(err, wrt)
+
 		return
 	}
 
 	// Fetch backend data
 	err = req.ExpandRequestedBackends()
 	if err != nil {
-		c.errorOutput(err, w)
+		c.errorOutput(err, wrt)
+
 		return
 	}
 
@@ -63,69 +66,73 @@ func (c *HTTPServerController) queryTable(ctx context.Context, w http.ResponseWr
 		res, err = req.BuildResponse(ctx)
 	}
 	if err != nil {
-		c.errorOutput(err, w)
+		c.errorOutput(err, wrt)
+
 		return
 	}
 
 	// Send JSON
 	buf, err := res.Buffer()
 	if err != nil {
-		c.errorOutput(err, w)
+		c.errorOutput(err, wrt)
+
 		return
 	}
-	_, err = buf.WriteTo(w)
+	_, err = buf.WriteTo(wrt)
 	if err != nil {
 		log.Debugf("writeto failed: %e", err)
 	}
 }
 
-func (c *HTTPServerController) table(w http.ResponseWriter, request *http.Request, ps httprouter.Params) {
+func (c *HTTPServerController) table(wrt http.ResponseWriter, request *http.Request, params httprouter.Params) {
 	// Read request data
 	requestData := make(map[string]interface{})
 	defer request.Body.Close()
 	decoder := json.NewDecoder(request.Body)
 	if err := decoder.Decode(&requestData); err != nil {
-		c.errorOutput(fmt.Errorf("request not understood"), w)
+		c.errorOutput(fmt.Errorf("request not understood"), wrt)
+
 		return
 	}
 
 	// Use table name defined in rest request
-	if tableName := ps.ByName("name"); tableName != "" {
+	if tableName := params.ByName("name"); tableName != "" {
 		requestData["table"] = tableName
 	}
 
-	c.queryTable(request.Context(), w, requestData)
+	c.queryTable(request.Context(), wrt, requestData)
 }
 
-func (c *HTTPServerController) ping(w http.ResponseWriter, request *http.Request, _ httprouter.Params) {
+func (c *HTTPServerController) ping(wrt http.ResponseWriter, request *http.Request, _ httprouter.Params) {
 	// Read request data
 	requestData := make(map[string]interface{})
 	defer request.Body.Close()
 	decoder := json.NewDecoder(request.Body)
 	if err := decoder.Decode(&requestData); err != nil {
-		c.errorOutput(fmt.Errorf("request not understood"), w)
+		c.errorOutput(fmt.Errorf("request not understood"), wrt)
+
 		return
 	}
-	c.queryPing(w, requestData)
+	c.queryPing(wrt, requestData)
 }
 
-func (c *HTTPServerController) queryPing(w http.ResponseWriter, _ map[string]interface{}) {
+func (c *HTTPServerController) queryPing(wrt http.ResponseWriter, _ map[string]interface{}) {
 	// Response data
-	w.Header().Set("Content-Type", "application/json")
+	wrt.Header().Set("Content-Type", "application/json")
 	id := c.lmd.nodeAccessor.ID
-	j := make(map[string]interface{})
-	j["identifier"] = id
-	j["peers"] = c.lmd.nodeAccessor.assignedBackends
-	j["version"] = Version()
+	jsonData := make(map[string]interface{})
+	jsonData["identifier"] = id
+	jsonData["peers"] = c.lmd.nodeAccessor.assignedBackends
+	jsonData["version"] = Version()
 
 	// Send data
-	err := json.NewEncoder(w).Encode(j)
+	err := json.NewEncoder(wrt).Encode(jsonData)
 	if err != nil {
 		log.Debugf("sending ping result failed: %e", err)
 	}
 }
 
-func (c *HTTPServerController) query(w http.ResponseWriter, request *http.Request, _ httprouter.Params) {
+func (c *HTTPServerController) query(wrt http.ResponseWriter, request *http.Request, _ httprouter.Params) {
 	// Read request data
 	contentType := request.Header.Get("Content-Type")
 	requestData := make(map[string]interface{})
@@ -134,7 +141,8 @@ func (c *HTTPServerController) query(w http.ResponseWriter, request *http.Reques
 		decoder := json.NewDecoder(request.Body)
 		err := decoder.Decode(&requestData)
 		if err != nil {
-			c.errorOutput(fmt.Errorf("request not understood"), w)
+			c.errorOutput(fmt.Errorf("request not understood"), wrt)
+
 			return
 		}
 	}
@@ -144,11 +152,11 @@ func (c *HTTPServerController) query(w http.ResponseWriter, request *http.Reques
 
 	switch requestedFunction {
 	case "ping":
-		c.queryPing(w, requestData)
+		c.queryPing(wrt, requestData)
 	case "table":
-		c.queryTable(request.Context(), w, requestData)
+		c.queryTable(request.Context(), wrt, requestData)
 	default:
-		c.errorOutput(fmt.Errorf("unknown request: %s", requestedFunction), w)
+		c.errorOutput(fmt.Errorf("unknown request: %s", requestedFunction), wrt)
 	}
 }
 
@@ -157,7 +165,7 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 	req = &Request{}
 	table, err := NewTableName(interface2stringNoDedup(requestData["table"]))
 	if err != nil {
-		return
+		return nil, err
 	}
 	req.Table = table
 
@@ -238,7 +246,8 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 		}
 	}
 	req.Backends = backends
-	return
+
+	return req, nil
 }
 
 func parseHTTPFilterRequestData(req *Request, val interface{}, prefix string) (err error) {
@@ -265,6 +274,7 @@ func parseHTTPFilterRequestData(req *Request, val interface{}, prefix string) (e
 			return err
 		}
 	}
+
 	return
 }
 
@@ -284,5 +294,6 @@ func initializeHTTPRouter(lmd *LMDInstance) (handler http.Handler) {
 	router.POST("/query", controller.query)
 
 	handler = router
+
 	return
 }

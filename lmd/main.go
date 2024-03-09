@@ -124,6 +124,7 @@ func (c ConnectionType) String() string {
 		return "http"
 	}
 	log.Panicf("not implemented: %#v", c)
+
 	return ""
 }
 
@@ -174,6 +175,7 @@ func (i *arrayFlags) String() string {
 
 func (i *arrayFlags) Set(value string) error {
 	i.list = append(i.list, value)
+
 	return nil
 }
 
@@ -206,6 +208,7 @@ func NewLMDInstance() (lmd *LMDInstance) {
 		shutdownChannel:          make(chan bool),
 		defaultReqestParseOption: ParseOptimize,
 	}
+
 	return
 }
 
@@ -240,7 +243,7 @@ func main() {
 
 	if lmd.flags.flagExport != "" {
 		lmd.mainExport()
-		os.Exit(0)
+		os.Exit(0) //nolint:gocritic // ok, this defer is only relevant for panics
 	}
 
 	for {
@@ -349,6 +352,7 @@ func buildSignalChannel() chan os.Signal {
 	signal.Notify(osSignalChannel, syscall.SIGTERM)
 	signal.Notify(osSignalChannel, os.Interrupt)
 	signal.Notify(osSignalChannel, syscall.SIGINT)
+
 	return osSignalChannel
 }
 
@@ -402,17 +406,18 @@ func (lmd *LMDInstance) initializeListeners(qStat *QueryStats) {
 
 	// close all listeners which are no longer defined
 	lmd.ListenersLock.Lock()
-	for con, l := range lmd.Listeners {
+	for con, listen := range lmd.Listeners {
 		found := false
 		for _, listen := range lmd.Config.Listen {
 			if listen == con {
 				found = true
+
 				break
 			}
 		}
 		if !found {
 			delete(lmd.Listeners, con)
-			l.Stop()
+			listen.Stop()
 		}
 	}
 
@@ -440,23 +445,24 @@ func (lmd *LMDInstance) initializePeers() {
 			continue
 		}
 		nodeListenAddress = listen
+
 		break
 	}
 
 	// Get rid of obsolete peers (removed from config)
 	lmd.PeerMapLock.Lock()
-	for id := range lmd.PeerMap {
+	for peerKey := range lmd.PeerMap {
 		found := false // id exists
 		for i := range lmd.Config.Connections {
-			if lmd.Config.Connections[i].ID == id {
+			if lmd.Config.Connections[i].ID == peerKey {
 				found = true
 			}
 		}
 		if !found {
-			p := lmd.PeerMap[id]
+			p := lmd.PeerMap[peerKey]
 			p.Stop()
 			p.ClearData(true)
-			lmd.PeerMapRemove(id)
+			lmd.PeerMapRemove(peerKey)
 		}
 	}
 	lmd.PeerMapLock.Unlock()
@@ -466,38 +472,38 @@ func (lmd *LMDInstance) initializePeers() {
 	PeerMapOrderNew := make([]string, 0)
 	backends := make([]string, 0, len(lmd.Config.Connections))
 	for i := range lmd.Config.Connections {
-		c := lmd.Config.Connections[i]
+		conn := lmd.Config.Connections[i]
 		// Keep peer if connection settings unchanged
-		var p *Peer
+		var peer *Peer
 		lmd.PeerMapLock.RLock()
-		if v, ok := lmd.PeerMap[c.ID]; ok {
-			if c.Equals(v.Config) {
-				p = v
-				p.Lock.Lock()
-				p.waitGroup = lmd.waitGroupPeers
-				p.shutdownChannel = lmd.shutdownChannel
-				p.SetHTTPClient()
-				p.Lock.Unlock()
+		if v, ok := lmd.PeerMap[conn.ID]; ok {
+			if conn.Equals(v.Config) {
+				peer = v
+				peer.Lock.Lock()
+				peer.waitGroup = lmd.waitGroupPeers
+				peer.shutdownChannel = lmd.shutdownChannel
+				peer.SetHTTPClient()
+				peer.Lock.Unlock()
 			}
 		}
 		lmd.PeerMapLock.RUnlock()
 
 		// Create new peer otherwise
-		if p == nil {
-			p = NewPeer(lmd, &c)
+		if peer == nil {
+			peer = NewPeer(lmd, &conn)
 		}
 
 		// Check for duplicate id
 		for _, b := range backends {
-			if b == c.ID {
-				log.Fatalf("Duplicate id in connection list: %s", c.ID)
+			if b == conn.ID {
+				log.Fatalf("Duplicate id in connection list: %s", conn.ID)
 			}
 		}
-		backends = append(backends, c.ID)
+		backends = append(backends, conn.ID)
 
 		// Put new or modified peer in map
-		PeerMapNew[c.ID] = p
-		PeerMapOrderNew = append(PeerMapOrderNew, c.ID)
+		PeerMapNew[conn.ID] = peer
+		PeerMapOrderNew = append(PeerMapOrderNew, conn.ID)
 		// Peer started later in node redistribution routine
 	}
 
@@ -516,13 +522,13 @@ func (lmd *LMDInstance) initializePeers() {
 func (lmd *LMDInstance) checkFlags() {
 	flag.Parse()
 	if lmd.flags.flagVersion {
-		fmt.Printf("%s - version %s\n", NAME, Version())
+		fmt.Fprintf(os.Stdout, "%s - version %s\n", NAME, Version())
 		os.Exit(ExitCritical)
 	}
 
 	if lmd.flags.flagProfile != "" {
 		if lmd.flags.flagCPUProfile != "" || lmd.flags.flagMemProfile != "" {
-			fmt.Print("ERROR: either use -debug-profile or -cpu/memprofile, not both\n")
+			fmt.Fprintf(os.Stderr, "ERROR: either use -debug-profile or -cpu/memprofile, not both\n")
 			os.Exit(ExitCritical)
 		}
 		runtime.SetBlockProfileRate(BlockProfileRateInterval)
@@ -541,11 +547,11 @@ func (lmd *LMDInstance) checkFlags() {
 		runtime.SetBlockProfileRate(BlockProfileRateInterval)
 		cpuProfileHandler, err := os.Create(lmd.flags.flagCPUProfile)
 		if err != nil {
-			fmt.Printf("ERROR: could not create CPU profile: %s", err.Error())
+			fmt.Fprintf(os.Stderr, "ERROR: could not create CPU profile: %s", err.Error())
 			os.Exit(ExitCritical)
 		}
 		if err := pprof.StartCPUProfile(cpuProfileHandler); err != nil {
-			fmt.Printf("ERROR: could not start CPU profile: %s", err.Error())
+			fmt.Fprintf(os.Stderr, "ERROR: could not start CPU profile: %s", err.Error())
 			os.Exit(ExitCritical)
 		}
 		lmd.cpuProfileHandler = cpuProfileHandler
@@ -560,7 +566,7 @@ func (lmd *LMDInstance) checkFlags() {
 	}
 
 	if lmd.flags.flagImport != "" && lmd.flags.flagExport != "" {
-		fmt.Printf("ERROR: cannot use import and export at the same time.")
+		fmt.Fprintf(os.Stderr, "ERROR: cannot use import and export at the same time.")
 		os.Exit(ExitCritical)
 	}
 
@@ -612,7 +618,6 @@ func (lmd *LMDInstance) onExit(qStat *QueryStats) {
 	deletePidFile(lmd.flags.flagPidfile)
 	if qStat != nil {
 		close(qStat.In)
-		qStat = nil
 	}
 	if lmd.flags.flagCPUProfile != "" {
 		pprof.StopCPUProfile()
@@ -623,8 +628,8 @@ func (lmd *LMDInstance) onExit(qStat *QueryStats) {
 
 func applyArgFlags(opts arrayFlags, localConfig *Config) {
 	ps := reflect.ValueOf(localConfig)
-	s := ps.Elem()
-	typeOfS := s.Type()
+	val := ps.Elem()
+	typeOfV := val.Type()
 
 	for _, opt := range opts.list {
 		tmp := strings.SplitN(opt, "=", 2)
@@ -644,28 +649,30 @@ func applyArgFlags(opts arrayFlags, localConfig *Config) {
 				Source: []string{conVal[1]},
 			}
 			localConfig.Connections = append(localConfig.Connections, con)
+
 			continue
 		}
 		found := false
-		for i := 0; i < s.NumField(); i++ {
-			cfgname := typeOfS.Field(i).Name
+		for i := 0; i < val.NumField(); i++ {
+			cfgname := typeOfV.Field(i).Name
 			if strings.EqualFold(cfgname, optname) {
-				f := s.Field(i)
-				if f.IsValid() && f.CanSet() {
-					switch f.Kind() {
+				field := val.Field(i)
+				if field.IsValid() && field.CanSet() {
+					switch field.Kind() {
 					case reflect.Int, reflect.Int64:
-						f.SetInt(interface2int64(optvalue))
+						field.SetInt(interface2int64(optvalue))
 					case reflect.String:
-						f.SetString(optvalue)
+						field.SetString(optvalue)
 					case reflect.Bool:
-						f.SetBool(interface2bool(optvalue))
+						field.SetBool(interface2bool(optvalue))
 					case reflect.Slice:
 						v := interface2string(optvalue)
-						f.Set(reflect.Append(f, reflect.ValueOf(*v)))
+						field.Set(reflect.Append(field, reflect.ValueOf(*v)))
 					default:
-						log.Fatalf("ERROR: cannot set option %s, type %s is not supported", cfgname, f.Kind())
+						log.Fatalf("ERROR: cannot set option %s, type %s is not supported", cfgname, field.Kind())
 					}
 					found = true
+
 					break
 				}
 				log.Fatalf("ERROR: cannot set option %s", cfgname)
@@ -679,7 +686,7 @@ func applyArgFlags(opts arrayFlags, localConfig *Config) {
 
 // NewLMDHTTPClient creates a http.Client with the given tls.Config
 func NewLMDHTTPClient(tlsConfig *tls.Config, proxy string) *http.Client {
-	tr := &http.Transport{
+	transport := &http.Transport{
 		Dial: (&net.Dialer{
 			Timeout:   10 * time.Second,
 			KeepAlive: 10 * time.Second,
@@ -692,26 +699,30 @@ func NewLMDHTTPClient(tlsConfig *tls.Config, proxy string) *http.Client {
 		if err != nil {
 			log.Fatalf("ERROR: cannot parse proxy into url '%s': %s\n", proxy, err.Error())
 		}
-		tr.Proxy = http.ProxyURL(proxyURL)
+		transport.Proxy = http.ProxyURL(proxyURL)
 	}
 	netClient := &http.Client{
 		Timeout:   HTTPClientTimeout,
-		Transport: tr,
+		Transport: transport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if strings.Contains(req.URL.RawQuery, "/omd/error.py%3fcode=500") {
 				log.Warnf("HTTP request redirected to %s which indicates an internal error in the backend", req.URL.String())
+
 				return http.ErrUseLastResponse
 			}
 			if strings.Contains(req.URL.Path, "/thruk/cgi-bin/login.cgi") {
 				log.Warnf("HTTP request redirected to %s, this indicates an issue with authentication", req.URL.String())
+
 				return http.ErrUseLastResponse
 			}
 			if len(via) >= 10 {
 				return errors.New("stopped after 10 redirects")
 			}
+
 			return nil
 		},
 	}
+
 	return netClient
 }
 
@@ -732,10 +743,9 @@ func (lmd *LMDInstance) mainSignalHandler(sig os.Signal, prometheusListener io.C
 		lmd.waitGroupListener.Wait()
 		lmd.waitGroupPeers.Wait()
 		lmd.onExit(qStat)
+
 		return (0)
-	case syscall.SIGINT:
-		fallthrough
-	case os.Interrupt:
+	case syscall.SIGINT, os.Interrupt:
 		log.Infof("got sigint, quitting")
 		close(lmd.shutdownChannel)
 		lmd.ListenersLock.Lock()
@@ -754,36 +764,42 @@ func (lmd *LMDInstance) mainSignalHandler(sig os.Signal, prometheusListener io.C
 		if qStat != nil {
 			lmd.onExit(qStat)
 		}
+
 		return (1)
 	case syscall.SIGHUP:
 		log.Infof("got sighup, reloading configuration...")
 		if prometheusListener != nil {
 			prometheusListener.Close()
 		}
+
 		return (-1)
 	case syscall.SIGUSR1:
 		log.Errorf("requested thread dump via signal %s", sig)
 		logThreaddump()
+
 		return (0)
 	case syscall.SIGUSR2:
 		if lmd.flags.flagMemProfile == "" {
 			log.Errorf("requested memory profile, but flag -memprofile missing")
+
 			return (0)
 		}
-		f, err := os.Create(lmd.flags.flagMemProfile)
+		file, err := os.Create(lmd.flags.flagMemProfile)
 		if err != nil {
 			log.Errorf("could not create memory profile: %s", err.Error())
 		}
-		defer f.Close()
+		defer file.Close()
 		runtime.GC()
-		if err := pprof.WriteHeapProfile(f); err != nil {
+		if err := pprof.WriteHeapProfile(file); err != nil {
 			log.Errorf("could not write memory profile: %s", err.Error())
 		}
 		log.Warnf("memory profile written to: %s", lmd.flags.flagMemProfile)
+
 		return (0)
 	default:
 		log.Warnf("Signal not handled: %v", sig)
 	}
+
 	return (1)
 }
 
@@ -798,21 +814,22 @@ func logThreaddump() {
 
 // waitTimeout waits for the waitgroup for the specified max timeout.
 // Returns true if waiting timed out.
-func waitTimeout(ctx context.Context, wg *sync.WaitGroup, timeout time.Duration) bool {
+func waitTimeout(ctx context.Context, waitGroup *sync.WaitGroup, timeout time.Duration) bool {
 	if timeout < time.Millisecond*10 {
 		log.Panic("bogus timeout")
 	}
-	c := make(chan struct{})
-	t := time.NewTimer(timeout)
+	stopChan := make(chan struct{})
+	timer := time.NewTimer(timeout)
 	go func() {
-		defer close(c)
-		wg.Wait()
+		defer close(stopChan)
+		waitGroup.Wait()
 	}()
 	select {
-	case <-c:
-		t.Stop()
+	case <-stopChan:
+		timer.Stop()
+
 		return false // completed normally
-	case <-t.C:
+	case <-timer.C:
 		return true // timed out
 	case <-ctx.Done():
 		return true // aborted
@@ -821,7 +838,7 @@ func waitTimeout(ctx context.Context, wg *sync.WaitGroup, timeout time.Duration)
 
 // PrintVersion prints the version
 func (lmd *LMDInstance) PrintVersion() {
-	fmt.Printf("%s - version %s started with config %s\n", NAME, Version(), lmd.flags.flagConfigFile)
+	fmt.Fprintf(os.Stdout, "%s - version %s started with config %s\n", NAME, Version(), lmd.flags.flagConfigFile)
 }
 
 func (lmd *LMDInstance) logPanicExit() {
@@ -837,8 +854,10 @@ func (lmd *LMDInstance) logPanicExit() {
 func timeOrNever(timestamp float64) string {
 	if timestamp > 0 {
 		sec, dec := math.Modf(timestamp)
+
 		return (time.Unix(int64(sec), int64(dec*float64(time.Second))).String())
 	}
+
 	return "never"
 }
 
@@ -848,6 +867,7 @@ func (lmd *LMDInstance) PeerMapRemove(peerID string) {
 	for i, id := range lmd.PeerMapOrder {
 		if id == peerID {
 			lmd.PeerMapOrder = append(lmd.PeerMapOrder[:i], lmd.PeerMapOrder[i+1:]...)
+
 			break
 		}
 	}
@@ -861,20 +881,23 @@ func completePeerHTTPAddr(addr string) string {
 	addr = strings.TrimSuffix(addr, "/")
 	addr = strings.TrimSuffix(addr, "thruk")
 	addr = strings.TrimSuffix(addr, "/")
+
 	return addr + "/thruk/cgi-bin/remote.cgi"
 }
 
-func ByteCountBinary(b int64) string {
+// byteCountBinary returns human readable byte string
+func byteCountBinary(bytes int64) string {
 	const unit = 1024
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
 	}
 	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
+	for n := bytes / unit; n >= unit; n /= unit {
 		div *= unit
 		exp++
 	}
-	return fmt.Sprintf("%.1f%ciB", float64(b)/float64(div), "KMGTPE"[exp])
+
+	return fmt.Sprintf("%.1f%ciB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
 func updateStatistics(qStat *QueryStats) {
@@ -897,6 +920,7 @@ func getMinimalTLSConfig(localConfig *Config) *tls.Config {
 			config.MinVersion = tlsMinVersion
 		}
 	}
+
 	return (config)
 }
 
@@ -904,6 +928,7 @@ func fmtHTTPerr(req *http.Request, err error) string {
 	if req != nil {
 		return (fmt.Sprintf("%s: %v", req.URL.String(), err))
 	}
+
 	return err.Error()
 }
 
@@ -919,6 +944,7 @@ func (lmd *LMDInstance) finalFlagsConfig(stdoutLogging bool) *Config {
 	InitLogging(localConfig)
 	localConfig.SetServiceAuthorization()
 	localConfig.SetGroupAuthorization()
+
 	return localConfig
 }
 

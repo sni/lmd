@@ -88,6 +88,7 @@ func (s *SortDirection) String() string {
 		return "desc"
 	}
 	log.Panicf("not implemented")
+
 	return ""
 }
 
@@ -116,6 +117,7 @@ func (o *OutputFormat) String() string {
 		return "python3"
 	}
 	log.Panicf("not implemented")
+
 	return ""
 }
 
@@ -149,6 +151,7 @@ func (op *GroupOperator) String() string {
 		return ("Or")
 	}
 	log.Panicf("not implemented: %#v", op)
+
 	return ""
 }
 
@@ -174,6 +177,7 @@ func ParseRequest(ctx context.Context, lmd *LMDInstance, c net.Conn) (req *Reque
 	localAddr := c.LocalAddr().String()
 	req, size, err := NewRequest(ctx, lmd, b, lmd.defaultReqestParseOption)
 	promFrontendBytesReceived.WithLabelValues(localAddr).Add(float64(size))
+
 	return
 }
 
@@ -212,15 +216,15 @@ func ParseRequests(ctx context.Context, lmd *LMDInstance, c net.Conn) (reqs []*R
 		}
 		reqs[len(reqs)-1].KeepAlive = false
 	}
-	return
+
+	return reqs, nil
 }
 
 // String returns the request object as livestatus query string.
 func (req *Request) String() (str string) {
 	// Commands are easy passthrough
 	if req.Command != "" {
-		str = req.Command + "\n\n"
-		return
+		return req.Command + "\n\n"
 	}
 	str = "GET " + req.Table.String() + "\n"
 	if req.ResponseFixed16 {
@@ -277,24 +281,29 @@ func (req *Request) String() (str string) {
 	for i := range req.Sort {
 		str += fmt.Sprintf("Sort: %s %s\n", req.Sort[i].Name, req.Sort[i].Direction.String())
 	}
+
 	str += "\n"
-	return
+
+	return str
 }
 
 // NewRequest reads a buffer and creates a new request object.
 // It returns the request as long with the number of bytes read and any error.
-func NewRequest(ctx context.Context, lmd *LMDInstance, b *bufio.Reader, options ParseOptions) (req *Request, size int, err error) {
-	firstLine, err := b.ReadString('\n')
-	if err == io.EOF {
+func NewRequest(ctx context.Context, lmd *LMDInstance, buf *bufio.Reader, options ParseOptions) (req *Request, size int, err error) {
+	firstLine, err := buf.ReadString('\n')
+	if errors.Is(err, io.EOF) {
 		if firstLine == "" {
-			return
+			return nil, 0, fmt.Errorf("read: %w %s", err, err.Error())
 		}
+
 		// ignore eof error, continue with this request
 		err = nil
 	}
+
 	// Network errors will be logged in the listener
-	if _, ok := err.(net.Error); ok {
-		return
+	var netErr net.Error
+	if errors.Is(err, netErr) {
+		return nil, 0, err
 	}
 
 	req = &Request{lmd: lmd, ColumnsHeaders: false, KeepAlive: false}
@@ -308,15 +317,13 @@ func NewRequest(ctx context.Context, lmd *LMDInstance, b *bufio.Reader, options 
 
 	ok, err := req.ParseRequestAction(&firstLine)
 	if err != nil || !ok {
-		req = nil
-		return
+		return nil, 0, err
 	}
 
 	for {
-		line, berr := b.ReadBytes('\n')
+		line, berr := buf.ReadBytes('\n')
 		if berr != nil && berr != io.EOF {
-			err = berr
-			return
+			return nil, 0, fmt.Errorf("read: %s", berr.Error())
 		}
 		size += len(line)
 		line = bytes.TrimSpace(line)
@@ -327,15 +334,14 @@ func NewRequest(ctx context.Context, lmd *LMDInstance, b *bufio.Reader, options 
 		logWith(ctx).Debugf("request: %s", line)
 		perr := req.ParseRequestHeaderLine(line, options)
 		if perr != nil {
-			err = fmt.Errorf("bad request: %s in: %s", perr.Error(), line)
-			return
+			return nil, 0, fmt.Errorf("bad request: %s in: %s", perr.Error(), line)
 		}
 		if lmd.Config.MaxQueryFilter > 0 && req.NumFilter > lmd.Config.MaxQueryFilter {
-			err = fmt.Errorf("bad request: maximum number of query filter reached")
-			return
+			return nil, 0, fmt.Errorf("bad request: maximum number of query filter reached")
 		}
 		if errors.Is(berr, io.EOF) {
 			req.KeepAlive = false
+
 			break
 		}
 	}
@@ -348,7 +354,8 @@ func NewRequest(ctx context.Context, lmd *LMDInstance, b *bufio.Reader, options 
 
 	req.SetRequestColumns()
 	err = req.SetSortColumns()
-	return
+
+	return req, size, err
 }
 
 // ID returns the uniq request id
@@ -357,50 +364,46 @@ func (req *Request) ID() string {
 		return req.id
 	}
 	req.id = fmt.Sprintf("r:%x", sha256.Sum256([]byte(fmt.Sprintf("%d-%d", time.Now().Nanosecond(), rand.Int()))))[0:8]
+
 	return req.id
 }
 
 // ParseRequestAction parses the first line from a request which
 // may start with GET or COMMAND
 func (req *Request) ParseRequestAction(firstLine *string) (valid bool, err error) {
-	valid = false
-
 	// normal get request?
 	if strings.HasPrefix(*firstLine, "GET ") {
 		matched := reRequestAction.FindStringSubmatch(*firstLine)
 		if len(matched) != 2 {
-			err = fmt.Errorf("bad request: %s", *firstLine)
-			return
+			return false, fmt.Errorf("bad request: %s", *firstLine)
 		}
 
 		tableName, tErr := NewTableName(matched[1])
 		if tErr != nil {
-			err = fmt.Errorf("bad request: %s", tErr.Error())
+			return false, fmt.Errorf("bad request: %s", tErr.Error())
 		}
 		req.Table = tableName
-		valid = true
-		return
+
+		return true, nil
 	}
 
 	// or a command
 	if strings.HasPrefix(*firstLine, "COMMAND ") {
 		matched := reRequestCommand.FindStringSubmatch(*firstLine)
 		if len(matched) < 1 {
-			err = fmt.Errorf("bad request: %s", *firstLine)
-			return
+			return false, fmt.Errorf("bad request: %s", *firstLine)
 		}
 		req.Command = matched[0]
-		valid = true
-		return
+
+		return true, nil
 	}
 
 	// empty request
 	if *firstLine == "" {
-		return
+		return false, nil
 	}
 
-	err = fmt.Errorf("bad request: %s", *firstLine)
-	return
+	return false, fmt.Errorf("bad request: %s", *firstLine)
 }
 
 // BuildResponse builds the response for a given request.
@@ -410,6 +413,7 @@ func (req *Request) BuildResponse(ctx context.Context) (*Response, error) {
 	if req.lmd.nodeAccessor == nil || !req.lmd.nodeAccessor.IsClustered() {
 		// Single mode (send request and return response)
 		res, _, err := NewResponse(ctx, req, nil)
+
 		return res, err
 	}
 
@@ -427,6 +431,7 @@ func (req *Request) BuildResponse(ctx context.Context) (*Response, error) {
 	// Return local result if its not distributed at all
 	if isForOurBackends {
 		res, _, err := NewResponse(ctx, req, nil)
+
 		return res, err
 	}
 
@@ -436,11 +441,12 @@ func (req *Request) BuildResponse(ctx context.Context) (*Response, error) {
 
 // BuildResponseSend builds the response and sends to the given connection.
 // It returns the transferred size or an error.
-func (req *Request) BuildResponseSend(ctx context.Context, w net.Conn) (int64, error) {
+func (req *Request) BuildResponseSend(ctx context.Context, con net.Conn) (int64, error) {
 	// Run single request if possible
 	if req.lmd.nodeAccessor == nil || !req.lmd.nodeAccessor.IsClustered() {
 		// Single mode (send request)
-		_, size, err := NewResponse(ctx, req, w)
+		_, size, err := NewResponse(ctx, req, con)
+
 		return size, err
 	}
 
@@ -448,7 +454,8 @@ func (req *Request) BuildResponseSend(ctx context.Context, w net.Conn) (int64, e
 	if err != nil {
 		return 0, err
 	}
-	return res.Send(w)
+
+	return res.Send(con)
 }
 
 // getDistributedResponse builds the response from a distributed setup
@@ -457,7 +464,7 @@ func (req *Request) getDistributedResponse(ctx context.Context) (*Response, erro
 	allBackendsRequested := len(req.Backends) == 0
 
 	// Cluster mode (don't send this request; send sub-requests, build response)
-	var wg sync.WaitGroup
+	var waitGroup sync.WaitGroup
 	collectedDatasets := make(chan ResultSet, len(req.lmd.nodeAccessor.nodeBackends))
 	collectedFailedHashes := make(chan map[string]string, len(req.lmd.nodeAccessor.nodeBackends))
 	for nodeID, nodeBackends := range req.lmd.nodeAccessor.nodeBackends {
@@ -470,6 +477,7 @@ func (req *Request) getDistributedResponse(ctx context.Context) (*Response, erro
 		if len(subBackends) == 0 {
 			collectedDatasets <- ResultSet{}
 			collectedFailedHashes <- map[string]string{}
+
 			continue
 		}
 
@@ -486,14 +494,15 @@ func (req *Request) getDistributedResponse(ctx context.Context) (*Response, erro
 			}
 			collectedDatasets <- res.Result
 			collectedFailedHashes <- res.Failed
+
 			continue
 		}
 
 		requestData := req.buildDistributedRequestData(subBackends)
-		wg.Add(1)
+		waitGroup.Add(1)
 		// Send query to remote node
 		err := req.lmd.nodeAccessor.SendQuery(node, "table", requestData, func(responseData interface{}) {
-			defer wg.Done()
+			defer waitGroup.Done()
 
 			// Hash containing metadata in addition to rows
 			hash, ok := responseData.(map[string]interface{})
@@ -536,8 +545,9 @@ func (req *Request) getDistributedResponse(ctx context.Context) (*Response, erro
 
 	// Wait for all requests
 	timeout := 10
-	if waitTimeout(ctx, &wg, time.Duration(timeout)*time.Second) {
+	if waitTimeout(ctx, &waitGroup, time.Duration(timeout)*time.Second) {
 		err := fmt.Errorf("timeout waiting for partner nodes")
+
 		return nil, err
 	}
 	close(collectedDatasets)
@@ -545,6 +555,7 @@ func (req *Request) getDistributedResponse(ctx context.Context) (*Response, erro
 	// Double-check that we have the right number of datasets
 	if len(collectedDatasets) != len(req.lmd.nodeAccessor.nodeBackends) {
 		err := fmt.Errorf("got %d instead of %d datasets", len(collectedDatasets), len(req.lmd.nodeAccessor.nodeBackends))
+
 		return nil, err
 	}
 
@@ -577,6 +588,7 @@ func (req *Request) getSubBackends(allBackendsRequested bool, nodeBackends []str
 			subBackends = append(subBackends, nodeBackend)
 		}
 	}
+
 	return
 }
 
@@ -653,7 +665,7 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 	// Get hash with metadata in addition to table rows
 	requestData["outputformat"] = OutputFormatWrappedJSON
 
-	return
+	return requestData
 }
 
 // mergeDistributedResponse returns response object with merged result from distributed requests
@@ -705,6 +717,7 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan ResultSet, c
 			}
 		}
 	}
+
 	return res
 }
 
@@ -714,8 +727,7 @@ func (req *Request) ParseRequestHeaderLine(line []byte, options ParseOptions) (e
 	matched := bytes.SplitN(line, []byte(":"), 2)
 
 	if len(matched) != 2 {
-		err = fmt.Errorf("syntax error")
-		return
+		return fmt.Errorf("syntax error")
 	}
 	args := bytes.TrimLeft(matched[1], " ")
 
@@ -723,122 +735,112 @@ func (req *Request) ParseRequestHeaderLine(line []byte, options ParseOptions) (e
 	case "filter":
 		err = ParseFilter(args, req.Table, &req.Filter, options)
 		req.NumFilter++
-		return
+
+		return err
 	case "and":
-		err = parseFilterGroupOp(And, args, &req.Filter)
-		return
+		return parseFilterGroupOp(And, args, &req.Filter)
 	case "or":
-		err = parseFilterGroupOp(Or, args, &req.Filter)
-		return
+		return parseFilterGroupOp(Or, args, &req.Filter)
 	case "stats":
 		err = ParseStats(args, req.Table, &req.Stats, options)
 		req.NumFilter++
-		return
+
+		return err
 	case "statsand":
-		err = parseStatsGroupOp(And, args, req.Table, &req.Stats, options)
-		return
+		return parseStatsGroupOp(And, args, req.Table, &req.Stats, options)
 	case "statsor":
-		err = parseStatsGroupOp(Or, args, req.Table, &req.Stats, options)
-		return
+		return parseStatsGroupOp(Or, args, req.Table, &req.Stats, options)
 	case "sort":
-		err = parseSortHeader(&req.Sort, args)
-		return
+		return parseSortHeader(&req.Sort, args)
 	case "limit":
 		req.Limit = new(int)
-		err = parseIntHeader(req.Limit, args, 0)
-		return
+
+		return parseIntHeader(req.Limit, args, 0)
 	case "offset":
-		err = parseIntHeader(&req.Offset, args, 0)
-		return
+		return parseIntHeader(&req.Offset, args, 0)
 	case "backends":
 		req.Backends = strings.Fields(string(args))
-		return
+
+		return nil
 	case "columns":
 		req.Columns = append(req.Columns, strings.Fields(string(args))...)
-		return
+
+		return nil
 	case "responseheader":
-		err = parseResponseHeader(&req.ResponseFixed16, args)
-		return
+		return parseResponseHeader(&req.ResponseFixed16, args)
 	case "outputformat":
-		err = parseOutputFormat(&req.OutputFormat, args)
-		return
+		return parseOutputFormat(&req.OutputFormat, args)
 	case "waittimeout":
-		err = parseIntHeader(&req.WaitTimeout, args, 1)
-		return
+		return parseIntHeader(&req.WaitTimeout, args, 1)
 	case "waittrigger":
 		req.WaitTrigger = string(args)
-		return
+
+		return nil
 	case "waitobject":
 		req.WaitObject = string(args)
-		return
+
+		return nil
 	case "waitcondition":
-		err = ParseFilter(args, req.Table, &req.WaitCondition, options)
 		req.NumFilter++
-		return
+
+		return ParseFilter(args, req.Table, &req.WaitCondition, options)
 	case "waitconditionand":
-		err = parseStatsGroupOp(And, args, req.Table, &req.WaitCondition, options)
-		return
+		return parseStatsGroupOp(And, args, req.Table, &req.WaitCondition, options)
 	case "waitconditionor":
-		err = parseStatsGroupOp(Or, args, req.Table, &req.WaitCondition, options)
-		return
+		return parseStatsGroupOp(Or, args, req.Table, &req.WaitCondition, options)
 	case "waitconditionnegate":
 		req.WaitConditionNegate = true
-		return
+
+		return nil
 	case "negate":
-		err = ParseFilterNegate(req.Filter)
-		return
+		return ParseFilterNegate(req.Filter)
 	case "keepalive":
-		err = parseOnOff(&req.KeepAlive, args)
-		return
+		return parseOnOff(&req.KeepAlive, args)
 	case "columnheaders":
-		err = parseOnOff(&req.ColumnsHeaders, args)
-		return
+		return parseOnOff(&req.ColumnsHeaders, args)
 	case "localtime":
 		if log.IsV(LogVerbosityDebug) {
 			logWith(req).Debugf("Ignoring %s as LMD works on unix timestamps only.", matched[0])
 		}
-		return
+
+		return nil
 	case "authuser":
-		err = parseAuthUser(&req.AuthUser, args)
-		return
+		return parseAuthUser(&req.AuthUser, args)
 	case "statsnegate":
-		err = ParseFilterNegate(req.Stats)
-		return
+		return ParseFilterNegate(req.Stats)
 	}
-	err = fmt.Errorf("unrecognized header")
-	return
+
+	return fmt.Errorf("unrecognized header")
 }
 
 func parseResponseHeader(field *bool, value []byte) (err error) {
 	if !bytes.Equal(value, []byte("fixed16")) {
-		err = errors.New("unrecognized responseformat, only fixed16 is supported")
-		return
+		return errors.New("unrecognized responseformat, only fixed16 is supported")
 	}
 	*field = true
+
 	return
 }
 
 func parseIntHeader(field *int, value []byte, minValue int) (err error) {
 	intVal, err := strconv.Atoi(string(value))
 	if err != nil || intVal < minValue {
-		err = fmt.Errorf("expecting a positive number")
-		return
+		return fmt.Errorf("expecting a positive number")
 	}
 	*field = intVal
+
 	return
 }
 
 func parseSortHeader(field *[]*SortField, value []byte) (err error) {
 	if len(value) == 0 {
-		err = errors.New("invalid sort header, must be 'Sort: <field> <asc|desc>' or 'Sort: custom_variables <name> <asc|desc>'")
-		return
+		return errors.New("invalid sort header, must be 'Sort: <field> <asc|desc>' or 'Sort: custom_variables <name> <asc|desc>'")
 	}
 	tmp := bytes.SplitN(value, []byte(" "), 3)
 	args := ""
 	if len(tmp) == 3 {
 		if !bytes.Equal(tmp[0], []byte("custom_variables")) && !bytes.Equal(tmp[0], []byte("host_custom_variables")) {
-			err = errors.New("invalid sort header, must be 'Sort: <field> <asc|desc>' or 'Sort: custom_variables <name> <asc|desc>'")
-			return
+			return errors.New("invalid sort header, must be 'Sort: <field> <asc|desc>' or 'Sort: custom_variables <name> <asc|desc>'")
 		}
 		args = string(bytes.ToUpper(tmp[1]))
 		tmp[1] = tmp[2]
@@ -852,8 +854,7 @@ func parseSortHeader(field *[]*SortField, value []byte) (err error) {
 	case bytes.EqualFold(tmp[1], []byte("desc")):
 		direction = Desc
 	default:
-		err = errors.New("unrecognized sort direction, must be asc or desc")
-		return
+		return errors.New("unrecognized sort direction, must be asc or desc")
 	}
 	sortfield := &SortField{
 		Name:      string(bytes.ToLower(tmp[0])),
@@ -861,20 +862,21 @@ func parseSortHeader(field *[]*SortField, value []byte) (err error) {
 		Args:      args,
 	}
 	*field = append(*field, sortfield)
-	return
+
+	return nil
 }
 
 func parseStatsGroupOp(op GroupOperator, value []byte, table TableName, stats *[]*Filter, options ParseOptions) (err error) {
 	num, cerr := strconv.Atoi(string(value))
 	if cerr == nil && num == 0 {
-		err = ParseStats([]byte("state != 9999"), table, stats, options)
-		return
+		return ParseStats([]byte("state != 9999"), table, stats, options)
 	}
 	err = parseFilterGroupOp(op, value, stats)
 	if err != nil {
-		return
+		return err
 	}
 	(*stats)[len(*stats)-1].StatsType = Counter
+
 	return
 }
 
@@ -889,9 +891,9 @@ func parseOutputFormat(field *OutputFormat, value []byte) (err error) {
 	case "python3":
 		*field = OutputFormatPython3
 	default:
-		err = errors.New("unrecognized outputformat, choose from json, wrapped_json, python and python3")
-		return
+		return errors.New("unrecognized outputformat, choose from json, wrapped_json, python and python3")
 	}
+
 	return
 }
 
@@ -906,6 +908,7 @@ func parseOnOff(field *bool, value []byte) (err error) {
 	default:
 		err = fmt.Errorf("must be 'on' or 'off'")
 	}
+
 	return
 }
 
@@ -916,6 +919,7 @@ func parseAuthUser(field *string, value []byte) (err error) {
 	} else {
 		err = fmt.Errorf("bad request: AuthUser should not be empty")
 	}
+
 	return
 }
 
@@ -975,6 +979,7 @@ func (req *Request) parseResult(resBytes []byte) (ResultSet, *ResultMetaData, er
 	meta := &ResultMetaData{Request: req}
 	if len(resBytes) == 0 || (string(resBytes[0]) != "{" && string(resBytes[0]) != "[") {
 		err = errors.New(strings.TrimSpace(string(resBytes)))
+
 		return nil, nil, &PeerError{msg: fmt.Sprintf("response does not look like a json result: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
 	}
 	if req.OutputFormat == OutputFormatWrappedJSON {
@@ -1017,6 +1022,7 @@ func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) 
 		case "data":
 			dataBytes = valueBytes
 		}
+
 		return nil
 	})
 	if err != nil {
@@ -1043,6 +1049,7 @@ func (req *Request) IsDefaultSortOrder() bool {
 	default:
 		return false
 	}
+
 	return false
 }
 
@@ -1055,6 +1062,7 @@ func (req *Request) optimizeResultLimit() (limit int) {
 	} else {
 		limit = -1
 	}
+
 	return
 }
 
@@ -1093,21 +1101,29 @@ func (req *Request) optimizeStatsGroups(stats []*Filter, renumber bool) []*Filte
 	}
 	groupedStats := make([]*Filter, 0)
 	var lastGroup *Filter
-	for i := range stats {
-		s := stats[i]
+	for idx := range stats {
+		stat := stats[idx]
 		if renumber {
-			s.StatsPos = i
+			stat.StatsPos = idx
 		}
-		if s.StatsType != Counter || s.Column != nil || len(s.Filter) < 2 {
-			groupedStats = append(groupedStats, s)
+		if stat.StatsType != Counter || stat.Column != nil || len(stat.Filter) < 2 {
+			groupedStats = append(groupedStats, stat)
+
 			continue
 		}
 
 		// append to previous group?
-		if i >= 1 && lastGroup != nil {
-			firstFilter := s.Filter[0]
-			if lastGroup.Column == firstFilter.Column && lastGroup.Operator == firstFilter.Operator && lastGroup.StrValue == firstFilter.StrValue && lastGroup.Negate == firstFilter.Negate && len(firstFilter.Filter) == 0 {
-				lastGroup.Filter = append(lastGroup.Filter, removeFirstStatsFilter(s))
+		if idx >= 1 && lastGroup != nil {
+			firstFilter := stat.Filter[0]
+			switch {
+			case lastGroup.Column != firstFilter.Column:
+			case lastGroup.Operator != firstFilter.Operator:
+			case lastGroup.StrValue != firstFilter.StrValue:
+			case lastGroup.Negate != firstFilter.Negate:
+			case len(firstFilter.Filter) != 0:
+			default:
+				lastGroup.Filter = append(lastGroup.Filter, removeFirstStatsFilter(stat))
+
 				continue
 			}
 		}
@@ -1116,30 +1132,34 @@ func (req *Request) optimizeStatsGroups(stats []*Filter, renumber bool) []*Filte
 		req.optimizeStatsGroupsRecurse(lastGroup)
 
 		// start a new group if the current first stats filter matches the next first stats filter
-		if len(stats) > i+1 {
-			next := stats[i+1]
-			if next.StatsType != Counter || next.Column != nil || len(next.Filter) < 2 || s.Filter[0].GroupOperator == Or {
-				groupedStats = append(groupedStats, s)
+		if len(stats) > idx+1 {
+			next := stats[idx+1]
+			if next.StatsType != Counter || next.Column != nil || len(next.Filter) < 2 || stat.Filter[0].GroupOperator == Or {
+				groupedStats = append(groupedStats, stat)
+
 				continue
 			}
-			if !next.Filter[0].Equals(s.Filter[0]) {
-				groupedStats = append(groupedStats, s)
+			if !next.Filter[0].Equals(stat.Filter[0]) {
+				groupedStats = append(groupedStats, stat)
+
 				continue
 			}
 
-			group := s.Filter[0]
+			group := stat.Filter[0]
 			group.StatsType = StatsGroup
-			group.Filter = []*Filter{removeFirstStatsFilter(s)}
+			group.Filter = []*Filter{removeFirstStatsFilter(stat)}
 
 			groupedStats = append(groupedStats, group)
 			lastGroup = group
+
 			continue
 		}
 
-		groupedStats = append(groupedStats, s)
+		groupedStats = append(groupedStats, stat)
 	}
 	// build sub stats groups recursively
 	req.optimizeStatsGroupsRecurse(lastGroup)
+
 	return groupedStats
 }
 
@@ -1147,25 +1167,26 @@ func (req *Request) optimizeStatsGroupsRecurse(lastGroup *Filter) {
 	if lastGroup == nil {
 		return
 	}
+
 	subgroup := req.optimizeStatsGroups(lastGroup.Filter, false)
 	if subgroup != nil {
 		lastGroup.Filter = subgroup
 	}
-	lastGroup = nil
 }
 
-func removeFirstStatsFilter(s *Filter) *Filter {
+func removeFirstStatsFilter(stat *Filter) *Filter {
 	// strip first filter, this one is handled in the parent group
-	s.Filter = s.Filter[1:]
+	stat.Filter = stat.Filter[1:]
 
 	// still multiple filters, keep list
-	if len(s.Filter) > 1 {
-		return s
+	if len(stat.Filter) > 1 {
+		return stat
 	}
 
 	// remove indentation lvl if only one remaining
-	s.Filter[0].StatsPos = s.StatsPos
-	s = s.Filter[0]
-	s.StatsType = Counter
-	return s
+	stat.Filter[0].StatsPos = stat.StatsPos
+	stat = stat.Filter[0]
+	stat.StatsType = Counter
+
+	return stat
 }

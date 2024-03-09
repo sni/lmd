@@ -12,17 +12,17 @@ func TestStringContainerCompression(t *testing.T) {
 		teststring.WriteString(fmt.Sprintf("%d x", i))
 	}
 	str := teststring.String()
-	c := NewStringContainer(&str)
+	cont := NewStringContainer(&str)
 
-	if err := assertEq("", c.StringData); err != nil {
+	if err := assertEq("", cont.StringData); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := assertNeq(nil, c.CompressedData); err != nil {
+	if err := assertNeq(nil, cont.CompressedData); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := assertEq(str, c.String()); err != nil {
+	if err := assertEq(str, cont.String()); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -33,13 +33,13 @@ func TestStringContainerNoCompression(t *testing.T) {
 		teststring.WriteString(fmt.Sprintf("%d x", i))
 	}
 	str := teststring.String()
-	c := NewStringContainer(&str)
+	cont := NewStringContainer(&str)
 
-	if err := assertEq(str, c.StringData); err != nil {
+	if err := assertEq(str, cont.StringData); err != nil {
 		t.Fatal(err)
 	}
 
-	if c.CompressedData != nil {
+	if cont.CompressedData != nil {
 		t.Fatalf("CompressedData should be nil")
 	}
 }

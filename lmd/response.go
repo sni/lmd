@@ -49,7 +49,7 @@ type PeerResponse struct {
 // NewResponse creates a new response object for a given request
 // It returns the Response object and any error encountered.
 // unlockFn must be called whenever there is no error returned.
-func NewResponse(ctx context.Context, req *Request, w net.Conn) (res *Response, size int64, err error) {
+func NewResponse(ctx context.Context, req *Request, conn net.Conn) (res *Response, size int64, err error) {
 	res = &Response{
 		Code:    200,
 		Failed:  req.BackendErrors,
@@ -62,7 +62,8 @@ func NewResponse(ctx context.Context, req *Request, w net.Conn) (res *Response, 
 	if res.Request.OutputFormat != OutputFormatWrappedJSON && len(res.Failed) > 0 && len(res.Failed) == len(req.Backends) {
 		res.Code = 502
 		err = &PeerError{msg: res.Failed[req.Backends[0]], kind: ConnectionError}
-		return
+
+		return res, 0, err
 	}
 
 	table := Objects.Tables[req.Table]
@@ -88,18 +89,19 @@ func NewResponse(ctx context.Context, req *Request, w net.Conn) (res *Response, 
 		// set locks for required stores
 		stores := make(map[*Peer]*DataStore)
 		for i := range res.SelectedPeers {
-			p := res.SelectedPeers[i]
-			store, err2 := p.GetDataStore(table.Name)
+			peer := res.SelectedPeers[i]
+			store, err2 := peer.GetDataStore(table.Name)
 			if err2 != nil {
 				res.Lock.Lock()
-				res.Failed[p.ID] = err2.Error()
+				res.Failed[peer.ID] = err2.Error()
 				res.Lock.Unlock()
+
 				continue
 			}
 			if !table.WorksUnlocked {
 				store.DataSet.Lock.RLock()
 			}
-			stores[p] = store
+			stores[peer] = store
 		}
 		if !table.WorksUnlocked {
 			defer func() {
@@ -117,8 +119,9 @@ func NewResponse(ctx context.Context, req *Request, w net.Conn) (res *Response, 
 
 	res.CalculateFinalStats()
 
-	if w != nil {
-		size, err = res.Send(w)
+	if conn != nil {
+		size, err = res.Send(conn)
+
 		return nil, size, err
 	}
 
@@ -138,22 +141,22 @@ func (res *Response) prepareResponse(ctx context.Context, req *Request) {
 	// iterate over PeerMap instead of BackendsMap to retain backend order
 	req.lmd.PeerMapLock.RLock()
 	for _, id := range req.lmd.PeerMapOrder {
-		p := req.lmd.PeerMap[id]
-		if _, ok := req.BackendsMap[p.ID]; !ok {
+		peer := req.lmd.PeerMap[id]
+		if _, ok := req.BackendsMap[peer.ID]; !ok {
 			continue
 		}
-		if req.lmd.nodeAccessor == nil || !req.lmd.nodeAccessor.IsOurBackend(p.ID) {
+		if req.lmd.nodeAccessor == nil || !req.lmd.nodeAccessor.IsOurBackend(peer.ID) {
 			continue
 		}
-		if p.HasFlag(MultiBackend) {
+		if peer.HasFlag(MultiBackend) {
 			continue
 		}
-		res.SelectedPeers = append(res.SelectedPeers, p)
+		res.SelectedPeers = append(res.SelectedPeers, peer)
 
 		// spin up required?
-		if p.StatusGet(Idling).(bool) && table.Virtual == nil {
-			p.StatusSet(LastQuery, currentUnixTime())
-			spinUpPeers = append(spinUpPeers, p)
+		if peer.StatusGet(Idling).(bool) && table.Virtual == nil {
+			peer.StatusSet(LastQuery, currentUnixTime())
+			spinUpPeers = append(spinUpPeers, peer)
 		}
 	}
 	req.lmd.PeerMapLock.RUnlock()
@@ -174,55 +177,53 @@ func (res *Response) Len() int {
 }
 
 // Less returns the sort result of two data rows
-func (res *Response) Less(i, j int) bool {
+func (res *Response) Less(idx1, idx2 int) bool {
 	for k := range res.Request.Sort {
-		s := res.Request.Sort[k]
+		field := res.Request.Sort[k]
 		var sortType DataType
-		if s.Group {
+		if field.Group {
 			sortType = StringCol
 		} else {
-			sortType = res.Request.RequestColumns[s.Index].DataType
+			sortType = res.Request.RequestColumns[field.Index].DataType
 		}
 		switch sortType {
-		case IntCol:
-			fallthrough
-		case Int64Col:
-			fallthrough
-		case FloatCol:
-			valueA := interface2float64(res.Result[i][s.Index])
-			valueB := interface2float64(res.Result[j][s.Index])
+		case IntCol, Int64Col, FloatCol:
+			valueA := interface2float64(res.Result[idx1][field.Index])
+			valueB := interface2float64(res.Result[idx2][field.Index])
 			if valueA == valueB {
 				continue
 			}
-			if s.Direction == Asc {
+			if field.Direction == Asc {
 				return valueA < valueB
 			}
+
 			return valueA > valueB
-		case JSONCol:
-			fallthrough
-		case StringCol:
-			index := s.Index
-			if s.Group {
+		case JSONCol, StringCol:
+			index := field.Index
+			if field.Group {
 				index = 0
 			}
-			s1 := interface2stringNoDedup(res.Result[i][index])
-			s2 := interface2stringNoDedup(res.Result[j][index])
-			if s1 == s2 {
+			str1 := interface2stringNoDedup(res.Result[idx1][index])
+			str2 := interface2stringNoDedup(res.Result[idx2][index])
+			if str1 == str2 {
 				continue
 			}
-			if s.Direction == Asc {
-				return s1 < s2
+			if field.Direction == Asc {
+				return str1 < str2
 			}
-			return s1 > s2
+
+			return str1 > str2
 		case StringListCol:
 			// not implemented
-			return s.Direction == Asc
+			return field.Direction == Asc
 		case Int64ListCol:
 			// not implemented
-			return s.Direction == Asc
+			return field.Direction == Asc
+		default:
+			panic(fmt.Sprintf("sorting not implemented for type %s", sortType))
 		}
-		panic(fmt.Sprintf("sorting not implemented for type %s", sortType))
 	}
+
 	return true
 }
 
@@ -244,17 +245,20 @@ func (req *Request) ExpandRequestedBackends() (err error) {
 			p := req.lmd.PeerMap[id]
 			req.BackendsMap[p.ID] = p.ID
 		}
+
 		return
 	}
 
-	for _, b := range req.Backends {
-		_, Ok := req.lmd.PeerMap[b]
+	for _, peerKey := range req.Backends {
+		_, Ok := req.lmd.PeerMap[peerKey]
 		if !Ok {
-			req.BackendErrors[b] = fmt.Sprintf("bad request: backend %s does not exist", b)
+			req.BackendErrors[peerKey] = fmt.Sprintf("bad request: backend %s does not exist", peerKey)
+
 			continue
 		}
-		req.BackendsMap[b] = b
+		req.BackendsMap[peerKey] = peerKey
 	}
+
 	return
 }
 
@@ -312,32 +316,33 @@ func (res *Response) CalculateFinalStats() {
 	}
 	res.Result = make(ResultSet, len(res.Request.StatsResult.Stats))
 
-	j := 0
+	rowNum := 0
 	for key, stats := range res.Request.StatsResult.Stats {
 		rowSize := len(stats)
 		rowSize += hasColumns
-		res.Result[j] = make([]interface{}, rowSize)
+		res.Result[rowNum] = make([]interface{}, rowSize)
 		if hasColumns > 0 {
 			parts := strings.Split(key, ListSepChar1)
 			for i := range parts {
-				res.Result[j][i] = &parts[i]
+				res.Result[rowNum][i] = &parts[i]
 				if i >= hasColumns {
 					break
 				}
 			}
 		}
-		for i := range stats {
-			s := stats[i]
-			i += hasColumns
+		for colNum := range stats {
+			stat := stats[colNum]
+			colNum += hasColumns
 
-			res.Result[j][i] = finalStatsApply(s)
+			res.Result[rowNum][colNum] = finalStatsApply(stat)
 
 			if res.Request.SendStatsData {
-				res.Result[j][i] = []interface{}{s.Stats, s.StatsCount}
+				res.Result[rowNum][colNum] = []interface{}{stat.Stats, stat.StatsCount}
+
 				continue
 			}
 		}
-		j++
+		rowNum++
 		res.RowsScanned += res.Request.StatsResult.RowsScanned
 	}
 
@@ -352,74 +357,84 @@ func (res *Response) CalculateFinalStats() {
 	res.ResultTotal += len(res.Result)
 }
 
-func finalStatsApply(s *Filter) (res float64) {
-	switch s.StatsType {
+func finalStatsApply(stat *Filter) (res float64) {
+	switch stat.StatsType {
 	case Counter:
-		res = s.Stats
+		res = stat.Stats
 	case Min:
-		res = s.Stats
+		res = stat.Stats
 	case Max:
-		res = s.Stats
+		res = stat.Stats
 	case Sum:
-		res = s.Stats
+		res = stat.Stats
 	case Average:
-		if s.StatsCount > 0 {
-			res = s.Stats / float64(s.StatsCount)
+		if stat.StatsCount > 0 {
+			res = stat.Stats / float64(stat.StatsCount)
 		} else {
 			res = 0
 		}
 	default:
 		log.Panicf("not implemented")
 	}
-	if s.StatsCount == 0 {
+	if stat.StatsCount == 0 {
 		res = 0
 	}
+
 	return
 }
 
 // Send converts the result object to a livestatus answer and writes the resulting bytes back to the client.
-func (res *Response) Send(c net.Conn) (size int64, err error) {
+func (res *Response) Send(conn net.Conn) (size int64, err error) {
 	if res.Request.ResponseFixed16 {
-		size, err = res.SendFixed16(c)
+		size, err = res.SendFixed16(conn)
 	} else {
-		size, err = res.SendUnbuffered(c)
+		size, err = res.SendUnbuffered(conn)
 	}
 
-	localAddr := c.LocalAddr().String()
+	localAddr := conn.LocalAddr().String()
 	promFrontendBytesSend.WithLabelValues(localAddr).Add(float64(size + 1))
 
 	return
 }
 
 // SendFixed16 converts the result object to a livestatus answer and writes the resulting bytes back to the client.
-func (res *Response) SendFixed16(c io.Writer) (size int64, err error) {
+func (res *Response) SendFixed16(conn io.Writer) (size int64, err error) {
 	resBuffer, err := res.Buffer()
 	if err != nil {
-		return
+		return 0, err
 	}
 	size = int64(resBuffer.Len())
 	headerFixed16 := fmt.Sprintf("%d %11d", res.Code, size+1)
 	logWith(res).Tracef("write: %s", headerFixed16)
-	_, err = fmt.Fprintf(c, "%s\n", headerFixed16)
+	_, err = fmt.Fprintf(conn, "%s\n", headerFixed16)
 	if err != nil {
 		logWith(res).Warnf("write error: %s", err.Error())
-		return
+
+		return 0, fmt.Errorf("write: %s", err.Error())
 	}
 	if log.IsV(LogVerbosityTrace) {
 		logWith(res).Tracef("write: %s", resBuffer.Bytes())
 	}
-	written, err := resBuffer.WriteTo(c)
+	written, err := resBuffer.WriteTo(conn)
 	if err != nil {
 		logWith(res).Warnf("write error: %s", err.Error())
-		return
+
+		return 0, fmt.Errorf("writeTo: %s", err.Error())
 	}
 	if written != size {
 		logWith(res).Warnf("write error: written %d, size: %d", written, size)
-		return
-	}
-	_, err = c.Write([]byte("\n"))
 
-	return
+		return written, nil
+	}
+
+	_, err = conn.Write([]byte("\n"))
+	if err != nil {
+		logWith(res).Warnf("write error: %s", err.Error())
+
+		return 0, fmt.Errorf("writeTo: %s", err.Error())
+	}
+
+	return written, nil
 }
 
 // SendUnbuffered directly prints the result to the client connection
@@ -433,6 +448,7 @@ func (res *Response) SendUnbuffered(c io.Writer) (size int64, err error) {
 		}
 		_, err = countingWriter.Write([]byte("\n"))
 		size = countingWriter.Count
+
 		return
 	}
 	if res.Request.OutputFormat == OutputFormatWrappedJSON {
@@ -442,10 +458,12 @@ func (res *Response) SendUnbuffered(c io.Writer) (size int64, err error) {
 	}
 	if err != nil {
 		logWith(res).Warnf("write error: %s", err.Error())
+
 		return
 	}
 	_, err = countingWriter.Write([]byte("\n"))
 	size = countingWriter.Count
+
 	return
 }
 
@@ -455,12 +473,14 @@ func (res *Response) Buffer() (*bytes.Buffer, error) {
 	if res.Error != nil {
 		logWith(res).Warnf("sending error response: %d - %s", res.Code, res.Error.Error())
 		buf.WriteString(res.Error.Error())
-		return buf, nil
+
+		return buf, nil //nolint:nilerr // error has been forwared to the client but sending it worked
 	}
 
 	if res.Request.OutputFormat == OutputFormatWrappedJSON {
 		return buf, res.WrappedJSON(buf)
 	}
+
 	return buf, res.JSON(buf)
 }
 
@@ -488,6 +508,7 @@ func (res *Response) JSON(buf io.Writer) error {
 		return fmt.Errorf("json flush failed: %s", err.Error())
 	}
 	json.Reset(nil)
+
 	return nil
 }
 
@@ -523,6 +544,7 @@ func (res *Response) WrappedJSON(buf io.Writer) error {
 		return fmt.Errorf("WrappedJSON: %w", err)
 	}
 	json.Reset(nil)
+
 	return nil
 }
 
@@ -531,17 +553,17 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 	switch {
 	case res.Result != nil:
 		// append result row by row
-		for i := range res.Result {
-			if i > 0 {
+		for rowNum := range res.Result {
+			if rowNum > 0 {
 				json.WriteRaw(",\n")
 				json.Flush()
 			}
 			json.WriteArrayStart()
-			for k := range res.Result[i] {
+			for k := range res.Result[rowNum] {
 				if k > 0 {
 					json.WriteMore()
 				}
-				json.WriteVal(res.Result[i][k])
+				json.WriteVal(res.Result[rowNum][k])
 			}
 			json.WriteArrayEnd()
 		}
@@ -553,6 +575,7 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 		// PeerLockModeFull means we have to lock all peers before creating the result
 		if len(res.RawResults.DataResult) > 0 && res.RawResults.DataResult[0].DataStore.PeerLockMode == PeerLockModeFull {
 			res.WriteDataResponseRowLocked(json)
+
 			return
 		}
 
@@ -629,10 +652,10 @@ func (res *Response) buildLocalResponse(ctx context.Context, stores map[*Peer]*D
 
 	waitgroup := &sync.WaitGroup{}
 	for i := range res.SelectedPeers {
-		p := res.SelectedPeers[i]
-		p.StatusSet(LastQuery, currentUnixTime())
+		peer := res.SelectedPeers[i]
+		peer.StatusSet(LastQuery, currentUnixTime())
 
-		store, ok := stores[p]
+		store, ok := stores[peer]
 		if !ok {
 			continue
 		}
@@ -640,6 +663,7 @@ func (res *Response) buildLocalResponse(ctx context.Context, stores map[*Peer]*D
 		// process virtual tables serially without go routines to maintain the correct order, ex.: from the sites table
 		if store.Table.Virtual != nil {
 			res.buildLocalResponseData(ctx, store, resultcollector)
+
 			continue
 		}
 
@@ -651,7 +675,7 @@ func (res *Response) buildLocalResponse(ctx context.Context, stores map[*Peer]*D
 			defer wg.Done()
 
 			res.buildLocalResponseData(ctx, store, resultcollector)
-		}(p, waitgroup)
+		}(peer, waitgroup)
 	}
 	logWith(res).Tracef("waiting...")
 
@@ -668,20 +692,21 @@ func (res *Response) buildLocalResponse(ctx context.Context, stores map[*Peer]*D
 }
 
 // waitTrigger waits till all trigger are fulfilled
-func (res *Response) waitTrigger(ctx context.Context, p *Peer) {
+func (res *Response) waitTrigger(ctx context.Context, peer *Peer) {
 	// if a WaitTrigger is supplied, wait max ms till the condition is true
 	if res.Request.WaitTrigger == "" {
 		return
 	}
 
-	p.WaitCondition(ctx, res.Request)
+	peer.WaitCondition(ctx, res.Request)
 
 	// peer might have gone down meanwhile, ex. after waiting for a waittrigger, so check again
-	_, err := p.GetDataStore(res.Request.Table)
+	_, err := peer.GetDataStore(res.Request.Table)
 	if err != nil {
 		res.Lock.Lock()
-		res.Failed[p.ID] = err.Error()
+		res.Failed[peer.ID] = err.Error()
 		res.Lock.Unlock()
+
 		return
 	}
 }
@@ -720,26 +745,26 @@ func (res *Response) BuildPassThroughResult() {
 	backendColumns := []string{}
 	virtualColumns := []*Column{}
 	columnsIndex := make(map[*Column]int)
-	for i := range res.Request.RequestColumns {
-		col := res.Request.RequestColumns[i]
+	for colNum := range res.Request.RequestColumns {
+		col := res.Request.RequestColumns[colNum]
 		if col.StorageType == VirtualStore {
 			virtualColumns = append(virtualColumns, col)
 		} else {
 			backendColumns = append(backendColumns, col.Name)
 		}
-		columnsIndex[col] = i
+		columnsIndex[col] = colNum
 	}
 	for i := range res.Request.Sort {
-		s := res.Request.Sort[i]
-		if j, ok := columnsIndex[s.Column]; ok {
+		field := res.Request.Sort[i]
+		if j, ok := columnsIndex[field.Column]; ok {
 			// sort column does exist in the request columns
-			s.Index = j
+			field.Index = j
 		} else {
-			s.Index = len(backendColumns) + len(virtualColumns)
-			if s.Column.StorageType == VirtualStore {
-				virtualColumns = append(virtualColumns, s.Column)
+			field.Index = len(backendColumns) + len(virtualColumns)
+			if field.Column.StorageType == VirtualStore {
+				virtualColumns = append(virtualColumns, field.Column)
 			} else {
-				backendColumns = append(backendColumns, s.Column.Name)
+				backendColumns = append(backendColumns, field.Column.Name)
 			}
 		}
 	}
@@ -758,12 +783,13 @@ func (res *Response) BuildPassThroughResult() {
 	waitgroup := &sync.WaitGroup{}
 
 	for i := range res.SelectedPeers {
-		p := res.SelectedPeers[i]
+		peer := res.SelectedPeers[i]
 
-		if !p.isOnline() {
+		if !peer.isOnline() {
 			res.Lock.Lock()
-			res.Failed[p.ID] = fmt.Sprintf("%v", p.StatusGet(LastError))
+			res.Failed[peer.ID] = fmt.Sprintf("%v", peer.StatusGet(LastError))
 			res.Lock.Unlock()
+
 			continue
 		}
 
@@ -776,7 +802,7 @@ func (res *Response) BuildPassThroughResult() {
 			defer wg.Done()
 
 			peer.PassThroughQuery(res, passthroughRequest, virtualColumns, columnsIndex)
-		}(p, waitgroup)
+		}(peer, waitgroup)
 	}
 	logWith(passthroughRequest).Tracef("waiting...")
 	waitgroup.Wait()
@@ -791,6 +817,7 @@ func (res *Response) SendColumnsHeader() bool {
 	if res.Request.ColumnsHeaders || len(res.Request.Columns) == 0 {
 		return true
 	}
+
 	return false
 }
 
@@ -812,14 +839,14 @@ func (res *Response) SetResultData() {
 func SpinUpPeers(ctx context.Context, peers []*Peer) {
 	waitgroup := &sync.WaitGroup{}
 	for i := range peers {
-		p := peers[i]
+		peer := peers[i]
 		waitgroup.Add(1)
 		go func(peer *Peer, wg *sync.WaitGroup) {
 			// make sure we log panics properly
 			defer logPanicExitPeer(peer)
 			defer wg.Done()
 			LogErrors(peer.ResumeFromIdle())
-		}(p, waitgroup)
+		}(peer, waitgroup)
 	}
 	waitTimeout(ctx, waitgroup, SpinUpPeersTimeout)
 	log.Debugf("spin up completed")
@@ -900,6 +927,7 @@ Rows:
 			if breakOnLimit {
 				return
 			}
+
 			continue Rows
 		}
 		result.Rows = append(result.Rows, row)
