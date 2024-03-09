@@ -5,6 +5,8 @@ next:
           - reduce number direct dependencies (build tools moved into separate pkg)
           - performance improvements
           - fix crash in mixed core version setups
+          - fix crash on type assertion (#142)
+          - migrate test framework
 
 2.1.9    Wed Jan 24 20:50:13 CET 2024
           - performance improvements
