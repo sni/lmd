@@ -267,7 +267,7 @@ func (lmd *LMDInstance) mainLoop() (exitCode int) {
 	CompressionMinimumSize = localConfig.CompressionMinimumSize
 
 	// put some configuration settings into metrics
-	promPeerUpdateInterval.Set(float64(localConfig.Updateinterval))
+	promPeerUpdateInterval.Set(float64(localConfig.UpdateInterval))
 	promPeerFullUpdateInterval.Set(float64(localConfig.FullUpdateInterval))
 	promCompressionLevel.Set(float64(CompressionLevel))
 	promCompressionMinimumSize.Set(float64(CompressionMinimumSize))

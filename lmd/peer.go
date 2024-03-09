@@ -439,7 +439,7 @@ func (p *Peer) periodicUpdate(ctx context.Context) (err error) {
 	if idling {
 		nextUpdate = lastUpdate + float64(p.lmd.Config.IdleInterval)
 	} else {
-		nextUpdate = lastUpdate + float64(p.lmd.Config.Updateinterval)
+		nextUpdate = lastUpdate + float64(p.lmd.Config.UpdateInterval)
 	}
 	if now < nextUpdate {
 		return nil
@@ -525,7 +525,7 @@ func (p *Peer) periodicUpdateLMD(ctx context.Context, data *DataStoreSet, force 
 	}
 
 	now := currentUnixTime()
-	if !force && now < lastUpdate+float64(p.lmd.Config.Updateinterval) {
+	if !force && now < lastUpdate+float64(p.lmd.Config.UpdateInterval) {
 		return nil
 	}
 
@@ -590,7 +590,7 @@ func (p *Peer) periodicUpdateMultiBackends(ctx context.Context, data *DataStoreS
 	p.Lock.RUnlock()
 
 	now := currentUnixTime()
-	if !force && now < lastUpdate+float64(p.lmd.Config.Updateinterval) {
+	if !force && now < lastUpdate+float64(p.lmd.Config.UpdateInterval) {
 		return nil
 	}
 
@@ -1661,7 +1661,7 @@ func (p *Peer) checkStatusFlags(ctx context.Context, store *DataStoreSet) (err e
 				p.SetFlag(LMD)
 			}
 			// force immediate update to fetch all sites
-			p.Status[LastUpdate] = currentUnixTime() - float64(p.lmd.Config.Updateinterval)
+			p.Status[LastUpdate] = currentUnixTime() - float64(p.lmd.Config.UpdateInterval)
 			p.Lock.Unlock()
 
 			err = p.periodicUpdateMultiBackends(ctx, store, true)
@@ -2775,7 +2775,7 @@ func (p *Peer) ResumeFromIdle(ctx context.Context) (err error) {
 		logWith(p).Debugf("spin up update done")
 	} else {
 		// force new update sooner
-		p.StatusSet(LastUpdate, currentUnixTime()-float64(p.lmd.Config.Updateinterval))
+		p.StatusSet(LastUpdate, currentUnixTime()-float64(p.lmd.Config.UpdateInterval))
 	}
 
 	return

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func BenchmarkParseResultJSON(b *testing.B) {
@@ -22,17 +24,13 @@ func BenchmarkParseResultJSON(b *testing.B) {
 		}
 	}
 	req, _, err := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(fmt.Sprintf("GET services\nOutputFormat: json\nColumns: %s\nColumnHeaders: on\n", strings.Join(columns, " ")))), ParseOptimize)
-	if err != nil {
-		panic(err.Error())
-	}
+	require.NoError(b, err)
+
 	conn, connType, err := peer.GetConnection(req)
-	if err != nil {
-		panic(err.Error())
-	}
+	require.NoError(b, err)
+
 	resBytes, _, err := peer.getQueryResponse(context.TODO(), req, req.String(), peer.Status[PeerAddr].(string), conn, connType)
-	if err != nil {
-		panic(err.Error())
-	}
+	require.NoError(b, err)
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -49,9 +47,8 @@ func BenchmarkParseResultJSON(b *testing.B) {
 	}
 	b.StopTimer()
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(b, err)
 }
 
 func BenchmarkParseResultWrappedJSON(b *testing.B) {
@@ -67,17 +64,13 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 		}
 	}
 	req, _, err := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(fmt.Sprintf("GET services\nOutputFormat: wrapped_json\nColumns: %s\nColumnHeaders: on\n", strings.Join(columns, " ")))), ParseOptimize)
-	if err != nil {
-		panic(err.Error())
-	}
+	require.NoError(b, err)
+
 	conn, connType, err := peer.GetConnection(req)
-	if err != nil {
-		panic(err.Error())
-	}
+	require.NoError(b, err)
+
 	resBytes, _, err := peer.getQueryResponse(context.TODO(), req, req.String(), peer.Status[PeerAddr].(string), conn, connType)
-	if err != nil {
-		panic(err.Error())
-	}
+	require.NoError(b, err)
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -94,9 +87,8 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 	}
 	b.StopTimer()
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(b, err)
 }
 
 func BenchmarkPeerUpdate(b *testing.B) {
@@ -114,9 +106,8 @@ func BenchmarkPeerUpdate(b *testing.B) {
 	}
 	b.StopTimer()
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err := cleanup()
+	require.NoError(b, err)
 }
 
 func BenchmarkPeerUpdateServiceInsert(b *testing.B) {
@@ -146,9 +137,8 @@ func BenchmarkPeerUpdateServiceInsert(b *testing.B) {
 	}
 	b.StopTimer()
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(b, err)
 }
 
 func BenchmarkSingleFilter_1k_svc__1Peer(b *testing.B) {
@@ -165,9 +155,8 @@ func BenchmarkSingleFilter_1k_svc__1Peer(b *testing.B) {
 	}
 	b.StopTimer()
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err := cleanup()
+	require.NoError(b, err)
 }
 
 func BenchmarkSingleFilter_1k_svc_10Peer(b *testing.B) {
@@ -184,9 +173,8 @@ func BenchmarkSingleFilter_1k_svc_10Peer(b *testing.B) {
 	}
 	b.StopTimer()
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err := cleanup()
+	require.NoError(b, err)
 }
 
 func BenchmarkMultiFilter_1k_svc__1Peer(b *testing.B) {
@@ -203,9 +191,8 @@ func BenchmarkMultiFilter_1k_svc__1Peer(b *testing.B) {
 	}
 	b.StopTimer()
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err := cleanup()
+	require.NoError(b, err)
 }
 
 func BenchmarkSimpleStats_1k_svc__1Peer(b *testing.B) {
@@ -222,9 +209,8 @@ func BenchmarkSimpleStats_1k_svc__1Peer(b *testing.B) {
 	}
 	b.StopTimer()
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err := cleanup()
+	require.NoError(b, err)
 }
 
 func BenchmarkTacStats_1k_svc__1Peer(b *testing.B) {
@@ -241,9 +227,8 @@ func BenchmarkTacStats_1k_svc__1Peer(b *testing.B) {
 	}
 	b.StopTimer()
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err := cleanup()
+	require.NoError(b, err)
 }
 
 func BenchmarkTacStats_1k_svc_10Peer(b *testing.B) {
@@ -260,9 +245,8 @@ func BenchmarkTacStats_1k_svc_10Peer(b *testing.B) {
 	}
 	b.StopTimer()
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err := cleanup()
+	require.NoError(b, err)
 }
 
 func BenchmarkTacStats_1k_svc_100Peer(b *testing.B) {
@@ -281,9 +265,8 @@ func BenchmarkTacStats_1k_svc_100Peer(b *testing.B) {
 	}
 	b.StopTimer()
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err := cleanup()
+	require.NoError(b, err)
 }
 
 func BenchmarkTacStats_5k_svc_500Peer(b *testing.B) {
@@ -302,9 +285,8 @@ func BenchmarkTacStats_5k_svc_500Peer(b *testing.B) {
 	}
 	b.StopTimer()
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err := cleanup()
+	require.NoError(b, err)
 }
 
 func BenchmarkServicelistLimit_1k_svc__1Peer(b *testing.B) {
@@ -321,9 +303,8 @@ func BenchmarkServicelistLimit_1k_svc__1Peer(b *testing.B) {
 	}
 	b.StopTimer()
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err := cleanup()
+	require.NoError(b, err)
 }
 
 func BenchmarkServicelistLimit_1k_svc_10Peer(b *testing.B) {
@@ -340,9 +321,8 @@ func BenchmarkServicelistLimit_1k_svc_10Peer(b *testing.B) {
 	}
 	b.StopTimer()
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err := cleanup()
+	require.NoError(b, err)
 }
 
 func BenchmarkRequestParser1(b *testing.B) {
@@ -387,9 +367,8 @@ func BenchmarkServicesearchLimit_1k_svc_10Peer(b *testing.B) {
 	}
 	b.StopTimer()
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err := cleanup()
+	require.NoError(b, err)
 }
 
 const tacPageStatsQuery = `GET services

@@ -77,7 +77,7 @@ type Config struct {
 	TLSCertificate             string       `toml:"TLSCertificate"`
 	TLSKey                     string       `toml:"TLSKey"`
 	TLSClientPems              []string     `toml:"TLSClientPems"`
-	Updateinterval             int64        `toml:"Updateinterval"`
+	UpdateInterval             int64        `toml:"Updateinterval"`
 	FullUpdateInterval         int64        `toml:"FullUpdateInterval"`
 	Connections                []Connection `toml:"Connections"`
 	LogFile                    string       `toml:"LogFile"`
@@ -111,7 +111,7 @@ type Config struct {
 // It returns a Config object.
 func NewConfig(files []string) *Config {
 	conf := Config{
-		Updateinterval:             7,
+		UpdateInterval:             7,
 		FullUpdateInterval:         0,
 		LogLevel:                   "Info",
 		LogSlowQueryThreshold:      5,
@@ -193,9 +193,9 @@ func (conf *Config) ValidateConfig() {
 		log.Warnf("config: ListenTimeout invalid, value must be greater than 0")
 		conf.ListenTimeout = DefaultConfig.ListenTimeout
 	}
-	if conf.Updateinterval <= 0 {
+	if conf.UpdateInterval <= 0 {
 		log.Warnf("config: Updateinterval invalid, value must be greater than 0")
-		conf.Updateinterval = DefaultConfig.Updateinterval
+		conf.UpdateInterval = DefaultConfig.UpdateInterval
 	}
 	if conf.FullUpdateInterval < 0 {
 		log.Warnf("config: FullUpdateInterval invalid, value must be greater than 0")

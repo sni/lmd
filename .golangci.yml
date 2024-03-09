@@ -62,8 +62,6 @@ linters:
     - scopelint
     - nosnakecase
     - golint
-    # TODO:
-    - forcetypeassert
 issues:
   max-same-issues: 0
   max-issues-per-linter: 0
