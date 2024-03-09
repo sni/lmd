@@ -22,17 +22,10 @@ jobs:
         go-version: ${{ matrix.go-version }}
     - uses: actions/checkout@v4
     - run: make clean
-    #- run: make updatedeps
-    #  if: github.event_name != 'pull_request'
     - run: make citest
     - run: make
     - name: extract built binary
       uses: actions/upload-artifact@v4
       with:
         name: lmd-go${{ matrix.go-version }}
-        path: lmd/lmd
-    - run: make clean
-    - run: make build
-    - run: make clean
-    - run: make debugbuild
-    - run: make clean
+        path: lmd
