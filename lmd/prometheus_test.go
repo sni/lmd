@@ -4,6 +4,9 @@ import (
 	"context"
 	"net/http"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPrometheus(t *testing.T) {
@@ -18,18 +21,11 @@ func TestPrometheus(t *testing.T) {
 	netClient := NewLMDHTTPClient(tlsconfig, "")
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:50999/metrics", http.NoBody)
 	response, err := netClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	contents, err := ExtractHTTPResponse(response)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := assertLike("lmd_peer_update_interval", string(contents)); err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
+	assert.Contains(t, string(contents), "lmd_peer_update_interval")
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }

@@ -389,7 +389,10 @@ type fullUpdateCb func(context.Context, string, bool, int64) error
 //nolint:lll // it is what it is...
 func (ds *DataStoreSet) UpdateFullScan(ctx context.Context, store *DataStore, statusKey PeerStatusKey, filter string, updateThr int64, updateFn fullUpdateCb) (updated bool, err error) {
 	peer := ds.peer
-	lastUpdate := peer.statusGetLocked(statusKey).(float64)
+	lastUpdate, ok := peer.statusGetLocked(statusKey).(float64)
+	if !ok {
+		log.Panicf("status key %#v did not return a float64", statusKey)
+	}
 
 	// do not do a full scan more often than every 60 seconds
 	if lastUpdate > float64(time.Now().Unix()-MinFullScanInterval) {
@@ -556,7 +559,7 @@ func (ds *DataStoreSet) UpdateDeltaCommentsOrDowntimes(ctx context.Context, name
 		_, ok := idIndex[comID]
 		if !ok {
 			logWith(ds, req).Debugf("adding %s with id %s", name.String(), comID)
-			id64 := int64(resRow[0].(float64))
+			id64 := interface2int64(resRow[0])
 			missingIDs = append(missingIDs, id64)
 		}
 		resIndex[comID] = true

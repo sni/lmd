@@ -11,6 +11,9 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMainFunc(t *testing.T) {
@@ -18,18 +21,11 @@ func TestMainFunc(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET backends\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(res) < 2 {
-		t.Fatalf("expected at least 2 rows: %#v", res)
-	}
-	if err = assertEq("peer_key", res[0][0]); err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq("mockid0", res[1][0]); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
+	require.GreaterOrEqual(t, len(res), 2, "expected at least 2 rows: %#v", res)
+	require.Equal(t, "peer_key", res[0][0])
+	require.Equal(t, "mockid0", res[1][0])
 
 	testRequestStrings := []string{
 		"GET backends\n\n",
@@ -48,44 +44,27 @@ func TestMainFunc(t *testing.T) {
 	}
 	for _, str := range testRequestStrings {
 		res, _, err = peer.QueryString(str)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err = assertEq("peer_key", res[0][0]); err != nil {
-			t.Fatal(err)
-		}
-		if err = assertEq("mockid0", res[1][0]); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
+		require.Equal(t, "peer_key", res[0][0])
+		require.Equal(t, "mockid0", res[1][0])
 	}
 
 	// sort queries
 	res, _, err = peer.QueryString("GET backends\nColumns: peer_key bytes_send bytes_received\nSort: bytes_send asc\nSort: bytes_received desc\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq("mockid0", res[0][0]); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "mockid0", res[0][0])
 
 	// stats queries
 	res, _, err = peer.QueryString("GET backends\nStats: bytes_send > 0\nStats: avg bytes_send\nStats: sum bytes_send\nStats: min bytes_send\nStats: max bytes_send\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = assertEq(1.0, res[0][0]); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	require.InDelta(t, 1.0, res[0][0], 0)
 
 	// send commands
 	_, _, err = peer.QueryString("COMMAND [123456] TEST\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }
 
 func TestMainReload(t *testing.T) {
@@ -136,15 +115,13 @@ func TestAllOps(t *testing.T) {
 	values := []string{"", " test", " 5", " 3.124", " {}"}
 
 	res, _, err := peer.QueryString("GET columns\nColumns: table name description\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
 	for _, row := range res {
-		if row[2].(string) == "" {
-			t.Fatalf("got no description for %s in %s", row[1].(string), row[0].(string))
-		}
+		require.NotEmptyf(t, row[2], "got no description for %#v in %#v", row[1], row[0])
 		tableName, _ := NewTableName(*interface2string(row[0]))
-		col := Objects.Tables[tableName].GetColumn(row[1].(string))
+		require.IsTypef(t, "", row[1], "this must be a string")
+		col := Objects.Tables[tableName].GetColumn(interface2stringNoDedup(row[1]))
 		for _, operator := range ops {
 			if col.Optional != NoFlags {
 				continue
@@ -160,9 +137,8 @@ func TestAllOps(t *testing.T) {
 		}
 	}
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }
 
 func testqueryCol(t *testing.T, peer *Peer, table TableName, column string) {
@@ -182,14 +158,10 @@ func testqueryCol(t *testing.T, peer *Peer, table TableName, column string) {
 	buf := bufio.NewReader(bytes.NewBufferString(query))
 	req, _, err := NewRequest(context.TODO(), lmd, buf, ParseDefault)
 	if err == nil {
-		if err = assertEq(query, req.String()); err != nil {
-			t.Fatal(err)
-		}
+		require.Equal(t, query, req.String())
 	}
 	_, _, err = peer.QueryString(query)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 }
 
 func testqueryFilter(t *testing.T, peer *Peer, table TableName, column, operator, value string) {
@@ -211,9 +183,7 @@ func testqueryFilter(t *testing.T, peer *Peer, table TableName, column, operator
 	buf := bufio.NewReader(bytes.NewBufferString(query))
 	req, _, err := NewRequest(context.TODO(), lmd, buf, ParseDefault)
 	if err == nil {
-		if err = assertEq(query, req.String()); err != nil {
-			t.Fatal(err)
-		}
+		require.Equal(t, query, req.String())
 	}
 	_, _, err = peer.QueryString(query)
 	if err != nil {
@@ -240,9 +210,7 @@ func testqueryGroup(t *testing.T, peer *Peer, table TableName, column, operator,
 	buf := bufio.NewReader(bytes.NewBufferString(query))
 	req, _, err := NewRequest(context.TODO(), lmd, buf, ParseDefault)
 	if err == nil {
-		if err = assertEq(query, req.String()); err != nil {
-			t.Fatal(err)
-		}
+		require.Equal(t, query, req.String())
 	}
 	_, _, err = peer.QueryString(query)
 	if err != nil {
@@ -270,14 +238,11 @@ func TestAllTables(t *testing.T) {
 		}
 		query = fmt.Sprintf("GET %s\n\n", table.String())
 		_, _, err := peer.QueryString(query)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	}
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err := cleanup()
+	require.NoError(t, err)
 }
 
 func TestMainConfig(t *testing.T) {
@@ -288,38 +253,23 @@ func TestMainConfig(t *testing.T) {
 	}
 
 	err := os.WriteFile("test1.ini", []byte(testConfig[0]), 0o644)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	err = os.WriteFile("test2.ini", []byte(testConfig[1]), 0o644)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	err = os.WriteFile("test3.ini", []byte(testConfig[2]), 0o644)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	conf := NewConfig([]string{"test1.ini"})
-	if err := assertEq(len(conf.Listen), 0); err != nil {
-		t.Error(err)
-	}
+	assert.Empty(t, conf.Listen, 0)
 
 	conf = NewConfig([]string{"test1.ini", "test2.ini"})
-	if err := assertEq(len(conf.Listen), 1); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq(conf.SkipSSLCheck, 1); err != nil {
-		t.Error(err)
-	}
+	assert.Len(t, conf.Listen, 1)
+
+	assert.Equal(t, 1, conf.SkipSSLCheck)
 
 	conf = NewConfig([]string{"test1.ini", "test2.ini", "test3.ini"})
-	if err := assertEq(len(conf.Listen), 2); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq(conf.SkipSSLCheck, 0); err != nil {
-		t.Error(err)
-	}
+	assert.Len(t, conf.Listen, 2)
+	assert.Equal(t, 0, conf.SkipSSLCheck)
 
 	os.Remove("test1.ini")
 	os.Remove("test2.ini")
@@ -336,21 +286,10 @@ func TestMainArgs(t *testing.T) {
 	}}
 	applyArgFlags(args, cfg)
 
-	if err := assertEq(cfg.IdleTimeout, int64(300)); err != nil {
-		t.Error(err)
-	}
-
-	if err := assertEq(cfg.SaveTempRequests, false); err != nil {
-		t.Error(err)
-	}
-
-	if err := assertEq(cfg.ListenPrometheus, "/dev/null"); err != nil {
-		t.Error(err)
-	}
-
-	if err := assertEq(cfg.SkipSSLCheck, int(1)); err != nil {
-		t.Error(err)
-	}
+	assert.Equal(t, int64(300), cfg.IdleTimeout)
+	assert.False(t, cfg.SaveTempRequests)
+	assert.Equal(t, "/dev/null", cfg.ListenPrometheus)
+	assert.Equal(t, 1, cfg.SkipSSLCheck)
 }
 
 func TestMainWaitTimeout(t *testing.T) {

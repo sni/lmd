@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPeerSource(t *testing.T) {
@@ -14,66 +17,38 @@ func TestPeerSource(t *testing.T) {
 	connection := Connection{Name: "Test", Source: []string{"http://localhost/test/", "http://clusternode/test"}}
 	peer := NewPeer(lmd, &connection)
 
-	if err := assertEq("http://localhost/test/", peer.Source[0]); err != nil {
-		t.Error(err)
-	}
-
-	if err := assertEq("http://clusternode/test", peer.Source[1]); err != nil {
-		t.Error(err)
-	}
+	require.Len(t, peer.Source, 2)
+	assert.Equal(t, "http://localhost/test/", peer.Source[0])
+	assert.Equal(t, "http://clusternode/test", peer.Source[1])
 }
 
 func TestPeerHTTPComplete(t *testing.T) {
-	if err := assertEq("http://localhost/thruk/cgi-bin/remote.cgi", completePeerHTTPAddr("http://localhost")); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq("http://localhost/thruk/cgi-bin/remote.cgi", completePeerHTTPAddr("http://localhost/")); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq("http://localhost/thruk/cgi-bin/remote.cgi", completePeerHTTPAddr("http://localhost/thruk/")); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq("http://localhost/thruk/cgi-bin/remote.cgi", completePeerHTTPAddr("http://localhost/thruk")); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq("http://localhost/thruk/cgi-bin/remote.cgi", completePeerHTTPAddr("http://localhost/thruk/cgi-bin/remote.cgi")); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq("http://localhost/sitename/thruk/cgi-bin/remote.cgi", completePeerHTTPAddr("http://localhost/sitename")); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq("http://localhost/sitename/thruk/cgi-bin/remote.cgi", completePeerHTTPAddr("http://localhost/sitename/")); err != nil {
-		t.Error(err)
-	}
+	assert.Equal(t, "http://localhost/thruk/cgi-bin/remote.cgi", completePeerHTTPAddr("http://localhost"))
+	assert.Equal(t, "http://localhost/thruk/cgi-bin/remote.cgi", completePeerHTTPAddr("http://localhost/"))
+	assert.Equal(t, "http://localhost/thruk/cgi-bin/remote.cgi", completePeerHTTPAddr("http://localhost/thruk/"))
+	assert.Equal(t, "http://localhost/thruk/cgi-bin/remote.cgi", completePeerHTTPAddr("http://localhost/thruk"))
+	assert.Equal(t, "http://localhost/thruk/cgi-bin/remote.cgi", completePeerHTTPAddr("http://localhost/thruk/cgi-bin/remote.cgi"))
+	assert.Equal(t, "http://localhost/sitename/thruk/cgi-bin/remote.cgi", completePeerHTTPAddr("http://localhost/sitename"))
+	assert.Equal(t, "http://localhost/sitename/thruk/cgi-bin/remote.cgi", completePeerHTTPAddr("http://localhost/sitename/"))
 }
 
 func TestParseResultJSON(t *testing.T) {
 	lmd := createTestLMDInstance()
 	req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
-	if err != nil {
-		panic(err.Error())
-	}
+	require.NoError(t, err)
+
 	data := []byte(`[
 	 ["host1", "desc1", 0, [1,2], {"a": 1}],
 	 ["host2", "desc2", 1, [1,2], {"a": 1}],
 	]`)
 
 	res, _, err := req.parseResult(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := assertEq(2, len(res)); err != nil {
-		t.Fatal(err)
-	}
-	if err := assertEq(5, len(res[0])); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq("host2", res[1][0]); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq(float64(1), res[1][2]); err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
+
+	assert.Len(t, res, 2)
+	assert.Len(t, res[0], 5)
+	assert.Equal(t, "host2", res[1][0])
+	assert.InDelta(t, float64(1), res[1][2], 0)
 }
 
 func TestParseResultWrappedJSON(t *testing.T) {
@@ -89,24 +64,12 @@ func TestParseResultWrappedJSON(t *testing.T) {
 	"total_count": 2}`)
 
 	res, meta, err := req.parseResult(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := assertEq(2, len(res)); err != nil {
-		t.Fatal(err)
-	}
-	if err := assertEq(5, len(res[0])); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq("host2", res[1][0]); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq(float64(1), res[1][2]); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq(int64(2), meta.Total); err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
+	assert.Len(t, res, 2)
+	assert.Len(t, res[0], 5)
+	assert.Equal(t, "host2", res[1][0])
+	assert.InDelta(t, 1, res[1][2], 0)
+	assert.Equal(t, int64(2), meta.Total)
 }
 
 func TestParseResultJSONBroken(t *testing.T) {
@@ -170,15 +133,9 @@ func TestParseResultJSONEscapeSequences(t *testing.T) {
 		res, _, err := req.parseResult(data)
 		InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
 
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := assertEq(1, len(res)); err != nil {
-			t.Error(err)
-		}
-		if err := assertLike("null", res[0][0].(string)); err != nil {
-			t.Error(err)
-		}
+		require.NoError(t, err)
+		assert.Len(t, res, 1)
+		assert.Contains(t, res[0][0], "null")
 	}
 }
 
@@ -187,9 +144,7 @@ func TestPeerUpdate(t *testing.T) {
 	PauseTestPeers(peer)
 
 	err := peer.data.UpdateFull(context.TODO(), Objects.UpdateTables)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	// fake some last_update entries
 	data, _ := peer.GetDataStoreSet()
@@ -200,48 +155,33 @@ func TestPeerUpdate(t *testing.T) {
 	}
 	ctx := context.TODO()
 	err = data.UpdateDelta(ctx, float64(5), float64(time.Now().Unix()+5))
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	peer.statusSetLocked(LastUpdate, float64(0))
 	err = peer.periodicUpdate(context.TODO())
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	peer.statusSetLocked(LastUpdate, float64(0))
 	peer.statusSetLocked(PeerState, PeerStatusWarning)
 	err = peer.periodicUpdate(context.TODO())
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	peer.statusSetLocked(LastUpdate, float64(0))
 	peer.statusSetLocked(PeerState, PeerStatusDown)
 	err = peer.periodicUpdate(context.TODO())
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	err = peer.periodicTimeperiodsUpdate(context.TODO(), peer.data)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	peer.statusSetLocked(LastUpdate, float64(0))
 	peer.statusSetLocked(PeerState, PeerStatusBroken)
 	err = peer.periodicUpdate(context.TODO())
-	if err == nil {
-		t.Fatalf("got no error but expected broken peer")
-	}
-	if err = assertLike("waiting for peer to recover", err.Error()); err != nil {
-		t.Error(err)
-	}
+	require.Errorf(t, err, "got no error but expected broken peer")
+	assert.Contains(t, err.Error(), "waiting for peer to recover")
 
-	if err = cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }
 
 func TestPeerDeltaUpdate(t *testing.T) {
@@ -249,13 +189,10 @@ func TestPeerDeltaUpdate(t *testing.T) {
 	PauseTestPeers(peer)
 
 	err := peer.data.UpdateDelta(context.TODO(), 0, 0)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }
 
 func TestPeerUpdateResume(t *testing.T) {
@@ -264,13 +201,10 @@ func TestPeerUpdateResume(t *testing.T) {
 
 	ctx := context.TODO()
 	err := peer.ResumeFromIdle(ctx)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }
 
 func TestPeerInitSerial(t *testing.T) {
@@ -278,13 +212,10 @@ func TestPeerInitSerial(t *testing.T) {
 	PauseTestPeers(peer)
 
 	err := peer.initAllTablesSerial(context.TODO(), peer.data)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }
 
 func TestLMDPeerUpdate(t *testing.T) {
@@ -295,21 +226,16 @@ func TestLMDPeerUpdate(t *testing.T) {
 	peer.SetFlag(LMD)
 	peer.SetFlag(MultiBackend)
 	err := peer.periodicUpdateLMD(context.TODO(), nil, true)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	peer.statusSetLocked(LastUpdate, float64(0))
 	peer.ResetFlags()
 	peer.SetFlag(MultiBackend)
 	err = peer.periodicUpdateMultiBackends(context.TODO(), nil, true)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }
 
 func TestPeerLog(t *testing.T) {
@@ -319,14 +245,9 @@ func TestPeerLog(t *testing.T) {
 	peer.setBroken("test")
 	peer.logPeerStatus(log.Debugf)
 	err := peer.initTablesIfRestartRequiredError(context.TODO(), fmt.Errorf("test"))
-	if err == nil {
-		t.Fatalf("got no error but expected broken peer")
-	}
-	if err = assertLike("test", err.Error()); err != nil {
-		t.Error(err)
-	}
+	require.Errorf(t, err, "got no error but expected broken peer")
+	assert.Contains(t, err.Error(), "test")
 
-	if err = cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }

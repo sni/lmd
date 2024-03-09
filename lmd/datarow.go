@@ -699,33 +699,36 @@ func VirtualColFlags(d *DataRow, _ *Column) interface{} {
 
 // getVirtualSubLMDValue returns status values for LMDSub backends.
 func (d *DataRow) getVirtualSubLMDValue(col *Column) (val interface{}, ok bool) {
-	ok = true
 	peer := d.DataStore.Peer
-	peerData := peer.statusGetLocked(SubPeerStatus).(map[string]interface{})
+	peer.lock.RLock()
+	defer peer.lock.RUnlock()
+	peerData := peer.SubPeerStatus
 	if peerData == nil {
 		return nil, false
 	}
 	switch col.Name {
 	case "status":
 		// return worst state of LMD and LMDSubs state
-		parentVal := peer.statusGetLocked(PeerState).(PeerStatus)
-		if parentVal != PeerStatusUp {
-			val = parentVal
-		} else {
-			val, ok = peerData[col.Name]
+		if peer.PeerState != PeerStatusUp {
+			return peer.PeerState, true
 		}
+
+		val, ok = peerData[col.Name]
+
+		return val, ok
 	case "last_error":
 		// return worst state of LMD and LMDSubs state
-		parentVal := peer.statusGetLocked(LastError).(string)
-		val, ok = peerData[col.Name]
-		if parentVal != "" && (!ok || val.(string) == "") {
-			val = parentVal
+		if peer.LastError != "" {
+			return peer.LastError, true
 		}
-	default:
 		val, ok = peerData[col.Name]
+
+		return val, ok
 	}
 
-	return
+	val, ok = peerData[col.Name]
+
+	return val, ok
 }
 
 // MatchFilter returns true if the given filter matches the given datarow.
@@ -1236,6 +1239,8 @@ func interface2mapinterface(raw interface{}) map[string]interface{} {
 	switch list := raw.(type) {
 	case map[string]interface{}:
 		return list
+	case *map[string]interface{}:
+		return *list
 	}
 
 	log.Warnf("unsupported stringlist type: %#v (%T)", raw, raw)

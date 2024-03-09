@@ -26,7 +26,7 @@ type DataStore struct {
 }
 
 // NewDataStore creates a new datastore with columns based on given flags.
-func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
+func NewDataStore(table *Table, peer *Peer) (d *DataStore) {
 	d = &DataStore{
 		Data:                    make([]*DataRow, 0),
 		Index:                   make(map[string]*DataRow),
@@ -40,7 +40,7 @@ func NewDataStore(table *Table, peer interface{}) (d *DataStore) {
 	}
 
 	if peer != nil {
-		d.Peer = peer.(*Peer)
+		d.Peer = peer
 		d.Peer.lock.RLock()
 		d.PeerName = d.Peer.Name
 		d.PeerKey = d.Peer.ID

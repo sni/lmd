@@ -2,6 +2,9 @@ package main
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 /**
@@ -13,16 +16,11 @@ func TestAuthuserHost(t *testing.T) {
 
 	// Authuser should only see it's own hosts
 	res, _, err := peer.QueryString("GET hosts\nColumns: name state contacts\nAuthUser: authuser\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := assertEq(1, len(res)); err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
+	assert.Len(t, res, 1)
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }
 
 /**
@@ -33,16 +31,11 @@ func TestAuthuserHostStats(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hosts\nStats: state = 0\nAuthUser: authuser\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := assertEq(1.0, res[0][0]); err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
+	assert.InDelta(t, 1.0, res[0][0], 0)
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }
 
 /**
@@ -54,17 +47,11 @@ func TestAuthuserService(t *testing.T) {
 
 	// Authuser should only see it's own services
 	res, _, err := peer.QueryString("GET services\nColumns: host_name description state\nAuthUser: authuser\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	assert.Len(t, res, 1)
 
-	if err := assertEq(1, len(res)); err != nil {
-		t.Error(err)
-	}
-
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }
 
 /**
@@ -75,16 +62,11 @@ func TestAuthuserServiceStats(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET services\nStats: state = 0\nAuthUser: authuser\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := assertEq(7.0, res[0][0]); err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
+	assert.InDelta(t, 7.0, res[0][0], 0)
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }
 
 /**
@@ -98,16 +80,11 @@ func TestAuthuserHostgroupsLoose(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hostgroups\nColumns: name\nAuthUser: authuser\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := assertEq(2, len(res)); err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
+	assert.Len(t, res, 2)
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }
 
 /**
@@ -121,16 +98,11 @@ func TestAuthuserHostgroupsStrict(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hostgroups\nColumns: name\nAuthUser: authuser\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := assertEq(1, len(res)); err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
+	assert.Len(t, res, 1)
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }
 
 /**
@@ -142,16 +114,11 @@ func TestAuthuserServicegroups(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET servicegroups\nColumns: name members\nAuthUser: authuser\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := assertEq(1, len(res)); err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
+	assert.Len(t, res, 1)
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }
 
 /**
@@ -162,16 +129,11 @@ func TestAuthuserComments(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET comments\nColumns: author comment\nAuthUser: authuser\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := assertEq(1, len(res)); err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
+	assert.Len(t, res, 1)
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }
 
 /**
@@ -185,16 +147,11 @@ func TestAuthuserServiceAuth(t *testing.T) {
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET services\nColumns: host_name description state contacts\nAuthUser: authuser\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := assertEq(2, len(res)); err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
+	assert.Len(t, res, 2)
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }
 
 /**
@@ -206,16 +163,11 @@ func TestAuthuserHostsbygroup(t *testing.T) {
 
 	// Authuser should only see it's own hosts
 	res, _, err := peer.QueryString("GET hostsbygroup\nColumns: name state\nAuthUser: authuser\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := assertEq(1, len(res)); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	assert.Len(t, res, 1)
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }
 
 /**
@@ -228,16 +180,11 @@ func TestAuthuserServicesbygroup(t *testing.T) {
 
 	// Authuser should only see it's own services
 	res, _, err := peer.QueryString("GET servicesbygroup\nColumns: host_name description servicegroup_name\nAuthuser: authuser\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := assertEq(2, len(res)); err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
+	assert.Len(t, res, 2)
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }
 
 /**
@@ -249,15 +196,9 @@ func TestAuthuserServicesbyhostgroup(t *testing.T) {
 
 	// Authuser should only see it's own services
 	res, _, err := peer.QueryString("GET servicesbyhostgroup\nColumns: host_name description state\nAuthUser: authuser\n\n")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	assert.Len(t, res, 1)
 
-	if err := assertEq(1, len(res)); err != nil {
-		t.Error(err)
-	}
-
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }

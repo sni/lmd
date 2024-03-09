@@ -34,9 +34,9 @@ func BenchmarkParseResultJSON(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		res, _, err := req.parseResult(resBytes)
-		if err != nil {
-			panic(err.Error())
+		res, _, err2 := req.parseResult(resBytes)
+		if err2 != nil {
+			panic(err2.Error())
 		}
 		if len(res) != 1001 {
 			b.Fatalf("wrong result size, expected 1001, got %d", len(res))
@@ -74,9 +74,9 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		res, _, err := req.parseResult(resBytes)
-		if err != nil {
-			panic(err.Error())
+		res, _, err2 := req.parseResult(resBytes)
+		if err2 != nil {
+			panic(err2.Error())
 		}
 		if len(res) != 1000 {
 			b.Fatalf("wrong result size, expected 1000, got %d", len(res))

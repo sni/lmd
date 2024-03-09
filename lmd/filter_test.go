@@ -3,77 +3,51 @@ package main
 import (
 	"regexp"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestStringFilter(t *testing.T) {
 	// compare empty strings
 	val := ""
-	if err := assertEq(true, (&Filter{Operator: Equal, StrValue: ""}).MatchString(val)); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq(false, (&Filter{Operator: Unequal, StrValue: ""}).MatchString(val)); err != nil {
-		t.Error(err)
-	}
+	assert.True(t, (&Filter{Operator: Equal, StrValue: ""}).MatchString(val))
+	assert.False(t, (&Filter{Operator: Unequal, StrValue: ""}).MatchString(val))
 }
 
 func TestStringListFilter(t *testing.T) {
 	value := []string{"abc", "def"}
-	if err := assertEq(true, (&Filter{Operator: GreaterThan, StrValue: "def"}).MatchStringList(value)); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq(false, (&Filter{Operator: GreaterThan, StrValue: "xyz"}).MatchStringList(value)); err != nil {
-		t.Error(err)
-	}
+	assert.True(t, (&Filter{Operator: GreaterThan, StrValue: "def"}).MatchStringList(value))
+	assert.False(t, (&Filter{Operator: GreaterThan, StrValue: "xyz"}).MatchStringList(value))
 }
 
 func TestStringListNegatedFilter(t *testing.T) {
 	value := []string{"abc", "def"}
-	if err := assertEq(false, (&Filter{Operator: ContainsNot, StrValue: "def"}).MatchStringList(value)); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq(true, (&Filter{Operator: GroupContainsNot, StrValue: "xyz"}).MatchStringList(value)); err != nil {
-		t.Error(err)
-	}
+	assert.False(t, (&Filter{Operator: ContainsNot, StrValue: "def"}).MatchStringList(value))
+	assert.True(t, (&Filter{Operator: GroupContainsNot, StrValue: "xyz"}).MatchStringList(value))
 
 	value = []string{}
-	if err := assertEq(true, (&Filter{Operator: ContainsNot, StrValue: "def"}).MatchStringList(value)); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq(true, (&Filter{Operator: GroupContainsNot, StrValue: "xyz"}).MatchStringList(value)); err != nil {
-		t.Error(err)
-	}
+	assert.True(t, (&Filter{Operator: ContainsNot, StrValue: "def"}).MatchStringList(value))
+	assert.True(t, (&Filter{Operator: GroupContainsNot, StrValue: "xyz"}).MatchStringList(value))
 }
 
 func TestInt64ListFilter(t *testing.T) {
 	value := []int64{1, 2, 3, 4, 5}
-	if err := assertEq(true, (&Filter{Operator: GreaterThan, IntValue: 5}).MatchInt64List(value)); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq(false, (&Filter{Operator: GreaterThan, IntValue: 6}).MatchInt64List(value)); err != nil {
-		t.Error(err)
-	}
+	assert.True(t, (&Filter{Operator: GreaterThan, IntValue: 5}).MatchInt64List(value))
+	assert.False(t, (&Filter{Operator: GreaterThan, IntValue: 6}).MatchInt64List(value))
 }
 
 func TestRegexpStringFilter(t *testing.T) {
 	value := "1"
 	regex := regexp.MustCompile("[12]")
-	if err := assertEq(true, (&Filter{Operator: RegexMatch, Regexp: regex}).MatchString(value)); err != nil {
-		t.Error(err)
-	}
+	assert.True(t, (&Filter{Operator: RegexMatch, Regexp: regex}).MatchString(value))
 	regex = regexp.MustCompile("[02]")
-	if err := assertEq(false, (&Filter{Operator: RegexMatch, Regexp: regex}).MatchString(value)); err != nil {
-		t.Error(err)
-	}
+	assert.False(t, (&Filter{Operator: RegexMatch, Regexp: regex}).MatchString(value))
 }
 
 func TestRegexpListFilter(t *testing.T) {
 	value := []int64{1, 2, 3, 4, 5}
-	if err := assertEq(true, (&Filter{Operator: GreaterThan, IntValue: 5}).MatchInt64List(value)); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq(false, (&Filter{Operator: GreaterThan, IntValue: 6}).MatchInt64List(value)); err != nil {
-		t.Error(err)
-	}
+	assert.True(t, (&Filter{Operator: GreaterThan, IntValue: 5}).MatchInt64List(value))
+	assert.False(t, (&Filter{Operator: GreaterThan, IntValue: 6}).MatchInt64List(value))
 }
 
 func TestRegexpDetection(t *testing.T) {
@@ -97,8 +71,6 @@ func TestRegexpDetection(t *testing.T) {
 	}
 	for str, exp := range tests {
 		res := hasRegexpCharacters(str)
-		if err := assertEq(exp, res); err != nil {
-			t.Errorf("regex detection failed for test string '%s'\n%s", str, err)
-		}
+		assert.Equalf(t, exp, res, "regex detection failed for test string '%s'", str)
 	}
 }

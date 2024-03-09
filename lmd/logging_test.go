@@ -5,6 +5,8 @@ import (
 	"context"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLogger(t *testing.T) {
@@ -23,11 +25,6 @@ func TestLogger(t *testing.T) {
 	c := context.WithValue(context.Background(), CtxClient, "testclient")
 	logWith(c).Errorf("context")
 
-	if err := assertLike("nil peer", devnull.String()); err != nil {
-		t.Error(err)
-	}
-
-	if err := assertLike("testclient", devnull.String()); err != nil {
-		t.Error(err)
-	}
+	assert.Contains(t, devnull.String(), "nil peer")
+	assert.Contains(t, devnull.String(), "testclient")
 }

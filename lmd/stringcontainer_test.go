@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStringContainerCompression(t *testing.T) {
@@ -14,17 +17,10 @@ func TestStringContainerCompression(t *testing.T) {
 	str := teststring.String()
 	cont := NewStringContainer(&str)
 
-	if err := assertEq("", cont.StringData); err != nil {
-		t.Fatal(err)
-	}
+	assert.Equal(t, "", cont.StringData)
 
-	if err := assertNeq(nil, cont.CompressedData); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := assertEq(str, cont.String()); err != nil {
-		t.Fatal(err)
-	}
+	require.NotNil(t, cont.CompressedData)
+	assert.Equal(t, str, cont.String())
 }
 
 func TestStringContainerNoCompression(t *testing.T) {
@@ -35,9 +31,7 @@ func TestStringContainerNoCompression(t *testing.T) {
 	str := teststring.String()
 	cont := NewStringContainer(&str)
 
-	if err := assertEq(str, cont.StringData); err != nil {
-		t.Fatal(err)
-	}
+	assert.Equal(t, str, cont.StringData)
 
 	if cont.CompressedData != nil {
 		t.Fatalf("CompressedData should be nil")

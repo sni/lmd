@@ -2,6 +2,8 @@ package main
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestColumnFlag(t *testing.T) {
@@ -9,53 +11,31 @@ func TestColumnFlag(t *testing.T) {
 	connection := Connection{Name: "Test", Source: []string{"http://localhost/test/"}}
 	peer := NewPeer(lmd, &connection)
 
-	if err := assertEq(uint32(NoFlags), peer.Flags); err != nil {
-		t.Error(err)
-	}
+	assert.Equal(t, uint32(NoFlags), peer.Flags)
 
 	peer.SetFlag(Naemon)
+	assert.Equal(t, uint32(Naemon), peer.Flags)
+	assert.True(t, peer.HasFlag(Naemon))
+	assert.False(t, peer.HasFlag(HasDependencyColumn))
 
-	if err := assertEq(uint32(Naemon), peer.Flags); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq(true, peer.HasFlag(Naemon)); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq(false, peer.HasFlag(HasDependencyColumn)); err != nil {
-		t.Error(err)
-	}
 	peer.SetFlag(HasDependencyColumn)
-	if err := assertEq(true, peer.HasFlag(HasDependencyColumn)); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq(false, peer.HasFlag(MultiBackend)); err != nil {
-		t.Error(err)
-	}
+	assert.True(t, peer.HasFlag(HasDependencyColumn))
+	assert.False(t, peer.HasFlag(MultiBackend))
 
 	peer.ResetFlags()
-	if err := assertEq(false, peer.HasFlag(Naemon)); err != nil {
-		t.Error(err)
-	}
-	if err := assertEq(uint32(NoFlags), peer.Flags); err != nil {
-		t.Error(err)
-	}
+	assert.False(t, peer.HasFlag(Naemon))
+	assert.Equal(t, uint32(NoFlags), peer.Flags)
 }
 
 func TestColumnList(t *testing.T) {
 	cl := ColumnList{&Column{Name: "Test1"}, &Column{Name: "Test2"}}
-	if err := assertEq("Test1, Test2", cl.String()); err != nil {
-		t.Error(err)
-	}
+	assert.Equal(t, "Test1, Test2", cl.String())
 }
 
 func TestColumnEmpty(t *testing.T) {
 	col := Column{Name: "Test1", DataType: IntCol}
-	if err := assertEq(-1, col.GetEmptyValue()); err != nil {
-		t.Error(err)
-	}
+	assert.Equal(t, -1, col.GetEmptyValue())
 
 	col.DataType = StringCol
-	if err := assertEq("", col.GetEmptyValue()); err != nil {
-		t.Error(err)
-	}
+	assert.Empty(t, col.GetEmptyValue())
 }

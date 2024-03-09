@@ -57,7 +57,7 @@ func (p *Peer) statusGetLocked(key PeerStatusKey) interface{} {
 	return value
 }
 
-// statusGet retrieves peer status entry
+// statusGet retrieves peer status entry.
 func (p *Peer) statusGet(key PeerStatusKey) interface{} {
 	switch key {
 	case PeerKey:
@@ -133,7 +133,7 @@ func (p *Peer) statusGet(key PeerStatusKey) interface{} {
 	return nil
 }
 
-// statusSet updates a status map
+// statusSet updates a status map.
 func (p *Peer) statusSet(key PeerStatusKey, value interface{}) {
 	switch key {
 	case PeerKey:

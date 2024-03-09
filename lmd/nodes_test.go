@@ -55,7 +55,6 @@ func TestNodeManager(t *testing.T) {
 
 	assert.InDeltaf(t, float64(0), res[0][0], 0.00001, "count is correct")
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }

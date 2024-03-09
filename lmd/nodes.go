@@ -172,7 +172,7 @@ func (n *Nodes) Initialize(ctx context.Context) {
 		n.lmd.PeerMapLock.RLock()
 		for id := range n.lmd.PeerMap {
 			peer := n.lmd.PeerMap[id]
-			if peer.statusGetLocked(Paused).(bool) {
+			if val, ok := peer.statusGetLocked(Paused).(bool); ok && val {
 				peer.Start(ctx)
 			}
 		}
@@ -496,7 +496,7 @@ func (n *Nodes) SendQuery(ctx context.Context, node *NodeAddress, name string, p
 		var err error
 		m, _ := responseData.(map[string]interface{})
 		if v, ok := m["error"]; ok {
-			err = fmt.Errorf("%s", v.(string))
+			err = fmt.Errorf("%v", v)
 		} else {
 			err = fmt.Errorf("node request failed: %s (code %d)", name, res.StatusCode)
 		}
@@ -542,7 +542,7 @@ func (n *Nodes) sendPing(node *NodeAddress, initializing bool, requestData map[s
 		}
 
 		// Node id
-		responseIdentifier := dataMap["identifier"].(string)
+		responseIdentifier := interface2stringNoDedup(dataMap["identifier"])
 		if node.id == "" {
 			node.id = responseIdentifier
 		} else if node.id != responseIdentifier {
@@ -557,7 +557,7 @@ func (n *Nodes) sendPing(node *NodeAddress, initializing bool, requestData map[s
 		if _, exists := dataMap["version"]; !exists {
 			versionMismatch = true
 		} else {
-			v := dataMap["version"].(string)
+			v := interface2stringNoDedup(dataMap["version"])
 			if v != Version() {
 				versionMismatch = true
 			}
@@ -584,10 +584,10 @@ func (n *Nodes) sendPing(node *NodeAddress, initializing bool, requestData map[s
 
 			// receive and update remote peer list
 			if _, exists := dataMap["peers"]; exists && dataMap["peers"] != nil {
-				peers := dataMap["peers"].([]interface{})
+				peers := interface2interfacelist(dataMap["peers"])
 				nodeList := []string{}
 				for _, id := range peers {
-					nodeList = append(nodeList, id.(string))
+					nodeList = append(nodeList, interface2stringNoDedup(id))
 				}
 				n.nodeBackends[node.id] = nodeList
 			}

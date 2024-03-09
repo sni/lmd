@@ -14,8 +14,6 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
-	"reflect"
-	"regexp"
 	"strings"
 	"sync"
 	"syscall"
@@ -46,34 +44,6 @@ func init() {
 		<-osSignalChannel
 		os.Exit(1)
 	}()
-}
-
-func assertEq(exp, got interface{}) error {
-	if !reflect.DeepEqual(exp, got) {
-		return fmt.Errorf("\nWanted \n%#v\nGot\n%#v", exp, got)
-	}
-
-	return nil
-}
-
-func assertNeq(exp, got interface{}) error {
-	if reflect.DeepEqual(exp, got) {
-		return fmt.Errorf("\n%#v\nIs equal to\n%#v", exp, got)
-	}
-
-	return nil
-}
-
-func assertLike(exp, got string) error {
-	regex, err := regexp.Compile(exp)
-	if err != nil {
-		panic(err.Error())
-	}
-	if !regex.MatchString(got) {
-		return fmt.Errorf("\nWanted \n%#v\nGot\n%#v", exp, got)
-	}
-
-	return nil
 }
 
 func StartMockLivestatusSource(lmd *LMDInstance, srcNum, numHosts, numServices int) (listen string) {
@@ -694,7 +664,6 @@ func TestMock2(t *testing.T) {
 	require.NoErrorf(t, err, "query is successful")
 	require.Lenf(t, res, 1, "result size is correct")
 
-	if err := cleanup(); err != nil {
-		panic(err.Error())
-	}
+	err = cleanup()
+	require.NoError(t, err)
 }
