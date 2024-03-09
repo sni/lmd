@@ -99,7 +99,7 @@ longtest: vendor
 	rm -f pkg/lmd/mock*.sock
 
 citest: vendor
-	rm -f lmd/mock*.sock
+	rm -f pkg/lmd/mock*.sock
 	#
 	# Checking gofmt errors
 	#
@@ -154,7 +154,10 @@ coverweb:
 	$(GO) tool cover -html=cover.out
 
 clean:
-	rm -f lmd
+	set -e; for CMD in $(CMDS); do \
+		rm -f ./cmd/$$CMD/$$CMD; \
+	done
+	rm -f $(CMDS)
 	rm -f pkg/lmd/mock*.sock
 	rm -rf go.work
 	rm -rf go.work.sum
