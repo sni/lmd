@@ -1487,3 +1487,21 @@ func TestServiceCustVarRegexFilter(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestStatusJSONColumns(t *testing.T) {
+	peer, cleanup, mockLmd := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	jsonStr := `{"core_type":null,"obj_check_cmd":1,"obj_readonly":null,"obj_reload_cmd":1}`
+	peerKey := mockLmd.PeerMapOrder[0]
+	mockLmd.PeerMap[peerKey].statusSetLocked(ThrukExtras, jsonStr)
+
+	res, _, err := peer.QueryString("GET status\nColumns: peer_key configtool thruk\n")
+	require.NoError(t, err)
+	assert.Len(t, res, 1)
+	assert.IsTypef(t, map[string]interface{}{}, res[0][2], "thruk extras type check")
+
+	if err = cleanup(); err != nil {
+		t.Error(err)
+	}
+}

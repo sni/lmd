@@ -1216,13 +1216,18 @@ func interface2bool(in interface{}) bool {
 	return false
 }
 
-func interface2jsonstring(in interface{}) string {
-	if in == nil {
+func interface2jsonstring(raw interface{}) string {
+	if raw == nil {
 		return "{}"
 	}
-	switch in := in.(type) {
+	switch in := raw.(type) {
 	case string:
 		return in
+	case *string:
+		if in == nil {
+			return "{}"
+		}
+		return *in
 	default:
 		str, err := json.Marshal(in)
 		if err != nil {
