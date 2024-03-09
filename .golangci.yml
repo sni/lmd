@@ -118,6 +118,8 @@ issues:
     - "cyclomatic complexity .* of func `TestNegate` is high"
     - "cyclomatic complexity .* of func `TestNodeManager` is high"
     - "cyclomatic complexity .* of func `TestRequestKeepalive` is high"
+    - "cyclomatic complexity .* of func `.*statusSet` is high"
+    - "cyclomatic complexity .* of func `.*statusGet` is high"
     - "dedup is a global variable"
     - "defaultParseOptimizer is a global variable"
     - "empty.* is a global variable"
@@ -145,9 +147,10 @@ issues:
     # Exclude some linters from running on tests files.
     - path: _test.*\.go
       linters:
+        - dupword
         - errcheck
         - errorlint
-        - gomnd
-        - dupword
+        - forcetypeassert
         - funlen
+        - gomnd
         - lll

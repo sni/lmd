@@ -691,7 +691,8 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan ResultSet, c
 				if hasColumns > 0 {
 					keys := []string{}
 					for x := 0; x < hasColumns; x++ {
-						keys = append(keys, *(row[x].(*string)))
+						k := interface2stringNoDedup(row[x])
+						keys = append(keys, k)
 					}
 					key = strings.Join(keys, ListSepChar1)
 				}

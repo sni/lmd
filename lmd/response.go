@@ -154,9 +154,11 @@ func (res *Response) prepareResponse(ctx context.Context, req *Request) {
 		res.SelectedPeers = append(res.SelectedPeers, peer)
 
 		// spin up required?
-		if peer.statusGetLocked(Idling).(bool) && table.Virtual == nil {
-			peer.statusSetLocked(LastQuery, currentUnixTime())
-			spinUpPeers = append(spinUpPeers, peer)
+		if table.Virtual == nil {
+			if idling, ok := peer.statusGetLocked(Idling).(bool); ok && idling {
+				peer.statusSetLocked(LastQuery, currentUnixTime())
+				spinUpPeers = append(spinUpPeers, peer)
+			}
 		}
 	}
 	req.lmd.PeerMapLock.RUnlock()

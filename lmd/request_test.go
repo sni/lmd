@@ -360,7 +360,9 @@ func TestRequestRefs(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, res1, 1)
 
-	res2, _, err := peer.QueryString("GET services\nColumns: host_name host_latency host_check_command\nFilter: host_name = " + res1[0][0].(string) + "\nLimit: 1\n\n")
+	hostName, ok := res1[0][0].(string)
+	require.True(t, ok)
+	res2, _, err := peer.QueryString("GET services\nColumns: host_name host_latency host_check_command\nFilter: host_name = " + hostName + "\nLimit: 1\n\n")
 	require.NoError(t, err)
 
 	assert.Equal(t, res1[0], res2[0])

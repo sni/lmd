@@ -58,7 +58,7 @@ func (c *HTTPServerController) queryTable(ctx context.Context, wrt http.Response
 	}
 
 	var res *Response
-	if d, exists := requestData["distributed"]; exists && d.(bool) {
+	if d, exists := requestData["distributed"]; exists && interface2bool(d) {
 		// force local answer to avoid recursion
 		res, _, err = NewResponse(ctx, req, nil)
 	} else {
@@ -172,7 +172,7 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 	// Send header row by default
 	req.ColumnsHeaders = true
 	if val, ok := requestData["sendcolumnsheader"]; ok {
-		req.ColumnsHeaders = val.(bool)
+		req.ColumnsHeaders = interface2bool(val)
 	}
 
 	// Offset
@@ -181,7 +181,7 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 	// Limit
 	if val, ok := requestData["limit"]; ok {
 		req.Limit = new(int)
-		*req.Limit = int(val.(float64))
+		*req.Limit = interface2int(val)
 	}
 
 	// Filter String in livestatus syntax
@@ -212,7 +212,7 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 		}
 	}
 	for _, line := range requestDataSort {
-		err := parseSortHeader(&req.Sort, []byte(line.(string))) // request.go
+		err := parseSortHeader(&req.Sort, []byte(interface2stringNoDedup(line)))
 		if err != nil {
 			return req, err
 		}
@@ -221,8 +221,8 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 	// Columns
 	var columns []string
 	if val, ok := requestData["columns"]; ok {
-		for _, column := range val.([]interface{}) {
-			name := column.(string)
+		for _, column := range interface2interfacelist(val) {
+			name := interface2stringNoDedup(column)
 			if name != "empty" {
 				columns = append(columns, name)
 			}
@@ -232,7 +232,7 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 
 	// Format
 	if val, ok := requestData["outputformat"]; ok {
-		err := parseOutputFormat(&req.OutputFormat, []byte(val.(string)))
+		err := parseOutputFormat(&req.OutputFormat, []byte(interface2stringNoDedup(val)))
 		if err != nil {
 			return req, err
 		}
@@ -241,8 +241,8 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 	// Backends
 	var backends []string
 	if val, ok := requestData["backends"]; ok {
-		for _, backend := range val.([]interface{}) {
-			backends = append(backends, backend.(string))
+		for _, backend := range interface2interfacelist(val) {
+			backends = append(backends, interface2stringNoDedup(backend))
 		}
 	}
 	req.Backends = backends
@@ -255,7 +255,7 @@ func parseHTTPFilterRequestData(req *Request, val interface{}, prefix string) (e
 	var filterLines []string
 	if lines, ok := val.([]interface{}); ok {
 		for _, line := range lines {
-			filterLine := prefix + ": " + line.(string) + "\n"
+			filterLine := prefix + ": " + interface2stringNoDedup(line) + "\n"
 			filterLines = append(filterLines, filterLine)
 		}
 	}
