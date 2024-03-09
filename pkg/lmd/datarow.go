@@ -1220,16 +1220,17 @@ func interface2jsonstring(raw interface{}) string {
 	if raw == nil {
 		return "{}"
 	}
-	switch in := raw.(type) {
+	switch val := raw.(type) {
 	case string:
-		return in
+		return val
 	case *string:
-		if in == nil {
+		if val == nil {
 			return "{}"
 		}
-		return *in
+
+		return *val
 	default:
-		str, err := json.Marshal(in)
+		str, err := json.Marshal(val)
 		if err != nil {
 			log.Warnf("cannot parse json structure to string: %v", err)
 
