@@ -98,7 +98,7 @@ longtest: vendor
 	$(GO) test -v $(TEST_FLAGS) pkg/*
 	rm -f pkg/lmd/mock*.sock
 
-citest: vendor
+citest: tools vendor
 	rm -f pkg/lmd/mock*.sock
 	#
 	# Checking gofmt errors
@@ -180,7 +180,7 @@ fmt: generate tools
 	gofmt -w -s $(SRCFOLDER)
 	./tools/gofumpt -w $(SRCFOLDER)
 	./tools/gci write --skip-generated $(SRCFOLDER)
-	goimports -w $(SRCFOLDER)
+	./tools/goimports -w $(SRCFOLDER)
 
 generate: tools
 	set -e; for dir in $(shell ls -d1 pkg/*); do \
