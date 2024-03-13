@@ -47,7 +47,7 @@ updatedeps: versioncheck
 	$(MAKE) cleandeps
 
 cleandeps:
-	set -e; for dir in $(shell ls -d1 pkg/*); do \
+	set -e; for dir in $(shell ls -d1 pkg/* cmd/*); do \
 		( cd ./$$dir && $(GO) mod tidy ); \
 	done
 	$(GO) mod tidy
@@ -60,7 +60,7 @@ vendor: go.work
 
 go.work: pkg/*
 	echo "go $(MINGOVERSIONSTR)" > go.work
-	$(GO) work use . pkg/* buildtools/.
+	$(GO) work use . pkg/* cmd/* buildtools/.
 
 dump:
 	if [ $(shell grep -r Dump ./cmd/*/*.go ./pkg/*/*.go | grep -v 'Data::Dumper' | grep -v 'httputil.Dump' | grep -v logThreadDump | grep -v dump.go | wc -l) -ne 0 ]; then \
