@@ -24,7 +24,7 @@ linters-settings:
     exclude:
       - append
   govet:
-    check-shadowing: true
+    enable-all: true
     settings:
       printf:
         funcs:
@@ -154,3 +154,4 @@ issues:
         - funlen
         - gomnd
         - lll
+        - musttag

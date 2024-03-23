@@ -218,7 +218,7 @@ func prepareTmpDataHostService(dataFolder, tempFolder string, table *Table, numH
 		hostname string
 		services []string
 	}, numHosts)
-	for curNum := 0; curNum < numHosts; curNum++ {
+	for curNum := range numHosts {
 		hosts[curNum].hostname = fmt.Sprintf("%s_%d", "testhost", curNum+1)
 		hosts[curNum].services = make([]string, 0)
 		if curNum == 2 {
@@ -238,8 +238,7 @@ func prepareTmpDataHostService(dataFolder, tempFolder string, table *Table, numH
 	newData := []map[string]interface{}{}
 	if name == TableHosts {
 		count := 0
-		for x := range hosts {
-			host := hosts[x]
+		for _, host := range hosts {
 			count++
 			src := last
 			if count <= num {
@@ -257,9 +256,8 @@ func prepareTmpDataHostService(dataFolder, tempFolder string, table *Table, numH
 	}
 	if name == TableServices {
 		count := 0
-		for numH := range hosts {
-			host := hosts[numH]
-			for numS := range host.services {
+		for _, host := range hosts {
+			for _, service := range host.services {
 				count++
 				src := last
 				if count <= num {
@@ -270,7 +268,7 @@ func prepareTmpDataHostService(dataFolder, tempFolder string, table *Table, numH
 					newObj[key] = src[key]
 				}
 				newObj["host_name"] = host.hostname
-				newObj["description"] = host.services[numS]
+				newObj["description"] = service
 				newData = append(newData, newObj)
 			}
 		}
@@ -342,7 +340,7 @@ func StartTestPeerExtra(numPeers, numHosts, numServices int, extraConfig string)
 	InitLogging(&Config{LogLevel: testLogLevel, LogFile: testLogTarget})
 	mocklmd = createTestLMDInstance()
 	sockets := []string{}
-	for i := 0; i < numPeers; i++ {
+	for i := range numPeers {
 		sockets = append(sockets, StartMockLivestatusSource(mocklmd, i, numHosts, numServices))
 	}
 	StartMockMainLoop(mocklmd, sockets, extraConfig)

@@ -26,7 +26,7 @@ require (
 	github.com/petermattis/goid v0.0.0-20231207134359-e60b3f734c67 // indirect
 	github.com/prometheus/client_golang v1.19.0 // indirect
 	github.com/prometheus/client_model v0.6.0 // indirect
-	github.com/prometheus/common v0.50.0 // indirect
+	github.com/prometheus/common v0.51.0 // indirect
 	github.com/prometheus/procfs v0.13.0 // indirect
 	github.com/sasha-s/go-deadlock v0.3.1 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6 // indirect

@@ -33,7 +33,7 @@ func BenchmarkParseResultJSON(b *testing.B) {
 	require.NoError(b, err)
 
 	b.StartTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		res, _, err2 := req.parseResult(resBytes)
 		if err2 != nil {
 			panic(err2.Error())
@@ -73,7 +73,7 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 	require.NoError(b, err)
 
 	b.StartTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		res, _, err2 := req.parseResult(resBytes)
 		if err2 != nil {
 			panic(err2.Error())
@@ -98,7 +98,7 @@ func BenchmarkPeerUpdate(b *testing.B) {
 
 	ctx := context.TODO()
 	b.StartTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		err := peer.data.UpdateFull(ctx, Objects.UpdateTables)
 		if err != nil {
 			panic("Update failed")
@@ -129,7 +129,7 @@ func BenchmarkPeerUpdateServiceInsert(b *testing.B) {
 	}
 
 	b.StartTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		res := peer.data.insertDeltaDataResult(2, res, meta, table)
 		if res != nil {
 			panic("Update failed")
@@ -147,7 +147,7 @@ func BenchmarkSingleFilter_1k_svc__1Peer(b *testing.B) {
 	PauseTestPeers(peer)
 
 	b.StartTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_, _, err := peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
 		if err != nil {
 			panic(err.Error())
@@ -165,7 +165,7 @@ func BenchmarkSingleFilter_1k_svc_10Peer(b *testing.B) {
 	PauseTestPeers(peer)
 
 	b.StartTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_, _, err := peer.QueryString("GET hosts\nColumns: name\nFilter: contact_groups >= demo\nSort: name asc")
 		if err != nil {
 			panic(err.Error())
@@ -183,7 +183,7 @@ func BenchmarkMultiFilter_1k_svc__1Peer(b *testing.B) {
 	PauseTestPeers(peer)
 
 	b.StartTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_, _, err := peer.QueryString("GET hosts\nColumns: name\nFilter: name != test\nFilter: state != 5\nFilter: latency != 2\nFilter: contact_groups !=\nFilter: custom_variables != TEST blah\n")
 		if err != nil {
 			panic(err.Error())
@@ -201,7 +201,7 @@ func BenchmarkSimpleStats_1k_svc__1Peer(b *testing.B) {
 	PauseTestPeers(peer)
 
 	b.StartTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_, _, err := peer.QueryString("GET hosts\nStats: name != \nStats: avg latency\nStats: sum latency")
 		if err != nil {
 			panic(err.Error())
@@ -219,7 +219,7 @@ func BenchmarkTacStats_1k_svc__1Peer(b *testing.B) {
 	PauseTestPeers(peer)
 
 	b.StartTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_, _, err := peer.QueryString(tacPageStatsQuery)
 		if err != nil {
 			panic(err.Error())
@@ -237,7 +237,7 @@ func BenchmarkTacStats_1k_svc_10Peer(b *testing.B) {
 	PauseTestPeers(peer)
 
 	b.StartTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_, _, err := peer.QueryString(tacPageStatsQuery)
 		if err != nil {
 			panic(err.Error())
@@ -257,7 +257,7 @@ func BenchmarkTacStats_1k_svc_100Peer(b *testing.B) {
 	PauseTestPeers(peer)
 
 	b.StartTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_, _, err := peer.QueryString(tacPageStatsQuery)
 		if err != nil {
 			panic(err.Error())
@@ -277,7 +277,7 @@ func BenchmarkTacStats_5k_svc_500Peer(b *testing.B) {
 	PauseTestPeers(peer)
 
 	b.StartTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_, _, err := peer.QueryString(tacPageStatsQuery)
 		if err != nil {
 			panic(err.Error())
@@ -295,7 +295,7 @@ func BenchmarkServicelistLimit_1k_svc__1Peer(b *testing.B) {
 	PauseTestPeers(peer)
 
 	b.StartTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_, _, err := peer.QueryString(servicesPageQuery)
 		if err != nil {
 			panic(err.Error())
@@ -313,7 +313,7 @@ func BenchmarkServicelistLimit_1k_svc_10Peer(b *testing.B) {
 	PauseTestPeers(peer)
 
 	b.StartTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_, _, err := peer.QueryString(servicesPageQuery)
 		if err != nil {
 			panic(err.Error())
@@ -327,7 +327,7 @@ func BenchmarkServicelistLimit_1k_svc_10Peer(b *testing.B) {
 
 func BenchmarkRequestParser1(b *testing.B) {
 	lmd := createTestLMDInstance()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		buf := bufio.NewReader(bytes.NewBufferString(servicesPageQuery))
 		_, size, err := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
 		if err != nil {
@@ -341,7 +341,7 @@ func BenchmarkRequestParser1(b *testing.B) {
 
 func BenchmarkRequestParser2(b *testing.B) {
 	lmd := createTestLMDInstance()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		buf := bufio.NewReader(bytes.NewBufferString(tacPageStatsQuery))
 		_, size, err := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
 		if err != nil {
@@ -359,7 +359,7 @@ func BenchmarkServicesearchLimit_1k_svc_10Peer(b *testing.B) {
 	PauseTestPeers(peer)
 
 	b.StartTimer()
-	for n := 0; n < b.N; n++ {
+	for range b.N {
 		_, _, err := peer.QueryString(serviceSearchQuery)
 		if err != nil {
 			panic(err.Error())
