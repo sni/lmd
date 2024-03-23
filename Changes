@@ -1,6 +1,7 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
 next:
+          - go build dependency changed to v1.22
           - fix crash on log stat queries
 
 2.2.0    Tue Mar 12 15:03:31 CET 2024

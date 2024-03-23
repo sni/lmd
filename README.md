@@ -24,7 +24,7 @@ Log table requests and commands are just passed through to the actual backends.
 
 You will need
 
-- Go >= 1.21
+- Go >= 1.22
 
 to compile lmd.
 
