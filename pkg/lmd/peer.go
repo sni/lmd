@@ -2286,13 +2286,29 @@ func (p *Peer) PassThroughQuery(ctx context.Context, res *Response, passthroughR
 	} else {
 		if res.Request.StatsResult == nil {
 			res.Request.StatsResult = NewResultSetStats()
-			res.Request.StatsResult.Stats[""] = createLocalStatsCopy(res.Request.Stats)
 		}
 		// apply stats queries
-		if len(result) > 0 {
-			for i := range result[0] {
-				val := interface2float64(result[0][i])
-				res.Request.StatsResult.Stats[""][i].ApplyValue(val, int(val))
+		numCol := len(res.Request.RequestColumns)
+		totalCols := numCol + len(res.Request.Stats)
+		for i := range result {
+			row := result[i]
+			if len(row) != totalCols {
+				log.Errorf("invalid result row, expected %d columns and got %d", totalCols, len(row))
+
+				continue
+			}
+			keyValues := []string{}
+			for j := range res.Request.RequestColumns {
+				keyValues = append(keyValues, interface2stringNoDedup(row[j]))
+			}
+			key := strings.Join(keyValues, ListSepChar1)
+
+			if _, ok := res.Request.StatsResult.Stats[key]; !ok {
+				res.Request.StatsResult.Stats[key] = createLocalStatsCopy(res.Request.Stats)
+			}
+			for j := range req.Stats {
+				val := interface2float64(row[numCol+j])
+				res.Request.StatsResult.Stats[key][j].ApplyValue(val, 1)
 			}
 		}
 	}

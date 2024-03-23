@@ -662,6 +662,20 @@ func TestRequestPassthrough(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestRequestPassthroughStats(t *testing.T) {
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	// stats query
+	res, _, err := peer.QueryString("GET log\nColumns: host_name service_description time\nStats: service_description != \n\n")
+	require.NoError(t, err)
+	require.Len(t, res, 1)
+	require.Len(t, res[0], 4)
+
+	err = cleanup()
+	require.NoError(t, err)
+}
+
 func TestRequestSites(t *testing.T) {
 	extraConfig := `
     Listen = ["test.sock"]

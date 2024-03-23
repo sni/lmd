@@ -136,6 +136,15 @@ func handleMockConnection(lmd *Daemon, conn net.Conn, dataFolder string, mockLog
 		return closeServer
 	}
 
+	if req.Table == TableLog && len(req.Stats) > 0 {
+		dat := getTestLogStats(req)
+		_checkErr2(fmt.Fprintf(conn, "%d %11d\n", 200, len(dat)))
+		_checkErr2(conn.Write(dat))
+		_checkErr(conn.Close())
+
+		return closeServer
+	}
+
 	if len(req.Filter) > 0 || len(req.Stats) > 0 {
 		_checkErr2(conn.Write([]byte("200           3\n[]\n")))
 		_checkErr(conn.Close())
@@ -581,6 +590,24 @@ func getTestDataColumns(dataFolder string) (columns [][]string) {
 	}
 
 	return
+}
+
+func getTestLogStats(req *Request) []byte {
+	resp := [][]interface{}{}
+	row := []interface{}{}
+	for range req.Columns {
+		row = append(row, "")
+	}
+	for range req.Stats {
+		row = append(row, 1)
+	}
+	resp = append(resp, row)
+	b, err := json.Marshal(resp)
+	if err != nil {
+		panic(err)
+	}
+
+	return b
 }
 
 func _checkErr(err error) {
