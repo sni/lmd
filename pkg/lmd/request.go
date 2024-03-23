@@ -24,35 +24,35 @@ import (
 // Request defines a livestatus request object.
 type Request struct {
 	noCopy              noCopy
-	id                  string
-	lmd                 *Daemon
-	Table               TableName
-	Command             string
-	Columns             []string  // parsed columns field
-	RequestColumns      []*Column // calculated/expanded columns list
-	Filter              []*Filter
-	FilterStr           string
-	NumFilter           int
-	Stats               []*Filter
-	StatsGrouped        []*Filter // optimized stats groups
 	StatsResult         *ResultSetStats
-	Limit               *int
-	Offset              int
-	Sort                []*SortField
-	ResponseFixed16     bool
-	OutputFormat        OutputFormat
-	Backends            []string
+	lmd                 *Daemon
 	BackendsMap         map[string]string
 	BackendErrors       map[string]string
+	Limit               *int
+	id                  string
+	AuthUser            string
+	Command             string
+	WaitTrigger         string
+	FilterStr           string
+	WaitObject          string
+	Stats               []*Filter
+	StatsGrouped        []*Filter // optimized stats groups
+	Filter              []*Filter
+	Sort                []*SortField
+	WaitCondition       []*Filter
+	RequestColumns      []*Column // calculated/expanded columns list
+	Backends            []string
+	Columns             []string // parsed columns field
+	Offset              int
+	WaitTimeout         int // milliseconds
+	NumFilter           int
+	Table               TableName
 	ColumnsHeaders      bool
 	SendStatsData       bool
-	WaitTimeout         int // milliseconds
-	WaitTrigger         string
-	WaitCondition       []*Filter
-	WaitObject          string
+	OutputFormat        OutputFormat
+	ResponseFixed16     bool
 	WaitConditionNegate bool
 	KeepAlive           bool
-	AuthUser            string
 }
 
 // SortDirection can be either Asc or Desc.
@@ -124,12 +124,12 @@ func (o *OutputFormat) String() string {
 // SortField defines a single sort entry.
 type SortField struct {
 	noCopy    noCopy
-	Name      string
-	Direction SortDirection
-	Index     int
-	Group     bool
-	Args      string
 	Column    *Column
+	Name      string
+	Args      string
+	Index     int
+	Direction SortDirection
+	Group     bool
 }
 
 // GroupOperator is the operator used to combine multiple filter or stats header.
@@ -157,12 +157,12 @@ func (op *GroupOperator) String() string {
 
 // ResultMetaData contains meta from the response data.
 type ResultMetaData struct {
+	Request     *Request      // the request itself
+	Columns     []string      // list of requested columns
 	Total       int64         // total number of result rows
 	RowsScanned int64         // total number of scanned rows for this result
-	Columns     []string      // list of requested columns
 	Duration    time.Duration // response time in seconds
 	Size        int           // result size in bytes
-	Request     *Request      // the request itself
 }
 
 var (
@@ -690,9 +690,8 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan ResultSet, c
 				key := ""
 				if hasColumns > 0 {
 					keys := []string{}
-					for x := 0; x < hasColumns; x++ {
-						k := interface2stringNoDedup(row[x])
-						keys = append(keys, k)
+					for x := range hasColumns {
+						keys = append(keys, interface2stringNoDedup(row[x]))
 					}
 					key = strings.Join(keys, ListSepChar1)
 				}

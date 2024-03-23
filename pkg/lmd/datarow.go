@@ -15,19 +15,19 @@ const ListSepChar1 = "\x00"
 
 // DataRow represents a single entry in a DataTable.
 type DataRow struct {
-	noCopy                noCopy                 // we don't want to make copies, use references
+	noCopy                noCopy
 	DataStore             *DataStore             // reference to the datastore itself
 	Refs                  map[TableName]*DataRow // contains references to other objects, ex.: hosts from the services table
-	LastUpdate            float64                // timestamp when this row has been updated
+	dataInt64List         [][]int64              // stores lists of integers
 	dataString            []string               // stores string data
 	dataInt               []int                  // stores integers
 	dataInt64             []int64                // stores large integers
 	dataFloat             []float64              // stores floats
 	dataStringList        [][]string             // stores stringlists
-	dataInt64List         [][]int64              // stores lists of integers
 	dataServiceMemberList [][]ServiceMember      // stores list of servicemembers
 	dataStringLarge       []StringContainer      // stores large strings
-	dataInterfaceList     [][]interface{}
+	dataInterfaceList     [][]interface{}        // stores anything else
+	LastUpdate            float64                // timestamp of last update
 }
 
 // NewDataRow creates a new DataRow.
@@ -1660,8 +1660,7 @@ func (d *DataRow) checkAuth(authUser string) (canView bool) {
 }
 
 func (d *DataRow) CountStats(stats, result []*Filter) {
-	for idx, stat := range stats {
-		resultPos := idx
+	for resultPos, stat := range stats {
 		if stat.StatsPos > 0 {
 			resultPos = stat.StatsPos
 		}

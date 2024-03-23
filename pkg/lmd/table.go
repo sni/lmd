@@ -149,18 +149,18 @@ func (t *TableName) String() string {
 // Table defines available columns and table options.
 type Table struct {
 	noCopy          noCopy
-	Name            TableName
-	Columns         ColumnList
+	DataSizes       map[DataType]int   // contains size used for the datastore
+	Lock            *deadlock.RWMutex  // must be used for DataSizes access
 	ColumnsIndex    map[string]*Column // access columns by name
-	PassthroughOnly bool               // flag wether table will be cached or simply passed through to remote sites
-	WorksUnlocked   bool               // flag wether locking the peer.DataLock can be skipped to answer the query
+	Virtual         VirtualStoreResolveFunc
 	PrimaryKey      []string
 	RefTables       []TableRef // referenced tables
-	Virtual         VirtualStoreResolveFunc
-	DefaultSort     []string          // columns used to sort if nothing is specified
-	PeerLockMode    PeerLockMode      // should the peer be locked once for the complete result or on each access
-	Lock            *deadlock.RWMutex // must be used for DataSizes access
-	DataSizes       map[DataType]int  // contains size used for the datastore
+	DefaultSort     []string   // columns used to sort if nothing is specified
+	Columns         ColumnList
+	PeerLockMode    PeerLockMode // should the peer be locked once for the complete result or on each access
+	Name            TableName
+	WorksUnlocked   bool // flag wether locking the peer.DataLock can be skipped to answer the query
+	PassthroughOnly bool // flag wether table will be cached or simply passed through to remote sites
 }
 
 // GetColumn returns a column for given name or nil if not found.

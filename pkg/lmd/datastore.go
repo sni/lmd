@@ -9,20 +9,20 @@ import (
 // DataStore contains the actual data rows with a reference to the table and peer.
 type DataStore struct {
 	noCopy                  noCopy
-	DynamicColumnCache      ColumnList                     // contains list of columns used to run periodic update
-	DynamicColumnNamesCache []string                       // contains list of keys used to run periodic update
-	Peer                    *Peer                          // reference to our peer
-	PeerName                string                         // cached peer name
-	PeerKey                 string                         // cached peer key
-	PeerLockMode            PeerLockMode                   // flag wether datarow have to set PeerLock when accessing status
-	DataSet                 *DataStoreSet                  // reference to parent DataSet
-	Data                    []*DataRow                     // the actual data rows
 	Index                   map[string]*DataRow            // access data rows from primary key, ex.: hostname or comment id
 	Index2                  map[string]map[string]*DataRow // access data rows from 2 primary keys, ex.: host and service
-	Table                   *Table                         // reference to table definition
-	Columns                 ColumnList                     // reference to the used columns
-	dupStringList           map[[32]byte][]string          // lookup pointer to other stringlists during initialization
+	Peer                    *Peer                          // reference to our peer
 	LowerCaseColumns        map[int]int                    // list of string column indexes with their coresponding lower case index
+	dupStringList           map[[32]byte][]string          // lookup pointer to other stringlists during initialization
+	Table                   *Table                         // reference to table definition
+	DataSet                 *DataStoreSet                  // reference to parent DataSet
+	PeerKey                 string                         // cached peer key
+	PeerName                string                         // cached peer name
+	DynamicColumnCache      ColumnList                     // contains list of keys used to run periodic update
+	Data                    []*DataRow                     // the actual data rows
+	Columns                 ColumnList                     // reference to the used columns
+	DynamicColumnNamesCache []string                       // contains list of keys used to run periodic update
+	PeerLockMode            PeerLockMode                   // flag wether datarow have to set PeerLock when accessing status
 }
 
 // NewDataStore creates a new datastore with columns based on given flags.

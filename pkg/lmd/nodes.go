@@ -20,28 +20,28 @@ var reNodeAddress = regexp.MustCompile(`^(https?)?(://)?(.*?)(:(\d+))?(/.*)?$`)
 // Nodes is the cluster management object.
 type Nodes struct {
 	noCopy           noCopy
-	ID               string
 	HTTPClient       *http.Client
 	WaitGroupInit    *sync.WaitGroup
 	ShutdownChannel  chan bool
-	loopInterval     int
-	heartbeatTimeout int
-	backends         []string
+	lmd              *Daemon
+	stopChannel      chan bool
+	nodeBackends     map[string][]string
 	thisNode         *NodeAddress
+	ID               string
 	nodeAddresses    NodeAddressList
 	onlineNodes      NodeAddressList
 	assignedBackends []string
-	nodeBackends     map[string][]string
-	stopChannel      chan bool
-	lmd              *Daemon
+	backends         []string
+	heartbeatTimeout int
+	loopInterval     int
 }
 
 // NodeAddress contains the ip of a node (plus url/port, if necessary).
 type NodeAddress struct {
 	id   string
 	ip   string
-	port int
 	url  string
+	port int
 	isMe bool
 }
 
@@ -327,7 +327,7 @@ func (n *Nodes) redistribute(ctx context.Context) {
 			continue
 		}
 		list := make([]string, 0)
-		for j := 0; j < number; j++ {
+		for j := range number {
 			if len(n.backends) > distributedCount+j {
 				if n.backends[distributedCount+j] != "" {
 					list = append(list, n.backends[distributedCount+j])

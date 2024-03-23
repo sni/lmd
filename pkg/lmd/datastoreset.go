@@ -117,7 +117,6 @@ func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (s
 // SetReferences creates reference entries for all tables.
 func (ds *DataStoreSet) SetReferences() (err error) {
 	for _, t := range ds.tables {
-		t := t
 		err = t.SetReferences()
 		if err != nil {
 			logWith(ds).Debugf("setting references on table %s failed: %s", t.Table.Name.String(), err.Error())

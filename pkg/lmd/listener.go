@@ -32,15 +32,15 @@ const (
 // Listener is the object which handles incoming connections.
 type Listener struct {
 	noCopy           noCopy
+	Connection       net.Listener
 	Lock             *deadlock.RWMutex // must be used for when changing config
 	lmd              *Daemon
-	connectionString string
-	Connection       net.Listener
 	waitGroupDone    *sync.WaitGroup
 	waitGroupInit    *sync.WaitGroup
-	openConnections  int64
 	queryStats       *QueryStats
 	cleanup          func()
+	connectionString string
+	openConnections  int64
 }
 
 // NewListener creates a new Listener object.

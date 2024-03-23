@@ -3,8 +3,8 @@ package lmd
 import "io"
 
 type WriteCounter struct {
-	Count  int64
 	Writer io.Writer
+	Count  int64
 }
 
 func NewWriteCounter(w io.Writer) *WriteCounter {

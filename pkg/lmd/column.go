@@ -11,9 +11,9 @@ type VirtualColumnResolveFunc func(d *DataRow, col *Column) interface{}
 // VirtualColumnMapEntry is used to define the virtual key mapping in the VirtualColumnMap.
 type VirtualColumnMapEntry struct {
 	noCopy      noCopy
+	ResolveFunc VirtualColumnResolveFunc
 	Name        string
 	StatusKey   PeerStatusKey
-	ResolveFunc VirtualColumnResolveFunc
 }
 
 // VirtualColumnList maps the virtual columns with the peer status map entry.
@@ -191,7 +191,7 @@ const (
 )
 
 // OptionalFlagsStrings maps available backend flags to their string value.
-var OptionalFlagsStrings = []struct {
+var OptionalFlagsStrings = []struct { //nolint:govet // no need to align this struct, use only once
 	flag OptionalFlags
 	name string
 }{
@@ -277,17 +277,17 @@ func (f *OptionalFlags) Clear() {
 // Column is the definition of a single column within a DataRow.
 type Column struct {
 	noCopy          noCopy
+	RefCol          *Column                // reference to column in other table, ex.: host_alias
+	Table           *Table                 // // reference to the table holding this column
+	VirtualMap      *VirtualColumnMapEntry // reference to resolver for virtual columns
 	Name            string                 // name and primary key
 	Description     string                 // human description
 	Index           int                    // position in datastore
+	RefColTableName TableName              // shortcut to Column.RefCol.Table.Name
+	Optional        OptionalFlags          // flags if this column is used for certain backends only
 	DataType        DataType               // Type of this column
 	FetchType       FetchType              // flag wether this columns needs to be updated
 	StorageType     StorageType            // flag how this column is stored
-	Optional        OptionalFlags          // flags if this column is used for certain backends only
-	RefCol          *Column                // reference to column in other table, ex.: host_alias
-	RefColTableName TableName              // shortcut to Column.RefCol.Table.Name
-	Table           *Table                 // reference to the table holding this column
-	VirtualMap      *VirtualColumnMapEntry // reference to resolver for virtual columns
 }
 
 // NewColumn adds a column object.

@@ -119,37 +119,37 @@ func (c ConnectionType) String() string {
 var dedup = stringdedup.New(xxhash.Checksum32)
 
 type Daemon struct {
-	Config            *Config              // reference to global config object
-	PeerMap           map[string]*Peer     // PeerMap contains a map of available remote peers.
-	PeerMapOrder      []string             // PeerMapOrder contains the order of all remote peers as defined in the supplied config files.
-	PeerMapLock       *deadlock.RWMutex    // PeerMapLock is the lock for the PeerMap map
-	Listeners         map[string]*Listener // Listeners stores if we started a listener
-	ListenersLock     *deadlock.RWMutex    // ListenersLock is the lock for the Listeners map
-	nodeAccessor      *Nodes               // nodeAccessor manages cluster nodes and starts/stops peers.
-	waitGroupInit     *sync.WaitGroup
 	waitGroupListener *sync.WaitGroup
+	Listeners         map[string]*Listener // Listeners stores if we started a listener
+	Config            *Config              // reference to global config object
+	PeerMapLock       *deadlock.RWMutex    // PeerMapLock is the lock for the PeerMap map
 	waitGroupPeers    *sync.WaitGroup
+	ListenersLock     *deadlock.RWMutex // ListenersLock is the lock for the Listeners map
+	nodeAccessor      *Nodes            // nodeAccessor manages cluster nodes and starts/stops peers.
 	shutdownChannel   chan bool
+	cpuProfileHandler *os.File
+	PeerMap           map[string]*Peer // PeerMap contains a map of available remote peers.
+	waitGroupInit     *sync.WaitGroup
+	initChannel       chan bool
+	mainSignalChannel chan os.Signal
+	PeerMapOrder      []string
 	flags             struct {
-		flagVerbose      bool
-		flagVeryVerbose  bool
-		flagTraceVerbose bool
-		flagConfigFile   configFiles
-		flagVersion      bool
 		flagLogFile      string
 		flagPidfile      string
 		flagProfile      string
-		flagDeadlock     int
 		flagCPUProfile   string
 		flagMemProfile   string
-		flagCfgOption    arrayFlags
 		flagExport       string
 		flagImport       string
+		flagConfigFile   configFiles
+		flagCfgOption    arrayFlags
+		flagDeadlock     int
+		flagVerbose      bool
+		flagVeryVerbose  bool
+		flagTraceVerbose bool
+		flagVersion      bool
 	}
-	mainSignalChannel        chan os.Signal
-	initChannel              chan bool
 	lastMainRestart          float64
-	cpuProfileHandler        *os.File
 	defaultReqestParseOption ParseOptions
 }
 
@@ -445,7 +445,7 @@ func (lmd *Daemon) initializePeers(ctx context.Context) {
 
 	// Get rid of obsolete peers (removed from config)
 	lmd.PeerMapLock.Lock()
-	for peerKey := range lmd.PeerMap {
+	for peerKey, peer := range lmd.PeerMap {
 		found := false // id exists
 		for i := range lmd.Config.Connections {
 			if lmd.Config.Connections[i].ID == peerKey {
@@ -453,9 +453,8 @@ func (lmd *Daemon) initializePeers(ctx context.Context) {
 			}
 		}
 		if !found {
-			p := lmd.PeerMap[peerKey]
-			p.Stop()
-			p.ClearData(true)
+			peer.Stop()
+			peer.ClearData(true)
 			lmd.PeerMapRemove(peerKey)
 		}
 	}
@@ -652,7 +651,7 @@ func applyArgFlags(opts arrayFlags, localConfig *Config) {
 			continue
 		}
 		found := false
-		for i := 0; i < val.NumField(); i++ {
+		for i := range val.NumField() {
 			cfgname := typeOfV.Field(i).Name
 			if strings.EqualFold(cfgname, optname) {
 				field := val.Field(i)

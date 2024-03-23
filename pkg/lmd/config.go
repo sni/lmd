@@ -14,20 +14,20 @@ import (
 
 // Connection defines a single connection configuration.
 type Connection struct {
-	Name           string
-	ID             string
-	Source         []string
-	Auth           string
-	RemoteName     string `toml:"remote_name"`
-	Section        string
-	TLSCertificate string
-	TLSKey         string
-	TLSCA          string
-	TLSSkipVerify  int
-	TLSServerName  string
-	Proxy          string
-	Flags          []string
-	NoConfigTool   int `toml:"noconfigtool"` // skip adding config tool to sites query
+	TLSCertificate string   `toml:"tlscertificate"`
+	Name           string   `toml:"name"`
+	Proxy          string   `toml:"proxy"`
+	Auth           string   `toml:"auth"`
+	RemoteName     string   `toml:"remote_name"`
+	Section        string   `toml:"section"`
+	ID             string   `toml:"id"`
+	TLSKey         string   `toml:"tlskey"`
+	TLSServerName  string   `toml:"tlsservername"`
+	TLSCA          string   `toml:"tlsca"`
+	Source         []string `toml:"source"`
+	Flags          []string `toml:"flags"`
+	TLSSkipVerify  int      `toml:"tlsskipverify"`
+	NoConfigTool   int      `toml:"noconfigtool"` // skip adding config tool to sites query
 }
 
 // Equals checks if two connection objects are identical.
@@ -71,39 +71,39 @@ func (c *configFiles) Set(value string) (err error) {
 
 // Config defines the available configuration options from supplied config files.
 type Config struct {
-	Listen                     []string     `toml:"Listen"`
-	Nodes                      []string     `toml:"Nodes"`
-	TLSCertificate             string       `toml:"TLSCertificate"`
-	TLSKey                     string       `toml:"TLSKey"`
-	TLSClientPems              []string     `toml:"TLSClientPems"`
-	UpdateInterval             int64        `toml:"Updateinterval"`
-	FullUpdateInterval         int64        `toml:"FullUpdateInterval"`
-	Connections                []Connection `toml:"Connections"`
+	GroupAuthorization         string       `toml:"GroupAuthorization"`
 	LogFile                    string       `toml:"LogFile"`
+	TLSCertificate             string       `toml:"TLSCertificate"`
+	TLSMinVersion              string       `toml:"TLSMinVersion"`
+	ServiceAuthorization       string       `toml:"ServiceAuthorization"`
+	TLSKey                     string       `toml:"TLSKey"`
 	LogLevel                   string       `toml:"LogLevel"`
-	LogSlowQueryThreshold      int          `toml:"LogSlowQueryThreshold"`
+	ListenPrometheus           string       `toml:"ListenPrometheus"`
+	Connections                []Connection `toml:"Connections"`
+	Nodes                      []string     `toml:"Nodes"`
+	Listen                     []string     `toml:"Listen"`
+	TLSClientPems              []string     `toml:"TLSClientPems"`
+	StaleBackendTimeout        int          `toml:"StaleBackendTimeout"`
 	LogHugeQueryThreshold      int          `toml:"LogHugeQueryThreshold"`
-	LogQueryStats              bool         `toml:"LogQueryStats"`
-	ConnectTimeout             int          `toml:"ConnectTimeout"`
 	NetTimeout                 int          `toml:"NetTimeout"`
 	ListenTimeout              int          `toml:"ListenTimeout"`
-	SaveTempRequests           bool         `toml:"SaveTempRequests"`
-	ListenPrometheus           string       `toml:"ListenPrometheus"`
-	SkipSSLCheck               int          `toml:"SkipSSLCheck"`
+	UpdateInterval             int64        `toml:"Updateinterval"`
+	MaxQueryFilter             int          `toml:"MaxQueryFilter"`
+	ConnectTimeout             int          `toml:"ConnectTimeout"`
 	IdleTimeout                int64        `toml:"IdleTimeout"`
 	IdleInterval               int64        `toml:"IdleInterval"`
-	StaleBackendTimeout        int          `toml:"StaleBackendTimeout"`
-	BackendKeepAlive           bool         `toml:"BackendKeepAlive"`
-	ServiceAuthorization       string       `toml:"ServiceAuthorization"`
-	GroupAuthorization         string       `toml:"GroupAuthorization"`
-	SyncIsExecuting            bool         `toml:"SyncIsExecuting"`
+	FullUpdateInterval         int64        `toml:"FullUpdateInterval"`
+	MaxParallelPeerConnections int          `toml:"MaxParallelPeerConnections"`
+	SkipSSLCheck               int          `toml:"SkipSSLCheck"`
+	LogSlowQueryThreshold      int          `toml:"LogSlowQueryThreshold"`
+	UpdateOffset               int64        `toml:"UpdateOffset"`
 	CompressionMinimumSize     int          `toml:"CompressionMinimumSize"`
 	CompressionLevel           int          `toml:"CompressionLevel"`
 	MaxClockDelta              float64      `toml:"MaxClockDelta"`
-	UpdateOffset               int64        `toml:"UpdateOffset"`
-	TLSMinVersion              string       `toml:"TLSMinVersion"`
-	MaxParallelPeerConnections int          `toml:"MaxParallelPeerConnections"`
-	MaxQueryFilter             int          `toml:"MaxQueryFilter"`
+	SyncIsExecuting            bool         `toml:"SyncIsExecuting"`
+	SaveTempRequests           bool         `toml:"SaveTempRequests"`
+	BackendKeepAlive           bool         `toml:"BackendKeepAlive"`
+	LogQueryStats              bool         `toml:"LogQueryStats"`
 }
 
 // NewConfig reads all config files.

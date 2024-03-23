@@ -27,16 +27,16 @@ const (
 // Response contains the livestatus response data as long with some meta data.
 type Response struct {
 	noCopy        noCopy
+	Error         error             // error object if the query was not successful
 	Lock          *deadlock.RWMutex // must be used for Result and Failed access
 	Request       *Request          // the initial request
-	Result        ResultSet         // final processed result table
-	Code          int               // 200 if the query was successful
-	Error         error             // error object if the query was not successful
 	RawResults    *RawResultSet     // collected results from peers
+	Failed        map[string]string // map of failed backends by key
+	Result        ResultSet         // final processed result table
+	SelectedPeers []*Peer           // peers used for this response
+	Code          int               // 200 if the query was successful
 	ResultTotal   int
 	RowsScanned   int // total number of data rows scanned for this result
-	Failed        map[string]string
-	SelectedPeers []*Peer
 }
 
 // PeerResponse is the sub result from a peer before merged into the end result.
@@ -609,7 +609,7 @@ func (res *Response) WriteDataResponseRowLocked(json *jsoniter.Stream) {
 // WriteColumnsResponse writes the columns header.
 func (res *Response) WriteColumnsResponse(json *jsoniter.Stream) {
 	cols := make([]string, len(res.Request.RequestColumns)+len(res.Request.Stats))
-	for k := 0; k < len(res.Request.RequestColumns); k++ {
+	for k := range len(res.Request.RequestColumns) {
 		if k < len(res.Request.Columns) {
 			cols[k] = res.Request.Columns[k]
 		} else {

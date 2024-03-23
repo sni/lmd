@@ -22,17 +22,17 @@ const (
 // ClientConnection handles a single client connection.
 type ClientConnection struct {
 	noCopy                noCopy
-	lmd                   *Daemon
 	connection            net.Conn
+	lmd                   *Daemon
+	keepAliveTimer        *time.Timer
+	queryStats            *QueryStats
+	curRequest            *Request
 	localAddr             string
 	remoteAddr            string
-	keepAlive             bool
-	keepAliveTimer        *time.Timer
 	listenTimeout         int
 	logSlowQueryThreshold int
 	logHugeQueryThreshold int
-	queryStats            *QueryStats
-	curRequest            *Request
+	keepAlive             bool
 }
 
 // NewClientConnection creates a new client connection object.

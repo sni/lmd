@@ -65,62 +65,62 @@ const (
 // Peer is the object which handles collecting and updating data and connections.
 type Peer struct {
 	noCopy noCopy
-	// Attributes
-	Name                       string // Name of this peer, aka peer_name
-	ID                         string // ID for this peer, aka peer_key
-	PeerAddr                   string
-	Section                    string
-	PeerParent                 string
-	PeerState                  PeerStatus
-	CurPeerAddrNum             int
-	LastPid                    int
-	LastTimeperiodUpdateMinute int
-	LastUpdate                 float64
-	LastFullUpdate             float64
-	LastFullHostUpdate         float64
-	LastFullServiceUpdate      float64
-	LastQuery                  float64
-	LastOnline                 float64
-	ResponseTime               float64
-	ThrukVersion               float64
-	LastError                  string
-	BytesSend                  int64
-	BytesReceived              int64
-	Queries                    int64
-	Idling                     bool
-	Paused                     bool
-	SubKey                     []string
-	SubName                    []string
-	SubAddr                    []string
-	SubType                    []string
-	SubPeerStatus              map[string]interface{}
-	ConfigTool                 *string
-	ThrukExtras                *string
-	ForceFull                  bool
-	LastHTTPRequestSuccessful  bool
-	ProgramStart               int64    // unix time when this peer started, aka program_start
-	ParentID                   string   // ID of parent Peer
-	Flags                      uint32   // optional flags, like LMD, Icinga2, etc...
-	Source                     []string // reference to all connection strings
-	ErrorCount                 int      // count times this backend has failed
-	ErrorLogged                bool     // flag wether last error has been logged already
-	// internals
-	lock            *deadlock.RWMutex // must be used for Peer.* access
-	data            *DataStoreSet     // the cached remote data tables
-	waitGroup       *sync.WaitGroup   // wait group used to wait on shutdowns
-	shutdownChannel chan bool         // channel used to wait to finish shutdown
-	stopChannel     chan bool         // channel to stop this peer
-	Config          *Connection       // reference to the peer configuration from the config file
-	lmd             *Daemon           // reference to main lmd instance
-	last            struct {
-		Request  *Request // reference to last query (used in error reports)
-		Response []byte   // reference to last response
-	}
-	cache struct {
+	cache  struct {
 		HTTPClient             *http.Client  // cached http client for http backends
 		connectionPool         chan net.Conn // tcp connection get stored here for reuse
 		maxParallelConnections chan bool     // limit max parallel connections
 	}
+	stopChannel   chan bool       // channel to stop this peer
+	waitGroup     *sync.WaitGroup // wait group used to wait on shutdowns
+	ConfigTool    *string
+	ThrukExtras   *string
+	lock          *deadlock.RWMutex // must be used for Peer.* access
+	data          *DataStoreSet     // the cached remote data tables
+	lmd           *Daemon           // reference to main lmd instance
+	Config        *Connection       // reference to the peer configuration from the config file
+	SubPeerStatus map[              // cached http client for http backends
+	// limit max parallel connections
+	string]interface{}
+	shutdownChannel chan bool // channel used to wait to finish shutdown
+	Name            string    // Name of this peer, aka peer_name
+	ID              string    // ID for this peer, aka peer_key
+	PeerAddr        string
+	ParentID        string // ID of parent Peer
+	PeerParent      string
+	LastError       string
+	Section         string
+	last            struct {
+		Request  *Request // reference to last query (used in error reports)
+		Response []byte   // reference to last response
+	}
+	Source                     []string // reference to all connection strings
+	SubName                    []string
+	SubType                    []string
+	SubAddr                    []string
+	SubKey                     []string
+	ProgramStart               int64 // unix time when this peer started, aka program_start
+	LastFullHostUpdate         float64
+	CurPeerAddrNum             int
+	BytesReceived              int64
+	BytesSend                  int64
+	ThrukVersion               float64
+	LastPid                    int
+	LastTimeperiodUpdateMinute int
+	Queries                    int64
+	ResponseTime               float64
+	LastUpdate                 float64
+	LastOnline                 float64
+	ErrorCount                 int // count times this backend has failed
+	LastFullUpdate             float64
+	LastQuery                  float64
+	LastFullServiceUpdate      float64
+	Flags                      uint32 // optional flags, like LMD, Icinga2, etc...
+	Paused                     bool
+	ErrorLogged                bool // flag wether last error has been logged already
+	LastHTTPRequestSuccessful  bool
+	ForceFull                  bool
+	Idling                     bool
+	PeerState                  PeerStatus
 }
 
 // PeerStatus contains the different states a peer can have.
@@ -176,24 +176,24 @@ const (
 
 // HTTPResult contains the livestatus result as long with some meta data.
 type HTTPResult struct {
-	Rc      int             `json:"rc"`
 	Version string          `json:"version"`
 	Branch  string          `json:"branch"`
+	Message string          `json:"message"`
 	Output  json.RawMessage `json:"output"`
 	Raw     []byte          `json:"raw"`
+	Rc      int             `json:"rc"`
 	Code    int             `json:"code"`
-	Message string          `json:"message"`
 }
 
 // PeerError is a custom error to distinguish between connection and response errors.
 type PeerError struct {
-	msg      string
-	kind     PeerErrorType
+	srcErr   error
 	req      *Request
+	msg      string
 	res      [][]interface{}
 	resBytes []byte
 	code     int
-	srcErr   error
+	kind     PeerErrorType
 }
 
 // Error returns the error message as string.
@@ -218,8 +218,8 @@ func (e *PeerError) Type() PeerErrorType { return e.kind }
 // PeerCommandError is a custom error when remote site returns something after sending a command.
 type PeerCommandError struct {
 	err  error
-	code int
 	peer *Peer
+	code int
 }
 
 // Error returns the error message as string.
@@ -1399,9 +1399,7 @@ func (p *Peer) validateResponseHeader(resBytes []byte, req *Request, code int, e
 // return anything.
 // It returns the connection object and any error encountered.
 func (p *Peer) GetConnection(req *Request) (conn net.Conn, connType ConnectionType, err error) {
-	numSources := len(p.Source)
-
-	for num := 0; num < numSources; num++ {
+	for num := range len(p.Source) {
 		var peerAddr string
 		peerAddr, connType = extractConnType(p.statusGetLocked(PeerAddr).(string))
 		if connType == ConnTypeHTTP {
@@ -1642,7 +1640,7 @@ func (p *Peer) checkStatusFlags(ctx context.Context, store *DataStoreSet) (err e
 }
 
 func (p *Peer) checkAvailableTables(ctx context.Context) (err error) {
-	columnFlags := []struct {
+	columnFlags := []struct { //nolint:govet // no need to align this struct, use only once
 		Table  TableName
 		Column string
 		Flag   OptionalFlags
@@ -1667,8 +1665,7 @@ func (p *Peer) checkAvailableTables(ctx context.Context) (err error) {
 
 	availableTables := p.GetSupportedColumns(ctx)
 
-	for i := range columnFlags {
-		optFlag := columnFlags[i]
+	for _, optFlag := range columnFlags {
 		if _, ok := availableTables[optFlag.Table]; !ok {
 			continue
 		}

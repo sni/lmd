@@ -47,33 +47,27 @@ func (op *StatsType) String() string {
 }
 
 // Filter defines a single filter object.
+// filter can either be a single filter
+// or a group of filters (GroupOperator).
 type Filter struct {
-	noCopy noCopy
-	// filter can either be a single filter
-	Column     *Column
-	Operator   Operator
-	StrValue   string
-	FloatValue float64
-	IntValue   int
-	Regexp     *regexp.Regexp
-	CustomTag  string
-	IsEmpty    bool
-	Negate     bool
-
-	// or a group of filters
-	Filter        []*Filter
-	GroupOperator GroupOperator
-
-	// stats query
-	Stats      float64
-	StatsCount int
-	StatsType  StatsType
-	StatsPos   int // position in stats result array
-
-	// copy of Column.Optional
-	ColumnOptional OptionalFlags
-	// copy of Column.Index if Column is of type LocalStore
-	ColumnIndex int
+	noCopy         noCopy
+	Regexp         *regexp.Regexp
+	Column         *Column // filter can either be a single filter
+	StrValue       string
+	CustomTag      string
+	Filter         []*Filter // or a group of filters
+	Stats          float64   // stats query
+	IntValue       int
+	FloatValue     float64
+	StatsCount     int
+	StatsPos       int           // position in stats result array
+	ColumnIndex    int           // copy of Column.Index if Column is of type LocalStore
+	ColumnOptional OptionalFlags // copy of Column.Optional
+	IsEmpty        bool
+	Negate         bool
+	GroupOperator  GroupOperator
+	Operator       Operator
+	StatsType      StatsType
 }
 
 // Operator defines a filter operator.

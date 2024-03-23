@@ -441,8 +441,8 @@ func httpMockHandler(ctx context.Context, t *testing.T, wrt io.Writer, rdr *http
 		// Credential string  // unused
 		Options struct {
 			// Action string // unused
-			Args []string `json:"args"`
 			Sub  string   `json:"sub"`
+			Args []string `json:"args"`
 		} `json:"options"`
 	}
 	err := json.Unmarshal([]byte(rdr.PostFormValue("data")), &data)
