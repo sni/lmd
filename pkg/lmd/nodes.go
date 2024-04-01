@@ -255,7 +255,7 @@ func (n *Nodes) checkNodeAvailability(ctx context.Context) {
 		waitGroup.Add(1)
 		go func(waitGroup *sync.WaitGroup, node *NodeAddress) {
 			defer n.lmd.logPanicExit()
-			isOnline, forceRedistribute := n.sendPing(node, initializing, requestData)
+			isOnline, forceRedistribute := n.sendPing(ctx, node, initializing, requestData)
 			if forceRedistribute {
 				redistribute = true
 			}
@@ -528,10 +528,9 @@ func generateUUID() (uuid string) {
 	return
 }
 
-func (n *Nodes) sendPing(node *NodeAddress, initializing bool, requestData map[string]interface{}) (isOnline, forceRedistribute bool) {
+func (n *Nodes) sendPing(ctx context.Context, node *NodeAddress, initializing bool, requestData map[string]interface{}) (isOnline, forceRedistribute bool) {
 	done := make(chan bool)
 	ownIdentifier := n.ID
-	ctx := context.Background()
 	err := n.SendQuery(ctx, node, "ping", requestData, func(responseData interface{}) {
 		defer func() { done <- true }()
 		// Parse response
