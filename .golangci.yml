@@ -43,6 +43,7 @@ linters:
     - depguard
     - exhaustivestruct
     - exhaustruct
+    - err113
     - gochecknoglobals
     - gochecknoinits
     - gofumpt
@@ -57,6 +58,8 @@ linters:
     - wsl
     # deprecated
     - deadcode
+    - execinquery
+    - gomnd
     - structcheck
     - varcheck
     - scopelint
@@ -68,7 +71,6 @@ issues:
   exclude-use-default: true
   exclude:
     - 'data.Options.Sub.*_raw_query.*is deeply nested'
-    - 'err113:'
     - 'Expect WriteFile permissions to be 0600 or less'
     - 'lines are duplicate of.*_test.go:'
     - 'lines are duplicate of.*objects.go:'
