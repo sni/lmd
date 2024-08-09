@@ -394,7 +394,7 @@ func (f *Filter) setFilterValue(strVal string) (err error) {
 	switch colType {
 	case IntCol, Int64Col, Int64ListCol, FloatCol:
 		switch f.Operator {
-		case Equal, Unequal, Greater, GreaterThan, Less, LessThan:
+		case Equal, Unequal, Greater, GreaterThan, Less, LessThan, GroupContainsNot:
 			if !f.IsEmpty {
 				filterValue, cerr := strconv.ParseFloat(strVal, 64)
 				if cerr != nil {
