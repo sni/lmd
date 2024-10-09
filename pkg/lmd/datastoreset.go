@@ -371,7 +371,7 @@ func (ds *DataStoreSet) UpdateDeltaFullScanHostsServices(ctx context.Context, st
 		updated, err = ds.UpdateFullScan(ctx, store, LastFullHostUpdate, filterStr, updateThreshold, ds.UpdateDeltaHosts)
 	default:
 		p := ds.peer
-		logWith(p).Panicf("not implemented for: " + store.Table.Name.String())
+		logWith(p).Panicf("not implemented for: %s", store.Table.Name.String())
 	}
 
 	return

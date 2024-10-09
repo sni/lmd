@@ -497,7 +497,7 @@ func (res *Response) JSON(buf io.Writer) error {
 	sendColumnsHeader := res.SendColumnsHeader()
 	if sendColumnsHeader {
 		res.WriteColumnsResponse(json)
-		if (res.Result != nil && len(res.Result) > 0) || (res.RawResults != nil && len(res.RawResults.DataResult) > 0) {
+		if len(res.Result) > 0 || (res.RawResults != nil && len(res.RawResults.DataResult) > 0) {
 			json.WriteRaw(",")
 		}
 	}

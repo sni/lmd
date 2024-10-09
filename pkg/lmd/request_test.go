@@ -211,8 +211,8 @@ func TestResponseErrorsFunc(t *testing.T) {
 
 	for _, req := range testRequestStrings {
 		_, _, err := peer.QueryString(req.Request)
-		require.Errorf(t, err, "Error in Request: "+req.Request)
-		require.Equalf(t, req.Error, err.Error(), "Request: "+req.Request)
+		require.Errorf(t, err, "Error in Request: %s", req.Request)
+		require.Equalf(t, req.Error, err.Error(), "Request: %s", req.Request)
 	}
 
 	err := cleanup()

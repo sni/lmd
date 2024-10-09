@@ -124,7 +124,7 @@ type Peer struct {
 }
 
 // PeerStatus contains the different states a peer can have.
-type PeerStatus uint8
+type PeerStatus int
 
 // A peer can be up, warning, down and pending.
 // It is pending right after start and warning when the connection fails
