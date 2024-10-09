@@ -101,6 +101,7 @@ issues:
     - "cognitive complexity .* of func `appendIndexHostsFromServiceColumns` is high"
     - "cognitive complexity .* of func `ProcessRequests` is high"
     - "cognitive complexity .* of func `prepareTmpDataHostService` is high"
+    - "cognitive complexity .* of func `.*RawResultSet..Less` is high"
     - "CompressionLevel is a global variable"
     - "CompressionMinimumSize is a global variable"
     - "cyclomatic complexity .* of func `.*Less` is high"

@@ -342,24 +342,6 @@ func (d *DataRow) GetInt64ListByName(name string) []int64 {
 	return d.GetInt64List(d.DataStore.Table.ColumnsIndex[name])
 }
 
-// GetHashMap returns the hashmap for given column.
-func (d *DataRow) GetHashMap(col *Column) map[string]string {
-	switch col.StorageType {
-	case LocalStore:
-		log.Panicf("unsupported type: %s", col.DataType)
-	case RefStore:
-		ref := d.Refs[col.RefColTableName]
-		if ref == nil {
-			return interface2hashmap(col.GetEmptyValue())
-		}
-
-		return ref.GetHashMap(col.RefCol)
-	case VirtualStore:
-		return interface2hashmap(d.getVirtualRowValue(col))
-	}
-	panic(fmt.Sprintf("unsupported type: %s", col.StorageType))
-}
-
 // GetServiceMemberList returns the a list of service members.
 func (d *DataRow) GetServiceMemberList(col *Column) []ServiceMember {
 	switch col.StorageType {

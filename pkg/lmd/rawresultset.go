@@ -73,7 +73,7 @@ func (raw *RawResultSet) Less(idx1, idx2 int) bool {
 			}
 
 			return valueA > valueB
-		case StringCol, StringLargeCol, StringListCol, ServiceMemberListCol, InterfaceListCol, JSONCol, CustomVarCol:
+		case StringCol, StringLargeCol, StringListCol, ServiceMemberListCol, InterfaceListCol, JSONCol:
 			str1 := raw.DataResult[idx1].GetString(field.Column)
 			str2 := raw.DataResult[idx2].GetString(field.Column)
 			if str1 == str2 {
@@ -93,6 +93,33 @@ func (raw *RawResultSet) Less(idx1, idx2 int) bool {
 			}
 			if field.Direction == Asc {
 				return str1 < str2
+			}
+
+			return str1 > str2
+		case CustomVarCol:
+			str1 := raw.DataResult[idx1].GetCustomVarValue(field.Column, field.Args)
+			str2 := raw.DataResult[idx2].GetCustomVarValue(field.Column, field.Args)
+			if str1 == str2 {
+				continue
+			}
+			if field.Direction == Asc {
+				// make empty vars appear last
+				if str1 == "" {
+					return false
+				}
+				if str2 == "" {
+					return true
+				}
+
+				return str1 < str2
+			}
+
+			// make empty vars appear first
+			if str1 == "" {
+				return true
+			}
+			if str2 == "" {
+				return false
 			}
 
 			return str1 > str2
