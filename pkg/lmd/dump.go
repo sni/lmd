@@ -10,7 +10,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 )
 
-// Dump displays arbitrary data
+// Dump displays arbitrary data.
 func Dump(v interface{}) {
 	spew.Config.Indent = "\t"
 	spew.Config.MaxDepth = 3
@@ -18,7 +18,7 @@ func Dump(v interface{}) {
 	fmt.Fprint(os.Stderr, spew.Sdump(v))
 }
 
-// SDump returns arbitrary data as string
+// SDump returns arbitrary data as string.
 func SDump(v interface{}) string {
 	spew.Config.Indent = "\t"
 	spew.Config.MaxDepth = 3
