@@ -643,7 +643,9 @@ func (f *Filter) Match(row *DataRow) bool {
 		return f.MatchInt64List(row.GetInt64List(f.Column))
 	case CustomVarCol:
 		return f.MatchString(row.GetCustomVarValue(f.Column, f.CustomTag))
-	case InterfaceListCol, ServiceMemberListCol:
+	case InterfaceListCol:
+		return f.MatchInterfaceList(row.GetInterfaceList(f.Column))
+	case ServiceMemberListCol:
 		// not implemented
 		return false
 	}
@@ -863,6 +865,47 @@ func (f *Filter) MatchCustomVar(value map[string]string) bool {
 	}
 
 	return f.MatchString(val)
+}
+
+func (f *Filter) MatchInterfaceList(list []interface{}) bool {
+	if f.IsEmpty {
+		if len(list) == 0 {
+			return f.MatchString("")
+		}
+
+		return !f.MatchString("")
+	}
+
+	switch f.Operator {
+	case Equal, EqualNocase, Contains, ContainsNoCase, RegexMatch, RegexNoCaseMatch:
+		for _, irow := range list {
+			subrow := interface2interfacelist(irow)
+			for _, entry := range subrow {
+				val := interface2stringNoDedup(entry)
+				if f.MatchString(val) {
+					return true
+				}
+			}
+		}
+
+		return false
+	case Unequal, UnequalNocase, ContainsNot, ContainsNoCaseNot, RegexMatchNot, RegexNoCaseMatchNot:
+		for _, irow := range list {
+			subrow := interface2interfacelist(irow)
+			for _, entry := range subrow {
+				val := interface2stringNoDedup(entry)
+				if !f.MatchString(val) {
+					return false
+				}
+			}
+		}
+
+		return true
+	default:
+		log.Warnf("not implemented Interfacelist op: %s (%v)", f.Operator.String(), f.Operator)
+
+		return false
+	}
 }
 
 // some broken clients request <table>_column instead of just column
