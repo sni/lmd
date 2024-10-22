@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -1213,11 +1214,15 @@ func TestRequestLowercaseHostFilter2(t *testing.T) {
 		assert.Equalf(t, "name_lc", req.Filter[0].Column.Name, "column name is correct")
 
 		res, meta, err := peer.QueryString(query)
-		require.NoErrorf(t, err, "query string successful")
+		require.NoErrorf(t, err, "query string successful: %s", pattern)
 		require.Lenf(t, res, 1, "result length with filter: %s", pattern)
-		assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct")
-		assert.Equalf(t, int64(10), meta.RowsScanned, "meta.RowsScanned is correct")
-		assert.Equalf(t, "UPPER_3", res[0][0], "hostname is correct")
+		assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct: %s", pattern)
+		if strings.EqualFold(pattern, `^UPPER_3$`) {
+			assert.Equalf(t, int64(1), meta.RowsScanned, "meta.RowsScanned is correct: %s", pattern)
+		} else {
+			assert.Equalf(t, int64(10), meta.RowsScanned, "meta.RowsScanned is correct: %s", pattern)
+		}
+		assert.Equalf(t, "UPPER_3", res[0][0], "hostname is correct: %s", pattern)
 	}
 
 	err := cleanup()

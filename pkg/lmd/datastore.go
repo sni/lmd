@@ -11,6 +11,7 @@ type DataStore struct {
 	noCopy                  noCopy
 	Index                   map[string]*DataRow            // access data rows from primary key, ex.: hostname or comment id
 	Index2                  map[string]map[string]*DataRow // access data rows from 2 primary keys, ex.: host and service
+	IndexLowerCase          map[string][]string            // access data rows from lower case primary key
 	Peer                    *Peer                          // reference to our peer
 	LowerCaseColumns        map[int]int                    // list of string column indexes with their coresponding lower case index
 	dupStringList           map[[32]byte][]string          // lookup pointer to other stringlists during initialization
@@ -31,6 +32,7 @@ func NewDataStore(table *Table, peer *Peer) (d *DataStore) {
 		Data:                    make([]*DataRow, 0),
 		Index:                   make(map[string]*DataRow),
 		Index2:                  make(map[string]map[string]*DataRow),
+		IndexLowerCase:          make(map[string][]string),
 		DynamicColumnCache:      make(ColumnList, 0),
 		DynamicColumnNamesCache: make([]string, 0),
 		dupStringList:           make(map[[32]byte][]string),
@@ -160,7 +162,14 @@ func (d *DataStore) InsertItem(index int, row *DataRow) {
 	switch len(d.Table.PrimaryKey) {
 	case 0:
 	case 1:
-		d.Index[row.GetID()] = row
+		id := row.GetID()
+		d.Index[id] = row
+		if d.Table.Name == TableHosts {
+			idLower := dedup.S(strings.ToLower(id))
+			if idLower != id {
+				d.IndexLowerCase[idLower] = append(d.IndexLowerCase[idLower], id)
+			}
+		}
 	case 2:
 		id1, id2 := row.GetID2()
 		if _, ok := d.Index2[id1]; !ok {
@@ -178,7 +187,14 @@ func (d *DataStore) AddItem(row *DataRow) {
 	switch len(d.Table.PrimaryKey) {
 	case 0:
 	case 1:
-		d.Index[row.GetID()] = row
+		id := row.GetID()
+		d.Index[id] = row
+		if d.Table.Name == TableHosts {
+			idLower := dedup.S(strings.ToLower(id))
+			if idLower != id {
+				d.IndexLowerCase[idLower] = append(d.IndexLowerCase[idLower], id)
+			}
+		}
 	case 2:
 		id1, id2 := row.GetID2()
 		if _, ok := d.Index2[id1]; !ok {
@@ -196,6 +212,9 @@ func (d *DataStore) RemoveItem(row *DataRow) {
 	case 0:
 	case 1:
 		delete(d.Index, row.GetID())
+		if d.Table.Name == TableHosts {
+			panic("removing from hosts index is not supported")
+		}
 	default:
 		panic("not supported number of primary keys")
 	}
@@ -480,6 +499,28 @@ func appendIndexHostsFromHostColumns(dStore *DataStore, uniqHosts map[string]boo
 		// name == <value>
 		case Equal:
 			uniqHosts[fil.StrValue] = true
+
+			return true
+
+		// name =~ <value>
+		case EqualNocase:
+			uniqHosts[fil.StrValue] = true
+			for _, key := range dStore.IndexLowerCase[strings.ToLower(fil.StrValue)] {
+				uniqHosts[key] = true
+			}
+
+			return true
+		default:
+			// other operators are not supported
+		}
+	case "name_lc":
+		switch fil.Operator {
+		// name == <value>
+		case Equal, EqualNocase:
+			uniqHosts[fil.StrValue] = true
+			for _, key := range dStore.IndexLowerCase[strings.ToLower(fil.StrValue)] {
+				uniqHosts[key] = true
+			}
 
 			return true
 		default:
