@@ -43,7 +43,7 @@ func TestNodeManager(t *testing.T) {
 	require.Lenf(t, res, 10, "result length")
 
 	require.Lenf(t, res[1], 5, "result length")
-	assert.Equalf(t, "testhost_1", res[1][0], "hostname matches")
+	assert.Equalf(t, "TESTHOST_1", res[1][0], "hostname matches")
 	assert.Equalf(t, "testhost_1_ALIAS", res[1][1], "alias matches")
 	assert.InDeltaf(t, 4.0, res[1][2], 0.00001, "count matches")
 	assert.InDeltaf(t, 0.083658002317, res[1][3], 0.00001, "avg latency matches")

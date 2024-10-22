@@ -358,12 +358,13 @@ func TestRequestRefs(t *testing.T) {
 
 	res1, _, err := peer.QueryString("GET hosts\nColumns: name latency check_command\nLimit: 1\n\n")
 	require.NoError(t, err)
-	assert.Len(t, res1, 1)
+	require.Len(t, res1, 1)
 
 	hostName, ok := res1[0][0].(string)
 	require.True(t, ok)
 	res2, _, err := peer.QueryString("GET services\nColumns: host_name host_latency host_check_command\nFilter: host_name = " + hostName + "\nLimit: 1\n\n")
 	require.NoError(t, err)
+	require.Len(t, res2, 1)
 
 	assert.Equal(t, res1[0], res2[0])
 
@@ -377,7 +378,7 @@ func TestRequestBrokenColumns(t *testing.T) {
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: host_name alias\nFilter: host_name = testhost_1\n\n")
 	require.NoError(t, err)
-	assert.Len(t, res, 1)
+	require.Len(t, res, 1)
 	assert.Equal(t, "testhost_1", res[0][0])
 	assert.Equal(t, "testhost_1_ALIAS", res[0][1])
 
@@ -739,6 +740,7 @@ func TestMembersWithState(t *testing.T) {
 
 	res, _, err := peer.QueryString("GET hostgroups\nColumns: members_with_state\nFilter: name = host_1\n\n")
 	require.NoError(t, err)
+	require.Len(t, res, 1)
 	value := res[0][0].([]interface{})[0].([]interface{})
 	assert.Equal(t, "testhost_1", value[0])
 	assert.InDelta(t, 0., value[1], 0)
@@ -1169,6 +1171,106 @@ func TestRequestLowercaseHostFilter(t *testing.T) {
 	assert.Equalf(t, "UPPER_3", res[0][0], "hostname is correct")
 
 	err = cleanup()
+	require.NoError(t, err)
+}
+
+func TestRequestLowercaseHostFilter2(t *testing.T) {
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	regex := []string{
+		// mixed case
+		`.*upPER_3`,
+		`.*upPER_3.*`,
+		`^.*upPER_3.*$`,
+		`^upPER_3$`,
+		`^.*upPER_3.*$`,
+
+		// lower case
+		`.*upper_3`,
+		`.*upper_3.*`,
+		`^.*upper_3.*$`,
+		`^upper_3$`,
+		`^.*upper_3.*$`,
+
+		// upper case
+		`.*UPPER_3`,
+		`.*UPPER_3.*`,
+		`^.*UPPER_3.*$`,
+		`^UPPER_3$`,
+		`^.*UPPER_3.*$`,
+	}
+
+	for _, re := range regex {
+		query := `GET hosts
+		Columns: name
+		Filter: name ~~ ` + re + `
+		OutputFormat: wrapped_json
+		ResponseHeader: fixed16
+		`
+		req, _, err := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+		require.NoErrorf(t, err, "request successful")
+		assert.Equalf(t, "name_lc", req.Filter[0].Column.Name, "column name is correct")
+
+		res, meta, err := peer.QueryString(query)
+		require.NoErrorf(t, err, "query string successful")
+		require.Lenf(t, res, 1, "result length with filter: %s", re)
+		assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct")
+		assert.Equalf(t, int64(10), meta.RowsScanned, "meta.RowsScanned is correct")
+		assert.Equalf(t, "UPPER_3", res[0][0], "hostname is correct")
+	}
+
+	err := cleanup()
+	require.NoError(t, err)
+}
+
+func TestRequestLowercaseHostFilter3(t *testing.T) {
+	peer, cleanup, _ := StartTestPeer(1, 10, 10)
+	PauseTestPeers(peer)
+
+	regex := []string{
+		// mixed case
+		`.*host_1_ALIAS`,
+		`.*host_1_ALIAS.*`,
+		`^.*host_1_ALIAS.*$`,
+		`^testhost_1_ALIAS$`,
+		`^.*testhost_1_ALIAS.*$`,
+
+		// lower case
+		`.*host_1_alias`,
+		`.*host_1_alias.*`,
+		`^.*host_1_alias.*$`,
+		`^testhost_1_alias$`,
+		`^.*testhost_1_alias.*$`,
+
+		// upper case
+		`.*HOST_1_ALIAS`,
+		`.*HOST_1_ALIAS.*`,
+		`^.*HOST_1_ALIAS.*$`,
+		`^TESTHOST_1_ALIAS$`,
+		`^.*TESTHOST_1_ALIAS.*$`,
+	}
+
+	for _, re := range regex {
+		query := `GET hosts
+		Columns: alias
+		Filter: alias ~~ ` + re + `
+		OutputFormat: wrapped_json
+		ResponseHeader: fixed16
+		`
+		req, _, err := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+		require.NoErrorf(t, err, "request successful")
+		assert.Equalf(t, "alias_lc", req.Filter[0].Column.Name, "column name is correct")
+
+		res, meta, err := peer.QueryString(query)
+		require.NoErrorf(t, err, "query string successful")
+		require.Lenf(t, res, 1, "result length with filter: %s", re)
+		assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct")
+		assert.Equalf(t, int64(10), meta.RowsScanned, "meta.RowsScanned is correct")
+		assert.Equalf(t, "testhost_1_ALIAS", res[0][0], "hostname is correct")
+	}
+
+	err := cleanup()
 	require.NoError(t, err)
 }
 
