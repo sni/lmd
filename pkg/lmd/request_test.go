@@ -1201,10 +1201,10 @@ func TestRequestLowercaseHostFilter2(t *testing.T) {
 		`^.*UPPER_3.*$`,
 	}
 
-	for _, re := range regex {
+	for _, pattern := range regex {
 		query := `GET hosts
 		Columns: name
-		Filter: name ~~ ` + re + `
+		Filter: name ~~ ` + pattern + `
 		OutputFormat: wrapped_json
 		ResponseHeader: fixed16
 		`
@@ -1214,7 +1214,7 @@ func TestRequestLowercaseHostFilter2(t *testing.T) {
 
 		res, meta, err := peer.QueryString(query)
 		require.NoErrorf(t, err, "query string successful")
-		require.Lenf(t, res, 1, "result length with filter: %s", re)
+		require.Lenf(t, res, 1, "result length with filter: %s", pattern)
 		assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct")
 		assert.Equalf(t, int64(10), meta.RowsScanned, "meta.RowsScanned is correct")
 		assert.Equalf(t, "UPPER_3", res[0][0], "hostname is correct")
@@ -1251,10 +1251,10 @@ func TestRequestLowercaseHostFilter3(t *testing.T) {
 		`^.*TESTHOST_1_ALIAS.*$`,
 	}
 
-	for _, re := range regex {
+	for _, pattern := range regex {
 		query := `GET hosts
 		Columns: alias
-		Filter: alias ~~ ` + re + `
+		Filter: alias ~~ ` + pattern + `
 		OutputFormat: wrapped_json
 		ResponseHeader: fixed16
 		`
@@ -1264,7 +1264,7 @@ func TestRequestLowercaseHostFilter3(t *testing.T) {
 
 		res, meta, err := peer.QueryString(query)
 		require.NoErrorf(t, err, "query string successful")
-		require.Lenf(t, res, 1, "result length with filter: %s", re)
+		require.Lenf(t, res, 1, "result length with filter: %s", pattern)
 		assert.Equalf(t, int64(1), meta.Total, "meta.Total is correct")
 		assert.Equalf(t, int64(10), meta.RowsScanned, "meta.RowsScanned is correct")
 		assert.Equalf(t, "testhost_1_ALIAS", res[0][0], "hostname is correct")

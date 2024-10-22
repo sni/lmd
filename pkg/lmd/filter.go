@@ -450,8 +450,6 @@ func (f *Filter) setLowerCaseColumn() {
 	// lower case fields will only be used for case-insensitive operators
 	var operator Operator
 	switch f.Operator {
-	default:
-		return
 	case ContainsNoCase:
 		operator = Contains
 	case ContainsNoCaseNot:
@@ -460,6 +458,8 @@ func (f *Filter) setLowerCaseColumn() {
 		operator = RegexMatch
 	case RegexNoCaseMatchNot:
 		operator = RegexMatchNot
+	default:
+		return
 	}
 	col, ok := table.ColumnsIndex[col.Name+"_lc"]
 	if !ok {
@@ -559,7 +559,7 @@ func ParseStats(value []byte, table TableName, stack *[]*Filter, options ParseOp
 	return nil
 }
 
-// ParseFilterOp parses a text line into a filter group operator like And: <nr>.
+// parseFilterGroupOp parses a text line into a filter group operator like And: <nr>.
 // It returns any error encountered.
 func parseFilterGroupOp(groupOp GroupOperator, value []byte, stack *[]*Filter) (err error) {
 	num, cerr := strconv.Atoi(string(value))

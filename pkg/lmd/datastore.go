@@ -474,15 +474,16 @@ func (d *DataStore) TryFilterIndex(uniqHosts map[string]bool, filter []*Filter, 
 }
 
 func appendIndexHostsFromHostColumns(dStore *DataStore, uniqHosts map[string]bool, fil *Filter) bool {
-	// trim lower case columns prefix, they are used internally only
-	colName := strings.TrimSuffix(fil.Column.Name, "_lc")
-	switch colName {
+	switch fil.Column.Name {
 	case "name":
+		switch fil.Operator {
 		// name == <value>
-		if fil.Operator == Equal {
+		case Equal:
 			uniqHosts[fil.StrValue] = true
 
 			return true
+		default:
+			// other operators are not supported
 		}
 	case "groups":
 		// get hosts from host groups members
@@ -520,7 +521,6 @@ func appendIndexHostsFromHostColumns(dStore *DataStore, uniqHosts map[string]boo
 }
 
 func appendIndexHostsFromServiceColumns(dStore *DataStore, uniqHosts map[string]bool, fil *Filter) bool {
-	// trim lower case columns prefix, they are used internally only
 	switch fil.Column.Name {
 	case "host_name":
 		switch fil.Operator {
