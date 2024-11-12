@@ -1,6 +1,6 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
-next:
+2.2.4    Tue Nov 12 16:33:35 CET 2024
           - fix more index based filters
           - update dependencies
 
