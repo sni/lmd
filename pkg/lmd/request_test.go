@@ -1395,6 +1395,19 @@ func TestIndexedHost(t *testing.T) {
 	assert.Len(t, res, 1)
 	assert.Equal(t, int64(1), meta.Total)
 	assert.Equal(t, int64(1), meta.RowsScanned)
+
+	res, meta, err = peer.QueryString("GET hosts\nColumns: name state alias\nOutputFormat: wrapped_json\nColumnHeaders: on\nFilter: name ~ ^testhost_1$\n\n")
+	require.NoError(t, err)
+	assert.Len(t, res, 1)
+	assert.Equal(t, int64(1), meta.Total)
+	assert.Equal(t, int64(1), meta.RowsScanned)
+
+	res, meta, err = peer.QueryString("GET hosts\nColumns: name state alias\nOutputFormat: wrapped_json\nColumnHeaders: on\nFilter: name ~~ ^testhost_1$\n\n")
+	require.NoError(t, err)
+	assert.Len(t, res, 1)
+	assert.Equal(t, int64(1), meta.Total)
+	assert.Equal(t, int64(1), meta.RowsScanned)
+
 	if err = cleanup(); err != nil {
 		t.Error(err)
 	}
@@ -1409,6 +1422,19 @@ func TestIndexedService(t *testing.T) {
 	assert.Len(t, res, 1)
 	assert.Equal(t, int64(1), meta.Total)
 	assert.Equal(t, int64(1), meta.RowsScanned)
+
+	res, meta, err = peer.QueryString("GET services\nColumns: host_name description state\nOutputFormat: wrapped_json\nColumnHeaders: on\nFilter: host_name ~ ^testhost_1$\n\n")
+	require.NoError(t, err)
+	assert.Len(t, res, 1)
+	assert.Equal(t, int64(1), meta.Total)
+	assert.Equal(t, int64(1), meta.RowsScanned)
+
+	res, meta, err = peer.QueryString("GET services\nColumns: host_name description state\nOutputFormat: wrapped_json\nColumnHeaders: on\nFilter: host_name ~~ ^testhost_1$\n\n")
+	require.NoError(t, err)
+	assert.Len(t, res, 1)
+	assert.Equal(t, int64(1), meta.Total)
+	assert.Equal(t, int64(1), meta.RowsScanned)
+
 	if err = cleanup(); err != nil {
 		t.Error(err)
 	}
