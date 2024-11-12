@@ -2,8 +2,6 @@ name: citest
 on:
   push:
   pull_request:
-  schedule:
-    - cron: '30 4 * * 1'
 jobs:
   test:
     strategy:
