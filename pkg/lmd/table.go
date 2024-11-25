@@ -41,6 +41,17 @@ const (
 	TableServicesbyhostgroup
 )
 
+// PeerLockMode sets full or simple lock mode.
+type PeerLockMode int
+
+const (
+	// PeerLockModeSimple locks each peer.Status access separately.
+	PeerLockModeSimple PeerLockMode = iota
+
+	// PeerLockModeFull locks peer once before createing the result.
+	PeerLockModeFull
+)
+
 // NewTableName returns a table for given name or an error.
 func NewTableName(name string) (TableName, error) {
 	switch strings.ToLower(name) {
@@ -146,6 +157,7 @@ type Table struct {
 	RefTables       []TableRef // referenced tables
 	DefaultSort     []string   // columns used to sort if nothing is specified
 	Columns         ColumnList
+	PeerLockMode    PeerLockMode // should the peer be locked once for the complete result or on each access
 	Name            TableName
 	WorksUnlocked   bool // flag wether locking the peer.DataLock can be skipped to answer the query
 	PassthroughOnly bool // flag wether table will be cached or simply passed through to remote sites

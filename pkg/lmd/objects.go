@@ -83,7 +83,7 @@ func (o *ObjectsType) AddTable(name TableName, table *Table) {
 
 // NewBackendsTable returns a new backends table.
 func NewBackendsTable() (t *Table) {
-	t = &Table{Virtual: GetTableBackendsStore, WorksUnlocked: true}
+	t = &Table{Virtual: GetTableBackendsStore, WorksUnlocked: true, PeerLockMode: PeerLockModeFull}
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
 	t.AddPeerInfoColumn("key", StringCol, "Id of this peer")
@@ -131,7 +131,7 @@ func NewColumnsTable() (t *Table) {
 
 // NewStatusTable returns a new status table.
 func NewStatusTable() (t *Table) {
-	t = &Table{}
+	t = &Table{PeerLockMode: PeerLockModeFull}
 	t.AddColumn("program_start", Dynamic, Int64Col, "The time of the last program start as UNIX timestamp")
 	t.AddColumn("accept_passive_host_checks", Dynamic, IntCol, "The number of host checks since program start")
 	t.AddColumn("accept_passive_service_checks", Dynamic, IntCol, "The number of completed service checks since program start")

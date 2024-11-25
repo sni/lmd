@@ -103,6 +103,7 @@ func NewResponse(ctx context.Context, req *Request, conn net.Conn) (res *Respons
 			}
 			stores[peer] = store
 		}
+
 		if !table.WorksUnlocked {
 			defer func() {
 				for _, s := range stores {
@@ -573,7 +574,21 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 		// unprocessed result?
 		res.ResultTotal = res.RawResults.Total
 		res.RowsScanned = res.RawResults.RowsScanned
-		res.WriteDataResponseRowLocked(json)
+
+		// PeerLockModeFull means we have to lock all peers before creating the result
+		if len(res.RawResults.DataResult) > 0 && res.RawResults.DataResult[0].DataStore.PeerLockMode == PeerLockModeFull {
+			res.WriteDataResponseRowLocked(json)
+
+			return
+		}
+
+		for i, row := range res.RawResults.DataResult {
+			if i > 0 {
+				json.WriteRaw(",\n")
+				json.Flush()
+			}
+			row.WriteJSON(json, res.Request.RequestColumns)
+		}
 	default:
 		logWith(res).Errorf("response contains no result at all")
 	}
@@ -581,23 +596,13 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 
 // WriteDataResponseRowLocked appends each row but locks the peer before doing so. We don't have to lock for each column then.
 func (res *Response) WriteDataResponseRowLocked(json *jsoniter.Stream) {
-	var curPeer *Peer
 	for i, row := range res.RawResults.DataResult {
 		if i > 0 {
 			json.WriteRaw(",\n")
 		}
-		if curPeer != row.DataStore.Peer {
-			if curPeer != nil {
-				curPeer.lock.RUnlock()
-			}
-			curPeer = row.DataStore.Peer
-			curPeer.lock.RLock()
-		}
+		row.DataStore.Peer.lock.RLock()
 		row.WriteJSON(json, res.Request.RequestColumns)
-	}
-
-	if curPeer != nil {
-		curPeer.lock.RUnlock()
+		row.DataStore.Peer.lock.RUnlock()
 	}
 }
 
@@ -859,7 +864,7 @@ func (res *Response) buildLocalResponseData(ctx context.Context, store *DataStor
 
 	// for some tables its faster to lock the table only once
 	ds := store.DataSet
-	if ds != nil && ds.peer != nil {
+	if store.PeerLockMode == PeerLockModeFull && ds != nil && ds.peer != nil {
 		ds.peer.lock.RLock()
 		defer ds.peer.lock.RUnlock()
 	}

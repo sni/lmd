@@ -439,7 +439,21 @@ func (d *DataRow) getVirtualRowValue(col *Column) interface{} {
 			value, ok = d.getVirtualSubLMDValue(col)
 		}
 		if !ok {
-			value = peer.statusGet(col.VirtualMap.StatusKey)
+			switch d.DataStore.PeerLockMode {
+			case PeerLockModeFull:
+				value = peer.statusGet(col.VirtualMap.StatusKey)
+			case PeerLockModeSimple:
+				switch col.VirtualMap.StatusKey {
+				case PeerName:
+					return &(peer.Name)
+				case PeerKey:
+					return &(peer.ID)
+				case ProgramStart:
+					return &(peer.ProgramStart)
+				default:
+					value = peer.statusGetLocked(col.VirtualMap.StatusKey)
+				}
+			}
 		}
 	} else {
 		value = col.VirtualMap.ResolveFunc(d, col)
