@@ -156,14 +156,12 @@ func (ds *DataStoreSet) UpdateFull(ctx context.Context, tables []TableName) (err
 	}
 	peer := ds.peer
 	duration := time.Since(time1)
-	peer.lock.RLock()
+	peer.lock.Lock()
 	switch peer.PeerState {
 	case PeerStatusUp, PeerStatusPending, PeerStatusSyncing:
 	default:
 		logWith(peer).Infof("site soft recovered from short outage (reason: %s - %s)", peer.PeerState.String(), peer.LastError)
 	}
-	peer.lock.RUnlock()
-	peer.lock.Lock()
 	peer.resetErrors()
 	peer.ResponseTime = duration.Seconds()
 	peer.LastUpdate = currentUnixTime()
