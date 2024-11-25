@@ -83,7 +83,7 @@ func (o *ObjectsType) AddTable(name TableName, table *Table) {
 
 // NewBackendsTable returns a new backends table.
 func NewBackendsTable() (t *Table) {
-	t = &Table{Virtual: GetTableBackendsStore, WorksUnlocked: true, PeerLockMode: PeerLockModeFull}
+	t = &Table{Virtual: GetTableBackendsStore, WorksUnlocked: true}
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
 	t.AddPeerInfoColumn("key", StringCol, "Id of this peer")

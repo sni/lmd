@@ -573,21 +573,7 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 		// unprocessed result?
 		res.ResultTotal = res.RawResults.Total
 		res.RowsScanned = res.RawResults.RowsScanned
-
-		// PeerLockModeFull means we have to lock all peers before creating the result
-		if len(res.RawResults.DataResult) > 0 && res.RawResults.DataResult[0].DataStore.PeerLockMode == PeerLockModeFull {
-			res.WriteDataResponseRowLocked(json)
-
-			return
-		}
-
-		for i := range res.RawResults.DataResult {
-			if i > 0 {
-				json.WriteRaw(",\n")
-				json.Flush()
-			}
-			res.RawResults.DataResult[i].WriteJSON(json, res.Request.RequestColumns)
-		}
+		res.WriteDataResponseRowLocked(json)
 	default:
 		logWith(res).Errorf("response contains no result at all")
 	}
@@ -873,7 +859,7 @@ func (res *Response) buildLocalResponseData(ctx context.Context, store *DataStor
 
 	// for some tables its faster to lock the table only once
 	ds := store.DataSet
-	if store.PeerLockMode == PeerLockModeFull && ds != nil && ds.peer != nil {
+	if ds != nil && ds.peer != nil {
 		ds.peer.lock.RLock()
 		defer ds.peer.lock.RUnlock()
 	}
