@@ -1333,11 +1333,12 @@ func (d *DataRow) WriteJSONLocalColumn(jsonwriter *jsoniter.Stream, col *Column)
 		jsonwriter.WriteString(d.dataStringLarge[col.Index].String())
 	case StringListCol:
 		jsonwriter.WriteArrayStart()
-		for i, s := range d.dataStringList[col.Index] {
+		list := d.dataStringList[col.Index]
+		for i := range d.dataStringList[col.Index] {
 			if i > 0 {
 				jsonwriter.WriteMore()
 			}
-			jsonwriter.WriteString(s)
+			jsonwriter.WriteString(list[i])
 		}
 		jsonwriter.WriteArrayEnd()
 	case IntCol:
