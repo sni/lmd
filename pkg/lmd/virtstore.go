@@ -76,8 +76,8 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 	store.DataSet = peer.data
 	data := make(ResultSet, 0)
 	dataSet := store.DataSet
-	dataSet.Lock.RLock()
-	defer dataSet.Lock.RUnlock()
+	dataSet.lock.RLock()
+	defer dataSet.lock.RUnlock()
 	switch store.Table.Name {
 	case TableHostsbygroup:
 		nameCol := dataSet.tables[TableHosts].GetColumn("name")

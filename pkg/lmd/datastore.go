@@ -134,8 +134,8 @@ func (d *DataStore) InsertData(rows ResultSet, columns ColumnList, setReferences
 
 // AppendData append a list of results and initializes the store table.
 func (d *DataStore) AppendData(data ResultSet, columns ColumnList) error {
-	d.DataSet.Lock.Lock()
-	defer d.DataSet.Lock.Unlock()
+	d.DataSet.lock.Lock()
+	defer d.DataSet.lock.Unlock()
 	d.Table.Lock.RLock()
 	defer d.Table.Lock.RUnlock()
 	if d.Index == nil {

@@ -99,14 +99,14 @@ func NewResponse(ctx context.Context, req *Request, conn net.Conn) (res *Respons
 				continue
 			}
 			if !table.WorksUnlocked {
-				store.DataSet.Lock.RLock()
+				store.DataSet.lock.RLock()
 			}
 			stores[peer] = store
 		}
 		if !table.WorksUnlocked {
 			defer func() {
 				for _, s := range stores {
-					s.DataSet.Lock.RUnlock()
+					s.DataSet.lock.RUnlock()
 				}
 			}()
 		}
