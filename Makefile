@@ -229,6 +229,10 @@ zip: clean
 		ls -la lmd-$$FILE.gz; \
 		echo "lmd-$$FILE.gz created";
 
+lb: vendor buildtools/lb.go
+	$(GO) build $(BUILD_FLAGS) -o ./lb ./buildtools/lb.go
+
+
 # just skip unknown make targets
 .DEFAULT:
 	@if [[ "$(MAKECMDGOALS)" =~ ^testf ]]; then \
