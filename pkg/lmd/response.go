@@ -595,14 +595,23 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 
 // WriteDataResponseRowLocked appends each row but locks the peer before doing so. We don't have to lock for each column then.
 func (res *Response) WriteDataResponseRowLocked(json *jsoniter.Stream) {
-	for i := range res.RawResults.DataResult {
+	var curPeer *Peer
+	for i, row := range res.RawResults.DataResult {
 		if i > 0 {
 			json.WriteRaw(",\n")
 		}
-		row := res.RawResults.DataResult[i]
-		row.DataStore.Peer.lock.RLock()
+		if curPeer != row.DataStore.Peer {
+			if curPeer != nil {
+				curPeer.lock.RUnlock()
+			}
+			curPeer = row.DataStore.Peer
+			curPeer.lock.RLock()
+		}
 		row.WriteJSON(json, res.Request.RequestColumns)
-		row.DataStore.Peer.lock.RUnlock()
+	}
+
+	if curPeer != nil {
+		curPeer.lock.RUnlock()
 	}
 }
 
