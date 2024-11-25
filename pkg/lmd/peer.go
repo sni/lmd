@@ -25,7 +25,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/sasha-s/go-deadlock"
+	"github.com/linkdata/deadlock"
 )
 
 var (

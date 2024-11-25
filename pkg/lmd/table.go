@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sasha-s/go-deadlock"
+	"github.com/linkdata/deadlock"
 )
 
 // TableRef contains data for referenced tables.
