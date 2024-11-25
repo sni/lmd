@@ -13,7 +13,7 @@ import (
 
 const missedTimestampMaxFilter = 150
 
-// DataStoreSet is the handle to a peers datastore.
+// DataStoreSet is a collection of data stores.
 type DataStoreSet struct {
 	peer   *Peer
 	Lock   *deadlock.RWMutex
