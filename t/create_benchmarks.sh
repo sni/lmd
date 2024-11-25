@@ -9,8 +9,6 @@ CURBRANCH=$(git branch --no-color 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\
 TAGLIMIT=${1:-10}
 COMMITLIMIT=${2:-10}
 FOLDER=$(pwd)/.benchmarks
-SRCDIR="$(pwd)/lmd"
-CURDIR="$(pwd)"
 
 mkdir -p $FOLDER
 MISSING=""
@@ -37,28 +35,27 @@ for tag in $(git tag -l | tac | head -n $TAGLIMIT); do
 done
 
 # cleanup none-existing tags
-cd $FOLDER
-for hash in $(comm -13 <(git show -s --format="%h" -9999999 | sort) <(find $FOLDER -name bench\* | cut -d '.' -f 4 | sort -u) | sort -u); do
+(
+  cd $FOLDER
+  for hash in $(comm -13 <(git show -s --format="%h" -9999999 | sort) <(find $FOLDER -name bench\* | cut -d '.' -f 4 | sort -u) | sort -u); do
     for file in $(ls -1 bench.*$hash*); do
       echo "removing obsolete benchmark: $file"
       rm -f $file
     done
-done
+  done
+)
 
 CUR=1
 for file in $MISSING; do
-  cd $CURDIR
   hash=$(echo "$file" | cut -d "." -f 3)
   git checkout go.mod >/dev/null 2>&1
   git checkout $hash >/dev/null 2>&1 || { echo "changing to hash $hash failed"; exit 1; }
   go mod vendor >/dev/null 2>&1
-  cd $SRCDIR
   printf "%02d/%02d creating benchmark: %s (%s)\n" $CUR $NUM $file "$(git show -s --format="%s" $hash)"
-  go test -ldflags "-s -w -X main.Build=test" -v -bench=B\* -run=^$ . -benchmem -benchtime 10s > $FOLDER/$file
+  go test -ldflags "-s -w -X main.Build=test" -v -bench=B\* -run=^$ ./pkg/* -benchmem -benchtime 10s > $FOLDER/$file
   CUR=$(( CUR + 1 ))
 done
 
-cd $CURDIR
 git checkout go.mod >/dev/null 2>&1
 git checkout $CURBRANCH >/dev/null 2>&1
 go mod vendor >/dev/null 2>&1
