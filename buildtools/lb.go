@@ -75,7 +75,7 @@ func main() {
 		return
 	}
 
-	cmd.queryChannel = make(chan *testquery, cmd.flags.flagParallel)
+	cmd.queryChannel = make(chan *testquery, cmd.flags.flagParallel*2)
 	cmd.fillQueries()
 
 	for i := range cmd.flags.flagParallel {
@@ -147,10 +147,12 @@ func (cmd *Cmd) run(i int64) {
 func (cmd *Cmd) fillQueries() {
 	ctx := context.TODO()
 	qIdx := 0
-	for range cmd.flags.flagParallel {
-		queryTxt := strings.TrimSpace(testQueries[qIdx].query)
-		queryTxt += "\nOutputFormat: json\nResponseHeader: fixed16\n"
-		req, _, err := lmd.NewRequest(ctx, cmd.daemon, bufio.NewReader(bytes.NewBufferString(testQueries[qIdx].query)), lmd.ParseDefault)
+	for i := range cmd.flags.flagParallel * 2 {
+		queryTxt := strings.TrimSpace(testQueries[qIdx].query) + "\n"
+		if i >= cmd.flags.flagParallel {
+			queryTxt += "OutputFormat: json\nResponseHeader: fixed16\n"
+		}
+		req, _, err := lmd.NewRequest(ctx, cmd.daemon, bufio.NewReader(bytes.NewBufferString(queryTxt)), lmd.ParseDefault)
 		if err != nil {
 			panic(err.Error())
 		}
