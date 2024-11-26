@@ -278,7 +278,7 @@ func TestMainConfig(t *testing.T) {
 
 func TestMainArgs(t *testing.T) {
 	cfg := &Config{IdleTimeout: 10, SaveTempRequests: true}
-	args := arrayFlags{list: []string{
+	args := ArrayFlags{list: []string{
 		"idletimeout=300",
 		"SaveTempRequests=false",
 		"ListenPrometheus=/dev/null",

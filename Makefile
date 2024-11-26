@@ -201,7 +201,7 @@ golangci: tools
 	# golangci combines a few static code analyzer
 	# See https://github.com/golangci/golangci-lint
 	#
-	@set -e; for dir in $$(ls -1d pkg/* cmd); do \
+	@set -e; for dir in $$(ls -1d pkg/* cmd buildtools); do \
 		echo $$dir; \
 		echo "  - GOOS=linux"; \
 		( cd $$dir && GOOS=linux golangci-lint run --timeout=5m ./... ); \
@@ -228,6 +228,10 @@ zip: clean
 		gzip -9 lmd-$$FILE; \
 		ls -la lmd-$$FILE.gz; \
 		echo "lmd-$$FILE.gz created";
+
+lb: vendor buildtools/lb.go
+	$(GO) build $(BUILD_FLAGS) -o ./lb ./buildtools/lb.go
+
 
 # just skip unknown make targets
 .DEFAULT:

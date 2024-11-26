@@ -142,7 +142,7 @@ type Daemon struct {
 		flagExport       string
 		flagImport       string
 		flagConfigFile   configFiles
-		flagCfgOption    arrayFlags
+		flagCfgOption    ArrayFlags
 		flagDeadlock     int
 		flagVerbose      bool
 		flagVeryVerbose  bool
@@ -153,18 +153,22 @@ type Daemon struct {
 	defaultReqestParseOption ParseOptions
 }
 
-type arrayFlags struct {
+type ArrayFlags struct {
 	list []string
 }
 
-func (i *arrayFlags) String() string {
+func (i *ArrayFlags) String() string {
 	return strings.Join(i.list, ", ")
 }
 
-func (i *arrayFlags) Set(value string) error {
+func (i *ArrayFlags) Set(value string) error {
 	i.list = append(i.list, value)
 
 	return nil
+}
+
+func (i *ArrayFlags) Value() []string {
+	return i.list
 }
 
 // Objects contains the static definition of all available tables and columns.
@@ -624,7 +628,7 @@ func (lmd *Daemon) onExit(qStat *QueryStats) {
 	}
 }
 
-func applyArgFlags(opts arrayFlags, localConfig *Config) {
+func applyArgFlags(opts ArrayFlags, localConfig *Config) {
 	ps := reflect.ValueOf(localConfig)
 	val := ps.Elem()
 	typeOfV := val.Type()
