@@ -552,14 +552,16 @@ func (res *Response) WrappedJSON(buf io.Writer) error {
 }
 
 // WriteDataResponse writes the data part of the result.
-func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
+func (res *Response) WriteDataResponse(json *jsoniter.Stream) error {
 	switch {
 	case res.Result != nil:
 		// append result row by row
 		for rowNum := range res.Result {
 			if rowNum > 0 {
 				json.WriteRaw(",\n")
-				json.Flush()
+				if err := json.Flush(); err != nil {
+					return fmt.Errorf("json flush failed: %s", err.Error())
+				}
 			}
 			json.WriteArrayStart()
 			for k := range res.Result[rowNum] {
@@ -577,25 +579,27 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 
 		// PeerLockModeFull means we have to lock all peers before creating the result
 		if len(res.RawResults.DataResult) > 0 && res.RawResults.DataResult[0].DataStore.PeerLockMode == PeerLockModeFull {
-			res.WriteDataResponseRowLocked(json)
-
-			return
+			return res.WriteDataResponseRowLocked(json)
 		}
 
 		for i, row := range res.RawResults.DataResult {
 			if i > 0 {
 				json.WriteRaw(",\n")
-				json.Flush()
+				if err := json.Flush(); err != nil {
+					return fmt.Errorf("json flush failed: %s", err.Error())
+				}
 			}
 			row.WriteJSON(json, res.Request.RequestColumns)
 		}
 	default:
 		logWith(res).Errorf("response contains no result at all")
 	}
+
+	return nil
 }
 
 // WriteDataResponseRowLocked appends each row but locks the peer before doing so. We don't have to lock for each column then.
-func (res *Response) WriteDataResponseRowLocked(json *jsoniter.Stream) {
+func (res *Response) WriteDataResponseRowLocked(json *jsoniter.Stream) error {
 	for i, row := range res.RawResults.DataResult {
 		if i > 0 {
 			json.WriteRaw(",\n")
@@ -603,7 +607,12 @@ func (res *Response) WriteDataResponseRowLocked(json *jsoniter.Stream) {
 		row.DataStore.Peer.lock.RLock()
 		row.WriteJSON(json, res.Request.RequestColumns)
 		row.DataStore.Peer.lock.RUnlock()
+		if err := json.Flush(); err != nil {
+			return fmt.Errorf("json flush failed: %s", err.Error())
+		}
 	}
+
+	return nil
 }
 
 // WriteColumnsResponse writes the columns header.
