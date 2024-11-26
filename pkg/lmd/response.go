@@ -503,7 +503,9 @@ func (res *Response) JSON(buf io.Writer) error {
 		}
 	}
 
-	res.WriteDataResponse(json)
+	if err := res.WriteDataResponse(json); err != nil {
+		return err
+	}
 
 	json.WriteRaw("]")
 	err := json.Flush()
@@ -521,7 +523,9 @@ func (res *Response) WrappedJSON(buf io.Writer) error {
 	defer jsoniter.ConfigCompatibleWithStandardLibrary.ReturnStream(json)
 
 	json.WriteRaw("{\"data\":\n[")
-	res.WriteDataResponse(json)
+	if err := res.WriteDataResponse(json); err != nil {
+		return err
+	}
 	json.WriteRaw("]\n,\"failed\": {")
 	num := 0
 	for k, v := range res.Failed {
