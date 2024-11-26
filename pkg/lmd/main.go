@@ -26,8 +26,8 @@ import (
 	"time"
 
 	"github.com/OneOfOne/xxhash"
-	"github.com/linkdata/deadlock"
 	"github.com/lkarlslund/stringdedup"
+	"github.com/sasha-s/go-deadlock"
 )
 
 const (
@@ -520,15 +520,9 @@ func (lmd *Daemon) checkFlags() {
 	}
 
 	if lmd.flags.flagDeadlock <= 0 {
-		deadlock.Opts.MaxMapSize = 0
-		deadlock.Opts.OnPotentialDeadlock = func() {}
+		deadlock.Opts.Disable = true
 	} else {
-		if !deadlock.Enabled {
-			fmt.Fprintf(os.Stdout, "ERROR: deadlock detection is disabled, please recompile with -tags=deadlock")
-		}
-		if !log.IsV(LogVerbosityDebug) {
-			deadlock.Opts.MaxMapSize = 0
-		}
+		deadlock.Opts.Disable = false
 		deadlock.Opts.DeadlockTimeout = time.Duration(lmd.flags.flagDeadlock) * time.Second
 		deadlock.Opts.LogBuf = NewLogWriter("Error")
 	}

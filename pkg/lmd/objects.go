@@ -1,6 +1,6 @@
 package lmd
 
-import "github.com/linkdata/deadlock"
+import "github.com/sasha-s/go-deadlock"
 
 // ObjectsType is a map of tables with a given order.
 type ObjectsType struct {

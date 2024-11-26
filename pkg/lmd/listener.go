@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/linkdata/deadlock"
+	"github.com/sasha-s/go-deadlock"
 )
 
 const (

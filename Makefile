@@ -18,7 +18,7 @@ TOOLSFOLDER=$(shell pwd)/tools
 export GOBIN := $(TOOLSFOLDER)
 export PATH := $(GOBIN):$(PATH)
 
-BUILD_FLAGS=-ldflags "-s -w -X main.Build=$(BUILD)" -tags=deadlock
+BUILD_FLAGS=-ldflags "-s -w -X main.Build=$(BUILD)"
 TEST_FLAGS=-timeout=5m $(BUILD_FLAGS)
 GO=go
 

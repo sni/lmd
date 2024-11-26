@@ -13,7 +13,7 @@ import (
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
-	"github.com/linkdata/deadlock"
+	"github.com/sasha-s/go-deadlock"
 )
 
 const (

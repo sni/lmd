@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/linkdata/deadlock"
+	"github.com/sasha-s/go-deadlock"
 )
 
 const missedTimestampMaxFilter = 150
