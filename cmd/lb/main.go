@@ -7,9 +7,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"pkg/lmd"
 	"strings"
 	"time"
+
+	"pkg/lmd"
 )
 
 // Build contains the current git commit id
@@ -103,46 +104,14 @@ func main() {
 	cmd.fillQueries()
 
 	for i := range cmd.flags.flagParallel {
-		go cmd.run(i)
+		go cmd.runWorker(i)
 	}
 
-	final := map[string]*result{}
-	end := time.NewTimer(cmd.flags.flagDuration)
-	keepRuning := true
-	for keepRuning {
-		select {
-		case <-end.C:
-			end.Stop()
-			cmd.shutdownChannel <- true
-			keepRuning = false
-		case res := <-cmd.resultChannel:
-			if _, ok := final[res.name]; !ok {
-				final[res.name] = res
-			} else {
-				fin := final[res.name]
-				fin.total += res.total
-				fin.errors += res.errors
-				fin.bytesIn += res.bytesIn
-				fin.bytesOut += res.bytesOut
-			}
-		}
-	}
-
-	total := &result{}
-	totalRate := float64(0)
-	for _, t := range testQueries {
-		r := final[t.name]
-		rate := float64(r.total) / cmd.flags.flagDuration.Seconds()
-		fmt.Fprintf(os.Stdout, "%15s: total: %10d | errors: %3d | rate: %9.2f req/s\n", r.name, r.total, r.errors, rate)
-		totalRate += rate
-		total.total += r.total
-		total.errors += r.errors
-	}
-	fmt.Fprintf(os.Stdout, "%s\n", strings.Repeat("-", outputLineLength))
-	fmt.Fprintf(os.Stdout, "%15s: total: %10d | errors: %3d | rate: %9.2f req/s\n", "total", total.total, total.errors, totalRate)
+	final := cmd.collectResults()
+	cmd.printResults(final)
 }
 
-func (cmd *Cmd) run(i int64) {
+func (cmd *Cmd) runWorker(i int64) {
 	ctx := context.Background()
 	name := fmt.Sprintf("w%02d", i)
 	peer := lmd.NewPeer(cmd.daemon, &lmd.Connection{Source: cmd.flags.flagConn.Value(), Name: name, ID: name})
@@ -166,6 +135,47 @@ func (cmd *Cmd) run(i int64) {
 			cmd.queryChannel <- query
 		}
 	}
+}
+
+func (cmd *Cmd) collectResults() map[string]*result {
+	final := map[string]*result{}
+	end := time.NewTimer(cmd.flags.flagDuration)
+	keepRuning := true
+	for keepRuning {
+		select {
+		case <-end.C:
+			end.Stop()
+			cmd.shutdownChannel <- true
+			keepRuning = false
+		case res := <-cmd.resultChannel:
+			if _, ok := final[res.name]; !ok {
+				final[res.name] = res
+			} else {
+				fin := final[res.name]
+				fin.total += res.total
+				fin.errors += res.errors
+				fin.bytesIn += res.bytesIn
+				fin.bytesOut += res.bytesOut
+			}
+		}
+	}
+
+	return final
+}
+
+func (cmd *Cmd) printResults(final map[string]*result) {
+	total := &result{}
+	totalRate := float64(0)
+	for _, t := range testQueries {
+		r := final[t.name]
+		rate := float64(r.total) / cmd.flags.flagDuration.Seconds()
+		fmt.Fprintf(os.Stdout, "%15s: total: %10d | errors: %3d | rate: %9.2f req/s\n", r.name, r.total, r.errors, rate)
+		totalRate += rate
+		total.total += r.total
+		total.errors += r.errors
+	}
+	fmt.Fprintf(os.Stdout, "%s\n", strings.Repeat("-", outputLineLength))
+	fmt.Fprintf(os.Stdout, "%15s: total: %10d | errors: %3d | rate: %9.2f req/s\n", "total", total.total, total.errors, totalRate)
 }
 
 func (cmd *Cmd) fillQueries() {
