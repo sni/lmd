@@ -147,6 +147,3 @@ issues:
         - gomnd
         - lll
         - musttag
-    - path: lb\.go
-      linters:
-        - lll

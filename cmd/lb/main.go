@@ -329,11 +329,27 @@ StatsAnd: 2
 Stats: accept_passive_checks = 0`
 
 const servicesPageQuery = `GET services
-Columns: accept_passive_checks acknowledged action_url action_url_expanded active_checks_enabled check_command check_interval check_options check_period check_type checks_enabled comments current_attempt current_notification_number description event_handler event_handler_enabled custom_variable_names custom_variable_values execution_time first_notification_delay flap_detection_enabled groups has_been_checked high_flap_threshold host_acknowledged host_action_url_expanded host_active_checks_enabled host_address host_alias host_checks_enabled host_check_type host_latency host_plugin_output host_perf_data host_current_attempt host_check_command host_comments host_groups host_has_been_checked host_icon_image_expanded host_icon_image_alt host_is_executing host_is_flapping host_name host_notes_url_expanded host_notifications_enabled host_scheduled_downtime_depth host_state host_accept_passive_checks host_last_state_change icon_image icon_image_alt icon_image_expanded is_executing is_flapping last_check last_notification last_state_change latency long_plugin_output low_flap_threshold max_check_attempts next_check notes notes_expanded notes_url notes_url_expanded notification_interval notification_period notifications_enabled obsess_over_service percent_state_change perf_data plugin_output process_performance_data retry_interval scheduled_downtime_depth state state_type modified_attributes_list last_time_critical last_time_ok last_time_unknown last_time_warning display_name host_display_name host_custom_variable_names host_custom_variable_values in_check_period in_notification_period host_parents
+Columns: accept_passive_checks acknowledged action_url action_url_expanded active_checks_enabled check_command ` +
+	`check_interval check_options check_period check_type checks_enabled comments current_attempt ` +
+	`current_notification_number description event_handler event_handler_enabled custom_variable_names ` +
+	`custom_variable_values execution_time first_notification_delay flap_detection_enabled groups has_been_checked ` +
+	`high_flap_threshold host_acknowledged host_action_url_expanded host_active_checks_enabled host_address host_alias ` +
+	`host_checks_enabled host_check_type host_latency host_plugin_output host_perf_data host_current_attempt ` +
+	`host_check_command host_comments host_groups host_has_been_checked host_icon_image_expanded host_icon_image_alt ` +
+	`host_is_executing host_is_flapping host_name host_notes_url_expanded host_notifications_enabled ` +
+	`host_scheduled_downtime_depth host_state host_accept_passive_checks host_last_state_change icon_image ` +
+	`icon_image_alt icon_image_expanded is_executing is_flapping last_check last_notification last_state_change ` +
+	`latency long_plugin_output low_flap_threshold max_check_attempts next_check notes notes_expanded notes_url ` +
+	`notes_url_expanded notification_interval notification_period notifications_enabled obsess_over_service ` +
+	`percent_state_change perf_data plugin_output process_performance_data retry_interval scheduled_downtime_depth ` +
+	`state state_type modified_attributes_list last_time_critical last_time_ok last_time_unknown last_time_warning ` +
+	`display_name host_display_name host_custom_variable_names host_custom_variable_values in_check_period ` +
+	`in_notification_period host_parents
 Limit: 100`
 
 const serviceSearchQuery = `GET services
-Columns: host_has_been_checked host_name host_state host_scheduled_downtime_depth host_acknowledged has_been_checked state scheduled_downtime_depth acknowledged peer_key
+Columns: host_has_been_checked host_name host_state host_scheduled_downtime_depth host_acknowledged has_been_checked ` +
+	`state scheduled_downtime_depth acknowledged peer_key
 Filter: host_name !~~ abc
 Filter: host_alias !~~ abc
 Filter: host_address !~~ abc
