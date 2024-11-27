@@ -7,11 +7,14 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"pkg/lmd"
 	"strings"
 	"time"
-
-	"pkg/lmd"
 )
+
+// Build contains the current git commit id
+// compile passing -ldflags "-X main.Build <build sha1>" to set the id.
+var Build string
 
 type result struct {
 	name     string
@@ -36,6 +39,8 @@ type Cmd struct {
 		flagConn     lmd.ArrayFlags
 		flagDuration time.Duration
 		flagParallel int64
+		flagVersion  bool
+		flagVerbose  bool
 	}
 }
 
@@ -64,13 +69,32 @@ func main() {
 		resultChannel:   make(chan *result, 100),
 		daemon:          daemon,
 	}
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [arguments]\n", os.Args[0])
+		fmt.Fprintf(flag.CommandLine.Output(), "\nDescription:\n\n  lb is a benchmark tool for lmd which sends lots of requests to lmd.\n\nArguments:\n\n")
+		flag.PrintDefaults()
+		fmt.Fprintf(flag.CommandLine.Output(), "\nExample:\n\n  lb -c localhost:6557 -d 5s -n 10\n\n")
+	}
 	flag.Int64Var(&cmd.flags.flagParallel, "n", 10, "set number of parallel requests")
+	flag.Int64Var(&cmd.flags.flagParallel, "number", 10, "set number of parallel requests")
 	flag.DurationVar(&cmd.flags.flagDuration, "d", 10*time.Second, "set run duration")
+	flag.DurationVar(&cmd.flags.flagDuration, "duration", 10*time.Second, "set run duration")
 	flag.Var(&cmd.flags.flagConn, "c", "set unix socket path or port to connect to")
+	flag.Var(&cmd.flags.flagConn, "connection", "set unix socket path or port to connect to")
+	flag.BoolVar(&cmd.flags.flagVerbose, "v", false, "enable verbose output")
+	flag.BoolVar(&cmd.flags.flagVerbose, "verbose", false, "enable verbose output")
+	flag.BoolVar(&cmd.flags.flagVersion, "V", false, "print version and exit")
+	flag.BoolVar(&cmd.flags.flagVersion, "version", false, "print version and exit")
 	flag.Parse()
 
+	if cmd.flags.flagVersion {
+		lmd.Build = Build
+		fmt.Fprintf(os.Stdout, "lb - version %s\n", lmd.Version())
+		os.Exit(0)
+	}
+
 	if len(cmd.flags.flagConn.Value()) == 0 {
-		fmt.Fprintf(os.Stderr, "ERROR: must specify at least one connection\n")
+		fmt.Fprintf(os.Stderr, "ERROR: must specify at least one connection. See -h/--help for all options.\n")
 
 		return
 	}
