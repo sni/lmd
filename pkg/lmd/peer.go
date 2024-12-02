@@ -346,6 +346,7 @@ func (p *Peer) updateLoop(ctx context.Context) {
 	ticker := time.NewTicker(UpdateLoopTickerInterval)
 	for {
 		var loopErr error
+		var ok bool
 		time1 := time.Now()
 		select {
 		case <-p.shutdownChannel:
@@ -359,9 +360,9 @@ func (p *Peer) updateLoop(ctx context.Context) {
 		case <-ticker.C:
 			switch {
 			case p.HasFlag(MultiBackend):
-				loopErr = p.periodicUpdateMultiBackends(ctx, nil, false)
+				ok, loopErr = p.periodicUpdateMultiBackends(ctx, nil, false)
 			default:
-				loopErr = p.periodicUpdate(ctx)
+				ok, loopErr = p.periodicUpdate(ctx)
 			}
 		}
 		duration := time.Since(time1)
@@ -374,12 +375,14 @@ func (p *Peer) updateLoop(ctx context.Context) {
 				logWith(p).Debugf("updating objects failed after: %s: %s", duration.String(), lastErr.Error())
 			}
 		}
-		p.clearLastRequest()
+		if ok {
+			p.clearLastRequest()
+		}
 	}
 }
 
 // periodicUpdate runs the periodic updates from the update loop.
-func (p *Peer) periodicUpdate(ctx context.Context) (err error) {
+func (p *Peer) periodicUpdate(ctx context.Context) (ok bool, err error) {
 	p.lock.RLock()
 	lastUpdate := p.LastUpdate
 	lastTimeperiodUpdateMinute := p.LastTimeperiodUpdateMinute
@@ -400,7 +403,7 @@ func (p *Peer) periodicUpdate(ctx context.Context) (err error) {
 		p.statusSetLocked(LastTimeperiodUpdateMinute, currentMinute)
 		err = p.periodicTimeperiodsUpdate(ctx, data)
 		if err != nil {
-			return err
+			return ok, err
 		}
 	}
 
@@ -411,8 +414,9 @@ func (p *Peer) periodicUpdate(ctx context.Context) (err error) {
 		nextUpdate = lastUpdate + float64(p.lmd.Config.UpdateInterval)
 	}
 	if now < nextUpdate {
-		return nil
+		return ok, nil
 	}
+	ok = true
 
 	// set last update timestamp, otherwise we would retry the connection every 500ms instead
 	// of the update interval
@@ -420,39 +424,39 @@ func (p *Peer) periodicUpdate(ctx context.Context) (err error) {
 
 	switch lastStatus {
 	case PeerStatusBroken:
-		return p.handleBrokenPeer(ctx)
+		return ok, p.handleBrokenPeer(ctx)
 	case PeerStatusDown, PeerStatusPending:
-		return p.InitAllTables(ctx)
+		return ok, p.InitAllTables(ctx)
 	case PeerStatusWarning:
 		if data == nil {
 			logWith(p).Warnf("inconsistent state, no data with state: %s", lastStatus.String())
 
-			return p.InitAllTables(ctx)
+			return ok, p.InitAllTables(ctx)
 		}
 
 		// run update if it was just a short outage
-		return data.UpdateFull(ctx, Objects.UpdateTables)
+		return ok, data.UpdateFull(ctx, Objects.UpdateTables)
 	case PeerStatusUp, PeerStatusSyncing:
 		if data == nil {
 			logWith(p).Warnf("inconsistent state, no data with state: %s", lastStatus.String())
 
-			return p.InitAllTables(ctx)
+			return ok, p.InitAllTables(ctx)
 		}
 		// full update interval
 		if !idling && p.lmd.Config.FullUpdateInterval > 0 && now > lastFullUpdate+float64(p.lmd.Config.FullUpdateInterval) {
-			return data.UpdateFull(ctx, Objects.UpdateTables)
+			return ok, data.UpdateFull(ctx, Objects.UpdateTables)
 		}
 		if forceFull {
 			lastUpdate = 0
 			p.statusSetLocked(ForceFull, false)
 		}
 
-		return data.UpdateDelta(ctx, lastUpdate, now)
+		return ok, data.UpdateDelta(ctx, lastUpdate, now)
 	}
 
 	logWith(p).Panicf("unhandled status case: %s", lastStatus.String())
 
-	return nil
+	return ok, nil
 }
 
 // it fetches the sites table and creates and updates LMDSub backends for them.
@@ -481,7 +485,7 @@ func (p *Peer) handleBrokenPeer(ctx context.Context) (err error) {
 
 // periodicUpdateLMD runs the periodic updates from the update loop for LMD backends
 // it fetches the sites table and creates and updates LMDSub backends for them.
-func (p *Peer) periodicUpdateLMD(ctx context.Context, data *DataStoreSet, force bool) (err error) {
+func (p *Peer) periodicUpdateLMD(ctx context.Context, data *DataStoreSet, force bool) (ok bool, err error) {
 	p.lock.RLock()
 	lastUpdate := p.LastUpdate
 	p.lock.RUnlock()
@@ -489,19 +493,20 @@ func (p *Peer) periodicUpdateLMD(ctx context.Context, data *DataStoreSet, force 
 	if data == nil {
 		data, err = p.GetDataStoreSet()
 		if err != nil {
-			return err
+			return ok, err
 		}
 	}
 
 	now := currentUnixTime()
 	if !force && now < lastUpdate+float64(p.lmd.Config.UpdateInterval) {
-		return nil
+		return ok, nil
 	}
+	ok = true
 
 	// check main connection and update status table
 	err = data.UpdateFull(ctx, Objects.StatusTables)
 	if err != nil {
-		return err
+		return ok, err
 	}
 
 	// set last update timestamp, otherwise we would retry the connection every 500ms instead
@@ -518,7 +523,7 @@ func (p *Peer) periodicUpdateLMD(ctx context.Context, data *DataStoreSet, force 
 	if err != nil {
 		logWith(p, req).Infof("failed to fetch sites information: %s", err.Error())
 
-		return err
+		return ok, err
 	}
 	resHash := res.Result2Hash(columns)
 
@@ -536,7 +541,7 @@ func (p *Peer) periodicUpdateLMD(ctx context.Context, data *DataStoreSet, force 
 	for peerKey := range p.lmd.PeerMap {
 		peer := p.lmd.PeerMap[peerKey]
 		if peer.ParentID == p.ID {
-			if _, ok := existing[peerKey]; !ok {
+			if _, ok2 := existing[peerKey]; !ok2 {
 				logWith(peer, req).Debugf("removing sub peer")
 				peer.Stop()
 				peer.ClearData(true)
@@ -545,12 +550,12 @@ func (p *Peer) periodicUpdateLMD(ctx context.Context, data *DataStoreSet, force 
 		}
 	}
 
-	return nil
+	return ok, nil
 }
 
 // periodicUpdateMultiBackends runs the periodic updates from the update loop for multi backends
 // it fetches the all sites and creates and updates HTTPSub backends for them.
-func (p *Peer) periodicUpdateMultiBackends(ctx context.Context, data *DataStoreSet, force bool) (err error) {
+func (p *Peer) periodicUpdateMultiBackends(ctx context.Context, data *DataStoreSet, force bool) (ok bool, err error) {
 	if p.HasFlag(LMD) {
 		return p.periodicUpdateLMD(ctx, data, force)
 	}
@@ -560,20 +565,22 @@ func (p *Peer) periodicUpdateMultiBackends(ctx context.Context, data *DataStoreS
 
 	now := currentUnixTime()
 	if !force && now < lastUpdate+float64(p.lmd.Config.UpdateInterval) {
-		return nil
+		return ok, nil
 	}
+
+	ok = true
 
 	if data == nil {
 		data, err = p.GetDataStoreSet()
 		if err != nil {
-			return err
+			return ok, err
 		}
 	}
 
 	// check main connection and update status table
 	err = data.UpdateFull(ctx, Objects.StatusTables)
 	if err != nil {
-		return err
+		return ok, err
 	}
 
 	sites, err := p.fetchRemotePeers(ctx, data)
@@ -581,7 +588,7 @@ func (p *Peer) periodicUpdateMultiBackends(ctx context.Context, data *DataStoreS
 		logWith(p).Infof("failed to fetch sites information: %s", err.Error())
 		p.ErrorLogged = true
 
-		return err
+		return ok, err
 	}
 
 	// set last update timestamp, otherwise we would retry the connection every 500ms instead
@@ -593,7 +600,7 @@ func (p *Peer) periodicUpdateMultiBackends(ctx context.Context, data *DataStoreS
 	existing := make(map[string]bool)
 	for _, siteRow := range sites {
 		var site map[string]interface{}
-		if s, ok := siteRow.(map[string]interface{}); ok {
+		if s, ok2 := siteRow.(map[string]interface{}); ok2 {
 			site = s
 		} else {
 			continue
@@ -608,7 +615,7 @@ func (p *Peer) periodicUpdateMultiBackends(ctx context.Context, data *DataStoreS
 	for peerKey := range p.lmd.PeerMap {
 		peer := p.lmd.PeerMap[peerKey]
 		if peer.ParentID == p.ID {
-			if _, ok := existing[peerKey]; !ok {
+			if _, ok2 := existing[peerKey]; !ok2 {
 				logWith(peer).Debugf("removing sub peer")
 				peer.Stop()
 				peer.ClearData(true)
@@ -617,7 +624,7 @@ func (p *Peer) periodicUpdateMultiBackends(ctx context.Context, data *DataStoreS
 		}
 	}
 
-	return nil
+	return ok, nil
 }
 
 func (p *Peer) updateIdleStatus(idling bool, lastQuery float64) bool {
@@ -1615,7 +1622,7 @@ func (p *Peer) checkStatusFlags(ctx context.Context, store *DataStoreSet) (err e
 			p.LastUpdate = currentUnixTime() - float64(p.lmd.Config.UpdateInterval)
 			p.lock.Unlock()
 
-			err = p.periodicUpdateMultiBackends(ctx, store, true)
+			_, err = p.periodicUpdateMultiBackends(ctx, store, true)
 			if err != nil {
 				return err
 			}
@@ -1807,7 +1814,7 @@ func (p *Peer) fetchRemotePeers(ctx context.Context, store *DataStoreSet) (sites
 			logWith(p).Infof("remote connection MultiBackend flag set, got %d sites", len(sites))
 			p.SetFlag(MultiBackend)
 			p.lock.Unlock()
-			err = p.periodicUpdateMultiBackends(ctx, store, true)
+			_, err = p.periodicUpdateMultiBackends(ctx, store, true)
 			if err != nil {
 				return nil, err
 			}

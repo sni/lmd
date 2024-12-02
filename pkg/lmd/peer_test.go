@@ -158,17 +158,17 @@ func TestPeerUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	peer.statusSetLocked(LastUpdate, float64(0))
-	err = peer.periodicUpdate(context.TODO())
+	_, err = peer.periodicUpdate(context.TODO())
 	require.NoError(t, err)
 
 	peer.statusSetLocked(LastUpdate, float64(0))
 	peer.statusSetLocked(PeerState, PeerStatusWarning)
-	err = peer.periodicUpdate(context.TODO())
+	_, err = peer.periodicUpdate(context.TODO())
 	require.NoError(t, err)
 
 	peer.statusSetLocked(LastUpdate, float64(0))
 	peer.statusSetLocked(PeerState, PeerStatusDown)
-	err = peer.periodicUpdate(context.TODO())
+	_, err = peer.periodicUpdate(context.TODO())
 	require.NoError(t, err)
 
 	err = peer.periodicTimeperiodsUpdate(context.TODO(), peer.data)
@@ -176,7 +176,7 @@ func TestPeerUpdate(t *testing.T) {
 
 	peer.statusSetLocked(LastUpdate, float64(0))
 	peer.statusSetLocked(PeerState, PeerStatusBroken)
-	err = peer.periodicUpdate(context.TODO())
+	_, err = peer.periodicUpdate(context.TODO())
 	require.Errorf(t, err, "got no error but expected broken peer")
 	assert.Contains(t, err.Error(), "waiting for peer to recover")
 
@@ -225,13 +225,13 @@ func TestLMDPeerUpdate(t *testing.T) {
 	peer.statusSetLocked(LastUpdate, float64(0))
 	peer.SetFlag(LMD)
 	peer.SetFlag(MultiBackend)
-	err := peer.periodicUpdateLMD(context.TODO(), nil, true)
+	_, err := peer.periodicUpdateLMD(context.TODO(), nil, true)
 	require.NoError(t, err)
 
 	peer.statusSetLocked(LastUpdate, float64(0))
 	peer.ResetFlags()
 	peer.SetFlag(MultiBackend)
-	err = peer.periodicUpdateMultiBackends(context.TODO(), nil, true)
+	_, err = peer.periodicUpdateMultiBackends(context.TODO(), nil, true)
 	require.NoError(t, err)
 
 	err = cleanup()
