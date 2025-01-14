@@ -92,7 +92,7 @@ func importPeersFromDir(lmd *Daemon, folder string) (peers []*Peer, err error) {
 		}
 	}
 
-	return
+	return peers, nil
 }
 
 // importPeerFromDir imports single peer from folder which must contain all required json files.
