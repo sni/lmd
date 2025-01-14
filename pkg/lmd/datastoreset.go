@@ -320,6 +320,7 @@ func (ds *DataStoreSet) updateDeltaHostsServices(ctx context.Context, tableName 
 }
 
 func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, resMeta *ResultMetaData, table *DataStore) (err error) {
+	updateType := "delta"
 	time1 := time.Now()
 	updateSet, err := table.prepareDataUpdateSet(dataOffset, res, table.DynamicColumnCache)
 	if err != nil {
@@ -329,6 +330,10 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 
 	now := currentUnixTime()
 	time2 := time.Now()
+
+	if len(updateSet) == len(table.Data) {
+		updateType = "full"
+	}
 
 	ds.lock.Lock()
 	durationLock := time.Since(time2).Truncate(time.Millisecond)
@@ -353,8 +358,8 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 	p := ds.peer
 	tableName := table.Table.Name.String()
 	promObjectUpdate.WithLabelValues(p.Name, tableName).Add(float64(len(res)))
-	logWith(p, resMeta.Request).Debugf("up delta table: %15s - fetch: %9s - prep: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
-		tableName, resMeta.Duration.Truncate(time.Millisecond), durationPrepare, durationLock, durationInsert, len(updateSet), resMeta.Size/1024)
+	logWith(p, resMeta.Request).Debugf("up. %-5s table: %15s - fetch: %9s - prep: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
+		updateType, tableName, resMeta.Duration.Truncate(time.Millisecond), durationPrepare, durationLock, durationInsert, len(updateSet), resMeta.Size/1024)
 
 	return nil
 }
@@ -705,6 +710,8 @@ func (ds *DataStoreSet) UpdateFullTable(ctx context.Context, tableName TableName
 		if err != nil {
 			return err
 		}
+		logWith(peer, req).Debugf("up. full  table: %15s - fetch: %9s - sort: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
+			tableName.String(), resMeta.Duration.Truncate(time.Millisecond), durationSort, durationLock, durationInsert, len(res), resMeta.Size/1024)
 	case TableStatus:
 		// check pid and date before updating tables.
 		// Otherwise we and up with inconsistent state until the full refresh is finished
@@ -724,9 +731,6 @@ func (ds *DataStoreSet) UpdateFullTable(ctx context.Context, tableName TableName
 	if tableName == TableStatus {
 		LogErrors(peer.checkStatusFlags(ctx, ds))
 	}
-
-	logWith(peer, req).Debugf("up full  table: %15s - fetch: %9s - sort: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
-		tableName.String(), resMeta.Duration.Truncate(time.Millisecond), durationSort, durationLock, durationInsert, len(res), resMeta.Size/1024)
 
 	return nil
 }
@@ -754,11 +758,13 @@ func (ds *DataStoreSet) skipTableUpdate(store *DataStore, table TableName) (bool
 
 func (ds *DataStoreSet) updateTimeperiodsData(ctx context.Context, dataOffset int, store *DataStore, res ResultSet, columns ColumnList) (err error) {
 	changedTimeperiods := make(map[string]bool)
+
 	ds.lock.Lock()
 	data := store.Data
 	now := currentUnixTime()
 	nameCol := store.GetColumn("name")
 	ds.lock.Unlock()
+
 	for i := range res {
 		row := res[i]
 		if data[i].CheckChangedIntValues(dataOffset, row, columns) {
@@ -769,6 +775,7 @@ func (ds *DataStoreSet) updateTimeperiodsData(ctx context.Context, dataOffset in
 			return err
 		}
 	}
+
 	// Update hosts and services with those changed timeperiods
 	for name, state := range changedTimeperiods {
 		logWith(ds).Debugf("timeperiod %s has changed to %v, need to update affected hosts/services", name, state)

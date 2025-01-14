@@ -191,7 +191,7 @@ func NewStatusTable() (t *Table) {
 
 // NewTimeperiodsTable returns a new timeperiods table.
 func NewTimeperiodsTable() (t *Table) {
-	t = &Table{DefaultSort: []string{"name"}}
+	t = &Table{PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
 	t.AddColumn("alias", Static, StringCol, "The alias of the timeperiod")
 	t.AddColumn("name", Static, StringCol, "The name of the timeperiod")
 	t.AddColumn("in", Dynamic, IntCol, "Wether we are currently in this period (0/1)")
@@ -215,7 +215,7 @@ func NewTimeperiodsTable() (t *Table) {
 
 // NewContactsTable returns a new contacts table.
 func NewContactsTable() (t *Table) {
-	t = &Table{DefaultSort: []string{"name"}}
+	t = &Table{PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
 	t.AddColumn("alias", Static, StringCol, "The full name of the contact")
 	t.AddColumn("name", Static, StringCol, "The login name of the contact person")
 	t.AddColumn("can_submit_commands", Static, IntCol, "Wether the contact is allowed to submit commands (0/1)")
@@ -258,7 +258,7 @@ func NewContactsTable() (t *Table) {
 
 // NewContactgroupsTable returns a new contactgroups table.
 func NewContactgroupsTable() (t *Table) {
-	t = &Table{DefaultSort: []string{"name"}}
+	t = &Table{PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
 	t.AddColumn("alias", Static, StringCol, "The alias of the contactgroup")
 	t.AddColumn("members", Static, StringListCol, "A list of all members of this contactgroup")
 	t.AddColumn("name", Static, StringCol, "The name of the contactgroup")
@@ -271,7 +271,7 @@ func NewContactgroupsTable() (t *Table) {
 
 // NewCommandsTable returns a new commands table.
 func NewCommandsTable() (t *Table) {
-	t = &Table{DefaultSort: []string{"name"}}
+	t = &Table{PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
 	t.AddColumn("name", Static, StringCol, "The name of the command")
 	t.AddColumn("line", Static, StringCol, "The shell command line")
 

@@ -780,7 +780,7 @@ func TestCustomVarColContacts(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 2, 9)
 	PauseTestPeers(peer)
 
-	res, _, err := peer.QueryString("GET contacts\nColumns: custom_variables custom_variable_names custom_variable_values\n\n")
+	res, _, err := peer.QueryString("GET contacts\nColumns: custom_variables custom_variable_names custom_variable_values\nFilter: name = example\n\n")
 	require.NoError(t, err)
 
 	val := res[0][1].([]interface{})

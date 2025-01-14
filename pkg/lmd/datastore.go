@@ -290,11 +290,13 @@ func (d *DataStore) GetPreFilteredData(filter []*Filter) []*DataRow {
 		return d.Data
 	}
 
-	switch d.Table.Name {
-	case TableHosts:
+	switch {
+	case d.Table.Name == TableHosts:
 		return (d.tryFilterIndexData(filter, appendIndexHostsFromHostColumns))
-	case TableServices:
+	case d.Table.Name == TableServices:
 		return (d.tryFilterIndexData(filter, appendIndexHostsFromServiceColumns))
+	case len(d.Table.PrimaryKey) == 1:
+		return (d.tryFilterIndexData(filter, appendIndexFromPrimaryKey))
 	default:
 		// only hosts and services are supported
 	}
@@ -303,28 +305,21 @@ func (d *DataStore) GetPreFilteredData(filter []*Filter) []*DataRow {
 }
 
 func (d *DataStore) tryFilterIndexData(filter []*Filter, fn getPreFilteredDataFilter) []*DataRow {
-	uniqHosts := make(map[string]bool)
-	ok := d.TryFilterIndex(uniqHosts, filter, fn, false)
+	uniqRows := make(map[string]bool)
+	ok := d.TryFilterIndex(uniqRows, filter, fn, false)
 	if !ok {
 		return d.Data
 	}
 	// sort and return list of index names used
-	hostlist := []string{}
-	for key := range uniqHosts {
-		hostlist = append(hostlist, key)
+	primaryKeyList := []string{}
+	for key := range uniqRows {
+		primaryKeyList = append(primaryKeyList, key)
 	}
-	sort.Strings(hostlist)
+	sort.Strings(primaryKeyList)
 	indexedData := make([]*DataRow, 0)
 	switch d.Table.Name {
-	case TableHosts:
-		for _, name := range hostlist {
-			row, ok := d.Index[name]
-			if ok {
-				indexedData = append(indexedData, row)
-			}
-		}
 	case TableServices:
-		for _, name := range hostlist {
+		for _, name := range primaryKeyList {
 			services, ok := d.Index2[name]
 			if ok {
 				// Sort services by description, asc
@@ -342,7 +337,12 @@ func (d *DataStore) tryFilterIndexData(filter []*Filter, fn getPreFilteredDataFi
 			}
 		}
 	default:
-		// only hosts/services are supported
+		for _, name := range primaryKeyList {
+			row, ok := d.Index[name]
+			if ok {
+				indexedData = append(indexedData, row)
+			}
+		}
 	}
 	log.Tracef("using indexed %s dataset of size: %d", d.Table.Name.String(), len(indexedData))
 
@@ -660,6 +660,49 @@ func appendIndexHostsFromServiceColumns(dStore *DataStore, uniqHosts map[string]
 		}
 	default:
 		// other columns are not supported
+	}
+
+	return false
+}
+
+func appendIndexFromPrimaryKey(dStore *DataStore, uniqRows map[string]bool, fil *Filter) bool {
+	key := dStore.Table.PrimaryKey[0]
+
+	switch fil.Column.Name {
+	case key:
+		switch fil.Operator {
+		// name == <value>
+		case Equal:
+			uniqRows[fil.StrValue] = true
+
+			return true
+
+		// name =~ <value>
+		case EqualNocase:
+			uniqRows[fil.StrValue] = true
+			for _, key := range dStore.IndexLowerCase[strings.ToLower(fil.StrValue)] {
+				uniqRows[key] = true
+			}
+
+			return true
+		default:
+			// other operators are not supported
+		}
+	case key + "_lc":
+		switch fil.Operator {
+		// name == <value>
+		case Equal, EqualNocase:
+			uniqRows[fil.StrValue] = true
+			for _, key := range dStore.IndexLowerCase[strings.ToLower(fil.StrValue)] {
+				uniqRows[key] = true
+			}
+
+			return true
+		default:
+			// other operators are not supported
+		}
+	default:
+		// other operator are not supported
 	}
 
 	return false
