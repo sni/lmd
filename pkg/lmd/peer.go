@@ -1073,7 +1073,7 @@ func (p *Peer) query(ctx context.Context, req *Request) (ResultSet, *ResultMetaD
 	logWith(p, req).Tracef("fetched table: %15s - time: %8s - count: %8d - size: %8d kB", req.Table.String(), duration, len(data), len(resBytes)/1024)
 
 	if duration > time.Duration(p.lmd.Config.LogSlowQueryThreshold)*time.Second {
-		logWith(p, req).Warnf("slow query finished after %s, response size: %s\n%s", duration, byteCountBinary(int64(len(resBytes))), strings.TrimSpace(req.String()))
+		logWith(p, req).Warnf("slow backend query finished after %s, response size: %s\n%s", duration, byteCountBinary(int64(len(resBytes))), strings.TrimSpace(req.String()))
 	}
 
 	return data, meta, nil

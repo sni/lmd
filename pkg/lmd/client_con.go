@@ -187,11 +187,11 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 		size, err = cl.processRequest(ctx, req)
 
 		duration := time.Since(time1)
-		logWith(reqctx).Infof("%s request finished in %s, response size: %s", req.Table.String(), duration.String(), byteCountBinary(size))
+		logWith(reqctx).Infof("%s client request finished in %s, response size: %s", req.Table.String(), duration.String(), byteCountBinary(size))
 		if duration-time.Duration(req.WaitTimeout)*time.Millisecond > time.Duration(cl.logSlowQueryThreshold)*time.Second {
-			logWith(reqctx).Warnf("slow query finished after %s, response size: %s\n%s", duration.String(), byteCountBinary(size), strings.TrimSpace(req.String()))
+			logWith(reqctx).Warnf("slow client query finished after %s, response size: %s\n%s", duration.String(), byteCountBinary(size), strings.TrimSpace(req.String()))
 		} else if size > int64(cl.logHugeQueryThreshold*1024*1024) {
-			logWith(reqctx).Warnf("huge query finished after %s, response size: %s\n%s", duration.String(), byteCountBinary(size), strings.TrimSpace(req.String()))
+			logWith(reqctx).Warnf("huge client query finished after %s, response size: %s\n%s", duration.String(), byteCountBinary(size), strings.TrimSpace(req.String()))
 		}
 		if cl.queryStats != nil {
 			cl.queryStats.In <- QueryStatIn{
