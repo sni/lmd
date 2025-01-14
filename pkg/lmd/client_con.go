@@ -33,6 +33,7 @@ type ClientConnection struct {
 	logSlowQueryThreshold int
 	logHugeQueryThreshold int
 	keepAlive             bool
+	keepOpen              bool
 }
 
 // NewClientConnection creates a new client connection object.
@@ -85,14 +86,14 @@ func (cl *ClientConnection) Handle() {
 			}
 		}
 	}
-	cl.connection.Close()
+	if !cl.keepOpen {
+		cl.connection.Close()
+	}
 }
 
 // answer handles a single client connection.
 // It returns any error encountered.
 func (cl *ClientConnection) answer(ctx context.Context) error {
-	defer cl.connection.Close()
-
 	for {
 		if !cl.keepAlive {
 			promFrontendConnections.WithLabelValues(cl.localAddr).Inc()
@@ -124,7 +125,7 @@ func (cl *ClientConnection) answer(ctx context.Context) error {
 			continue
 		default:
 			err = errors.New("bad request: empty request")
-			LogErrors((&Response{Code: ReturnCodeBadRequest, Request: &Request{}, Error: err}).Send(cl.connection))
+			LogErrors((&Response{Code: ReturnCodeBadRequest, Request: &Request{}, Error: err}).Send(cl))
 
 			return err
 		}
@@ -148,7 +149,7 @@ func (cl *ClientConnection) sendErrorResponse(err error) error {
 	if errors.Is(err, io.EOF) {
 		return nil
 	}
-	LogErrors((&Response{Code: ReturnCodeBadRequest, Request: &Request{}, Error: err}).Send(cl.connection))
+	LogErrors((&Response{Code: ReturnCodeBadRequest, Request: &Request{}, Error: err}).Send(cl))
 
 	return err
 }
@@ -219,22 +220,22 @@ func (cl *ClientConnection) processRequest(ctx context.Context, req *Request) (s
 	defer func() {
 		cl.curRequest = nil
 	}()
-	size, err = req.BuildResponseSend(ctx, cl.connection)
+	size, err = req.BuildResponseSend(ctx, cl)
 	if err != nil {
 		var netErr net.Error
 		if errors.As(err, &netErr) {
-			LogErrors((&Response{Code: ReturnCodeConnectionError, Request: req, Error: netErr}).Send(cl.connection))
+			LogErrors((&Response{Code: ReturnCodeConnectionError, Request: req, Error: netErr}).Send(cl))
 
 			return
 		}
 
 		var peerErr *PeerError
 		if errors.As(err, &peerErr) && peerErr.kind == ConnectionError {
-			LogErrors((&Response{Code: ReturnCodeConnectionError, Request: req, Error: peerErr}).Send(cl.connection))
+			LogErrors((&Response{Code: ReturnCodeConnectionError, Request: req, Error: peerErr}).Send(cl))
 
 			return
 		}
-		LogErrors((&Response{Code: ReturnCodeBadRequest, Request: req, Error: err}).Send(cl.connection))
+		LogErrors((&Response{Code: ReturnCodeBadRequest, Request: req, Error: err}).Send(cl))
 
 		return
 	}

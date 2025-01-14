@@ -441,11 +441,11 @@ func (req *Request) BuildResponse(ctx context.Context) (*Response, error) {
 
 // BuildResponseSend builds the response and sends to the given connection.
 // It returns the transferred size or an error.
-func (req *Request) BuildResponseSend(ctx context.Context, con net.Conn) (int64, error) {
+func (req *Request) BuildResponseSend(ctx context.Context, cl *ClientConnection) (int64, error) {
 	// Run single request if possible
 	if req.lmd.nodeAccessor == nil || !req.lmd.nodeAccessor.IsClustered() {
 		// Single mode (send request)
-		_, size, err := NewResponse(ctx, req, con)
+		_, size, err := NewResponse(ctx, req, cl)
 
 		return size, err
 	}
@@ -455,7 +455,7 @@ func (req *Request) BuildResponseSend(ctx context.Context, con net.Conn) (int64,
 		return 0, err
 	}
 
-	return res.Send(con)
+	return res.Send(cl)
 }
 
 // getDistributedResponse builds the response from a distributed setup.

@@ -1,11 +1,11 @@
 package lmd
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"sort"
 	"strconv"
 	"strings"
@@ -48,7 +48,7 @@ type PeerResponse struct {
 
 // NewResponse creates a new response object for a given request
 // It returns the Response object and any error encountered.
-func NewResponse(ctx context.Context, req *Request, conn net.Conn) (res *Response, size int64, err error) {
+func NewResponse(ctx context.Context, req *Request, cl *ClientConnection) (res *Response, size int64, err error) {
 	res = &Response{
 		Code:    200,
 		Failed:  req.BackendErrors,
@@ -119,8 +119,8 @@ func NewResponse(ctx context.Context, req *Request, conn net.Conn) (res *Respons
 
 	res.CalculateFinalStats()
 
-	if conn != nil {
-		size, err = res.Send(conn)
+	if cl != nil {
+		size, err = res.Send(cl)
 
 		return nil, size, err
 	}
@@ -386,14 +386,29 @@ func finalStatsApply(stat *Filter) (res float64) {
 }
 
 // Send converts the result object to a livestatus answer and writes the resulting bytes back to the client.
-func (res *Response) Send(conn net.Conn) (size int64, err error) {
+func (res *Response) Send(cl *ClientConnection) (size int64, err error) {
 	if res.Request.ResponseFixed16 {
-		size, err = res.SendFixed16(conn)
+		size, err = res.SendFixed16(cl.connection)
 	} else {
-		size, err = res.SendUnbuffered(conn)
+		// use output buffer to prevent slow clients holding lmd locks
+		writer := bufio.NewWriterSize(cl.connection, 65536)
+		size, err = res.SendUnbuffered(writer)
+		if err == nil {
+			cl.keepOpen = true
+			go func(writer *bufio.Writer) {
+				err := writer.Flush()
+				if err != nil {
+					logWith(res).Warnf("write error: %s", err.Error())
+				}
+				err = cl.connection.Close()
+				if err != nil {
+					logWith(res).Warnf("close error: %s", err.Error())
+				}
+			}(writer)
+		}
 	}
 
-	localAddr := conn.LocalAddr().String()
+	localAddr := cl.connection.LocalAddr().String()
 	promFrontendBytesSend.WithLabelValues(localAddr).Add(float64(size + 1))
 
 	return
