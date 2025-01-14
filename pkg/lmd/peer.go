@@ -1267,7 +1267,7 @@ func (p *Peer) parseResponseUndefinedSize(conn io.Reader) ([]byte, error) {
 }
 
 func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) ([]byte, error) {
-	header := new(bytes.Buffer)
+	header := bytes.NewBuffer(make([]byte, 0, 16))
 	_, err := io.CopyN(header, conn, 16)
 	resBytes := header.Bytes()
 	if err != nil {
@@ -1286,7 +1286,7 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) ([]byte,
 
 		return nil, err
 	}
-	body := new(bytes.Buffer)
+	body := bytes.NewBuffer(make([]byte, 0, expSize))
 	_, err = io.CopyN(body, conn, expSize)
 	if err != nil && errors.Is(err, io.EOF) {
 		err = nil

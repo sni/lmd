@@ -48,7 +48,6 @@ type PeerResponse struct {
 
 // NewResponse creates a new response object for a given request
 // It returns the Response object and any error encountered.
-// unlockFn must be called whenever there is no error returned.
 func NewResponse(ctx context.Context, req *Request, conn net.Conn) (res *Response, size int64, err error) {
 	res = &Response{
 		Code:    200,
