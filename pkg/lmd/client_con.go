@@ -33,7 +33,6 @@ type ClientConnection struct {
 	logSlowQueryThreshold int
 	logHugeQueryThreshold int
 	keepAlive             bool
-	keepOpen              bool
 }
 
 // NewClientConnection creates a new client connection object.
@@ -86,9 +85,7 @@ func (cl *ClientConnection) Handle() {
 			}
 		}
 	}
-	if !cl.keepOpen {
-		cl.connection.Close()
-	}
+	cl.connection.Close()
 }
 
 // answer handles a single client connection.

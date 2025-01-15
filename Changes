@@ -4,6 +4,7 @@ next:
           - use primary key index for all tables
           - use output buffer for queries without fixed header to reduce locked time
           - add lq cmd to simply send queries
+          - improve locking while result is transfered to clients
 
 2.2.5    Wed Dec 18 14:54:16 CET 2024
           - add lb benchmark tool
