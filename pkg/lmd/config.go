@@ -25,6 +25,7 @@ type Connection struct {
 	TLSServerName  string   `toml:"tlsservername"`
 	TLSCA          string   `toml:"tlsca"`
 	Source         []string `toml:"source"`
+	Fallback       []string `toml:"fallback"`
 	Flags          []string `toml:"flags"`
 	TLSSkipVerify  int      `toml:"tlsskipverify"`
 	NoConfigTool   int      `toml:"noconfigtool"` // skip adding config tool to sites query
@@ -44,6 +45,7 @@ func (c *Connection) Equals(other *Connection) bool {
 	equal = equal && c.TLSSkipVerify == other.TLSSkipVerify
 	equal = equal && c.NoConfigTool == other.NoConfigTool
 	equal = equal && strings.Join(c.Source, ":") == strings.Join(other.Source, ":")
+	equal = equal && strings.Join(c.Fallback, ":") == strings.Join(other.Fallback, ":")
 	equal = equal && strings.Join(c.Flags, ":") == strings.Join(other.Flags, ":")
 
 	return equal
@@ -167,10 +169,15 @@ func NewConfig(files []string) *Config {
 	conf.Listen = allListeners
 	conf.Connections = allConnections
 
-	for i := range conf.Connections {
-		for j := range conf.Connections[i].Source {
-			if strings.HasPrefix(conf.Connections[i].Source[j], "http") {
-				conf.Connections[i].Source[j] = completePeerHTTPAddr(conf.Connections[i].Source[j])
+	for num := range conf.Connections {
+		for j := range conf.Connections[num].Source {
+			if strings.HasPrefix(conf.Connections[num].Source[j], "http") {
+				conf.Connections[num].Source[j] = completePeerHTTPAddr(conf.Connections[num].Source[j])
+			}
+		}
+		for j := range conf.Connections[num].Fallback {
+			if strings.HasPrefix(conf.Connections[num].Fallback[j], "http") {
+				conf.Connections[num].Fallback[j] = completePeerHTTPAddr(conf.Connections[num].Fallback[j])
 			}
 		}
 	}
