@@ -3000,17 +3000,23 @@ func (p *Peer) logHTTPRequest(query *Request, req *http.Request) {
 
 // trace log http response.
 func (p *Peer) logHTTPResponse(query *Request, res *http.Response, contents []byte) {
-	if log.IsV(LogVerbosityTrace) {
-		responseBytes, err := httputil.DumpResponse(res, len(contents) == 0)
-		if err != nil {
-			logWith(p, query).Debugf("failed to dump http response: %s", err)
-		}
-		logWith(p, query).Tracef("***************** HTTP Response *****************")
-		if len(contents) > 0 {
-			responseBytes = append(responseBytes, contents...)
-		}
-		logWith(p, query).Tracef("%s", string(responseBytes))
+	if res == nil {
+		return
 	}
+
+	if !log.IsV(LogVerbosityTrace) {
+		return
+	}
+
+	responseBytes, err := httputil.DumpResponse(res, len(contents) == 0)
+	if err != nil {
+		logWith(p, query).Debugf("failed to dump http response: %s", err)
+	}
+	logWith(p, query).Tracef("***************** HTTP Response *****************")
+	if len(contents) > 0 {
+		responseBytes = append(responseBytes, contents...)
+	}
+	logWith(p, query).Tracef("%s", string(responseBytes))
 }
 
 // peerStatusLocked returns the current peer status.
