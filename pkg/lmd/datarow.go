@@ -602,15 +602,20 @@ func VirtualColMembersWithState(dRow *DataRow, _ *Column) interface{} {
 }
 
 // VirtualColCommentsWithInfo returns list of comment IDs with additional information.
-func VirtualColCommentsWithInfo(d *DataRow, _ *Column) interface{} {
-	commentsStore := d.DataStore.DataSet.tables[TableComments]
-	commentsTable := commentsStore.Table
-	authorCol := commentsTable.GetColumn("author")
-	commentCol := commentsTable.GetColumn("comment")
-	comments := d.GetInt64ListByName("comments")
+func VirtualColCommentsWithInfo(row *DataRow, _ *Column) interface{} {
+	comments := row.GetInt64ListByName("comments")
 	if len(comments) == 0 {
 		return emptyInterfaceList
 	}
+
+	commentsStore := row.DataStore.DataSet.tables[TableComments]
+	commentsTable := commentsStore.Table
+	authorCol := commentsTable.GetColumn("author")
+	commentCol := commentsTable.GetColumn("comment")
+	entryTimeCol := commentsTable.GetColumn("entry_time")
+	entryTypeCol := commentsTable.GetColumn("entry_type")
+	expiresCol := commentsTable.GetColumn("expires")
+	expireTimeCol := commentsTable.GetColumn("expire_time")
 	res := make([]interface{}, 0)
 	for idx := range comments {
 		commentID := fmt.Sprintf("%d", comments[idx])
@@ -620,7 +625,15 @@ func VirtualColCommentsWithInfo(d *DataRow, _ *Column) interface{} {
 
 			continue
 		}
-		commentWithInfo := []interface{}{comments[idx], comment.GetString(authorCol), comment.GetString(commentCol)}
+		commentWithInfo := []interface{}{
+			comments[idx],
+			comment.GetString(authorCol),
+			comment.GetString(commentCol),
+			comment.GetInt64(entryTimeCol),
+			comment.GetInt(entryTypeCol),
+			comment.GetInt(expiresCol),
+			comment.GetInt64(expireTimeCol),
+		}
 		res = append(res, commentWithInfo)
 	}
 
@@ -628,15 +641,22 @@ func VirtualColCommentsWithInfo(d *DataRow, _ *Column) interface{} {
 }
 
 // VirtualColDowntimesWithInfo returns list of downtimes IDs with additional information.
-func VirtualColDowntimesWithInfo(d *DataRow, _ *Column) interface{} {
-	downtimesStore := d.DataStore.DataSet.tables[TableDowntimes]
-	downtimesTable := downtimesStore.Table
-	authorCol := downtimesTable.GetColumn("author")
-	commentCol := downtimesTable.GetColumn("comment")
-	downtimes := d.GetInt64ListByName("downtimes")
+func VirtualColDowntimesWithInfo(row *DataRow, _ *Column) interface{} {
+	downtimes := row.GetInt64ListByName("downtimes")
 	if len(downtimes) == 0 {
 		return emptyInterfaceList
 	}
+
+	downtimesStore := row.DataStore.DataSet.tables[TableDowntimes]
+	downtimesTable := downtimesStore.Table
+	authorCol := downtimesTable.GetColumn("author")
+	commentCol := downtimesTable.GetColumn("comment")
+	entryTimeCol := downtimesTable.GetColumn("entry_time")
+	startTimeCol := downtimesTable.GetColumn("start_time")
+	endTimeCol := downtimesTable.GetColumn("end_time")
+	fixedCol := downtimesTable.GetColumn("fixed")
+	durationCol := downtimesTable.GetColumn("duration")
+	triggeredCol := downtimesTable.GetColumn("triggered_by")
 	res := make([]interface{}, 0)
 	for idx := range downtimes {
 		downtimeID := fmt.Sprintf("%d", downtimes[idx])
@@ -646,7 +666,17 @@ func VirtualColDowntimesWithInfo(d *DataRow, _ *Column) interface{} {
 
 			continue
 		}
-		downtimeWithInfo := []interface{}{downtimes[idx], downtime.GetString(authorCol), downtime.GetString(commentCol)}
+		downtimeWithInfo := []interface{}{
+			downtimes[idx],
+			downtime.GetString(authorCol),
+			downtime.GetString(commentCol),
+			downtime.GetInt64(entryTimeCol),
+			downtime.GetInt64(startTimeCol),
+			downtime.GetInt64(endTimeCol),
+			downtime.GetInt64(fixedCol),
+			downtime.GetInt64(durationCol),
+			downtime.GetInt64(triggeredCol),
+		}
 		res = append(res, downtimeWithInfo)
 	}
 
@@ -654,11 +684,11 @@ func VirtualColDowntimesWithInfo(d *DataRow, _ *Column) interface{} {
 }
 
 // VirtualColCustomVariables returns a custom variables hash.
-func VirtualColCustomVariables(d *DataRow, _ *Column) interface{} {
-	namesCol := d.DataStore.GetColumn("custom_variable_names")
-	valuesCol := d.DataStore.GetColumn("custom_variable_values")
-	names := d.dataStringList[namesCol.Index]
-	values := d.dataStringList[valuesCol.Index]
+func VirtualColCustomVariables(row *DataRow, _ *Column) interface{} {
+	namesCol := row.DataStore.GetColumn("custom_variable_names")
+	valuesCol := row.DataStore.GetColumn("custom_variable_values")
+	names := row.dataStringList[namesCol.Index]
+	values := row.dataStringList[valuesCol.Index]
 	res := make(map[string]string, len(names))
 	for i := range names {
 		res[names[i]] = values[i]
