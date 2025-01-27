@@ -99,6 +99,7 @@ type Peer struct {
 	SubType                    []string
 	SubAddr                    []string
 	SubKey                     []string
+	SubVersion                 []string
 	ProgramStart               int64 // unix time when this peer started, aka program_start
 	LastFullHostUpdate         float64
 	CurPeerAddrNum             int
@@ -246,6 +247,7 @@ func NewPeer(lmd *Daemon, config *Connection) *Peer {
 		SubName:         []string{},
 		SubAddr:         []string{},
 		SubType:         []string{},
+		SubVersion:      []string{},
 		waitGroup:       lmd.waitGroupPeers,
 		shutdownChannel: lmd.shutdownChannel,
 		stopChannel:     make(chan bool),
@@ -2950,6 +2952,7 @@ func (p *Peer) addSubPeer(ctx context.Context, subFlag OptionalFlags, key, subNa
 		subPeer.setFederationInfo(data, SubName, "name")
 		subPeer.setFederationInfo(data, SubAddr, "addr")
 		subPeer.setFederationInfo(data, SubType, "type")
+		subPeer.setFederationInfo(data, SubVersion, "version")
 
 	case LMDSub:
 		// try to fetch section information

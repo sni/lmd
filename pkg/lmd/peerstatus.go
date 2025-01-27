@@ -34,6 +34,7 @@ const (
 	SubName
 	SubAddr
 	SubType
+	SubVersion
 	SubPeerStatus
 	ConfigTool
 	ThrukExtras
@@ -116,6 +117,8 @@ func (p *Peer) statusGet(key PeerStatusKey) interface{} {
 		return p.SubAddr
 	case SubType:
 		return p.SubType
+	case SubVersion:
+		return p.SubVersion
 	case SubPeerStatus:
 		return p.SubPeerStatus
 	case ConfigTool:
@@ -196,6 +199,8 @@ func (p *Peer) statusSet(key PeerStatusKey, value interface{}) {
 		p.SubAddr = interface2stringlist(value)
 	case SubType:
 		p.SubType = interface2stringlist(value)
+	case SubVersion:
+		p.SubVersion = interface2stringlist(value)
 	case SubPeerStatus:
 		p.SubPeerStatus = interface2mapinterface(value)
 	case ConfigTool:

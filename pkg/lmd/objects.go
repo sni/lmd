@@ -109,9 +109,10 @@ func NewBackendsTable() (t *Table) {
 	t.AddPeerInfoColumn("federation_name", StringListCol, "original names when using nested federation")
 	t.AddPeerInfoColumn("federation_addr", StringListCol, "original addresses when using nested federation")
 	t.AddPeerInfoColumn("federation_type", StringListCol, "original types when using nested federation")
+	t.AddPeerInfoColumn("federation_version", StringListCol, "original version when using nested federation")
 	t.AddExtraColumn("localtime", VirtualStore, None, FloatCol, NoFlags, "The unix timestamp of the local lmd host.")
 
-	return
+	return t
 }
 
 // NewColumnsTable returns a new columns table.
@@ -126,7 +127,7 @@ func NewColumnsTable() (t *Table) {
 	t.AddExtraColumn("lmd_storagetype", LocalStore, None, StringCol, NoFlags, "The lmd storage type")
 	t.AddExtraColumn("lmd_flags", LocalStore, None, StringListCol, NoFlags, "The lmd flags for this column")
 
-	return
+	return t
 }
 
 // NewStatusTable returns a new status table.
@@ -210,7 +211,7 @@ func NewTimeperiodsTable() (t *Table) {
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
 
-	return
+	return t
 }
 
 // NewContactsTable returns a new contacts table.
@@ -266,7 +267,7 @@ func NewContactgroupsTable() (t *Table) {
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
 
-	return
+	return t
 }
 
 // NewCommandsTable returns a new commands table.
@@ -278,7 +279,7 @@ func NewCommandsTable() (t *Table) {
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
 
-	return
+	return t
 }
 
 // NewHostsTable returns a new hosts table.

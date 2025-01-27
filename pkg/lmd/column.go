@@ -41,6 +41,7 @@ var VirtualColumnList = []VirtualColumnMapEntry{
 	{Name: "federation_name", StatusKey: SubName},
 	{Name: "federation_addr", StatusKey: SubAddr},
 	{Name: "federation_type", StatusKey: SubType},
+	{Name: "federation_version", StatusKey: SubVersion},
 
 	// calculated columns by ResolveFunc
 	{Name: "lmd_last_cache_update", ResolveFunc: func(d *DataRow, _ *Column) interface{} { return d.LastUpdate }},
