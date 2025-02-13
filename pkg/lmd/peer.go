@@ -1995,10 +1995,12 @@ func (p *Peer) waitcondition(ctx context.Context, waitChan chan struct{}, req *R
 		}
 
 		// nothing matched, update tables
+		refreshCtx := context.TODO()
 		time.Sleep(WaitTimeoutCheckInterval)
 		switch req.Table {
 		case TableHosts:
-			err = data.UpdateDeltaHosts(ctx, fmt.Sprintf("Filter: name = %s\n", req.WaitObject), false, 0)
+			//nolint:contextcheck // need new context, peer would be marked as failed even if just the client context finishes
+			err = data.UpdateDeltaHosts(refreshCtx, fmt.Sprintf("Filter: name = %s\n", req.WaitObject), false, 0)
 		case TableServices:
 			tmp := strings.SplitN(req.WaitObject, ";", 2)
 			if len(tmp) < 2 {
@@ -2007,9 +2009,11 @@ func (p *Peer) waitcondition(ctx context.Context, waitChan chan struct{}, req *R
 
 				return nil
 			}
-			err = data.UpdateDeltaServices(ctx, fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", tmp[0], tmp[1]), false, 0)
+			//nolint:contextcheck // need new context, peer would be marked as failed even if just the client context finishes
+			err = data.UpdateDeltaServices(refreshCtx, fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", tmp[0], tmp[1]), false, 0)
 		default:
-			err = data.UpdateFullTable(ctx, req.Table)
+			//nolint:contextcheck // need new context, peer would be marked as failed even if just the client context finishes
+			err = data.UpdateFullTable(refreshCtx, req.Table)
 		}
 		if err != nil {
 			if p.scheduleUpdateIfRestartRequiredError(err) {
