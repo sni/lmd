@@ -1163,7 +1163,7 @@ func (p *Peer) getSocketQueryResponseWithTemporaryRetries(req *Request, query st
 		if retries > 1 {
 			time.Sleep(TemporaryNetworkErrorRetryDelay * time.Duration(retries-1))
 		}
-		peerAddr, connType := extractConnType(p.statusGetLocked(PeerAddr).(string))
+		peerAddr, connType := extractConnType(p.statusGetLocked(PeerAddr).(string)) //nolint:forcetypeassert // peerAddr is always a string
 		conn.Close()
 		var oErr error
 		conn, oErr = p.openConnection(peerAddr, connType)
@@ -1439,7 +1439,7 @@ func (p *Peer) GetConnection(req *Request) (conn net.Conn, connType ConnectionTy
 func (p *Peer) tryConnection(req *Request, source []string) (conn net.Conn, connType ConnectionType, err error) {
 	for num := range source {
 		var peerAddr string
-		peerAddr, connType = extractConnType(p.statusGetLocked(PeerAddr).(string))
+		peerAddr, connType = extractConnType(p.statusGetLocked(PeerAddr).(string)) //nolint:forcetypeassert // peerAddr is always a string
 		if connType == ConnTypeHTTP {
 			// return ok if status is ok, don't create a new connection every time
 			if interface2bool(p.statusGetLocked(LastHTTPRequestSuccessful)) {
