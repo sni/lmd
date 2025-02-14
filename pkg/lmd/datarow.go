@@ -104,15 +104,16 @@ func (d *DataRow) GetID2() (id1, id2 string) {
 
 // SetData creates initial data.
 func (d *DataRow) SetData(raw []interface{}, columns ColumnList, timestamp float64) error {
-	d.dataString = make([]string, d.DataStore.Table.DataSizes[StringCol])
-	d.dataStringList = make([][]string, d.DataStore.Table.DataSizes[StringListCol])
-	d.dataInt = make([]int, d.DataStore.Table.DataSizes[IntCol])
-	d.dataInt64 = make([]int64, d.DataStore.Table.DataSizes[Int64Col])
-	d.dataInt64List = make([][]int64, d.DataStore.Table.DataSizes[Int64ListCol])
-	d.dataFloat = make([]float64, d.DataStore.Table.DataSizes[FloatCol])
-	d.dataServiceMemberList = make([][]ServiceMember, d.DataStore.Table.DataSizes[ServiceMemberListCol])
-	d.dataInterfaceList = make([][]interface{}, d.DataStore.Table.DataSizes[InterfaceListCol])
-	d.dataStringLarge = make([]StringContainer, d.DataStore.Table.DataSizes[StringLargeCol])
+	sizes := d.DataStore.Table.DataSizes
+	d.dataString = make([]string, sizes[StringCol])
+	d.dataStringList = make([][]string, sizes[StringListCol])
+	d.dataInt = make([]int, sizes[IntCol])
+	d.dataInt64 = make([]int64, sizes[Int64Col])
+	d.dataInt64List = make([][]int64, sizes[Int64ListCol])
+	d.dataFloat = make([]float64, sizes[FloatCol])
+	d.dataServiceMemberList = make([][]ServiceMember, sizes[ServiceMemberListCol])
+	d.dataInterfaceList = make([][]interface{}, sizes[InterfaceListCol])
+	d.dataStringLarge = make([]StringContainer, sizes[StringLargeCol])
 
 	return d.UpdateValues(0, raw, columns, timestamp)
 }

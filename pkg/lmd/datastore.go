@@ -111,13 +111,6 @@ func (d *DataStore) InsertData(rows ResultSet, columns ColumnList, setReferences
 		panic("not supported number of primary keys")
 	}
 
-	// prepare inserts
-	for rowNum := range rows {
-		for i, col := range columns {
-			rows[rowNum][i] = cast2Type(rows[rowNum][i], col)
-		}
-	}
-
 	d.Data = make([]*DataRow, len(rows))
 	for idx, raw := range rows {
 		row, err := NewDataRow(d, raw, columns, now, setReferences)
