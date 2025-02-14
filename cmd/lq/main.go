@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -98,41 +99,53 @@ func main() {
 
 	// read query from stdin
 	scanner := bufio.NewScanner(os.Stdin)
+	query := ""
 	for scanner.Scan() {
-		query := strings.TrimSpace(scanner.Text())
-		if query == "" {
-			break
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			processQuery(query, conn, readSize, inputDelay, outputDelay)
+			query = ""
+
+			continue
 		}
 
-		for _, c := range query + "\n" {
-			_, err := fmt.Fprintf(conn, "%c", c)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "ERROR: failed to send query: %s\n", err.Error())
+		query += line + "\n"
+	}
+
+	if query != "" {
+		processQuery(query, conn, readSize, inputDelay, outputDelay)
+	}
+}
+
+func processQuery(query string, conn net.Conn, readSize int64, inputDelay, outputDelay time.Duration) {
+	for _, c := range query + "\n" {
+		_, err := fmt.Fprintf(conn, "%c", c)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: failed to send query: %s\n", err.Error())
+			os.Exit(1)
+		}
+		if inputDelay > 0 {
+			time.Sleep(inputDelay)
+		}
+	}
+	fmt.Fprintf(conn, "\n")
+
+	// read response with configured delay
+	for {
+		body := new(bytes.Buffer)
+		_, err := io.CopyN(body, conn, readSize)
+		if err != nil {
+			if !errors.Is(err, io.EOF) {
+				fmt.Fprintf(os.Stderr, "ERROR: failed to read response: %s\n", err.Error())
 				os.Exit(1)
 			}
-			if inputDelay > 0 {
-				time.Sleep(inputDelay)
-			}
 		}
-		fmt.Fprintf(conn, "\n")
-
-		// read response with configured delay
-		for {
-			body := new(bytes.Buffer)
-			_, err := io.CopyN(body, conn, readSize)
-			if err != nil {
-				if !errors.Is(err, io.EOF) {
-					fmt.Fprintf(os.Stderr, "ERROR: failed to read response: %s\n", err.Error())
-					os.Exit(1)
-				}
-			}
-			fmt.Fprintf(os.Stdout, "%s", body.String())
-			if outputDelay > 0 {
-				time.Sleep(outputDelay)
-			}
-			if err != nil {
-				break
-			}
+		fmt.Fprintf(os.Stdout, "%s", body.String())
+		if outputDelay > 0 {
+			time.Sleep(outputDelay)
+		}
+		if err != nil {
+			break
 		}
 	}
 }
