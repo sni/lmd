@@ -106,7 +106,7 @@ type Peer struct {
 	BytesReceived              int64
 	BytesSend                  int64
 	ThrukVersion               float64
-	LastPid                    int
+	LastPid                    int64
 	LastTimeperiodUpdateMinute int
 	Queries                    int64
 	ResponseTime               float64
@@ -481,7 +481,7 @@ func (p *Peer) handleBrokenPeer(ctx context.Context) (err error) {
 	}
 	if len(res) > 0 && len(res[0]) == 2 {
 		programStart := interface2int64(res[0][0])
-		corePid := interface2int(res[0][1])
+		corePid := interface2int64(res[0][1])
 		if p.ProgramStart != programStart || p.statusGetLocked(LastPid) != corePid {
 			logWith(p).Debugf("broken peer has reloaded, trying again.")
 
@@ -938,7 +938,7 @@ func (p *Peer) updateInitialStatus(ctx context.Context, store *DataStore) (err e
 	}
 
 	programStart := statusData[0].GetInt64ByName("program_start")
-	corePid := statusData[0].GetIntByName("nagios_pid")
+	corePid := statusData[0].GetInt64ByName("nagios_pid")
 
 	// check thruk config tool settings and other extra data
 	p.lock.Lock()
@@ -2870,7 +2870,7 @@ func (p *Peer) CheckBackendRestarted(primaryKeysLen int, res ResultSet, columns 
 		return nil
 	}
 
-	corePid := interface2int(p.statusGetLocked(LastPid))
+	corePid := interface2int64(p.statusGetLocked(LastPid))
 
 	// not yet started completely
 	if p.ProgramStart == 0 || corePid == 0 {
@@ -2882,13 +2882,13 @@ func (p *Peer) CheckBackendRestarted(primaryKeysLen int, res ResultSet, columns 
 	}
 
 	newProgramStart := int64(0)
-	newCorePid := 0
+	newCorePid := int64(0)
 	for i, col := range columns {
 		switch col.Name {
 		case "program_start":
 			newProgramStart = interface2int64(res[0][i+primaryKeysLen])
 		case "nagios_pid":
-			newCorePid = interface2int(res[0][i+primaryKeysLen])
+			newCorePid = interface2int64(res[0][i+primaryKeysLen])
 		}
 	}
 

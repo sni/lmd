@@ -98,7 +98,7 @@ const (
 	StringCol DataType = iota + 1
 	// StringListCol is used for string list columns.
 	StringListCol
-	// IntCol is used for integer columns.
+	// IntCol is used for small integer columns.
 	IntCol
 	// Int64Col is used for large integer columns.
 	Int64Col

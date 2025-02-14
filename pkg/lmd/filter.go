@@ -56,13 +56,14 @@ type Filter struct {
 	StrValue       string
 	CustomTag      string
 	Filter         []*Filter // or a group of filters
-	Stats          float64   // stats query
-	IntValue       int
+	Int64Value     int64
 	FloatValue     float64
+	Stats          float64 // stats query
 	StatsCount     int
 	StatsPos       int           // position in stats result array
 	ColumnIndex    int           // copy of Column.Index if Column is of type LocalStore
 	ColumnOptional OptionalFlags // copy of Column.Optional
+	IntValue       int8
 	IsEmpty        bool
 	Negate         bool
 	GroupOperator  GroupOperator
@@ -409,7 +410,8 @@ func (f *Filter) setFilterValue(strVal string) (err error) {
 					return fmt.Errorf("could not convert %s to number in filter: %s", strVal, f.String(""))
 				}
 				f.FloatValue = filterValue
-				f.IntValue = int(filterValue)
+				f.IntValue = int8(filterValue)
+				f.Int64Value = int64(filterValue)
 			}
 		default:
 		}
@@ -622,13 +624,13 @@ func (f *Filter) Match(row *DataRow) bool {
 		return f.MatchStringList(row.GetStringList(f.Column))
 	case IntCol:
 		if f.ColumnIndex != -1 {
-			return f.MatchInt(row.dataInt[f.ColumnIndex])
+			return f.MatchInt8(row.dataInt[f.ColumnIndex])
 		}
 		if f.IsEmpty {
 			return matchEmptyFilter(f.Operator)
 		}
 
-		return f.MatchInt(row.GetInt(f.Column))
+		return f.MatchInt8(row.GetInt8(f.Column))
 	case Int64Col:
 		if f.ColumnIndex != -1 {
 			return f.MatchInt64(row.dataInt64[f.ColumnIndex])
@@ -663,7 +665,7 @@ func (f *Filter) Match(row *DataRow) bool {
 	return false
 }
 
-func (f *Filter) MatchInt(value int) bool {
+func (f *Filter) MatchInt8(value int8) bool {
 	switch f.Operator {
 	case Equal:
 		return value == f.IntValue
@@ -687,17 +689,17 @@ func (f *Filter) MatchInt(value int) bool {
 func (f *Filter) MatchInt64(value int64) bool {
 	switch f.Operator {
 	case Equal:
-		return value == int64(f.IntValue)
+		return value == f.Int64Value
 	case Unequal:
-		return value != int64(f.IntValue)
+		return value != f.Int64Value
 	case Less:
-		return value < int64(f.IntValue)
+		return value < f.Int64Value
 	case LessThan:
-		return value <= int64(f.IntValue)
+		return value <= f.Int64Value
 	case Greater:
-		return value > int64(f.IntValue)
+		return value > f.Int64Value
 	case GreaterThan:
-		return value >= int64(f.IntValue)
+		return value >= f.Int64Value
 	default:
 		strVal := fmt.Sprintf("%v", value)
 

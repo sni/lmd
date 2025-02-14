@@ -170,7 +170,7 @@ func (p *Peer) statusSet(key PeerStatusKey, value interface{}) {
 	case LastOnline:
 		p.LastOnline = interface2float64(value)
 	case LastPid:
-		p.LastPid = interface2int(value)
+		p.LastPid = interface2int64(value)
 	case ProgramStart:
 		p.ProgramStart = interface2int64(value)
 	case BytesSend:

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -20,7 +21,7 @@ type DataRow struct {
 	Refs                  map[TableName]*DataRow // contains references to other objects, ex.: hosts from the services table
 	dataInt64List         [][]int64              // stores lists of integers
 	dataString            []string               // stores string data
-	dataInt               []int                  // stores integers
+	dataInt               []int8                 // stores integers
 	dataInt64             []int64                // stores large integers
 	dataFloat             []float64              // stores floats
 	dataStringList        [][]string             // stores stringlists
@@ -104,16 +105,33 @@ func (d *DataRow) GetID2() (id1, id2 string) {
 
 // SetData creates initial data.
 func (d *DataRow) SetData(raw []interface{}, columns ColumnList, timestamp float64) error {
-	sizes := d.DataStore.Table.DataSizes
-	d.dataString = make([]string, sizes[StringCol])
-	d.dataStringList = make([][]string, sizes[StringListCol])
-	d.dataInt = make([]int, sizes[IntCol])
-	d.dataInt64 = make([]int64, sizes[Int64Col])
-	d.dataInt64List = make([][]int64, sizes[Int64ListCol])
-	d.dataFloat = make([]float64, sizes[FloatCol])
-	d.dataServiceMemberList = make([][]ServiceMember, sizes[ServiceMemberListCol])
-	d.dataInterfaceList = make([][]interface{}, sizes[InterfaceListCol])
-	d.dataStringLarge = make([]StringContainer, sizes[StringLargeCol])
+	for key, size := range d.DataStore.Table.DataSizes {
+		if size == 0 {
+			continue
+		}
+		switch key {
+		case StringCol:
+			d.dataString = make([]string, size)
+		case StringListCol:
+			d.dataStringList = make([][]string, size)
+		case IntCol:
+			d.dataInt = make([]int8, size)
+		case Int64Col:
+			d.dataInt64 = make([]int64, size)
+		case Int64ListCol:
+			d.dataInt64List = make([][]int64, size)
+		case FloatCol:
+			d.dataFloat = make([]float64, size)
+		case ServiceMemberListCol:
+			d.dataServiceMemberList = make([][]ServiceMember, size)
+		case InterfaceListCol:
+			d.dataInterfaceList = make([][]interface{}, size)
+		case StringLargeCol:
+			d.dataStringLarge = make([]StringContainer, size)
+		case JSONCol, CustomVarCol:
+			log.Panicf("not implemented: %#v", key)
+		}
+	}
 
 	return d.UpdateValues(0, raw, columns, timestamp)
 }
@@ -255,27 +273,27 @@ func (d *DataRow) GetFloat(col *Column) float64 {
 	panic(fmt.Sprintf("unsupported type: %s", col.DataType))
 }
 
-// GetInt returns the int value for given column.
-func (d *DataRow) GetInt(col *Column) int {
+// GetInt8 returns the int8 value for given column.
+func (d *DataRow) GetInt8(col *Column) int8 {
 	switch col.StorageType {
 	case LocalStore:
 		switch col.DataType {
 		case IntCol:
 			return d.dataInt[col.Index]
 		case FloatCol:
-			return int(d.dataFloat[col.Index])
+			return int8(d.dataFloat[col.Index])
 		default:
 			log.Panicf("unsupported type: %s", col.DataType)
 		}
 	case RefStore:
 		ref := d.Refs[col.RefColTableName]
 		if ref == nil {
-			return interface2int(col.GetEmptyValue())
+			return interface2int8(col.GetEmptyValue())
 		}
 
-		return ref.GetInt(col.RefCol)
+		return ref.GetInt8(col.RefCol)
 	case VirtualStore:
-		return interface2int(d.getVirtualRowValue(col))
+		return interface2int8(d.getVirtualRowValue(col))
 	}
 	panic(fmt.Sprintf("unsupported type: %s", col.StorageType))
 }
@@ -308,8 +326,8 @@ func (d *DataRow) GetInt64(col *Column) int64 {
 }
 
 // GetIntByName returns the int value for given column name.
-func (d *DataRow) GetIntByName(name string) int {
-	return d.GetInt(d.DataStore.Table.ColumnsIndex[name])
+func (d *DataRow) GetInt8ByName(name string) int8 {
+	return d.GetInt8(d.DataStore.Table.ColumnsIndex[name])
 }
 
 // GetInt64ByName returns the int value for given column name.
@@ -496,7 +514,7 @@ func VirtualColLocaltime(_ *DataRow, _ *Column) interface{} {
 // VirtualColLastStateChangeOrder returns sortable state.
 func VirtualColLastStateChangeOrder(d *DataRow, _ *Column) interface{} {
 	// return last_state_change or program_start
-	lastStateChange := d.GetIntByName("last_state_change")
+	lastStateChange := d.GetInt64ByName("last_state_change")
 	if lastStateChange == 0 {
 		return d.DataStore.Peer.ProgramStart
 	}
@@ -508,7 +526,7 @@ func VirtualColLastStateChangeOrder(d *DataRow, _ *Column) interface{} {
 func VirtualColStateOrder(d *DataRow, _ *Column) interface{} {
 	// return 4 instead of 2, which makes critical come first
 	// this way we can use this column to sort by state
-	state := d.GetIntByName("state")
+	state := d.GetInt8ByName("state")
 	if state == 2 {
 		return 4
 	}
@@ -542,7 +560,7 @@ func VirtualColServicesWithInfo(d *DataRow, col *Column) interface{} {
 
 			continue
 		}
-		serviceValue := []interface{}{services[idx], service.GetInt(stateCol), service.GetInt(checkedCol)}
+		serviceValue := []interface{}{services[idx], service.GetInt8(stateCol), service.GetInt8(checkedCol)}
 		if col.Name == "services_with_info" {
 			serviceValue = append(serviceValue, service.GetString(outputCol))
 		}
@@ -569,7 +587,7 @@ func VirtualColMembersWithState(dRow *DataRow, _ *Column) interface{} {
 
 				continue
 			}
-			res[idx] = []interface{}{hostName, host.GetInt(stateCol), host.GetInt(checkedCol)}
+			res[idx] = []interface{}{hostName, host.GetInt8(stateCol), host.GetInt8(checkedCol)}
 		}
 
 		return res
@@ -591,7 +609,7 @@ func VirtualColMembersWithState(dRow *DataRow, _ *Column) interface{} {
 
 				continue
 			}
-			res[idx] = []interface{}{hostName, serviceDescription, service.GetInt(stateCol), service.GetInt(checkedCol)}
+			res[idx] = []interface{}{hostName, serviceDescription, service.GetInt8(stateCol), service.GetInt8(checkedCol)}
 		}
 
 		return res
@@ -631,8 +649,8 @@ func VirtualColCommentsWithInfo(row *DataRow, _ *Column) interface{} {
 			comment.GetString(authorCol),
 			comment.GetString(commentCol),
 			comment.GetInt64(entryTimeCol),
-			comment.GetInt(entryTypeCol),
-			comment.GetInt(expiresCol),
+			comment.GetInt8(entryTypeCol),
+			comment.GetInt8(expiresCol),
 			comment.GetInt64(expireTimeCol),
 		}
 		res = append(res, commentWithInfo)
@@ -700,7 +718,7 @@ func VirtualColCustomVariables(row *DataRow, _ *Column) interface{} {
 
 // VirtualColTotalServices returns number of services.
 func VirtualColTotalServices(d *DataRow, _ *Column) interface{} {
-	return d.GetIntByName("num_services")
+	return d.GetInt64ByName("num_services")
 }
 
 // VirtualColFlags returns flags for peer.
@@ -846,7 +864,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 		case StringLargeCol:
 			d.dataStringLarge[localIndex] = *interface2stringlarge(data[resIndex])
 		case IntCol:
-			d.dataInt[localIndex] = interface2int(data[resIndex])
+			d.dataInt[localIndex] = interface2int8(data[resIndex])
 		case Int64Col:
 			d.dataInt64[localIndex] = interface2int64(data[resIndex])
 		case Int64ListCol:
@@ -879,7 +897,7 @@ func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, col
 		resIndex := i + dataOffset
 		switch col.DataType {
 		case IntCol:
-			d.dataInt[localIndex] = interface2int(data[resIndex])
+			d.dataInt[localIndex] = interface2int8(data[resIndex])
 		case Int64Col:
 			d.dataInt64[localIndex] = interface2int64(data[resIndex])
 		case Int64ListCol:
@@ -902,8 +920,8 @@ func (d *DataRow) CheckChangedIntValues(dataOffset int, data []interface{}, colu
 	for colNum, col := range columns {
 		switch col.DataType {
 		case IntCol:
-			if interface2int(data[colNum+dataOffset]) != d.dataInt[col.Index] {
-				log.Tracef("CheckChangedIntValues: int value %s changed: local: %d remote: %d", col.Name, d.dataInt[col.Index], interface2int(data[colNum+dataOffset]))
+			if interface2int8(data[colNum+dataOffset]) != d.dataInt[col.Index] {
+				log.Tracef("CheckChangedIntValues: int value %s changed: local: %d remote: %d", col.Name, d.dataInt[col.Index], interface2int8(data[colNum+dataOffset]))
 
 				return true
 			}
@@ -954,6 +972,8 @@ func interface2int(raw interface{}) int {
 		return int(num)
 	case int:
 		return num
+	case int8:
+		return int(num)
 	case int32:
 		return int(num)
 	case bool:
@@ -970,6 +990,42 @@ func interface2int(raw interface{}) int {
 	val, _ := strconv.ParseInt(fmt.Sprintf("%v", raw), 10, 64)
 
 	return int(val)
+}
+
+func checkInt8Bounds(num int64) int8 {
+	if num > int64(math.MaxInt8) || num < int64(math.MinInt8) {
+		return 0
+	}
+
+	return int8(num)
+}
+
+func interface2int8(raw interface{}) int8 {
+	switch num := raw.(type) {
+	case float64:
+		return checkInt8Bounds(int64(num))
+	case int64:
+		return checkInt8Bounds(num)
+	case int:
+		return checkInt8Bounds(int64(num))
+	case int8:
+		return num
+	case int32:
+		return checkInt8Bounds(int64(num))
+	case bool:
+		if num {
+			return 1
+		}
+
+		return 0
+	case string:
+		val, _ := strconv.ParseInt(num, 10, 64)
+
+		return checkInt8Bounds(val)
+	}
+	val, _ := strconv.ParseInt(fmt.Sprintf("%v", raw), 10, 64)
+
+	return checkInt8Bounds(val)
 }
 
 func interface2int64(raw interface{}) int64 {
@@ -1299,7 +1355,7 @@ func cast2Type(val interface{}, col *Column) interface{} {
 	case StringLargeCol:
 		return (interface2stringlarge(val))
 	case IntCol:
-		return (interface2int(val))
+		return (interface2int8(val))
 	case Int64Col:
 		return (interface2int64(val))
 	case Int64ListCol:
@@ -1373,7 +1429,7 @@ func (d *DataRow) WriteJSONLocalColumn(jsonwriter *jsoniter.Stream, col *Column)
 		}
 		jsonwriter.WriteArrayEnd()
 	case IntCol:
-		jsonwriter.WriteInt(d.dataInt[col.Index])
+		jsonwriter.WriteInt8(d.dataInt[col.Index])
 	case Int64Col:
 		jsonwriter.WriteInt64(d.dataInt64[col.Index])
 	case FloatCol:
@@ -1449,7 +1505,7 @@ func (d *DataRow) WriteJSONVirtualColumn(jsonwriter *jsoniter.Stream, col *Colum
 		}
 		jsonwriter.WriteArrayEnd()
 	case IntCol:
-		jsonwriter.WriteInt(d.GetInt(col))
+		jsonwriter.WriteInt8(d.GetInt8(col))
 	case Int64Col:
 		jsonwriter.WriteInt64(d.GetInt64(col))
 	case FloatCol:

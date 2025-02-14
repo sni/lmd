@@ -268,9 +268,9 @@ func (lmd *Daemon) mainLoop() (exitCode int) {
 	promPeerFullUpdateInterval.Set(float64(localConfig.FullUpdateInterval))
 	promCompressionLevel.Set(float64(CompressionLevel))
 	promCompressionMinimumSize.Set(float64(CompressionMinimumSize))
-	promSyncIsExecuting.Set(float64(interface2int(localConfig.SyncIsExecuting)))
-	promSaveTempRequests.Set(float64(interface2int(localConfig.SaveTempRequests)))
-	promBackendKeepAlive.Set(float64(interface2int(localConfig.BackendKeepAlive)))
+	promSyncIsExecuting.Set(float64(interface2int8(localConfig.SyncIsExecuting)))
+	promSaveTempRequests.Set(float64(interface2int8(localConfig.SaveTempRequests)))
+	promBackendKeepAlive.Set(float64(interface2int8(localConfig.BackendKeepAlive)))
 
 	osSignalChannel := buildSignalChannel()
 
