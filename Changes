@@ -4,6 +4,7 @@ next:
           - use fallback addresses only if all primary fail
           - add more columns to downtimes_with_info
           - add more columns to comments_with_info
+          - update dependencies
 
 2.3.0    Thu Jan 16 08:20:30 CET 2025
           - use primary key index for all tables
