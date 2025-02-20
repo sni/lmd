@@ -395,6 +395,7 @@ func (f *Filter) setRegexFilter(options ParseOptions) error {
 
 // setFilterValue converts the text value into the given filters type value.
 func (f *Filter) setFilterValue(strVal string) (err error) {
+	strVal = strings.TrimSpace(strVal)
 	colType := f.Column.DataType
 	if strVal == "" {
 		f.IsEmpty = true
