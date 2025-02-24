@@ -118,7 +118,7 @@ func main() {
 }
 
 func processQuery(query string, conn net.Conn, readSize int64, inputDelay, outputDelay time.Duration) {
-	for _, c := range query + "\n" {
+	for _, c := range query {
 		_, err := fmt.Fprintf(conn, "%c", c)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "ERROR: failed to send query: %s\n", err.Error())
