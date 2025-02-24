@@ -70,22 +70,20 @@ type Peer struct {
 		connectionPool         chan net.Conn // tcp connection get stored here for reuse
 		maxParallelConnections chan bool     // limit max parallel connections
 	}
-	stopChannel   chan bool       // channel to stop this peer
-	waitGroup     *sync.WaitGroup // wait group used to wait on shutdowns
-	ConfigTool    *string
-	ThrukExtras   *string
-	lock          *deadlock.RWMutex // must be used for Peer.* access
-	data          *DataStoreSet     // the cached remote data tables
-	lmd           *Daemon           // reference to main lmd instance
-	Config        *Connection       // reference to the peer configuration from the config file
-	SubPeerStatus map[              // cached http client for http backends
-	// limit max parallel connections
-	string]interface{}
-	shutdownChannel chan bool // channel used to wait to finish shutdown
-	Name            string    // Name of this peer, aka peer_name
-	ID              string    // ID for this peer, aka peer_key
-	PeerAddr        string
-	ParentID        string // ID of parent Peer
+	stopChannel     chan bool       // channel to stop this peer
+	waitGroup       *sync.WaitGroup // wait group used to wait on shutdowns
+	ConfigTool      *string
+	ThrukExtras     *string
+	lock            *deadlock.RWMutex      // must be used for Peer.* access
+	data            *DataStoreSet          // the cached remote data tables
+	lmd             *Daemon                // reference to main lmd instance
+	Config          *Connection            // reference to the peer configuration from the config file
+	SubPeerStatus   map[string]interface{} // cached http client for http backends
+	shutdownChannel chan bool              // channel used to wait to finish shutdown
+	Name            string                 // Name of this peer, aka peer_name
+	ID              string                 // ID for this peer, aka peer_key
+	PeerAddr        string                 // Address of the peer
+	ParentID        string                 // ID of parent Peer
 	PeerParent      string
 	LastError       string
 	Section         string
@@ -275,8 +273,7 @@ func (p *Peer) Start(ctx context.Context) {
 	if !interface2bool(p.statusGetLocked(Paused)) {
 		logWith(p).Panicf("tried to start updateLoop twice")
 	}
-	waitgroup := p.waitGroup
-	waitgroup.Add(1)
+	p.waitGroup.Add(1)
 	p.statusSetLocked(Paused, false)
 	logWith(p).Infof("starting connection")
 	go func(peer *Peer, wg *sync.WaitGroup) {
@@ -285,7 +282,7 @@ func (p *Peer) Start(ctx context.Context) {
 		peer.updateLoop(ctx)
 		peer.statusSetLocked(Paused, true)
 		wg.Done()
-	}(p, waitgroup)
+	}(p, p.waitGroup)
 }
 
 // Stop stops this peer. Restart with Start.
