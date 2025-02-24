@@ -100,10 +100,10 @@ func (l *Listener) localListenerLivestatus(connType ConnectionType, listen strin
 	switch connType {
 	case ConnTypeTLS:
 		l.Lock.RLock()
-		tlsConfig, tErr := GetTLSListenerConfig(l.lmd.Config)
+		tlsConfig, tErr := getTLSListenerConfig(l.lmd.Config)
 		l.Lock.RUnlock()
 		if tErr != nil {
-			log.Fatalf("failed to initialize tls %s", tErr.Error())
+			l.lmd.cleanFatalf("failed to initialize tls %s", tErr.Error())
 		}
 		listener, err = tls.Listen("tcp", listen, tlsConfig)
 	case ConnTypeTCP:
@@ -125,7 +125,7 @@ func (l *Listener) localListenerLivestatus(connType ConnectionType, listen strin
 
 	l.Connection = listener
 	if err != nil {
-		log.Fatalf("listen error: %s", err.Error())
+		l.lmd.cleanFatalf("listen error: %s", err.Error())
 
 		return
 	}
@@ -180,14 +180,14 @@ func (l *Listener) localListenerHTTP(httpType, listen string) {
 	// Listener
 	if httpType == "https" {
 		l.Lock.RLock()
-		tlsConfig, err := GetTLSListenerConfig(l.lmd.Config)
+		tlsConfig, err := getTLSListenerConfig(l.lmd.Config)
 		l.Lock.RUnlock()
 		if err != nil {
-			log.Fatalf("failed to initialize https %s", err.Error())
+			l.lmd.cleanFatalf("failed to initialize https %s", err.Error())
 		}
 		listener, err := tls.Listen("tcp", listen, tlsConfig)
 		if err != nil {
-			log.Fatalf("listen error: %s", err.Error())
+			l.lmd.cleanFatalf("listen error: %s", err.Error())
 
 			return
 		}
@@ -195,7 +195,7 @@ func (l *Listener) localListenerHTTP(httpType, listen string) {
 	} else {
 		listener, err := net.Listen("tcp", listen)
 		if err != nil {
-			log.Fatalf("listen error: %s", err.Error())
+			l.lmd.cleanFatalf("listen error: %s", err.Error())
 
 			return
 		}
@@ -231,9 +231,9 @@ func (l *Listener) Stop() {
 	}
 }
 
-func GetTLSListenerConfig(localConfig *Config) (config *tls.Config, err error) {
+func getTLSListenerConfig(localConfig *Config) (config *tls.Config, err error) {
 	if localConfig.TLSCertificate == "" || localConfig.TLSKey == "" {
-		log.Fatalf("TLSCertificate and TLSKey configuration items are required for tls connections")
+		return nil, fmt.Errorf("TLSCertificate and TLSKey configuration items are required for tls connections")
 	}
 	cer, err := tls.LoadX509KeyPair(localConfig.TLSCertificate, localConfig.TLSKey)
 	if err != nil {

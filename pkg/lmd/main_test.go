@@ -284,7 +284,9 @@ func TestMainArgs(t *testing.T) {
 		"ListenPrometheus=/dev/null",
 		"SkipSSLCheck=1",
 	}}
-	applyArgFlags(args, cfg)
+
+	lmd := createTestLMDInstance()
+	lmd.applyArgFlags(args, cfg)
 
 	assert.Equal(t, int64(300), cfg.IdleTimeout)
 	assert.False(t, cfg.SaveTempRequests)

@@ -285,7 +285,7 @@ func (lmd *Daemon) mainLoop() (exitCode int) {
 	lmd.waitGroupPeers = &sync.WaitGroup{}
 
 	if len(localConfig.Listen) == 0 {
-		log.Fatalf("no listeners defined")
+		lmd.cleanFatalf("no listeners defined")
 	}
 
 	if lmd.flags.flagProfile != "" {
@@ -314,7 +314,7 @@ func (lmd *Daemon) mainLoop() (exitCode int) {
 		lmd.mainImport(lmd.flags.flagImport, osSignalChannel)
 	} else {
 		if len(localConfig.Connections) == 0 {
-			log.Fatalf("no connections defined")
+			lmd.cleanFatalf("no connections defined")
 		}
 		lmd.initializePeers(ctx)
 	}
@@ -362,7 +362,7 @@ func (lmd *Daemon) mainImport(importFile string, osSignalChannel chan os.Signal)
 	}()
 	err := initializePeersWithImport(lmd, importFile)
 	if err != nil {
-		log.Fatalf("%s", err)
+		lmd.cleanFatalf("%s", err)
 	}
 }
 
@@ -374,7 +374,7 @@ func (lmd *Daemon) mainExport() {
 	}()
 	err := exportData(lmd)
 	if err != nil {
-		log.Fatalf("export failed: %s", err)
+		lmd.cleanFatalf("export failed: %s", err)
 	}
 	log.Infof("exported %d peers successfully", len(lmd.PeerMapOrder))
 }
@@ -493,7 +493,7 @@ func (lmd *Daemon) initializePeers(ctx context.Context) {
 		// Check for duplicate id
 		for _, b := range backends {
 			if b == conn.ID {
-				log.Fatalf("Duplicate id in connection list: %s", conn.ID)
+				lmd.cleanFatalf("Duplicate id in connection list: %s", conn.ID)
 			}
 		}
 		backends = append(backends, conn.ID)
@@ -616,6 +616,14 @@ func deletePidFile(f string) {
 	}
 }
 
+// wraps log.Fatalf but removes the pid file and such...
+func (lmd *Daemon) cleanFatalf(format string, args ...interface{}) {
+	lmd.onExit(nil)
+	log.Errorf(format, args...)
+
+	os.Exit(ExitCritical)
+}
+
 func (lmd *Daemon) onExit(qStat *QueryStats) {
 	deletePidFile(lmd.flags.flagPidfile)
 	if qStat != nil {
@@ -628,7 +636,7 @@ func (lmd *Daemon) onExit(qStat *QueryStats) {
 	}
 }
 
-func applyArgFlags(opts ArrayFlags, localConfig *Config) {
+func (lmd *Daemon) applyArgFlags(opts ArrayFlags, localConfig *Config) {
 	ps := reflect.ValueOf(localConfig)
 	val := ps.Elem()
 	typeOfV := val.Type()
@@ -636,14 +644,14 @@ func applyArgFlags(opts ArrayFlags, localConfig *Config) {
 	for _, opt := range opts.list {
 		tmp := strings.SplitN(opt, "=", 2)
 		if len(tmp) < 2 {
-			log.Fatalf("ERROR: cannot parse option %s, syntax is '-o ConfigOption=Value'", opt)
+			lmd.cleanFatalf("ERROR: cannot parse option %s, syntax is '-o ConfigOption=Value'", opt)
 		}
 		optname := tmp[0]
 		optvalue := tmp[1]
 		if strings.EqualFold(optname, "connections") {
 			conVal := strings.SplitN(optvalue, ",", 2)
 			if len(conVal) < 2 {
-				log.Fatalf("ERROR: cannot parse connection, syntax is '-o Connection=name,address'")
+				lmd.cleanFatalf("ERROR: cannot parse connection, syntax is '-o Connection=name,address'")
 			}
 			con := Connection{
 				Name:   conVal[0],
@@ -671,17 +679,17 @@ func applyArgFlags(opts ArrayFlags, localConfig *Config) {
 						v := interface2string(optvalue)
 						field.Set(reflect.Append(field, reflect.ValueOf(*v)))
 					default:
-						log.Fatalf("ERROR: cannot set option %s, type %s is not supported", cfgname, field.Kind())
+						lmd.cleanFatalf("ERROR: cannot set option %s, type %s is not supported", cfgname, field.Kind())
 					}
 					found = true
 
 					break
 				}
-				log.Fatalf("ERROR: cannot set option %s", cfgname)
+				lmd.cleanFatalf("ERROR: cannot set option %s", cfgname)
 			}
 		}
 		if !found {
-			log.Fatalf("ERROR: no such option %s", optname)
+			lmd.cleanFatalf("ERROR: no such option %s", optname)
 		}
 	}
 }
@@ -940,7 +948,7 @@ func (lmd *Daemon) finalFlagsConfig(stdoutLogging bool) *Config {
 		localConfig.LogLevel = "info"
 		localConfig.LogFile = "stdout"
 	}
-	applyArgFlags(lmd.flags.flagCfgOption, localConfig)
+	lmd.applyArgFlags(lmd.flags.flagCfgOption, localConfig)
 	localConfig.ValidateConfig()
 	lmd.ApplyFlags(localConfig)
 	InitLogging(localConfig)

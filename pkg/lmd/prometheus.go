@@ -241,16 +241,14 @@ func initPrometheus(lmd *Daemon) (prometheusListener io.Closer) {
 	if lmd.Config.ListenPrometheus != "" {
 		listener, err := net.Listen("tcp", lmd.Config.ListenPrometheus)
 		if err != nil {
-			log.Errorf("prometheus failed to listen: %s", err.Error())
+			lmd.cleanFatalf("starting prometheus exporter failed: %s", err)
 		}
+
 		prometheusListener = listener
 		go func() {
 			// make sure we log panics properly
 			defer lmd.logPanicExit()
 
-			if err != nil {
-				log.Fatalf("starting prometheus exporter failed: %s", err)
-			}
 			mux := http.NewServeMux()
 			mux.Handle("/metrics", promhttp.Handler())
 			err := http.Serve(listener, mux)

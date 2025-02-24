@@ -115,7 +115,7 @@ func NewNodes(lmd *Daemon, addresses []string, listen string) *Nodes {
 		nodeAddress.url = url
 		for _, otherNodeAddress := range node.nodeAddresses {
 			if otherNodeAddress.url == nodeAddress.url {
-				log.Fatalf("Duplicate node url: %s", nodeAddress.url)
+				lmd.cleanFatalf("Duplicate node url: %s", nodeAddress.url)
 			}
 		}
 		node.nodeAddresses = append(node.nodeAddresses, nodeAddress)
@@ -468,7 +468,7 @@ func (n *Nodes) SendQuery(ctx context.Context, node *NodeAddress, name string, p
 
 	// Send node request
 	if node.url == "" {
-		log.Fatalf("uninitialized node address provided to SendQuery %s", node.id)
+		n.lmd.cleanFatalf("uninitialized node address provided to SendQuery %s", node.id)
 	}
 	url := node.url + "query"
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(rawRequest))
