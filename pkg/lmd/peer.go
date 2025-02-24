@@ -745,7 +745,7 @@ func (p *Peer) InitAllTables(ctx context.Context) (err error) {
 			return err
 		}
 
-		err = data.RebuildCommentsList()
+		err = data.rebuildCommentsList()
 		if err != nil {
 			return err
 		}

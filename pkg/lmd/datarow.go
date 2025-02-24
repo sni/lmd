@@ -915,19 +915,19 @@ func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, col
 	return nil
 }
 
-// CheckChangedIntValues returns true if the given data results in an update.
-func (d *DataRow) CheckChangedIntValues(dataOffset int, data []interface{}, columns ColumnList) bool {
+// checkChangedIntValues returns true if the given data results in an update.
+func (d *DataRow) checkChangedIntValues(dataOffset int, data []interface{}, columns ColumnList) bool {
 	for colNum, col := range columns {
 		switch col.DataType {
 		case IntCol:
 			if interface2int8(data[colNum+dataOffset]) != d.dataInt[col.Index] {
-				log.Tracef("CheckChangedIntValues: int value %s changed: local: %d remote: %d", col.Name, d.dataInt[col.Index], interface2int8(data[colNum+dataOffset]))
+				log.Tracef("checkChangedIntValues: int value %s changed: local: %d remote: %d", col.Name, d.dataInt[col.Index], interface2int8(data[colNum+dataOffset]))
 
 				return true
 			}
 		case Int64Col:
 			if interface2int64(data[colNum+dataOffset]) != d.dataInt64[col.Index] {
-				log.Tracef("CheckChangedIntValues: int64 value %s changed: local: %d remote: %d", col.Name, d.dataInt64[col.Index], interface2int64(data[colNum+dataOffset]))
+				log.Tracef("checkChangedIntValues: int64 value %s changed: local: %d remote: %d", col.Name, d.dataInt64[col.Index], interface2int64(data[colNum+dataOffset]))
 
 				return true
 			}

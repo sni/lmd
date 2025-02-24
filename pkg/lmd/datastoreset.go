@@ -227,11 +227,11 @@ func (ds *DataStoreSet) UpdateDelta(ctx context.Context, from, until float64) (e
 	if err != nil {
 		return err
 	}
-	err = ds.UpdateDeltaCommentsOrDowntimes(ctx, TableComments)
+	err = ds.updateDeltaCommentsOrDowntimes(ctx, TableComments)
 	if err != nil {
 		return err
 	}
-	err = ds.UpdateDeltaCommentsOrDowntimes(ctx, TableDowntimes)
+	err = ds.updateDeltaCommentsOrDowntimes(ctx, TableDowntimes)
 	if err != nil {
 		return err
 	}
@@ -284,7 +284,7 @@ func (ds *DataStoreSet) updateDeltaHostsServices(ctx context.Context, tableName 
 
 	if tryFullScan {
 		// run regular delta update and lets check if all last_check dates match
-		updated, uErr := ds.UpdateDeltaFullScanHostsServices(ctx, table, filterStr, updateThreshold)
+		updated, uErr := ds.updateDeltaFullScanHostsServices(ctx, table, filterStr, updateThreshold)
 		if updated || uErr != nil {
 			return uErr
 		}
@@ -364,14 +364,14 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 	return nil
 }
 
-// UpdateDeltaFullScanHostsServices is a table independent wrapper for UpdateDeltaFullScan
+// updateDeltaFullScanHostsServices is a table independent wrapper for UpdateDeltaFullScan
 // It returns true if an update was done and any error encountered.
-func (ds *DataStoreSet) UpdateDeltaFullScanHostsServices(ctx context.Context, store *DataStore, filterStr string, updateThreshold int64) (updated bool, err error) {
+func (ds *DataStoreSet) updateDeltaFullScanHostsServices(ctx context.Context, store *DataStore, filterStr string, updateThreshold int64) (updated bool, err error) {
 	switch store.Table.Name {
 	case TableServices:
-		updated, err = ds.UpdateFullScan(ctx, store, LastFullServiceUpdate, filterStr, updateThreshold, ds.UpdateDeltaServices)
+		updated, err = ds.updateFullScan(ctx, store, LastFullServiceUpdate, filterStr, updateThreshold, ds.UpdateDeltaServices)
 	case TableHosts:
-		updated, err = ds.UpdateFullScan(ctx, store, LastFullHostUpdate, filterStr, updateThreshold, ds.UpdateDeltaHosts)
+		updated, err = ds.updateFullScan(ctx, store, LastFullHostUpdate, filterStr, updateThreshold, ds.UpdateDeltaHosts)
 	default:
 		p := ds.peer
 		logWith(p).Panicf("not implemented for: %s", store.Table.Name.String())
@@ -382,14 +382,14 @@ func (ds *DataStoreSet) UpdateDeltaFullScanHostsServices(ctx context.Context, st
 
 type fullUpdateCb func(context.Context, string, bool, int64) error
 
-// UpdateFullScan updates hosts and services tables by fetching some key indicator fields like last_check
+// updateFullScan updates hosts and services tables by fetching some key indicator fields like last_check
 // downtimes or acknowledged status. If an update is required, the last_check timestamp is used as filter for a
 // delta update.
 // The full scan just returns false without any update if the last update was less then MinFullScanInterval seconds ago.
 // It returns true if an update was done and any error encountered.
 //
 //nolint:lll // it is what it is...
-func (ds *DataStoreSet) UpdateFullScan(ctx context.Context, store *DataStore, statusKey PeerStatusKey, filter string, updateThr int64, updateFn fullUpdateCb) (updated bool, err error) {
+func (ds *DataStoreSet) updateFullScan(ctx context.Context, store *DataStore, statusKey PeerStatusKey, filter string, updateThr int64, updateFn fullUpdateCb) (updated bool, err error) {
 	peer := ds.peer
 	lastUpdate, ok := peer.statusGetLocked(statusKey).(float64)
 	if !ok {
@@ -403,13 +403,18 @@ func (ds *DataStoreSet) UpdateFullScan(ctx context.Context, store *DataStore, st
 
 	scanColumns := []string{
 		"last_check",
-		"next_check",
 		"scheduled_downtime_depth",
 		"acknowledged",
 		"active_checks_enabled",
 		"notifications_enabled",
 		"modified_attributes",
 	}
+
+	// if update is based on last_check, we add next_check here which is not required when updating based on lmd_last_cache_update or last_update
+	if strings.Contains(filter, "last_check") {
+		scanColumns = append(scanColumns, "next_check")
+	}
+
 	// used to sort result later
 	scanColumns = append(scanColumns, store.Table.PrimaryKey...)
 	req := &Request{
@@ -500,7 +505,7 @@ func (ds *DataStoreSet) getMissingTimestamps(ctx context.Context, store *DataSto
 		if ts >= updateThreshold {
 			continue
 		}
-		if data[i].CheckChangedIntValues(0, row, columns) {
+		if data[i].checkChangedIntValues(0, row, columns) {
 			missedUnique[ts] = true
 		}
 	}
@@ -526,11 +531,11 @@ func (ds *DataStoreSet) reloadIfNumberOfObjectsChanged(ctx context.Context) (err
 	return
 }
 
-// UpdateDeltaCommentsOrDowntimes update the comments or downtimes table. It fetches the number and highest id of
+// updateDeltaCommentsOrDowntimes update the comments or downtimes table. It fetches the number and highest id of
 // the remote comments/downtimes. If an update is required, it then fetches all ids to check which are new and
 // which have to be removed.
 // It returns any error encountered.
-func (ds *DataStoreSet) UpdateDeltaCommentsOrDowntimes(ctx context.Context, name TableName) (err error) {
+func (ds *DataStoreSet) updateDeltaCommentsOrDowntimes(ctx context.Context, name TableName) (err error) {
 	changed, err := ds.maxIDOrSizeChanged(ctx, name)
 	if !changed || err != nil {
 		return err
@@ -604,7 +609,7 @@ func (ds *DataStoreSet) UpdateDeltaCommentsOrDowntimes(ctx context.Context, name
 	// reset cache
 	switch name {
 	case TableComments:
-		err = ds.RebuildCommentsList()
+		err = ds.rebuildCommentsList()
 		if err != nil {
 			return err
 		}
@@ -767,7 +772,7 @@ func (ds *DataStoreSet) updateTimeperiodsData(ctx context.Context, dataOffset in
 
 	for i := range res {
 		row := res[i]
-		if data[i].CheckChangedIntValues(dataOffset, row, columns) {
+		if data[i].checkChangedIntValues(dataOffset, row, columns) {
 			changedTimeperiods[data[i].GetString(nameCol)] = true
 		}
 		err = data[i].UpdateValues(dataOffset, row, columns, now)
@@ -792,8 +797,8 @@ func (ds *DataStoreSet) updateTimeperiodsData(ctx context.Context, dataOffset in
 	return nil
 }
 
-// RebuildCommentsList updates the comments column of hosts/services based on the comments table ids.
-func (ds *DataStoreSet) RebuildCommentsList() (err error) {
+// rebuildCommentsList updates the comments column of hosts/services based on the comments table ids.
+func (ds *DataStoreSet) rebuildCommentsList() (err error) {
 	time1 := time.Now()
 	err = ds.buildDowntimeCommentsList(TableComments)
 	if err != nil {
