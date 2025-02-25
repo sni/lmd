@@ -3,8 +3,6 @@ package lmd
 import (
 	"fmt"
 	"strings"
-
-	"github.com/sasha-s/go-deadlock"
 )
 
 // TableRef contains data for referenced tables.
@@ -139,7 +137,7 @@ func (t *TableName) String() string {
 type Table struct {
 	noCopy          noCopy
 	DataSizes       map[DataType]int   // contains size used for the datastore
-	Lock            *deadlock.RWMutex  // must be used for DataSizes access
+	Lock            *RWMutex           // must be used for DataSizes access
 	ColumnsIndex    map[string]*Column // access columns by name
 	Virtual         VirtualStoreResolveFunc
 	PrimaryKey      []string

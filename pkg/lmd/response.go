@@ -14,7 +14,6 @@ import (
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
-	"github.com/sasha-s/go-deadlock"
 )
 
 const (
@@ -29,7 +28,7 @@ const (
 type Response struct {
 	noCopy         noCopy
 	Error          error             // error object if the query was not successful
-	Lock           *deadlock.RWMutex // must be used for Result and Failed access
+	Lock           *RWMutex          // must be used for Result and Failed access
 	Request        *Request          // the initial request
 	RawResults     *RawResultSet     // collected results from peers
 	lockedStores   []*DataStore      // list of locked stores
@@ -56,7 +55,7 @@ func NewResponse(ctx context.Context, req *Request, client *ClientConnection) (r
 		Code:    200,
 		Failed:  req.BackendErrors,
 		Request: req,
-		Lock:    new(deadlock.RWMutex),
+		Lock:    NewRWMutex(),
 	}
 	res.prepareResponse(ctx, req)
 
