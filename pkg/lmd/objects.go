@@ -1,7 +1,5 @@
 package lmd
 
-import "github.com/sasha-s/go-deadlock"
-
 // ObjectsType is a map of tables with a given order.
 type ObjectsType struct {
 	noCopy       noCopy
@@ -73,7 +71,7 @@ func (o *ObjectsType) AddTable(table *Table) {
 		FloatCol:      0,
 		CustomVarCol:  0,
 	}
-	table.lock = new(deadlock.RWMutex)
+	table.lock = NewRWMutex()
 	o.Tables[name] = table
 	if !table.passthroughOnly && table.virtual == nil {
 		o.UpdateTables = append(o.UpdateTables, name)

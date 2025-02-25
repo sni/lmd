@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/klauspost/compress/zstd"
-	"github.com/sasha-s/go-deadlock"
 )
 
 const (
@@ -119,10 +118,10 @@ type Daemon struct {
 	waitGroupListener *sync.WaitGroup
 	Listeners         map[string]*Listener // Listeners stores if we started a listener
 	Config            *Config              // reference to global config object
-	PeerMapLock       *deadlock.RWMutex    // PeerMapLock is the lock for the PeerMap map
+	PeerMapLock       *RWMutex             // PeerMapLock is the lock for the PeerMap map
 	waitGroupPeers    *sync.WaitGroup
-	ListenersLock     *deadlock.RWMutex // ListenersLock is the lock for the Listeners map
-	nodeAccessor      *Nodes            // nodeAccessor manages cluster nodes and starts/stops peers.
+	ListenersLock     *RWMutex // ListenersLock is the lock for the Listeners map
+	nodeAccessor      *Nodes   // nodeAccessor manages cluster nodes and starts/stops peers.
 	shutdownChannel   chan bool
 	cpuProfileHandler *os.File
 	PeerMap           map[string]*Peer // PeerMap contains a map of available remote peers.
@@ -187,11 +186,11 @@ func NewLMDInstance() (lmd *Daemon) {
 		lastMainRestart:          currentUnixTime(),
 		mainSignalChannel:        make(chan os.Signal),
 		initChannel:              nil,
-		PeerMapLock:              new(deadlock.RWMutex),
+		PeerMapLock:              NewRWMutex(),
 		PeerMap:                  make(map[string]*Peer),
 		PeerMapOrder:             make([]string, 0),
 		Listeners:                make(map[string]*Listener),
-		ListenersLock:            new(deadlock.RWMutex),
+		ListenersLock:            NewRWMutex(),
 		waitGroupInit:            &sync.WaitGroup{},
 		waitGroupListener:        &sync.WaitGroup{},
 		waitGroupPeers:           &sync.WaitGroup{},
@@ -529,11 +528,11 @@ func (lmd *Daemon) checkFlags() {
 	}
 
 	if lmd.flags.flagDeadlock <= 0 {
-		deadlock.Opts.Disable = true
+		deadlockOpts.Disable = true
 	} else {
-		deadlock.Opts.Disable = false
-		deadlock.Opts.DeadlockTimeout = time.Duration(lmd.flags.flagDeadlock) * time.Second
-		deadlock.Opts.LogBuf = NewLogWriter("Error")
+		deadlockOpts.Disable = false
+		deadlockOpts.DeadlockTimeout = time.Duration(lmd.flags.flagDeadlock) * time.Second
+		deadlockOpts.LogBuf = NewLogWriter("Error")
 	}
 
 	if lmd.flags.flagImport != "" && lmd.flags.flagExport != "" {
