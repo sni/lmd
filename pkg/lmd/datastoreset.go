@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/sasha-s/go-deadlock"
 )
 
 const missedTimestampMaxFilter = 150
@@ -16,13 +14,13 @@ const missedTimestampMaxFilter = 150
 // DataStoreSet is a collection of data stores.
 type DataStoreSet struct {
 	peer   *Peer
-	lock   *deadlock.RWMutex
+	lock   *RWMutex
 	tables map[TableName]*DataStore
 }
 
 func NewDataStoreSet(peer *Peer) *DataStoreSet {
 	dataset := DataStoreSet{
-		lock:   new(deadlock.RWMutex),
+		lock:   NewRWMutex(),
 		tables: make(map[TableName]*DataStore),
 		peer:   peer,
 	}

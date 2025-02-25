@@ -11,8 +11,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/sasha-s/go-deadlock"
 )
 
 const (
@@ -33,7 +31,7 @@ const (
 type Listener struct {
 	noCopy           noCopy
 	Connection       net.Listener
-	Lock             *deadlock.RWMutex // must be used for when changing config
+	Lock             *RWMutex // must be used for when changing config
 	lmd              *Daemon
 	waitGroupDone    *sync.WaitGroup
 	waitGroupInit    *sync.WaitGroup
@@ -46,7 +44,7 @@ type Listener struct {
 // NewListener creates a new Listener object.
 func NewListener(lmd *Daemon, listen string, qStat *QueryStats) *Listener {
 	listener := Listener{
-		Lock:             new(deadlock.RWMutex),
+		Lock:             NewRWMutex(),
 		lmd:              lmd,
 		connectionString: listen,
 		waitGroupDone:    lmd.waitGroupListener,

@@ -24,8 +24,6 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
-
-	"github.com/sasha-s/go-deadlock"
 )
 
 var (
@@ -74,7 +72,7 @@ type Peer struct {
 	waitGroup       *sync.WaitGroup // wait group used to wait on shutdowns
 	ConfigTool      *string
 	ThrukExtras     *string
-	lock            *deadlock.RWMutex      // must be used for Peer.* access
+	lock            *RWMutex               // must be used for Peer.* access
 	data            *DataStoreSet          // the cached remote data tables
 	lmd             *Daemon                // reference to main lmd instance
 	Config          *Connection            // reference to the peer configuration from the config file
@@ -249,7 +247,7 @@ func NewPeer(lmd *Daemon, config *Connection) *Peer {
 		waitGroup:       lmd.waitGroupPeers,
 		shutdownChannel: lmd.shutdownChannel,
 		stopChannel:     make(chan bool),
-		lock:            new(deadlock.RWMutex),
+		lock:            NewRWMutex(),
 		Config:          config,
 		lmd:             lmd,
 		Flags:           uint32(NoFlags),
