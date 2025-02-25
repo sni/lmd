@@ -847,7 +847,7 @@ func SpinUpPeers(ctx context.Context, peers []*Peer) {
 
 // buildLocalResponseData returns the result data for a given request.
 func (res *Response) buildLocalResponseData(ctx context.Context, store *DataStore, resultcollector chan *PeerResponse) {
-	logWith(store.PeerName, res).Tracef("BuildLocalResponseData")
+	logWith(store.Peer, res).Tracef("BuildLocalResponseData")
 
 	if len(store.Data) == 0 {
 		return

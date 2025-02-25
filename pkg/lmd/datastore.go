@@ -17,8 +17,6 @@ type DataStore struct {
 	dupStringList           map[[32]byte][]string          // lookup pointer to other stringlists during initialization
 	Table                   *Table                         // reference to table definition
 	DataSet                 *DataStoreSet                  // reference to parent DataSet
-	PeerKey                 string                         // cached peer key
-	PeerName                string                         // cached peer name
 	DynamicColumnCache      ColumnList                     // contains list of keys used to run periodic update
 	Data                    []*DataRow                     // the actual data rows
 	Columns                 ColumnList                     // reference to the used columns
@@ -37,16 +35,9 @@ func NewDataStore(table *Table, peer *Peer) (d *DataStore) {
 		DynamicColumnNamesCache: make([]string, 0),
 		dupStringList:           make(map[[32]byte][]string),
 		Table:                   table,
+		Peer:                    peer,
 		PeerLockMode:            table.PeerLockMode,
 		LowerCaseColumns:        make(map[int]int),
-	}
-
-	if peer != nil {
-		d.Peer = peer
-		d.Peer.lock.RLock()
-		d.PeerName = d.Peer.Name
-		d.PeerKey = d.Peer.ID
-		d.Peer.lock.RUnlock()
 	}
 
 	// create columns list
