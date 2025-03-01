@@ -121,7 +121,7 @@ type Peer struct {
 	Paused                     bool
 	ErrorLogged                bool // flag wether last error has been logged already
 	LastHTTPRequestSuccessful  bool
-	ForceFull                  bool
+	ForceFull                  bool // update everything on the next periodic check
 	Idling                     bool
 	PeerState                  PeerStatus
 }
