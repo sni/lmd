@@ -473,7 +473,9 @@ func (lmd *Daemon) initializePeers(ctx context.Context) {
 		// Keep peer if connection settings unchanged
 		var peer *Peer
 		lmd.PeerMapLock.RLock()
-		if v, ok := lmd.PeerMap[conn.ID]; ok {
+		v, ok := lmd.PeerMap[conn.ID]
+		lmd.PeerMapLock.RUnlock()
+		if ok {
 			if conn.Equals(v.Config) {
 				peer = v
 				peer.lock.Lock()
@@ -481,9 +483,12 @@ func (lmd *Daemon) initializePeers(ctx context.Context) {
 				peer.shutdownChannel = lmd.shutdownChannel
 				peer.SetHTTPClient()
 				peer.lock.Unlock()
+			} else {
+				peer.Stop()
+				peer.ClearData(true)
+				lmd.PeerMapRemove(conn.ID)
 			}
 		}
-		lmd.PeerMapLock.RUnlock()
 
 		// Create new peer otherwise
 		if peer == nil {
