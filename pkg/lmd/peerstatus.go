@@ -44,18 +44,30 @@ const (
 
 // statusSetLocked updates a peer status entry and takes care about the locking.
 func (p *Peer) statusSetLocked(key PeerStatusKey, value interface{}) {
-	p.lock.Lock()
-	p.statusSet(key, value)
-	p.lock.Unlock()
+	switch key {
+	// no locks required
+	case Idling, LastQuery, PeerState:
+		p.statusSet(key, value)
+	default:
+		p.lock.Lock()
+		p.statusSet(key, value)
+		p.lock.Unlock()
+	}
 }
 
 // statusGetLocked returns peer status entry and takes care about the locking.
 func (p *Peer) statusGetLocked(key PeerStatusKey) interface{} {
-	p.lock.RLock()
-	value := p.statusGet(key)
-	p.lock.RUnlock()
+	switch key {
+	// no locks required
+	case Idling, LastQuery, PeerState:
+		return p.statusGet(key)
+	default:
+		p.lock.RLock()
+		value := p.statusGet(key)
+		p.lock.RUnlock()
 
-	return value
+		return value
+	}
 }
 
 // statusGet retrieves peer status entry.
@@ -66,7 +78,7 @@ func (p *Peer) statusGet(key PeerStatusKey) interface{} {
 	case PeerName:
 		return p.Name
 	case PeerState:
-		return p.PeerState
+		return p.PeerState.Load()
 	case PeerAddr:
 		return p.PeerAddr
 	case CurPeerAddrNum:
@@ -82,7 +94,7 @@ func (p *Peer) statusGet(key PeerStatusKey) interface{} {
 	case LastTimeperiodUpdateMinute:
 		return p.LastTimeperiodUpdateMinute
 	case LastQuery:
-		return p.LastQuery
+		return p.LastQuery.Load()
 	case LastError:
 		return p.LastError
 	case LastOnline:
@@ -100,7 +112,7 @@ func (p *Peer) statusGet(key PeerStatusKey) interface{} {
 	case ResponseTime:
 		return p.ResponseTime
 	case Idling:
-		return p.Idling
+		return p.Idling.Load()
 	case Paused:
 		return p.Paused
 	case Section:
@@ -144,11 +156,7 @@ func (p *Peer) statusSet(key PeerStatusKey, value interface{}) {
 	case PeerName:
 		p.Name = *interface2string(value)
 	case PeerState:
-		if v, ok := value.(PeerStatus); ok {
-			p.PeerState = v
-		} else {
-			log.Panicf("got unknown peer state: %#v", value)
-		}
+		p.PeerState.Store(int32(interface2int8(value)))
 	case PeerAddr:
 		p.PeerAddr = *interface2string(value)
 	case CurPeerAddrNum:
@@ -164,7 +172,7 @@ func (p *Peer) statusSet(key PeerStatusKey, value interface{}) {
 	case LastTimeperiodUpdateMinute:
 		p.LastTimeperiodUpdateMinute = interface2int(value)
 	case LastQuery:
-		p.LastQuery = interface2float64(value)
+		p.LastQuery.Store(interface2float64(value))
 	case LastError:
 		p.LastError = *interface2string(value)
 	case LastOnline:
@@ -182,7 +190,7 @@ func (p *Peer) statusSet(key PeerStatusKey, value interface{}) {
 	case ResponseTime:
 		p.ResponseTime = interface2float64(value)
 	case Idling:
-		p.Idling = interface2bool(value)
+		p.Idling.Store(interface2bool(value))
 	case Paused:
 		p.Paused = interface2bool(value)
 	case Section:

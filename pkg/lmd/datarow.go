@@ -731,17 +731,20 @@ func VirtualColFlags(d *DataRow, _ *Column) interface{} {
 // getVirtualSubLMDValue returns status values for LMDSub backends.
 func (d *DataRow) getVirtualSubLMDValue(col *Column) (val interface{}, ok bool) {
 	peer := d.DataStore.Peer
+	peerState := PeerStatus(peer.PeerState.Load())
+
 	peer.lock.RLock()
-	defer peer.lock.RUnlock()
 	peerData := peer.SubPeerStatus
+	peer.lock.RUnlock()
+
 	if peerData == nil {
 		return nil, false
 	}
 	switch col.Name {
 	case "status":
 		// return worst state of LMD and LMDSubs state
-		if peer.PeerState != PeerStatusUp {
-			return peer.PeerState, true
+		if peerState != PeerStatusUp {
+			return peerState, true
 		}
 
 		val, ok = peerData[col.Name]

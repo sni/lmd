@@ -156,13 +156,14 @@ func (ds *DataStoreSet) UpdateFull(ctx context.Context, tables []TableName) (err
 	}
 	peer := ds.peer
 	duration := time.Since(time1)
-	peer.lock.Lock()
-	switch peer.PeerState {
+	peerState := PeerStatus(peer.PeerState.Load())
+	switch peerState {
 	case PeerStatusUp, PeerStatusPending, PeerStatusSyncing:
 	default:
-		logWith(peer).Infof("site soft recovered from short outage (reason: %s - %s)", peer.PeerState.String(), peer.LastError)
+		logWith(peer).Infof("site soft recovered from short outage (reason: %s - %s)", peerState.String(), peer.statusGetLocked(LastError))
 	}
 	peer.resetErrors()
+	peer.lock.Lock()
 	peer.ResponseTime = duration.Seconds()
 	peer.LastUpdate = currentUnixTime()
 	peer.LastFullUpdate = currentUnixTime()
@@ -240,14 +241,14 @@ func (ds *DataStoreSet) UpdateDelta(ctx context.Context, from, until float64) (e
 	duration := time.Since(time1)
 	logWith(peer).Debugf("delta update complete in: %s", duration.Truncate(time.Millisecond).String())
 
-	peer.lock.Lock()
-	peerStatus := peer.PeerState
 	peer.resetErrors()
+	peer.lock.Lock()
 	peer.LastUpdate = until
 	peer.ResponseTime = duration.Seconds()
 	peer.lock.Unlock()
 
-	if peerStatus != PeerStatusUp && peerStatus != PeerStatusPending {
+	peerState := PeerStatus(peer.PeerState.Load())
+	if peerState != PeerStatusUp && peerState != PeerStatusPending {
 		logWith(peer).Infof("site soft recovered from short outage")
 	}
 
