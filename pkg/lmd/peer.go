@@ -550,25 +550,12 @@ func (p *Peer) periodicUpdateLMD(ctx context.Context, data *DataStoreSet, force 
 	// check if we need to start/stop peers
 	logWith(p).Debugf("checking for changed remote lmd backends")
 	existing := make(map[string]bool)
-	p.lmd.PeerMapLock.Lock()
-	defer p.lmd.PeerMapLock.Unlock()
 	for _, rowHash := range resHash {
 		subID := p.addSubPeer(ctx, LMDSub, interface2stringNoDedup(rowHash["key"]), p.Name+"/"+interface2stringNoDedup(rowHash["name"]), rowHash)
 		existing[subID] = true
 	}
 
-	// remove exceeding peers
-	for peerKey := range p.lmd.PeerMap {
-		peer := p.lmd.PeerMap[peerKey]
-		if peer.ParentID == p.ID {
-			if _, ok2 := existing[peerKey]; !ok2 {
-				logWith(peer, req).Debugf("removing sub peer")
-				peer.Stop()
-				peer.ClearData(true)
-				p.lmd.PeerMapRemove(peerKey)
-			}
-		}
-	}
+	p.removeExceedingSubPeers(existing)
 
 	return ok, nil
 }
@@ -629,22 +616,34 @@ func (p *Peer) periodicUpdateMultiBackends(ctx context.Context, data *DataStoreS
 		existing[subID] = true
 	}
 
+	p.removeExceedingSubPeers(existing)
+
+	return ok, nil
+}
+
+func (p *Peer) removeExceedingSubPeers(existing map[string]bool) {
 	// remove exceeding peers
-	p.lmd.PeerMapLock.Lock()
-	defer p.lmd.PeerMapLock.Unlock()
+	removePeers := map[string]*Peer{}
+	p.lmd.PeerMapLock.RLock()
 	for peerKey := range p.lmd.PeerMap {
 		peer := p.lmd.PeerMap[peerKey]
 		if peer.ParentID == p.ID {
 			if _, ok2 := existing[peerKey]; !ok2 {
-				logWith(peer).Debugf("removing sub peer")
-				peer.Stop()
-				peer.ClearData(true)
-				p.lmd.PeerMapRemove(peerKey)
+				removePeers[peerKey] = peer
 			}
 		}
 	}
-
-	return ok, nil
+	p.lmd.PeerMapLock.RUnlock()
+	if len(removePeers) > 0 {
+		p.lmd.PeerMapLock.Lock()
+		for peerKey, peer := range removePeers {
+			logWith(peer).Debugf("removing sub peer")
+			peer.Stop()
+			peer.ClearData(true)
+			p.lmd.PeerMapRemove(peerKey)
+		}
+		p.lmd.PeerMapLock.Unlock()
+	}
 }
 
 func (p *Peer) updateIdleStatus(idling bool, lastQuery float64) bool {
@@ -2917,7 +2916,9 @@ func (p *Peer) CheckBackendRestarted(primaryKeysLen int, res ResultSet, columns 
 // addSubPeer adds new/existing lmd/http sub federated peer.
 func (p *Peer) addSubPeer(ctx context.Context, subFlag OptionalFlags, key, subName string, data map[string]interface{}) (subID string) {
 	subID = key
+	p.lmd.PeerMapLock.RLock()
 	subPeer, ok := p.lmd.PeerMap[subID]
+	p.lmd.PeerMapLock.RUnlock()
 	duplicate := ""
 	if ok {
 		logWith(p).Tracef("already got a sub peer for id %s", subPeer.ID)
@@ -2933,7 +2934,10 @@ func (p *Peer) addSubPeer(ctx context.Context, subFlag OptionalFlags, key, subNa
 		// create dummy peer which is disabled and only shows this error
 		duplicate = fmt.Sprintf("federate site %s/%s id clash %s already taken", p.Name, subName, subID)
 		subID += "dup"
-		if _, ok := p.lmd.PeerMap[subID]; ok {
+		p.lmd.PeerMapLock.RLock()
+		_, ok := p.lmd.PeerMap[subID]
+		p.lmd.PeerMapLock.RUnlock()
+		if ok {
 			return subID
 		}
 	}
@@ -2987,9 +2991,11 @@ func (p *Peer) addSubPeer(ctx context.Context, subFlag OptionalFlags, key, subNa
 	section = strings.TrimPrefix(section, "/")
 	subPeer.Section = section
 
+	p.lmd.PeerMapLock.Lock()
 	p.lmd.PeerMap[subID] = subPeer
 	p.lmd.PeerMapOrder = append(p.lmd.PeerMapOrder, conn.ID)
 	p.lmd.nodeAccessor.assignedBackends = append(p.lmd.nodeAccessor.assignedBackends, subID)
+	p.lmd.PeerMapLock.Unlock()
 
 	if !interface2bool(p.statusGetLocked(Paused)) {
 		subPeer.Start(ctx)
