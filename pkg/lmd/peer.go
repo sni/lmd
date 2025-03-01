@@ -78,7 +78,7 @@ type Peer struct {
 	data            *DataStoreSet          // the cached remote data tables
 	lmd             *Daemon                // reference to main lmd instance
 	Config          *Connection            // reference to the peer configuration from the config file
-	SubPeerStatus   map[string]interface{} // cached http client for http backends
+	SubPeerStatus   map[string]interface{} // cached /sites result for sub peer
 	shutdownChannel chan bool              // channel used to wait to finish shutdown
 	Name            string                 // Name of this peer, aka peer_name
 	ID              string                 // ID for this peer, aka peer_key
