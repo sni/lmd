@@ -60,6 +60,9 @@ const (
 
 	// TemporaryNetworkErrorMaxRetries is the number of retries.
 	TemporaryNetworkErrorMaxRetries = 3
+
+	// Time after which a broken peer restarts.
+	BrokenPeerGraceTimeSeconds = 300
 )
 
 // Peer is the object which handles collecting and updating data and connections.
@@ -476,6 +479,15 @@ func (p *Peer) handleBrokenPeer(ctx context.Context) (err error) {
 
 		return
 	}
+
+	now := currentUnixTime()
+	lastFullUpdate := interface2float64(p.statusGet(LastFullUpdate))
+	if lastFullUpdate < now-float64(BrokenPeerGraceTimeSeconds) {
+		logWith(p).Debugf("broken peer grace time over, trying again.")
+
+		return p.InitAllTables(ctx)
+	}
+
 	if len(res) > 0 && len(res[0]) == 2 {
 		programStart := interface2int64(res[0][0])
 		corePid := interface2int64(res[0][1])
