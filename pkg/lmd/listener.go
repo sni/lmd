@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/sasha-s/go-deadlock"
@@ -40,7 +41,7 @@ type Listener struct {
 	queryStats       *QueryStats
 	cleanup          func()
 	connectionString string
-	openConnections  int64
+	openConnections  atomic.Int64
 }
 
 // NewListener creates a new Listener object.
@@ -152,11 +153,9 @@ func (l *Listener) localListenerLivestatus(connType ConnectionType, listen strin
 			return
 		}
 
-		l.Lock.Lock()
-		l.openConnections++
+		num := l.openConnections.Add(1)
 		clConn := NewClientConnection(l.lmd, conn, l.lmd.Config.ListenTimeout, l.lmd.Config.LogSlowQueryThreshold, l.lmd.Config.LogHugeQueryThreshold, l.queryStats)
-		promFrontendOpenConnections.WithLabelValues(l.connectionString).Set(float64(l.openConnections))
-		l.Lock.Unlock()
+		promFrontendOpenConnections.WithLabelValues(l.connectionString).Set(float64(num))
 
 		// background waiting for query to finish/timeout
 		go func() {
@@ -164,10 +163,8 @@ func (l *Listener) localListenerLivestatus(connType ConnectionType, listen strin
 			defer l.lmd.logPanicExit()
 
 			clConn.Handle()
-			l.Lock.Lock()
-			l.openConnections--
-			promFrontendOpenConnections.WithLabelValues(l.connectionString).Set(float64(l.openConnections))
-			l.Lock.Unlock()
+			num := l.openConnections.Add(-1)
+			promFrontendOpenConnections.WithLabelValues(l.connectionString).Set(float64(num))
 		}()
 	}
 }

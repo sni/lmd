@@ -1290,11 +1290,8 @@ func TestRequestKeepalive(t *testing.T) {
 	getOpenListeners := func() int64 {
 		time.Sleep(KeepAliveWaitInterval)
 		l := mocklmd.Listeners["test.sock"]
-		l.Lock.RLock()
-		num := l.openConnections
-		l.Lock.RUnlock()
 
-		return num
+		return l.openConnections.Load()
 	}
 
 	// open connections should be zero
