@@ -143,7 +143,8 @@ func TestPeerUpdate(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	err := peer.data.UpdateFull(context.TODO(), Objects.UpdateTables)
+	store := peer.data.Load()
+	err := store.UpdateFull(context.TODO(), Objects.UpdateTables)
 	require.NoError(t, err)
 
 	// fake some last_update entries
@@ -171,7 +172,7 @@ func TestPeerUpdate(t *testing.T) {
 	_, err = peer.periodicUpdate(context.TODO())
 	require.NoError(t, err)
 
-	err = peer.periodicTimeperiodsUpdate(context.TODO(), peer.data)
+	err = peer.periodicTimeperiodsUpdate(context.TODO(), store)
 	require.NoError(t, err)
 
 	peer.statusSetLocked(LastUpdate, float64(0))
@@ -188,7 +189,8 @@ func TestPeerDeltaUpdate(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	err := peer.data.UpdateDelta(context.TODO(), 0, 0)
+	store := peer.data.Load()
+	err := store.UpdateDelta(context.TODO(), 0, 0)
 	require.NoError(t, err)
 
 	err = cleanup()
@@ -211,7 +213,8 @@ func TestPeerInitSerial(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	err := peer.initAllTablesSerial(context.TODO(), peer.data)
+	store := peer.data.Load()
+	err := peer.initAllTablesSerial(context.TODO(), store)
 	require.NoError(t, err)
 
 	err = cleanup()

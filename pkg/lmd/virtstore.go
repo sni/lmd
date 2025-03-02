@@ -73,7 +73,7 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 		return nil
 	}
 	store := NewDataStore(table, peer)
-	store.DataSet = peer.data
+	store.DataSet = peer.data.Load()
 	data := make(ResultSet, 0)
 	dataSet := store.DataSet
 	dataSet.lock.RLock()

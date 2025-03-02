@@ -77,16 +77,16 @@ type Peer struct { //nolint:govet // not fieldalignment relevant
 	waitGroup       *sync.WaitGroup // wait group used to wait on shutdowns
 	ConfigTool      *string
 	ThrukExtras     *string
-	lock            *deadlock.RWMutex      // must be used for Peer.* access
-	data            *DataStoreSet          // the cached remote data tables
-	lmd             *Daemon                // reference to main lmd instance
-	Config          *Connection            // reference to the peer configuration from the config file
-	SubPeerStatus   map[string]interface{} // cached /sites result for sub peer
-	shutdownChannel chan bool              // channel used to wait to finish shutdown
-	Name            string                 // Name of this peer, aka peer_name
-	ID              string                 // ID for this peer, aka peer_key
-	PeerAddr        string                 // Address of the peer
-	ParentID        string                 // ID of parent Peer
+	lock            *deadlock.RWMutex            // must be used for Peer.* access
+	data            atomic.Pointer[DataStoreSet] // the cached remote data tables
+	lmd             *Daemon                      // reference to main lmd instance
+	Config          *Connection                  // reference to the peer configuration from the config file
+	SubPeerStatus   map[string]interface{}       // cached /sites result for sub peer
+	shutdownChannel chan bool                    // channel used to wait to finish shutdown
+	Name            string                       // Name of this peer, aka peer_name
+	ID              string                       // ID for this peer, aka peer_key
+	PeerAddr        string                       // Address of the peer
+	ParentID        string                       // ID of parent Peer
 	PeerParent      string
 	LastError       string
 	Section         string
@@ -397,9 +397,7 @@ func (p *Peer) periodicUpdate(ctx context.Context) (ok bool, err error) {
 	lastUpdate := interface2float64(p.LastUpdate.Load())
 	lastFullUpdate := interface2float64(p.LastFullUpdate.Load())
 	lastTimeperiodUpdateMinute := p.LastTimeperiodUpdateMinute.Load()
-	p.lock.RLock()
-	data := p.data
-	p.lock.RUnlock()
+	data := p.data.Load()
 
 	lastStatus := PeerStatus(p.PeerState.Load())
 
@@ -767,8 +765,8 @@ func (p *Peer) InitAllTables(ctx context.Context) (err error) {
 
 	duration := time.Since(time1)
 	peerStatus := PeerStatus(p.PeerState.Load())
+	p.data.Store(data)
 	p.lock.Lock()
-	p.SetDataStoreSet(data, false)
 	p.ResponseTime = duration.Seconds()
 	p.lock.Unlock()
 	logWith(p).Infof("objects created in: %s", duration.String())
@@ -2760,24 +2758,13 @@ func (p *Peer) setQueryOptions(req *Request) {
 }
 
 // GetDataStoreSet returns table data or error.
-func (p *Peer) GetDataStoreSet() (data *DataStoreSet, err error) {
-	p.lock.RLock()
-	data = p.data
-	p.lock.RUnlock()
-	if data == nil {
+func (p *Peer) GetDataStoreSet() (store *DataStoreSet, err error) {
+	store = p.data.Load()
+	if store == nil {
 		err = fmt.Errorf("peer is down: %s", p.getError())
 	}
 
 	return
-}
-
-// SetDataStoreSet resets the data table.
-func (p *Peer) SetDataStoreSet(data *DataStoreSet, lock bool) {
-	if lock {
-		p.lock.Lock()
-		defer p.lock.Unlock()
-	}
-	p.data = data
 }
 
 // ClearData resets the data table.
@@ -2786,13 +2773,11 @@ func (p *Peer) ClearData(lock bool) {
 		p.lock.Lock()
 		defer p.lock.Unlock()
 	}
-	p.data = nil
+	p.data.Store(nil)
 }
 
 func (p *Peer) ResumeFromIdle(ctx context.Context) (err error) {
-	p.lock.RLock()
-	data := p.data
-	p.lock.RUnlock()
+	data := p.data.Load()
 	state := PeerStatus(p.PeerState.Load())
 	p.statusSetLocked(Idling, false)
 	logWith(p).Infof("switched back to normal update interval")

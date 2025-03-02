@@ -44,7 +44,8 @@ func TestDSHasChanged(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	err := peer.data.reloadIfNumberOfObjectsChanged(context.TODO())
+	data := peer.data.Load()
+	err := data.reloadIfNumberOfObjectsChanged(context.TODO())
 	require.NoError(t, err)
 
 	err = cleanup()
@@ -57,12 +58,13 @@ func TestDSFullUpdate(t *testing.T) {
 
 	peer.statusSetLocked(LastUpdate, float64(0))
 	peer.statusSetLocked(LastFullServiceUpdate, float64(0))
-	err := peer.data.UpdateDeltaServices(context.TODO(), fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), false, 0)
+	data := peer.data.Load()
+	err := data.UpdateDeltaServices(context.TODO(), fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), false, 0)
 	require.NoError(t, err)
 
 	peer.statusSetLocked(LastUpdate, float64(0))
 	peer.statusSetLocked(LastFullServiceUpdate, float64(0))
-	err = peer.data.UpdateDeltaServices(context.TODO(), fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), true, time.Now().Unix())
+	err = data.UpdateDeltaServices(context.TODO(), fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), true, time.Now().Unix())
 	require.NoError(t, err)
 
 	err = cleanup()
@@ -73,10 +75,11 @@ func TestDSDowntimesComments(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	err := peer.data.buildDowntimeCommentsList(TableComments)
+	data := peer.data.Load()
+	err := data.buildDowntimeCommentsList(TableComments)
 	require.NoError(t, err)
 
-	err = peer.data.buildDowntimeCommentsList(TableDowntimes)
+	err = data.buildDowntimeCommentsList(TableDowntimes)
 	require.NoError(t, err)
 
 	err = cleanup()

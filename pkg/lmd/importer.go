@@ -47,7 +47,8 @@ func initializePeersWithImport(lmd *Daemon, importFile string) (err error) {
 		peer := peers[i]
 
 		// finish peer import
-		err = peer.data.SetReferences()
+		data := peer.data.Load()
+		err = data.SetReferences()
 		if err != nil {
 			return fmt.Errorf("failed to set references: %s", err.Error())
 		}
@@ -247,7 +248,7 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, l
 		peer.LastOnline = interface2float64(rows[0][colIndex["last_online"]])
 		peer.Queries = interface2int64(rows[0][colIndex["queries"]])
 		peer.ResponseTime = interface2float64(rows[0][colIndex["response_time"]])
-		peer.data = NewDataStoreSet(peer)
+		peer.data.Store(NewDataStoreSet(peer))
 
 		flags := NoFlags
 		flags.Load(con.Flags)
@@ -259,7 +260,7 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, l
 
 	if peer != nil && peer.isOnline() {
 		store := NewDataStore(table, peer)
-		store.DataSet = peer.data
+		store.DataSet = peer.data.Load()
 		columnsList := ColumnList{}
 		for _, name := range columns {
 			col := store.GetColumn(name)
@@ -276,7 +277,8 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, l
 		if err != nil {
 			return peers, fmt.Errorf("failed to insert data: %s", err.Error())
 		}
-		peer.data.Set(table.Name, store)
+		data := peer.data.Load()
+		data.Set(table.Name, store)
 	}
 
 	return peers, nil

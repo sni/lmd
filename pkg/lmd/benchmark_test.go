@@ -17,8 +17,9 @@ func BenchmarkParseResultJSON(b *testing.B) {
 	PauseTestPeers(peer)
 
 	columns := make([]string, 0)
-	for i := range peer.data.tables[TableServices].Table.Columns {
-		col := peer.data.tables[TableServices].Table.Columns[i]
+	data := peer.data.Load()
+	for i := range data.tables[TableServices].Table.Columns {
+		col := data.tables[TableServices].Table.Columns[i]
 		if col.StorageType == LocalStore && col.Optional == NoFlags {
 			columns = append(columns, col.Name)
 		}
@@ -57,8 +58,9 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 	PauseTestPeers(peer)
 
 	columns := make([]string, 0)
-	for i := range peer.data.tables[TableServices].Table.Columns {
-		col := peer.data.tables[TableServices].Table.Columns[i]
+	data := peer.data.Load()
+	for i := range data.tables[TableServices].Table.Columns {
+		col := data.tables[TableServices].Table.Columns[i]
 		if col.StorageType == LocalStore && col.Optional == NoFlags {
 			columns = append(columns, col.Name)
 		}
@@ -98,8 +100,9 @@ func BenchmarkPeerUpdate(b *testing.B) {
 
 	ctx := context.TODO()
 	b.StartTimer()
+	data := peer.data.Load()
 	for range b.N {
-		err := peer.data.UpdateFull(ctx, Objects.UpdateTables)
+		err := data.UpdateFull(ctx, Objects.UpdateTables)
 		if err != nil {
 			panic("Update failed")
 		}
@@ -115,7 +118,8 @@ func BenchmarkPeerUpdateServiceInsert(b *testing.B) {
 	peer, cleanup, _ := StartTestPeer(1, 1000, 10000)
 	PauseTestPeers(peer)
 
-	table := peer.data.tables[TableServices]
+	data := peer.data.Load()
+	table := data.tables[TableServices]
 	req := &Request{
 		Table:           table.Table.Name,
 		Columns:         table.DynamicColumnNamesCache,
@@ -130,7 +134,7 @@ func BenchmarkPeerUpdateServiceInsert(b *testing.B) {
 
 	b.StartTimer()
 	for range b.N {
-		res := peer.data.insertDeltaDataResult(2, res, meta, table)
+		res := data.insertDeltaDataResult(2, res, meta, table)
 		if res != nil {
 			panic("Update failed")
 		}
