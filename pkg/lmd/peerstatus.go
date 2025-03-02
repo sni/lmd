@@ -46,7 +46,7 @@ const (
 func (p *Peer) statusSetLocked(key PeerStatusKey, value interface{}) {
 	switch key {
 	// no locks required
-	case Idling, LastQuery, PeerState:
+	case Idling, LastQuery, LastUpdate, PeerState:
 		p.statusSet(key, value)
 	default:
 		p.lock.Lock()
@@ -59,7 +59,7 @@ func (p *Peer) statusSetLocked(key PeerStatusKey, value interface{}) {
 func (p *Peer) statusGetLocked(key PeerStatusKey) interface{} {
 	switch key {
 	// no locks required
-	case Idling, LastQuery, PeerState:
+	case Idling, LastQuery, LastUpdate, PeerState:
 		return p.statusGet(key)
 	default:
 		p.lock.RLock()
@@ -84,7 +84,7 @@ func (p *Peer) statusGet(key PeerStatusKey) interface{} {
 	case CurPeerAddrNum:
 		return p.CurPeerAddrNum
 	case LastUpdate:
-		return p.LastUpdate
+		return p.LastUpdate.Load()
 	case LastFullUpdate:
 		return p.LastFullUpdate
 	case LastFullHostUpdate:
@@ -162,7 +162,7 @@ func (p *Peer) statusSet(key PeerStatusKey, value interface{}) {
 	case CurPeerAddrNum:
 		p.CurPeerAddrNum = interface2int(value)
 	case LastUpdate:
-		p.LastUpdate = interface2float64(value)
+		p.LastUpdate.Store(interface2float64(value))
 	case LastFullUpdate:
 		p.LastFullUpdate = interface2float64(value)
 	case LastFullHostUpdate:

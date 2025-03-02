@@ -242,7 +242,7 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, l
 		logWith(peer).Infof("restoring peer id %s", peer.ID)
 
 		peer.PeerState.Store(int32(interface2int8(rows[0][colIndex["status"]])))
-		peer.LastUpdate = interface2float64(rows[0][colIndex["last_update"]])
+		peer.LastUpdate.Store(interface2float64(rows[0][colIndex["last_update"]]))
 		peer.LastError = interface2stringNoDedup(rows[0][colIndex["last_error"]])
 		peer.LastOnline = interface2float64(rows[0][colIndex["last_online"]])
 		peer.Queries = interface2int64(rows[0][colIndex["queries"]])

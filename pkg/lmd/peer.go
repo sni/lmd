@@ -111,17 +111,17 @@ type Peer struct { //nolint:govet // not fieldalignment relevant
 	LastTimeperiodUpdateMinute int
 	Queries                    int64
 	ResponseTime               float64
-	LastUpdate                 float64
 	LastOnline                 float64
 	ErrorCount                 int // count times this backend has failed
 	LastFullUpdate             float64
-	LastQuery                  atomic.Value // float64 unix timestamp
 	LastFullServiceUpdate      float64
 	Flags                      uint32 // optional flags, like LMD, Icinga2, etc...
 	Paused                     bool
 	ErrorLogged                bool // flag wether last error has been logged already
 	LastHTTPRequestSuccessful  bool
-	ForceFull                  bool // update everything on the next periodic check
+	ForceFull                  bool         // update everything on the next periodic check
+	LastQuery                  atomic.Value // float64 unix timestamp
+	LastUpdate                 atomic.Value
 	Idling                     atomic.Bool
 	PeerState                  atomic.Int32
 }
@@ -394,8 +394,8 @@ func (p *Peer) updateLoop(ctx context.Context) {
 
 // periodicUpdate runs the periodic updates from the update loop.
 func (p *Peer) periodicUpdate(ctx context.Context) (ok bool, err error) {
+	lastUpdate := interface2float64(p.LastUpdate.Load())
 	p.lock.RLock()
-	lastUpdate := p.LastUpdate
 	lastTimeperiodUpdateMinute := p.LastTimeperiodUpdateMinute
 	lastFullUpdate := p.LastFullUpdate
 	forceFull := p.ForceFull
@@ -404,7 +404,7 @@ func (p *Peer) periodicUpdate(ctx context.Context) (ok bool, err error) {
 
 	lastStatus := PeerStatus(p.PeerState.Load())
 
-	lastQuery := interface2float64(p.statusGet(LastQuery))
+	lastQuery := interface2float64(p.LastQuery.Load())
 	idling := interface2bool(p.statusGet(Idling))
 	idling = p.updateIdleStatus(idling, lastQuery)
 	now := currentUnixTime()
@@ -507,9 +507,7 @@ func (p *Peer) handleBrokenPeer(ctx context.Context) (err error) {
 // periodicUpdateLMD runs the periodic updates from the update loop for LMD backends
 // it fetches the sites table and creates and updates LMDSub backends for them.
 func (p *Peer) periodicUpdateLMD(ctx context.Context, data *DataStoreSet, force bool) (ok bool, err error) {
-	p.lock.RLock()
-	lastUpdate := p.LastUpdate
-	p.lock.RUnlock()
+	lastUpdate := interface2float64(p.LastUpdate.Load())
 
 	if data == nil {
 		data, err = p.GetDataStoreSet()
@@ -567,9 +565,7 @@ func (p *Peer) periodicUpdateMultiBackends(ctx context.Context, data *DataStoreS
 	if p.HasFlag(LMD) {
 		return p.periodicUpdateLMD(ctx, data, force)
 	}
-	p.lock.RLock()
-	lastUpdate := p.LastUpdate
-	p.lock.RUnlock()
+	lastUpdate := interface2float64(p.LastUpdate.Load())
 
 	now := currentUnixTime()
 	if !force && now < lastUpdate+float64(p.lmd.Config.UpdateInterval) {
@@ -719,8 +715,8 @@ func (p *Peer) scheduleUpdateIfRestartRequiredError(err error) bool {
 // ScheduleImmediateUpdate resets all update timer so the next updateloop iteration
 // will performan an update.
 func (p *Peer) ScheduleImmediateUpdate() {
+	p.LastUpdate.Store(float64(0))
 	p.lock.Lock()
-	p.LastUpdate = 0
 	p.LastFullServiceUpdate = 0
 	p.LastFullHostUpdate = 0
 	p.lock.Unlock()
@@ -729,9 +725,9 @@ func (p *Peer) ScheduleImmediateUpdate() {
 // InitAllTables creates all tables for this peer.
 // It returns true if the import was successful or false otherwise.
 func (p *Peer) InitAllTables(ctx context.Context) (err error) {
-	p.lock.Lock()
 	now := currentUnixTime()
-	p.LastUpdate = now
+	p.LastUpdate.Store(now)
+	p.lock.Lock()
 	p.LastFullUpdate = now
 	p.LastFullServiceUpdate = now
 	p.LastFullHostUpdate = now
@@ -1644,7 +1640,6 @@ func (p *Peer) checkStatusFlags(ctx context.Context, store *DataStoreSet) (err e
 	if len(data) == 0 {
 		return nil
 	}
-	p.lock.Lock()
 	row := data[0]
 	livestatusVersion := row.GetStringByName("livestatus_version")
 	switch {
@@ -1663,8 +1658,7 @@ func (p *Peer) checkStatusFlags(ctx context.Context, store *DataStoreSet) (err e
 				p.SetFlag(LMD)
 			}
 			// force immediate update to fetch all sites
-			p.LastUpdate = currentUnixTime() - float64(p.lmd.Config.UpdateInterval)
-			p.lock.Unlock()
+			p.LastUpdate.Store(currentUnixTime() - float64(p.lmd.Config.UpdateInterval))
 
 			_, err = p.periodicUpdateMultiBackends(ctx, store, true)
 			if err != nil {
@@ -1684,8 +1678,6 @@ func (p *Peer) checkStatusFlags(ctx context.Context, store *DataStoreSet) (err e
 			p.SetFlag(Naemon)
 		}
 	}
-
-	p.lock.Unlock()
 
 	return nil
 }
