@@ -21,7 +21,6 @@ type DataStore struct {
 	Data                    []*DataRow                     // the actual data rows
 	Columns                 ColumnList                     // reference to the used columns
 	DynamicColumnNamesCache []string                       // contains list of keys used to run periodic update
-	PeerLockMode            PeerLockMode                   // flag wether datarow have to set PeerLock when accessing status
 }
 
 // NewDataStore creates a new datastore with columns based on given flags.
@@ -36,7 +35,6 @@ func NewDataStore(table *Table, peer *Peer) (d *DataStore) {
 		dupStringList:           make(map[[32]byte][]string),
 		Table:                   table,
 		Peer:                    peer,
-		PeerLockMode:            table.PeerLockMode,
 		LowerCaseColumns:        make(map[int]int),
 	}
 

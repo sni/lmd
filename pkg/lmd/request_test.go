@@ -553,7 +553,7 @@ func TestRequestColumnsWrappedJson(t *testing.T) {
 	require.NoErrorf(t, err, "query successful")
 
 	var jsonTest interface{}
-	jErr := json.Unmarshal(peer.last.Response, &jsonTest)
+	jErr := json.Unmarshal(*peer.last.Response.Load(), &jsonTest)
 	require.NoErrorf(t, jErr, "json ok")
 
 	require.Lenf(t, res, 5, "result length")
@@ -564,7 +564,7 @@ func TestRequestColumnsWrappedJson(t *testing.T) {
 	res, _, err = peer.QueryString("GET hosts\nColumns: name state alias\nOutputFormat: json\n\n")
 	require.NoErrorf(t, err, "query successful")
 
-	jErr = json.Unmarshal(peer.last.Response, &jsonTest)
+	jErr = json.Unmarshal(*peer.last.Response.Load(), &jsonTest)
 	require.NoErrorf(t, jErr, "json ok")
 
 	require.Lenf(t, res, 10, "result length")
@@ -612,11 +612,11 @@ func TestHTTPCommands(t *testing.T) {
 
 	assert.Equal(t, "command broken", err.Error())
 	assert.Equal(t, 400, err.(*PeerCommandError).code)
-	assert.InDeltaf(t, 2.20, peer.statusGetLocked(ThrukVersion), 0, "version set correctly")
+	assert.InDeltaf(t, 2.20, peer.ThrukVersion.Get(), 0, "version set correctly")
 
 	// newer thruk versions return result directly
 	thrukVersion := 2.26
-	peer.statusSetLocked(ThrukVersion, thrukVersion)
+	peer.ThrukVersion.Set(thrukVersion)
 
 	res, _, err = peer.QueryString("COMMAND [0] test_ok")
 	require.NoError(t, err)
@@ -628,7 +628,7 @@ func TestHTTPCommands(t *testing.T) {
 
 	assert.Equal(t, "command broken", err.Error())
 	assert.Equal(t, 400, err.(*PeerCommandError).code)
-	assert.InDeltaf(t, thrukVersion, peer.statusGetLocked(ThrukVersion), 0, "version set correctly")
+	assert.InDeltaf(t, thrukVersion, peer.ThrukVersion.Get(), 0, "version set correctly")
 }
 
 func TestHTTPPeer(t *testing.T) {
@@ -1638,7 +1638,7 @@ func TestStatusJSONColumns(t *testing.T) {
 
 	jsonStr := `{"core_type":null,"obj_check_cmd":1,"obj_readonly":null,"obj_reload_cmd":1}`
 	peerKey := mockLmd.PeerMapOrder[0]
-	mockLmd.PeerMap[peerKey].statusSetLocked(ThrukExtras, jsonStr)
+	mockLmd.PeerMap[peerKey].ThrukExtras.Set(jsonStr)
 
 	res, _, err := peer.QueryString("GET status\nColumns: peer_key configtool thruk\n")
 	require.NoError(t, err)

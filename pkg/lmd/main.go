@@ -458,7 +458,7 @@ func (lmd *Daemon) initializePeers(ctx context.Context) {
 		}
 		if !found {
 			peer.Stop()
-			peer.ClearData(true)
+			peer.data.Store(nil)
 			lmd.PeerMapRemove(peerKey)
 		}
 	}
@@ -476,16 +476,14 @@ func (lmd *Daemon) initializePeers(ctx context.Context) {
 		v, ok := lmd.PeerMap[conn.ID]
 		lmd.PeerMapLock.RUnlock()
 		if ok {
-			if conn.Equals(v.Config) {
-				peer = v
-				peer.lock.Lock()
+			peer = v
+			if conn.Equals(v.config) {
 				peer.waitGroup = lmd.waitGroupPeers
 				peer.shutdownChannel = lmd.shutdownChannel
 				peer.SetHTTPClient()
-				peer.lock.Unlock()
 			} else {
 				peer.Stop()
-				peer.ClearData(true)
+				peer.data.Store(nil)
 				lmd.PeerMapRemove(conn.ID)
 			}
 		}

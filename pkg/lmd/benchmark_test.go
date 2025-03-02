@@ -30,7 +30,7 @@ func BenchmarkParseResultJSON(b *testing.B) {
 	conn, connType, err := peer.GetConnection(req)
 	require.NoError(b, err)
 
-	resBytes, _, err := peer.getQueryResponse(context.TODO(), req, req.String(), peer.PeerAddr, conn, connType)
+	resBytes, _, err := peer.getQueryResponse(context.TODO(), req, req.String(), peer.PeerAddr.Get(), conn, connType)
 	require.NoError(b, err)
 
 	b.StartTimer()
@@ -71,7 +71,7 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 	conn, connType, err := peer.GetConnection(req)
 	require.NoError(b, err)
 
-	resBytes, _, err := peer.getQueryResponse(context.TODO(), req, req.String(), peer.PeerAddr, conn, connType)
+	resBytes, _, err := peer.getQueryResponse(context.TODO(), req, req.String(), peer.PeerAddr.Get(), conn, connType)
 	require.NoError(b, err)
 
 	b.StartTimer()

@@ -163,8 +163,8 @@ func (res *Response) prepareResponse(ctx context.Context, req *Request) {
 
 		// spin up required?
 		if table.Virtual == nil {
-			if idling, ok := peer.statusGetLocked(Idling).(bool); ok && idling {
-				peer.statusSetLocked(LastQuery, currentUnixTime())
+			if peer.Idling.Load() {
+				peer.LastQuery.Set(currentUnixTime())
 				spinUpPeers = append(spinUpPeers, peer)
 			}
 		}
@@ -559,11 +559,6 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) error {
 		res.ResultTotal = res.RawResults.Total
 		res.RowsScanned = res.RawResults.RowsScanned
 
-		// PeerLockModeFull means we have to lock all peers before creating the result
-		if len(res.RawResults.DataResult) > 0 && res.RawResults.DataResult[0].DataStore.PeerLockMode == PeerLockModeFull {
-			return res.WriteDataResponseRowLocked(json)
-		}
-
 		for i, row := range res.RawResults.DataResult {
 			if i > 0 {
 				json.WriteRaw(",\n")
@@ -575,23 +570,6 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) error {
 		}
 	default:
 		logWith(res).Errorf("response contains no result at all")
-	}
-
-	return nil
-}
-
-// WriteDataResponseRowLocked appends each row but locks the peer before doing so. We don't have to lock for each column then.
-func (res *Response) WriteDataResponseRowLocked(json *jsoniter.Stream) error {
-	for i, row := range res.RawResults.DataResult {
-		if i > 0 {
-			json.WriteRaw(",\n")
-		}
-		row.DataStore.Peer.lock.RLock()
-		row.WriteJSON(json, res.Request.RequestColumns)
-		row.DataStore.Peer.lock.RUnlock()
-		if err := json.Flush(); err != nil {
-			return fmt.Errorf("json flush failed: %s", err.Error())
-		}
 	}
 
 	return nil
@@ -646,7 +624,7 @@ func (res *Response) buildLocalResponse(ctx context.Context, stores map[*Peer]*D
 	waitgroup := &sync.WaitGroup{}
 	for i := range res.SelectedPeers {
 		peer := res.SelectedPeers[i]
-		peer.statusSetLocked(LastQuery, currentUnixTime())
+		peer.LastQuery.Set(currentUnixTime())
 
 		store, ok := stores[peer]
 		if !ok {
@@ -780,7 +758,7 @@ func (res *Response) BuildPassThroughResult(ctx context.Context) {
 
 		if !peer.isOnline() {
 			res.Lock.Lock()
-			res.Failed[peer.ID] = fmt.Sprintf("%v", peer.statusGetLocked(LastError))
+			res.Failed[peer.ID] = peer.LastError.Get()
 			res.Lock.Unlock()
 
 			continue
@@ -851,13 +829,6 @@ func (res *Response) buildLocalResponseData(ctx context.Context, store *DataStor
 
 	if len(store.Data) == 0 {
 		return
-	}
-
-	// for some tables its faster to lock the table only once
-	ds := store.DataSet
-	if store.PeerLockMode == PeerLockModeFull && ds != nil && ds.peer != nil {
-		ds.peer.lock.RLock()
-		defer ds.peer.lock.RUnlock()
 	}
 
 	if len(res.Request.Stats) > 0 {

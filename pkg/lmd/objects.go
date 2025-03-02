@@ -23,42 +23,39 @@ func InitObjects() {
 	for i := range VirtualColumnList {
 		dat := &(VirtualColumnList[i])
 		VirtualColumnMap[dat.Name] = dat
-		if dat.StatusKey > 0 {
-			VirtualColumnMap["peer_"+dat.Name] = dat
-			VirtualColumnMap["host_peer_"+dat.Name] = dat
-		} else {
-			VirtualColumnMap["host_"+dat.Name] = dat
-		}
+		VirtualColumnMap["peer_"+dat.Name] = dat
+		VirtualColumnMap["host_peer_"+dat.Name] = dat
+		VirtualColumnMap["host_"+dat.Name] = dat
 	}
 
 	Objects.Tables = make(map[TableName]*Table)
 	// add complete virtual tables first
-	Objects.AddTable(TableBackends, NewBackendsTable())
+	Objects.AddTable(NewBackendsTable())
 	Objects.Tables[TableSites] = Objects.Tables[TableBackends]
-	Objects.AddTable(TableColumns, NewColumnsTable())
+	Objects.AddTable(NewColumnsTable())
 	Objects.Tables[TableTables] = Objects.Tables[TableColumns]
 
 	// add remaining tables in an order where they can resolve the inter-table dependencies
-	Objects.AddTable(TableStatus, NewStatusTable())
-	Objects.AddTable(TableTimeperiods, NewTimeperiodsTable())
-	Objects.AddTable(TableContacts, NewContactsTable())
-	Objects.AddTable(TableContactgroups, NewContactgroupsTable())
-	Objects.AddTable(TableCommands, NewCommandsTable())
-	Objects.AddTable(TableHosts, NewHostsTable())
-	Objects.AddTable(TableHostgroups, NewHostgroupsTable())
-	Objects.AddTable(TableServices, NewServicesTable())
-	Objects.AddTable(TableServicegroups, NewServicegroupsTable())
-	Objects.AddTable(TableComments, NewCommentsTable())
-	Objects.AddTable(TableDowntimes, NewDowntimesTable())
-	Objects.AddTable(TableLog, NewLogTable())
-	Objects.AddTable(TableHostsbygroup, NewHostsByGroupTable())
-	Objects.AddTable(TableServicesbygroup, NewServicesByGroupTable())
-	Objects.AddTable(TableServicesbyhostgroup, NewServicesByHostgroupTable())
+	Objects.AddTable(NewStatusTable())
+	Objects.AddTable(NewTimeperiodsTable())
+	Objects.AddTable(NewContactsTable())
+	Objects.AddTable(NewContactgroupsTable())
+	Objects.AddTable(NewCommandsTable())
+	Objects.AddTable(NewHostsTable())
+	Objects.AddTable(NewHostgroupsTable())
+	Objects.AddTable(NewServicesTable())
+	Objects.AddTable(NewServicegroupsTable())
+	Objects.AddTable(NewCommentsTable())
+	Objects.AddTable(NewDowntimesTable())
+	Objects.AddTable(NewLogTable())
+	Objects.AddTable(NewHostsByGroupTable())
+	Objects.AddTable(NewServicesByGroupTable())
+	Objects.AddTable(NewServicesByHostgroupTable())
 }
 
 // AddTable appends a table object to the Objects and verifies that no table is added twice.
-func (o *ObjectsType) AddTable(name TableName, table *Table) {
-	table.Name = name
+func (o *ObjectsType) AddTable(table *Table) {
+	name := table.Name
 	_, exists := o.Tables[name]
 	if exists {
 		log.Panicf("table %s has been added twice", name.String())
@@ -83,7 +80,7 @@ func (o *ObjectsType) AddTable(name TableName, table *Table) {
 
 // NewBackendsTable returns a new backends table.
 func NewBackendsTable() (t *Table) {
-	t = &Table{Virtual: GetTableBackendsStore, WorksUnlocked: true, PeerLockMode: PeerLockModeFull}
+	t = &Table{Name: TableBackends, Virtual: GetTableBackendsStore, WorksUnlocked: true}
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
 	t.AddPeerInfoColumn("key", StringCol, "Id of this peer")
@@ -117,7 +114,7 @@ func NewBackendsTable() (t *Table) {
 
 // NewColumnsTable returns a new columns table.
 func NewColumnsTable() (t *Table) {
-	t = &Table{Virtual: GetTableColumnsStore, DefaultSort: []string{"table", "name"}, WorksUnlocked: true}
+	t = &Table{Name: TableColumns, Virtual: GetTableColumnsStore, DefaultSort: []string{"table", "name"}, WorksUnlocked: true}
 	t.AddExtraColumn("name", LocalStore, None, StringCol, NoFlags, "The name of the column within the table")
 	t.AddExtraColumn("table", LocalStore, None, StringCol, NoFlags, "The name of the table")
 	t.AddExtraColumn("type", LocalStore, None, StringCol, NoFlags, "The data type of the column (int, float, string, list)")
@@ -132,7 +129,7 @@ func NewColumnsTable() (t *Table) {
 
 // NewStatusTable returns a new status table.
 func NewStatusTable() (t *Table) {
-	t = &Table{PeerLockMode: PeerLockModeFull}
+	t = &Table{Name: TableStatus}
 	t.AddColumn("program_start", Dynamic, Int64Col, "The time of the last program start as UNIX timestamp")
 	t.AddColumn("accept_passive_host_checks", Dynamic, IntCol, "Whether passive host checks are accepted in general (0/1)")
 	t.AddColumn("accept_passive_service_checks", Dynamic, IntCol, "Whether passive service checks are accepted in general (0/1)")
@@ -192,7 +189,7 @@ func NewStatusTable() (t *Table) {
 
 // NewTimeperiodsTable returns a new timeperiods table.
 func NewTimeperiodsTable() (t *Table) {
-	t = &Table{PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
+	t = &Table{Name: TableTimeperiods, PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
 	t.AddColumn("alias", Static, StringCol, "The alias of the timeperiod")
 	t.AddColumn("name", Static, StringCol, "The name of the timeperiod")
 	t.AddColumn("in", Dynamic, IntCol, "Wether we are currently in this period (0/1)")
@@ -216,7 +213,7 @@ func NewTimeperiodsTable() (t *Table) {
 
 // NewContactsTable returns a new contacts table.
 func NewContactsTable() (t *Table) {
-	t = &Table{PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
+	t = &Table{Name: TableContacts, PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
 	t.AddColumn("alias", Static, StringCol, "The full name of the contact")
 	t.AddColumn("name", Static, StringCol, "The login name of the contact person")
 	t.AddColumn("can_submit_commands", Static, IntCol, "Wether the contact is allowed to submit commands (0/1)")
@@ -259,7 +256,7 @@ func NewContactsTable() (t *Table) {
 
 // NewContactgroupsTable returns a new contactgroups table.
 func NewContactgroupsTable() (t *Table) {
-	t = &Table{PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
+	t = &Table{Name: TableContactgroups, PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
 	t.AddColumn("alias", Static, StringCol, "The alias of the contactgroup")
 	t.AddColumn("members", Static, StringListCol, "A list of all members of this contactgroup")
 	t.AddColumn("name", Static, StringCol, "The name of the contactgroup")
@@ -272,7 +269,7 @@ func NewContactgroupsTable() (t *Table) {
 
 // NewCommandsTable returns a new commands table.
 func NewCommandsTable() (t *Table) {
-	t = &Table{PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
+	t = &Table{Name: TableCommands, PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
 	t.AddColumn("name", Static, StringCol, "The name of the command")
 	t.AddColumn("line", Static, StringCol, "The shell command line")
 
@@ -284,7 +281,7 @@ func NewCommandsTable() (t *Table) {
 
 // NewHostsTable returns a new hosts table.
 func NewHostsTable() (t *Table) {
-	t = &Table{PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
+	t = &Table{Name: TableHosts, PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
 	t.AddColumn("accept_passive_checks", Dynamic, IntCol, "Whether passive host checks are accepted (0/1)")
 	t.AddColumn("acknowledged", Dynamic, IntCol, "Whether the current host problem has been acknowledged (0/1)")
 	t.AddColumn("action_url", Static, StringCol, "An optional URL to custom actions or information about this host")
@@ -429,7 +426,7 @@ func NewHostsTable() (t *Table) {
 
 // NewHostgroupsTable returns a new hostgroups table.
 func NewHostgroupsTable() (t *Table) {
-	t = &Table{PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
+	t = &Table{Name: TableHostgroups, PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
 	t.AddColumn("action_url", Static, StringCol, "An optional URL to custom actions or information about the hostgroup")
 	t.AddColumn("alias", Static, StringCol, "An alias of the hostgroup")
 	t.AddColumn("members", Static, StringListCol, "A list of all host names that are members of the hostgroup")
@@ -467,7 +464,7 @@ func NewHostgroupsTable() (t *Table) {
 
 // NewServicesTable returns a new services table.
 func NewServicesTable() (t *Table) {
-	t = &Table{PrimaryKey: []string{"host_name", "description"}, DefaultSort: []string{"host_name", "description"}}
+	t = &Table{Name: TableServices, PrimaryKey: []string{"host_name", "description"}, DefaultSort: []string{"host_name", "description"}}
 	t.AddColumn("accept_passive_checks", Dynamic, IntCol, "Whether the service accepts passive checks (0/1)")
 	t.AddColumn("acknowledged", Dynamic, IntCol, "Whether the current service problem has been acknowledged (0/1)")
 	t.AddColumn("acknowledgement_type", Dynamic, IntCol, "The type of the acknowledgement (0: none, 1: normal, 2: sticky)")
@@ -594,7 +591,7 @@ func NewServicesTable() (t *Table) {
 
 // NewServicegroupsTable returns a new hostgroups table.
 func NewServicegroupsTable() (t *Table) {
-	t = &Table{PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
+	t = &Table{Name: TableServicegroups, PrimaryKey: []string{"name"}, DefaultSort: []string{"name"}}
 	t.AddColumn("action_url", Static, StringCol, "An optional URL to custom notes or actions on the service group")
 	t.AddColumn("alias", Static, StringCol, "An alias of the service group")
 	t.AddColumn("members", Static, ServiceMemberListCol, "A list of all members of the service group as host/service pairs")
@@ -624,7 +621,7 @@ func NewServicegroupsTable() (t *Table) {
 
 // NewCommentsTable returns a new comments table.
 func NewCommentsTable() (t *Table) {
-	t = &Table{PrimaryKey: []string{"id"}, DefaultSort: []string{"id"}}
+	t = &Table{Name: TableComments, PrimaryKey: []string{"id"}, DefaultSort: []string{"id"}}
 	t.AddColumn("author", Static, StringCol, "The contact that entered the comment")
 	t.AddColumn("comment", Static, StringCol, "A comment text")
 	t.AddColumn("entry_time", Static, Int64Col, "The time the entry was made as UNIX timestamp")
@@ -650,7 +647,7 @@ func NewCommentsTable() (t *Table) {
 
 // NewDowntimesTable returns a new downtimes table.
 func NewDowntimesTable() (t *Table) {
-	t = &Table{PrimaryKey: []string{"id"}, DefaultSort: []string{"id"}}
+	t = &Table{Name: TableDowntimes, PrimaryKey: []string{"id"}, DefaultSort: []string{"id"}}
 	t.AddColumn("author", Static, StringCol, "The contact that scheduled the downtime")
 	t.AddColumn("comment", Static, StringCol, "A comment text")
 	t.AddColumn("duration", Static, Int64Col, "The duration of the downtime in seconds")
@@ -676,7 +673,7 @@ func NewDowntimesTable() (t *Table) {
 
 // NewLogTable returns a new log table.
 func NewLogTable() (t *Table) {
-	t = &Table{PassthroughOnly: true, DefaultSort: []string{"time"}}
+	t = &Table{Name: TableLog, PassthroughOnly: true, DefaultSort: []string{"time"}}
 
 	t.AddColumn("attempt", Static, Int64Col, "The number of the check attempt")
 	t.AddColumn("class", Static, IntCol, "The class of the message as integer (0:info, 1:state, 2:program, 3:notification, 4:passive, 5:command)")
@@ -703,7 +700,7 @@ func NewLogTable() (t *Table) {
 
 // NewHostsByGroupTable returns a new hostsbygroup table.
 func NewHostsByGroupTable() (t *Table) {
-	t = &Table{Virtual: GetGroupByData}
+	t = &Table{Name: TableHostsbygroup, Virtual: GetGroupByData}
 	t.AddColumn("name", Static, StringCol, "Host name")
 	t.AddColumn("hostgroup_name", Static, StringCol, "Host group name")
 
@@ -718,7 +715,7 @@ func NewHostsByGroupTable() (t *Table) {
 
 // NewServicesByGroupTable returns a new servicesbygroup table.
 func NewServicesByGroupTable() (t *Table) {
-	t = &Table{Virtual: GetGroupByData}
+	t = &Table{Name: TableServicesbygroup, Virtual: GetGroupByData}
 	t.AddColumn("host_name", Static, StringCol, "Host name")
 	t.AddColumn("description", Static, StringCol, "Service description")
 	t.AddColumn("servicegroup_name", Static, StringCol, "Service group name")
@@ -735,7 +732,7 @@ func NewServicesByGroupTable() (t *Table) {
 
 // NewServicesByHostgroupTable returns a new servicesbyhostgroup table.
 func NewServicesByHostgroupTable() (t *Table) {
-	t = &Table{Virtual: GetGroupByData}
+	t = &Table{Name: TableServicesbyhostgroup, Virtual: GetGroupByData}
 	t.AddColumn("host_name", Static, StringCol, "Host name")
 	t.AddColumn("description", Static, StringCol, "Service description")
 	t.AddColumn("hostgroup_name", Static, StringCol, "Host group name")

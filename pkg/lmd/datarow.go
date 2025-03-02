@@ -448,34 +448,29 @@ func (d *DataRow) GetValueByColumn(col *Column) interface{} {
 // getVirtualRowValue returns the actual value for a virtual column.
 func (d *DataRow) getVirtualRowValue(col *Column) interface{} {
 	var value interface{}
+	peer := d.DataStore.Peer
 	if col.VirtualMap.StatusKey > 0 {
-		if d.DataStore.Peer == nil {
+		if peer == nil {
 			log.Panicf("requesting column '%s' from table '%s' with peer", col.Name, d.DataStore.Table.Name.String())
 		}
-		peer := d.DataStore.Peer
 		ok := false
 		if peer.HasFlag(LMDSub) {
-			value, ok = d.getVirtualSubLMDValue(col)
+			value, ok = d.getVirtualSubLMDValue(peer, col)
 		}
 		if !ok {
-			switch d.DataStore.PeerLockMode {
-			case PeerLockModeFull:
-				value = peer.statusGet(col.VirtualMap.StatusKey)
-			case PeerLockModeSimple:
-				switch col.VirtualMap.StatusKey {
-				case PeerName:
-					return &(peer.Name)
-				case PeerKey:
-					return &(peer.ID)
-				case ProgramStart:
-					return &(peer.ProgramStart)
-				default:
-					value = peer.statusGetLocked(col.VirtualMap.StatusKey)
-				}
+			switch col.VirtualMap.StatusKey {
+			case PeerName:
+				return &(peer.Name)
+			case PeerKey:
+				return &(peer.ID)
+			case Section:
+				return &(peer.Section)
+			case PeerParent:
+				return &(peer.ParentID)
 			}
 		}
 	} else {
-		value = col.VirtualMap.ResolveFunc(d, col)
+		value = col.VirtualMap.ResolveFunc(peer, d, col)
 	}
 
 	return cast2Type(value, col)
@@ -507,23 +502,23 @@ func (d *DataRow) GetCustomVarValue(col *Column, name string) string {
 }
 
 // VirtualColLocaltime returns current unix timestamp.
-func VirtualColLocaltime(_ *DataRow, _ *Column) interface{} {
+func VirtualColLocaltime(_ *Peer, _ *DataRow, _ *Column) interface{} {
 	return currentUnixTime()
 }
 
 // VirtualColLastStateChangeOrder returns sortable state.
-func VirtualColLastStateChangeOrder(d *DataRow, _ *Column) interface{} {
+func VirtualColLastStateChangeOrder(p *Peer, d *DataRow, _ *Column) interface{} {
 	// return last_state_change or program_start
 	lastStateChange := d.GetInt64ByName("last_state_change")
 	if lastStateChange == 0 {
-		return d.DataStore.Peer.ProgramStart
+		return p.ProgramStart.Load()
 	}
 
 	return lastStateChange
 }
 
 // VirtualColStateOrder returns sortable state.
-func VirtualColStateOrder(d *DataRow, _ *Column) interface{} {
+func VirtualColStateOrder(_ *Peer, d *DataRow, _ *Column) interface{} {
 	// return 4 instead of 2, which makes critical come first
 	// this way we can use this column to sort by state
 	state := d.GetInt8ByName("state")
@@ -535,7 +530,7 @@ func VirtualColStateOrder(d *DataRow, _ *Column) interface{} {
 }
 
 // VirtualColHasLongPluginOutput returns 1 if there is long plugin output, 0 if not.
-func VirtualColHasLongPluginOutput(d *DataRow, _ *Column) interface{} {
+func VirtualColHasLongPluginOutput(_ *Peer, d *DataRow, _ *Column) interface{} {
 	val := d.GetStringByName("long_plugin_output")
 	if val != "" {
 		return 1
@@ -545,7 +540,7 @@ func VirtualColHasLongPluginOutput(d *DataRow, _ *Column) interface{} {
 }
 
 // VirtualColServicesWithInfo returns list of services with additional information.
-func VirtualColServicesWithInfo(d *DataRow, col *Column) interface{} {
+func VirtualColServicesWithInfo(_ *Peer, d *DataRow, col *Column) interface{} {
 	services := d.GetStringListByName("services")
 	hostName := d.GetStringByName("name")
 	servicesStore := d.DataStore.DataSet.tables[TableServices]
@@ -571,7 +566,7 @@ func VirtualColServicesWithInfo(d *DataRow, col *Column) interface{} {
 }
 
 // VirtualColMembersWithState returns a list of hostgroup/servicegroup members with their states.
-func VirtualColMembersWithState(dRow *DataRow, _ *Column) interface{} {
+func VirtualColMembersWithState(_ *Peer, dRow *DataRow, _ *Column) interface{} {
 	switch dRow.DataStore.Table.Name {
 	case TableHostgroups:
 		members := dRow.GetStringListByName("members")
@@ -621,7 +616,7 @@ func VirtualColMembersWithState(dRow *DataRow, _ *Column) interface{} {
 }
 
 // VirtualColCommentsWithInfo returns list of comment IDs with additional information.
-func VirtualColCommentsWithInfo(row *DataRow, _ *Column) interface{} {
+func VirtualColCommentsWithInfo(_ *Peer, row *DataRow, _ *Column) interface{} {
 	comments := row.GetInt64ListByName("comments")
 	if len(comments) == 0 {
 		return emptyInterfaceList
@@ -660,7 +655,7 @@ func VirtualColCommentsWithInfo(row *DataRow, _ *Column) interface{} {
 }
 
 // VirtualColDowntimesWithInfo returns list of downtimes IDs with additional information.
-func VirtualColDowntimesWithInfo(row *DataRow, _ *Column) interface{} {
+func VirtualColDowntimesWithInfo(_ *Peer, row *DataRow, _ *Column) interface{} {
 	downtimes := row.GetInt64ListByName("downtimes")
 	if len(downtimes) == 0 {
 		return emptyInterfaceList
@@ -703,7 +698,7 @@ func VirtualColDowntimesWithInfo(row *DataRow, _ *Column) interface{} {
 }
 
 // VirtualColCustomVariables returns a custom variables hash.
-func VirtualColCustomVariables(row *DataRow, _ *Column) interface{} {
+func VirtualColCustomVariables(_ *Peer, row *DataRow, _ *Column) interface{} {
 	namesCol := row.DataStore.GetColumn("custom_variable_names")
 	valuesCol := row.DataStore.GetColumn("custom_variable_values")
 	names := row.dataStringList[namesCol.Index]
@@ -717,25 +712,21 @@ func VirtualColCustomVariables(row *DataRow, _ *Column) interface{} {
 }
 
 // VirtualColTotalServices returns number of services.
-func VirtualColTotalServices(d *DataRow, _ *Column) interface{} {
+func VirtualColTotalServices(_ *Peer, d *DataRow, _ *Column) interface{} {
 	return d.GetInt64ByName("num_services")
 }
 
 // VirtualColFlags returns flags for peer.
-func VirtualColFlags(d *DataRow, _ *Column) interface{} {
-	peerflags := OptionalFlags(atomic.LoadUint32(&d.DataStore.Peer.Flags))
+func VirtualColFlags(p *Peer, _ *DataRow, _ *Column) interface{} {
+	peerflags := OptionalFlags(atomic.LoadUint32(&p.Flags))
 
 	return peerflags.List()
 }
 
 // getVirtualSubLMDValue returns status values for LMDSub backends.
-func (d *DataRow) getVirtualSubLMDValue(col *Column) (val interface{}, ok bool) {
-	peer := d.DataStore.Peer
-	peerState := PeerStatus(peer.PeerState.Load())
-
-	peer.lock.RLock()
-	peerData := peer.SubPeerStatus
-	peer.lock.RUnlock()
+func (d *DataRow) getVirtualSubLMDValue(peer *Peer, col *Column) (val interface{}, ok bool) {
+	peerState := peer.PeerState.Get()
+	peerData := peer.SubPeerStatus.Load()
 
 	if peerData == nil {
 		return nil, false
@@ -747,20 +738,20 @@ func (d *DataRow) getVirtualSubLMDValue(col *Column) (val interface{}, ok bool) 
 			return peerState, true
 		}
 
-		val, ok = peerData[col.Name]
+		val, ok = (*peerData)[col.Name]
 
 		return val, ok
 	case "last_error":
 		// return worst state of LMD and LMDSubs state
-		if peer.LastError != "" {
-			return peer.LastError, true
+		if peer.LastError.Get() != "" {
+			return peer.LastError.Get(), true
 		}
-		val, ok = peerData[col.Name]
+		val, ok = (*peerData)[col.Name]
 
 		return val, ok
 	}
 
-	val, ok = peerData[col.Name]
+	val, ok = (*peerData)[col.Name]
 
 	return val, ok
 }
@@ -1294,9 +1285,16 @@ func interface2jsonstring(raw interface{}) string {
 	}
 	switch val := raw.(type) {
 	case string:
+		if val == "" {
+			return "{}"
+		}
+
 		return val
 	case *string:
 		if val == nil {
+			return "{}"
+		}
+		if *val == "" {
 			return "{}"
 		}
 
@@ -1311,20 +1309,6 @@ func interface2jsonstring(raw interface{}) string {
 
 		return (string(str))
 	}
-}
-
-func interface2mapinterface(raw interface{}) map[string]interface{} {
-	switch list := raw.(type) {
-	case map[string]interface{}:
-		return list
-	case *map[string]interface{}:
-		return *list
-	}
-
-	log.Warnf("unsupported stringlist type: %#v (%T)", raw, raw)
-	val := make(map[string]interface{}, 0)
-
-	return val
 }
 
 // deduplicateStringlist store duplicate string lists only once.

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -72,7 +71,7 @@ func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (s
 	for i, row := range res {
 		if len(row) != keyLen {
 			err = fmt.Errorf("%s result set verification failed: len mismatch in row %d, expected %d columns and got %d", store.Table.Name.String(), i, keyLen, len(row))
-			if peer.ErrorCount > 0 {
+			if peer.ErrorCount.Load() > 0 {
 				// silently cancel, backend broke during initialization, should have been logged already
 				log.Debugf("error during %s initialization, but backend is already failed: %s", &table.Name, err.Error())
 			} else {
@@ -99,8 +98,8 @@ func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (s
 
 	time3 := time.Now()
 
-	peer.LastUpdate.Store(now)
-	peer.LastFullUpdate.Store(now)
+	peer.LastUpdate.Set(now)
+	peer.LastFullUpdate.Set(now)
 	durationLock := time.Since(time3).Truncate(time.Millisecond)
 
 	tableName := table.Name.String()
@@ -154,19 +153,17 @@ func (ds *DataStoreSet) UpdateFull(ctx context.Context, tables []TableName) (err
 	}
 	peer := ds.peer
 	duration := time.Since(time1)
-	peerState := PeerStatus(peer.PeerState.Load())
+	peerState := peer.PeerState.Get()
 	switch peerState {
 	case PeerStatusUp, PeerStatusPending, PeerStatusSyncing:
 	default:
-		logWith(peer).Infof("site soft recovered from short outage (reason: %s - %s)", peerState.String(), peer.statusGetLocked(LastError))
+		logWith(peer).Infof("site soft recovered from short outage (reason: %s - %s)", peerState.String(), peer.LastError.Get())
 	}
 	now := currentUnixTime()
 	peer.resetErrors()
-	peer.LastUpdate.Store(now)
-	peer.LastFullUpdate.Store(now)
-	peer.lock.Lock()
-	peer.ResponseTime = duration.Seconds()
-	peer.lock.Unlock()
+	peer.LastUpdate.Set(now)
+	peer.LastFullUpdate.Set(now)
+	peer.ResponseTime.Set(duration.Seconds())
 	logWith(peer).Debugf("full update complete in: %s", duration.String())
 	promPeerUpdates.WithLabelValues(peer.Name).Inc()
 	promPeerUpdateDuration.WithLabelValues(peer.Name).Set(duration.Seconds())
@@ -241,12 +238,10 @@ func (ds *DataStoreSet) UpdateDelta(ctx context.Context, from, until float64) (e
 	logWith(peer).Debugf("delta update complete in: %s", duration.Truncate(time.Millisecond).String())
 
 	peer.resetErrors()
-	peer.LastUpdate.Store(until)
-	peer.lock.Lock()
-	peer.ResponseTime = duration.Seconds()
-	peer.lock.Unlock()
+	peer.LastUpdate.Set(until)
+	peer.ResponseTime.Set(duration.Seconds())
 
-	peerState := PeerStatus(peer.PeerState.Load())
+	peerState := peer.PeerState.Get()
 	if peerState != PeerStatusUp && peerState != PeerStatusPending {
 		logWith(peer).Infof("site soft recovered from short outage")
 	}
@@ -369,9 +364,9 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 func (ds *DataStoreSet) updateDeltaFullScanHostsServices(ctx context.Context, store *DataStore, filterStr string, updateThreshold int64) (updated bool, err error) {
 	switch store.Table.Name {
 	case TableServices:
-		updated, err = ds.updateFullScan(ctx, store, LastFullServiceUpdate, filterStr, updateThreshold, ds.UpdateDeltaServices)
+		updated, err = ds.updateFullScan(ctx, store, &ds.peer.LastFullServiceUpdate, filterStr, updateThreshold, ds.UpdateDeltaServices)
 	case TableHosts:
-		updated, err = ds.updateFullScan(ctx, store, LastFullHostUpdate, filterStr, updateThreshold, ds.UpdateDeltaHosts)
+		updated, err = ds.updateFullScan(ctx, store, &ds.peer.LastFullHostUpdate, filterStr, updateThreshold, ds.UpdateDeltaHosts)
 	default:
 		p := ds.peer
 		logWith(p).Panicf("not implemented for: %s", store.Table.Name.String())
@@ -389,12 +384,9 @@ type fullUpdateCb func(context.Context, string, bool, int64) error
 // It returns true if an update was done and any error encountered.
 //
 //nolint:lll // it is what it is...
-func (ds *DataStoreSet) updateFullScan(ctx context.Context, store *DataStore, statusKey PeerStatusKey, filter string, updateThr int64, updateFn fullUpdateCb) (updated bool, err error) {
+func (ds *DataStoreSet) updateFullScan(ctx context.Context, store *DataStore, lastUpdateSrc *atomicFloat64, filter string, updateThr int64, updateFn fullUpdateCb) (updated bool, err error) {
 	peer := ds.peer
-	lastUpdate, ok := peer.statusGetLocked(statusKey).(float64)
-	if !ok {
-		log.Panicf("status key %#v did not return a float64", statusKey)
-	}
+	lastUpdate := lastUpdateSrc.Get()
 
 	// do not do a full scan more often than every 60 seconds
 	if lastUpdate > float64(time.Now().Unix()-MinFullScanInterval) {
@@ -473,7 +465,7 @@ func (ds *DataStoreSet) updateFullScan(ctx context.Context, store *DataStore, st
 		return false, err
 	}
 
-	peer.statusSetLocked(statusKey, currentUnixTime())
+	lastUpdateSrc.Set(currentUnixTime())
 
 	return true, nil
 }
@@ -710,8 +702,7 @@ func (ds *DataStoreSet) UpdateFullTable(ctx context.Context, tableName TableName
 	case TableTimeperiods:
 		// check for changed timeperiods, because we have to update the linked hosts and services as well
 		err = ds.updateTimeperiodsData(ctx, primaryKeysLen, store, res, store.DynamicColumnCache)
-		lastTimeperiodUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
-		peer.statusSetLocked(LastTimeperiodUpdateMinute, lastTimeperiodUpdateMinute)
+		peer.LastTimeperiodUpdateMinute.Store(int32(interface2int8(time.Now().Format("4"))))
 		if err != nil {
 			return err
 		}

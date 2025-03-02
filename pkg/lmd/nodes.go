@@ -172,7 +172,7 @@ func (n *Nodes) Initialize(ctx context.Context) {
 		n.lmd.PeerMapLock.RLock()
 		for id := range n.lmd.PeerMap {
 			peer := n.lmd.PeerMap[id]
-			if val, ok := peer.statusGetLocked(Paused).(bool); ok && val {
+			if peer.Paused.Load() {
 				peer.Start(ctx)
 			}
 		}
@@ -399,7 +399,7 @@ func (n *Nodes) updateBackends(ctx context.Context, ourBackends []string) {
 	for _, oldBackend := range rmvBackends {
 		peer := n.lmd.PeerMap[oldBackend]
 		peer.Stop()
-		peer.ClearData(true)
+		peer.data.Store(nil)
 	}
 	for _, newBackend := range addBackends {
 		peer := n.lmd.PeerMap[newBackend]

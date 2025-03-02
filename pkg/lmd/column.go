@@ -6,7 +6,7 @@ import (
 )
 
 // VirtualColumnResolveFunc is used to define the virtual key mapping in the VirtualColumnMap.
-type VirtualColumnResolveFunc func(d *DataRow, col *Column) interface{}
+type VirtualColumnResolveFunc func(p *Peer, d *DataRow, col *Column) interface{}
 
 // VirtualColumnMapEntry is used to define the virtual key mapping in the VirtualColumnMap.
 type VirtualColumnMapEntry struct {
@@ -22,30 +22,32 @@ var VirtualColumnList = []VirtualColumnMapEntry{
 	// access things from the peer status by StatusKey
 	{Name: "key", StatusKey: PeerKey},
 	{Name: "name", StatusKey: PeerName},
-	{Name: "addr", StatusKey: PeerAddr},
-	{Name: "status", StatusKey: PeerState},
-	{Name: "bytes_send", StatusKey: BytesSend},
-	{Name: "bytes_received", StatusKey: BytesReceived},
-	{Name: "queries", StatusKey: Queries},
-	{Name: "last_error", StatusKey: LastError},
-	{Name: "last_online", StatusKey: LastOnline},
-	{Name: "last_update", StatusKey: LastUpdate},
-	{Name: "response_time", StatusKey: ResponseTime},
-	{Name: "idling", StatusKey: Idling},
-	{Name: "last_query", StatusKey: LastQuery},
 	{Name: "section", StatusKey: Section},
 	{Name: "parent", StatusKey: PeerParent},
-	{Name: "configtool", StatusKey: ConfigTool},
-	{Name: "thruk", StatusKey: ThrukExtras},
-	{Name: "federation_key", StatusKey: SubKey},
-	{Name: "federation_name", StatusKey: SubName},
-	{Name: "federation_addr", StatusKey: SubAddr},
-	{Name: "federation_type", StatusKey: SubType},
-	{Name: "federation_version", StatusKey: SubVersion},
+
+	// fetched on the fly
+	{Name: "addr", ResolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.PeerAddr.Get() }},
+	{Name: "status", ResolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.PeerState.Get() }},
+	{Name: "bytes_send", ResolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.BytesSend.Load() }},
+	{Name: "bytes_received", ResolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.BytesReceived.Load() }},
+	{Name: "queries", ResolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.Queries.Load() }},
+	{Name: "last_error", ResolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.LastError.Get() }},
+	{Name: "last_online", ResolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.LastOnline.Get() }},
+	{Name: "last_update", ResolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.LastUpdate.Get() }},
+	{Name: "response_time", ResolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.ResponseTime.Get() }},
+	{Name: "idling", ResolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.Idling.Load() }},
+	{Name: "last_query", ResolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.LastQuery.Get() }},
+	{Name: "configtool", ResolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.ConfigTool.Get() }},
+	{Name: "thruk", ResolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.ThrukExtras.Get() }},
+	{Name: "federation_key", ResolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.SubKey.Get() }},
+	{Name: "federation_name", ResolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.SubName.Get() }},
+	{Name: "federation_addr", ResolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.SubAddr.Get() }},
+	{Name: "federation_type", ResolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.SubType.Get() }},
+	{Name: "federation_version", ResolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.SubVersion.Get() }},
 
 	// calculated columns by ResolveFunc
-	{Name: "lmd_last_cache_update", ResolveFunc: func(d *DataRow, _ *Column) interface{} { return d.LastUpdate }},
-	{Name: "lmd_version", ResolveFunc: func(_ *DataRow, _ *Column) interface{} { return fmt.Sprintf("%s-%s", NAME, Version()) }},
+	{Name: "lmd_last_cache_update", ResolveFunc: func(_ *Peer, d *DataRow, _ *Column) interface{} { return d.LastUpdate }},
+	{Name: "lmd_version", ResolveFunc: func(_ *Peer, _ *DataRow, _ *Column) interface{} { return fmt.Sprintf("%s-%s", NAME, Version()) }},
 	{Name: "state_order", ResolveFunc: VirtualColStateOrder},
 	{Name: "last_state_change_order", ResolveFunc: VirtualColLastStateChangeOrder},
 	{Name: "has_long_plugin_output", ResolveFunc: VirtualColHasLongPluginOutput},
@@ -58,7 +60,7 @@ var VirtualColumnList = []VirtualColumnMapEntry{
 	{Name: "total_services", ResolveFunc: VirtualColTotalServices},
 	{Name: "flags", ResolveFunc: VirtualColFlags},
 	{Name: "localtime", ResolveFunc: VirtualColLocaltime},
-	{Name: "empty", ResolveFunc: func(_ *DataRow, _ *Column) interface{} { return "" }}, // return empty string as placeholder for nonexisting columns
+	{Name: "empty", ResolveFunc: func(_ *Peer, _ *DataRow, _ *Column) interface{} { return "" }}, // return empty string as placeholder for nonexisting columns
 }
 
 // VirtualColumnMap maps is the lookup map for the VirtualColumnList.
