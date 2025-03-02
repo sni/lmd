@@ -38,7 +38,6 @@ const (
 	SubPeerStatus
 	ConfigTool
 	ThrukExtras
-	ForceFull
 	LastHTTPRequestSuccessful
 )
 
@@ -46,7 +45,7 @@ const (
 func (p *Peer) statusSetLocked(key PeerStatusKey, value interface{}) {
 	switch key {
 	// no locks required
-	case Idling, LastQuery, LastUpdate, PeerState:
+	case Idling, LastQuery, LastUpdate, LastFullUpdate, LastTimeperiodUpdateMinute, PeerState:
 		p.statusSet(key, value)
 	default:
 		p.lock.Lock()
@@ -59,7 +58,7 @@ func (p *Peer) statusSetLocked(key PeerStatusKey, value interface{}) {
 func (p *Peer) statusGetLocked(key PeerStatusKey) interface{} {
 	switch key {
 	// no locks required
-	case Idling, LastQuery, LastUpdate, PeerState:
+	case Idling, LastQuery, LastUpdate, LastFullUpdate, LastTimeperiodUpdateMinute, PeerState:
 		return p.statusGet(key)
 	default:
 		p.lock.RLock()
@@ -86,13 +85,13 @@ func (p *Peer) statusGet(key PeerStatusKey) interface{} {
 	case LastUpdate:
 		return p.LastUpdate.Load()
 	case LastFullUpdate:
-		return p.LastFullUpdate
+		return p.LastFullUpdate.Load()
 	case LastFullHostUpdate:
 		return p.LastFullHostUpdate
 	case LastFullServiceUpdate:
 		return p.LastFullServiceUpdate
 	case LastTimeperiodUpdateMinute:
-		return p.LastTimeperiodUpdateMinute
+		return p.LastTimeperiodUpdateMinute.Load()
 	case LastQuery:
 		return p.LastQuery.Load()
 	case LastError:
@@ -137,8 +136,6 @@ func (p *Peer) statusGet(key PeerStatusKey) interface{} {
 		return p.ConfigTool
 	case ThrukExtras:
 		return p.ThrukExtras
-	case ForceFull:
-		return p.ForceFull
 	case LastHTTPRequestSuccessful:
 		return p.LastHTTPRequestSuccessful
 	}
@@ -164,13 +161,13 @@ func (p *Peer) statusSet(key PeerStatusKey, value interface{}) {
 	case LastUpdate:
 		p.LastUpdate.Store(interface2float64(value))
 	case LastFullUpdate:
-		p.LastFullUpdate = interface2float64(value)
+		p.LastFullUpdate.Store(interface2float64(value))
 	case LastFullHostUpdate:
 		p.LastFullHostUpdate = interface2float64(value)
 	case LastFullServiceUpdate:
 		p.LastFullServiceUpdate = interface2float64(value)
 	case LastTimeperiodUpdateMinute:
-		p.LastTimeperiodUpdateMinute = interface2int(value)
+		p.LastTimeperiodUpdateMinute.Store(int32(interface2int8(value)))
 	case LastQuery:
 		p.LastQuery.Store(interface2float64(value))
 	case LastError:
@@ -215,8 +212,6 @@ func (p *Peer) statusSet(key PeerStatusKey, value interface{}) {
 		p.ConfigTool = interface2string(value)
 	case ThrukExtras:
 		p.ThrukExtras = interface2string(value)
-	case ForceFull:
-		p.ForceFull = interface2bool(value)
 	case LastHTTPRequestSuccessful:
 		p.LastHTTPRequestSuccessful = interface2bool(value)
 	default:

@@ -108,18 +108,18 @@ type Peer struct { //nolint:govet // not fieldalignment relevant
 	BytesSend                  int64
 	ThrukVersion               float64
 	LastPid                    int64
-	LastTimeperiodUpdateMinute int
+	LastTimeperiodUpdateMinute atomic.Int32
 	Queries                    int64
 	ResponseTime               float64
 	LastOnline                 float64
 	ErrorCount                 int // count times this backend has failed
-	LastFullUpdate             float64
+	LastFullUpdate             atomic.Value
 	LastFullServiceUpdate      float64
 	Flags                      uint32 // optional flags, like LMD, Icinga2, etc...
 	Paused                     bool
 	ErrorLogged                bool // flag wether last error has been logged already
 	LastHTTPRequestSuccessful  bool
-	ForceFull                  bool         // update everything on the next periodic check
+	ForceFull                  atomic.Bool  // update everything on the next periodic check
 	LastQuery                  atomic.Value // float64 unix timestamp
 	LastUpdate                 atomic.Value
 	Idling                     atomic.Bool
@@ -395,10 +395,9 @@ func (p *Peer) updateLoop(ctx context.Context) {
 // periodicUpdate runs the periodic updates from the update loop.
 func (p *Peer) periodicUpdate(ctx context.Context) (ok bool, err error) {
 	lastUpdate := interface2float64(p.LastUpdate.Load())
+	lastFullUpdate := interface2float64(p.LastFullUpdate.Load())
+	lastTimeperiodUpdateMinute := p.LastTimeperiodUpdateMinute.Load()
 	p.lock.RLock()
-	lastTimeperiodUpdateMinute := p.LastTimeperiodUpdateMinute
-	lastFullUpdate := p.LastFullUpdate
-	forceFull := p.ForceFull
 	data := p.data
 	p.lock.RUnlock()
 
@@ -408,7 +407,7 @@ func (p *Peer) periodicUpdate(ctx context.Context) (ok bool, err error) {
 	idling := interface2bool(p.statusGet(Idling))
 	idling = p.updateIdleStatus(idling, lastQuery)
 	now := currentUnixTime()
-	currentMinute, _ := strconv.Atoi(time.Now().Format("4"))
+	currentMinute := int32(interface2int8(time.Now().Format("4")))
 
 	// update timeperiods every full minute except when idling
 	if !idling && lastTimeperiodUpdateMinute != currentMinute && data != nil {
@@ -458,9 +457,9 @@ func (p *Peer) periodicUpdate(ctx context.Context) (ok bool, err error) {
 		if !idling && p.lmd.Config.FullUpdateInterval > 0 && now > lastFullUpdate+float64(p.lmd.Config.FullUpdateInterval) {
 			return ok, data.UpdateFull(ctx, Objects.UpdateTables)
 		}
-		if forceFull {
+		if p.ForceFull.Load() {
 			lastUpdate = 0
-			p.statusSetLocked(ForceFull, false)
+			p.ForceFull.Store(false)
 		}
 
 		return ok, data.UpdateDelta(ctx, lastUpdate, now)
@@ -727,8 +726,8 @@ func (p *Peer) ScheduleImmediateUpdate() {
 func (p *Peer) InitAllTables(ctx context.Context) (err error) {
 	now := currentUnixTime()
 	p.LastUpdate.Store(now)
+	p.LastFullUpdate.Store(now)
 	p.lock.Lock()
-	p.LastFullUpdate = now
 	p.LastFullServiceUpdate = now
 	p.LastFullHostUpdate = now
 	p.lock.Unlock()
@@ -893,8 +892,8 @@ func (p *Peer) initTable(ctx context.Context, data *DataStoreSet, table *Table) 
 			p.statusSetLocked(LastError, "reconnecting...")
 		}
 	case TableTimeperiods:
-		lastTimeperiodUpdateMinute, _ := strconv.Atoi(time.Now().Format("4"))
-		p.statusSetLocked(LastTimeperiodUpdateMinute, lastTimeperiodUpdateMinute)
+		lastTimeperiodUpdateMinute := int32(interface2int8(time.Now().Format("4")))
+		p.LastTimeperiodUpdateMinute.Store(lastTimeperiodUpdateMinute)
 	default:
 		// nothing special happens for the other tables
 	}
@@ -2624,7 +2623,7 @@ func (p *Peer) SendCommands(ctx context.Context, commands []string) (err error) 
 	p.ScheduleImmediateUpdate()
 
 	if !p.HasFlag(HasLastUpdateColumn) {
-		p.statusSetLocked(ForceFull, true)
+		p.ForceFull.Store(true)
 	}
 
 	return

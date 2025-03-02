@@ -100,9 +100,7 @@ func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (s
 	time3 := time.Now()
 
 	peer.LastUpdate.Store(now)
-	peer.lock.Lock()
-	peer.LastFullUpdate = now
-	peer.lock.Unlock()
+	peer.LastFullUpdate.Store(now)
 	durationLock := time.Since(time3).Truncate(time.Millisecond)
 
 	tableName := table.Name.String()
@@ -162,11 +160,12 @@ func (ds *DataStoreSet) UpdateFull(ctx context.Context, tables []TableName) (err
 	default:
 		logWith(peer).Infof("site soft recovered from short outage (reason: %s - %s)", peerState.String(), peer.statusGetLocked(LastError))
 	}
+	now := currentUnixTime()
 	peer.resetErrors()
-	peer.LastUpdate.Store(currentUnixTime())
+	peer.LastUpdate.Store(now)
+	peer.LastFullUpdate.Store(now)
 	peer.lock.Lock()
 	peer.ResponseTime = duration.Seconds()
-	peer.LastFullUpdate = currentUnixTime()
 	peer.lock.Unlock()
 	logWith(peer).Debugf("full update complete in: %s", duration.String())
 	promPeerUpdates.WithLabelValues(peer.Name).Inc()
