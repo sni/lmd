@@ -13,8 +13,8 @@ type DataStore struct {
 	Index2                  map[string]map[string]*DataRow // access data rows from 2 primary keys, ex.: host and service
 	IndexLowerCase          map[string][]string            // access data rows from lower case primary key
 	Peer                    *Peer                          // reference to our peer
-	LowerCaseColumns        map[int]int                    // list of string column indexes with their coresponding lower case index
-	dupStringList           map[[32]byte][]string          // lookup pointer to other stringlists during initialization
+	LowerCaseColumns        map[int]int                    // list of string column indexes with their corresponding lower case index
+	dupStringList           map[uint32][]string            // lookup pointer to other stringlists during initialization
 	Table                   *Table                         // reference to table definition
 	DataSet                 *DataStoreSet                  // reference to parent DataSet
 	DynamicColumnCache      ColumnList                     // contains list of keys used to run periodic update
@@ -32,7 +32,7 @@ func NewDataStore(table *Table, peer *Peer) (d *DataStore) {
 		IndexLowerCase:          make(map[string][]string),
 		DynamicColumnCache:      make(ColumnList, 0),
 		DynamicColumnNamesCache: make([]string, 0),
-		dupStringList:           make(map[[32]byte][]string),
+		dupStringList:           make(map[uint32][]string),
 		Table:                   table,
 		Peer:                    peer,
 		LowerCaseColumns:        make(map[int]int),

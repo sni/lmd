@@ -1,7 +1,6 @@
 package lmd
 
 import (
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -9,6 +8,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/OneOfOne/xxhash"
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -192,7 +192,7 @@ func (d *DataRow) GetString(col *Column) string {
 		case StringLargeCol:
 			return d.dataStringLarge[col.Index].String()
 		case StringListCol:
-			return joinStringlist(d.dataStringList[col.Index], ListSepChar1)
+			return strings.Join(d.dataStringList[col.Index], ListSepChar1)
 		case ServiceMemberListCol:
 			return fmt.Sprintf("%v", d.dataServiceMemberList[col.Index])
 		case InterfaceListCol:
@@ -1045,21 +1045,21 @@ func interface2int64(raw interface{}) int64 {
 }
 
 func interface2string(raw interface{}) *string {
-	switch num := raw.(type) {
+	switch str := raw.(type) {
 	case string:
-		dedupedstring := dedup.S(num)
+		dedupedstring := dedup.S(str)
 
 		return &dedupedstring
 	case []byte:
-		dedupedstring := dedup.BS(num)
+		dedupedstring := dedup.BS(str)
 
 		return &dedupedstring
 	case *[]byte:
-		dedupedstring := dedup.BS(*num)
+		dedupedstring := dedup.BS(*str)
 
 		return &dedupedstring
 	case *string:
-		return num
+		return str
 	case nil:
 		val := ""
 
@@ -1313,24 +1313,20 @@ func interface2jsonstring(raw interface{}) string {
 
 // deduplicateStringlist store duplicate string lists only once.
 func (d *DataRow) deduplicateStringlist(list []string) []string {
-	sum := sha256.Sum256([]byte(joinStringlist(list, ListSepChar1)))
+	sum := xxhash.ChecksumString32(strings.Join(list, ListSepChar1))
 	if l, ok := d.DataStore.dupStringList[sum]; ok {
 		return l
 	}
-	d.DataStore.dupStringList[sum] = list
 
-	return list
-}
-
-// joinStringlist joins list with given character.
-func joinStringlist(list []string, join string) string {
-	var joined strings.Builder
-	for _, s := range list {
-		joined.WriteString(s)
-		joined.WriteString(join)
+	// adding new list, deduplicate strings as well
+	dedupedList := make([]string, 0, len(list))
+	for i := range list {
+		dedupedList = append(dedupedList, dedup.S(list[i]))
 	}
 
-	return joined.String()
+	d.DataStore.dupStringList[sum] = dedupedList
+
+	return dedupedList
 }
 
 func cast2Type(val interface{}, col *Column) interface{} {
