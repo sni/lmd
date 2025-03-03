@@ -849,12 +849,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 		case StringCol:
 			d.dataString[localIndex] = *(interface2string(data[resIndex]))
 		case StringListCol:
-			if col.FetchType == Static {
-				// deduplicate string lists
-				d.dataStringList[localIndex] = d.deduplicateStringlist(interface2stringlist(data[resIndex]))
-			} else {
-				d.dataStringList[localIndex] = interface2stringlist(data[resIndex])
-			}
+			d.dataStringList[localIndex] = d.deduplicateStringlist(interface2stringlist(data[resIndex]))
 		case StringLargeCol:
 			d.dataStringLarge[localIndex] = *interface2stringlarge(data[resIndex])
 		case IntCol:
@@ -1313,9 +1308,12 @@ func interface2jsonstring(raw interface{}) string {
 
 // deduplicateStringlist store duplicate string lists only once.
 func (d *DataRow) deduplicateStringlist(list []string) []string {
-	sum := xxhash.ChecksumString32(strings.Join(list, ListSepChar1))
-	if l, ok := d.DataStore.dupStringList[sum]; ok {
-		return l
+	var sum uint32
+	if d.DataStore.dupStringList != nil {
+		sum = xxhash.ChecksumString32(strings.Join(list, ListSepChar1))
+		if l, ok := d.DataStore.dupStringList[sum]; ok {
+			return l
+		}
 	}
 
 	// adding new list, deduplicate strings as well
@@ -1324,7 +1322,9 @@ func (d *DataRow) deduplicateStringlist(list []string) []string {
 		dedupedList = append(dedupedList, dedup.S(list[i]))
 	}
 
-	d.DataStore.dupStringList[sum] = dedupedList
+	if sum > 0 {
+		d.DataStore.dupStringList[sum] = dedupedList
+	}
 
 	return dedupedList
 }
