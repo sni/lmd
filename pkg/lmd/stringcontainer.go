@@ -2,22 +2,27 @@ package lmd
 
 import (
 	"bytes"
-	"compress/gzip"
+	"fmt"
 	"io"
+
+	"github.com/klauspost/compress/zstd"
 )
 
-const DefaultCompressionMinimumSize = 500
+const DefaultCompressionMinimumSize = 1024
 
 // CompressionMinimumSize sets the minimum number of characters to use compression..
 var CompressionMinimumSize = DefaultCompressionMinimumSize
 
 // CompressionLevel sets the minimum number of characters to use compression.
-var CompressionLevel = gzip.DefaultCompression
+var CompressionLevel = zstd.SpeedDefault
+
+// CompressionThreshold is the minimum ratio threshold to keep compressed data.
+var CompressionThreshold = 50.0
 
 // StringContainer wraps large strings.
 type StringContainer struct {
-	StringData     string
-	CompressedData []byte
+	stringData     string
+	compressedData []byte
 }
 
 // NewStringContainer returns a new StringContainer.
@@ -32,40 +37,39 @@ func NewStringContainer(data *string) *StringContainer {
 func (s *StringContainer) Set(data *string) {
 	// it only makes sense to compress larger strings
 	if len(*data) < CompressionMinimumSize {
-		s.StringData = *data
-		s.CompressedData = nil
+		s.stringData = dedup.S(*data)
+		s.compressedData = nil
 
 		return
 	}
-	s.StringData = ""
-	var buf bytes.Buffer
-	gzWrt, _ := gzip.NewWriterLevel(&buf, CompressionLevel)
-	_, err := gzWrt.Write([]byte(*data))
+	s.stringData = ""
+	compressed, err := compressWithZSTD([]byte(*data))
 	if err != nil {
-		log.Errorf("gzip error: %s", err.Error())
-		s.StringData = *data
-		s.CompressedData = nil
+		log.Errorf("%s", err.Error())
+		s.stringData = *data
+		s.compressedData = nil
 
 		return
 	}
-	err = gzWrt.Close()
-	if err != nil {
-		log.Errorf("gzip error: %s", err.Error())
-		s.StringData = *data
-		s.CompressedData = nil
 
-		return
-	}
-	s.CompressedData = buf.Bytes()
-	if log.IsV(LogVerbosityTrace) {
-		log.Tracef("compressed string from %d to %d (%.1f%%)", len(*data), len(s.CompressedData), 100-(float64(len(s.CompressedData))/float64(len(*data))*100))
+	dataLen := len(*data)
+	compLen := len(compressed)
+	ratio := 100 - (float64(compLen) / float64(dataLen) * 100)
+
+	// only use compressed data if it actually safes space
+	log.Tracef("compressed string from %d to %d (%.1f%%) mode:%s min:%d", dataLen, compLen, ratio, CompressionLevel.String(), CompressionMinimumSize)
+	if ratio < CompressionThreshold {
+		s.stringData = dedup.S(*data)
+		s.compressedData = nil
+	} else {
+		s.compressedData = compressed
 	}
 }
 
 // String returns the string data.
 func (s *StringContainer) String() string {
-	if s.CompressedData == nil {
-		return s.StringData
+	if s.compressedData == nil {
+		return s.stringData
 	}
 
 	return *s.StringRef()
@@ -73,18 +77,18 @@ func (s *StringContainer) String() string {
 
 // StringRef returns the string data.
 func (s *StringContainer) StringRef() *string {
-	if s.CompressedData == nil {
-		return &s.StringData
+	if s.compressedData == nil {
+		return &s.stringData
 	}
-	rdr, err := gzip.NewReader(bytes.NewReader(s.CompressedData))
+	decoder, err := zstd.NewReader(bytes.NewReader(s.compressedData))
 	if err != nil {
-		log.Errorf("failed to create gzip reader: %s", err.Error())
+		log.Errorf("failed to create compressed reader: %s", err.Error())
 		str := ""
 
 		return &str
 	}
-	buf, err := io.ReadAll(rdr)
-	rdr.Close()
+	buf, err := io.ReadAll(decoder)
+	decoder.Close()
 	if err != nil {
 		log.Errorf("failed to read compressed data: %s", err.Error())
 		str := ""
@@ -95,4 +99,25 @@ func (s *StringContainer) StringRef() *string {
 	str := string(buf)
 
 	return &str
+}
+
+func compressWithZSTD(input []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	encoder, err := zstd.NewWriter(&buf, zstd.WithEncoderLevel(CompressionLevel))
+	if err != nil {
+		return nil, fmt.Errorf("compress error: %s", err.Error())
+	}
+
+	_, err = encoder.Write(input)
+	if err != nil {
+		_ = encoder.Close() // Close should be called even on errors
+
+		return nil, fmt.Errorf("compress error: %s", err.Error())
+	}
+
+	if err := encoder.Close(); err != nil {
+		return nil, fmt.Errorf("compress error: %s", err.Error())
+	}
+
+	return buf.Bytes(), nil
 }

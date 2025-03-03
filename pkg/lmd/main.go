@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/OneOfOne/xxhash"
+	"github.com/klauspost/compress/zstd"
 	"github.com/lkarlslund/stringdedup"
 	"github.com/sasha-s/go-deadlock"
 )
@@ -260,7 +261,7 @@ func (lmd *Daemon) mainLoop() (exitCode int) {
 	localConfig := lmd.finalFlagsConfig(false)
 	lmd.Config = localConfig
 
-	CompressionLevel = localConfig.CompressionLevel
+	CompressionLevel = zstd.EncoderLevelFromZstd(localConfig.CompressionLevel)
 	CompressionMinimumSize = localConfig.CompressionMinimumSize
 
 	// put some configuration settings into metrics

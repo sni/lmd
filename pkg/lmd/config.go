@@ -122,7 +122,7 @@ func NewConfig(files []string) *Config {
 		GroupAuthorization:         AuthStrict,
 		SyncIsExecuting:            true,
 		CompressionMinimumSize:     DefaultCompressionMinimumSize,
-		CompressionLevel:           -1,
+		CompressionLevel:           5,
 		MaxClockDelta:              10,
 		UpdateOffset:               3,
 		TLSMinVersion:              "tls1.1",
