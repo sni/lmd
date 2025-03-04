@@ -144,7 +144,7 @@ func (d *DataStore) InsertItem(index int, row *DataRow) {
 	switch len(d.Table.PrimaryKey) {
 	case 0:
 	case 1:
-		id := row.GetID()
+		id := dedup.S(row.GetID())
 		d.Index[id] = row
 		if d.Table.Name == TableHosts {
 			idLower := dedup.S(strings.ToLower(id))
@@ -154,6 +154,8 @@ func (d *DataStore) InsertItem(index int, row *DataRow) {
 		}
 	case 2:
 		id1, id2 := row.GetID2()
+		id1 = dedup.S(id1)
+		id2 = dedup.S(id2)
 		if _, ok := d.Index2[id1]; !ok {
 			d.Index2[id1] = make(map[string]*DataRow)
 		}
@@ -169,7 +171,7 @@ func (d *DataStore) AddItem(row *DataRow) {
 	switch len(d.Table.PrimaryKey) {
 	case 0:
 	case 1:
-		id := row.GetID()
+		id := dedup.S(row.GetID())
 		d.Index[id] = row
 		if d.Table.Name == TableHosts {
 			idLower := dedup.S(strings.ToLower(id))
@@ -179,6 +181,8 @@ func (d *DataStore) AddItem(row *DataRow) {
 		}
 	case 2:
 		id1, id2 := row.GetID2()
+		id1 = dedup.S(id1)
+		id2 = dedup.S(id2)
 		if _, ok := d.Index2[id1]; !ok {
 			d.Index2[id1] = make(map[string]*DataRow)
 		}
