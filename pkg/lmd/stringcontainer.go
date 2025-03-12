@@ -8,7 +8,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-const DefaultCompressionMinimumSize = 1024
+const DefaultCompressionMinimumSize = 512
 
 // CompressionMinimumSize sets the minimum number of characters to use compression..
 var CompressionMinimumSize = DefaultCompressionMinimumSize
