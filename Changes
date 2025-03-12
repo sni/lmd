@@ -1,6 +1,7 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
 next:
+          - performance improvements, use atomic operations instead of locks
           - use fallback addresses only if all primary fail
           - add more columns to downtimes_with_info
           - add more columns to comments_with_info
