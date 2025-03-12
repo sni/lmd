@@ -1,6 +1,8 @@
 module lmd
 
-go 1.22
+go 1.23.0
+
+toolchain go1.23.6
 
 require (
 	github.com/BurntSushi/toml v1.4.0
@@ -12,7 +14,7 @@ require (
 	github.com/kdar/factorlog v0.0.0-20211012144011-6ea75a169038
 	github.com/klauspost/compress v1.18.0
 	github.com/lkarlslund/stringdedup v0.6.2
-	github.com/prometheus/client_golang v1.21.0
+	github.com/prometheus/client_golang v1.21.1
 	github.com/sasha-s/go-deadlock v0.3.5
 	github.com/stretchr/testify v1.10.0
 )
@@ -35,7 +37,7 @@ require (
 	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6 // indirect
-	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
