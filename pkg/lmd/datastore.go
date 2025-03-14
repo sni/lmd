@@ -58,8 +58,11 @@ func NewDataStore(table *Table, peer *Peer) (d *DataStore) {
 				table.Lock.Lock()
 				writeLocked = true
 			}
-			col.Index = dataSizes[col.DataType]
-			dataSizes[col.DataType]++
+			// check index again, might have been updated meanwhile
+			if col.Index == -1 {
+				col.Index = dataSizes[col.DataType]
+				dataSizes[col.DataType]++
+			}
 		}
 		if col.FetchType == Dynamic {
 			d.DynamicColumnCache = append(d.DynamicColumnCache, col)
