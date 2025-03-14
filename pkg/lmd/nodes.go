@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/sasha-s/go-deadlock"
 )
 
 var reNodeAddress = regexp.MustCompile(`^(https?)?(://)?(.*?)(:(\d+))?(/.*)?$`)
@@ -20,9 +22,10 @@ var reNodeAddress = regexp.MustCompile(`^(https?)?(://)?(.*?)(:(\d+))?(/.*)?$`)
 // Nodes is the cluster management object.
 type Nodes struct {
 	noCopy           noCopy
-	HTTPClient       *http.Client
-	WaitGroupInit    *sync.WaitGroup
-	ShutdownChannel  chan bool
+	lock             *deadlock.RWMutex
+	httpClient       *http.Client
+	waitGroupInit    *sync.WaitGroup
+	shutdownChannel  chan bool
 	lmd              *Daemon
 	stopChannel      chan bool
 	nodeBackends     map[string][]string
@@ -73,14 +76,15 @@ func (a *NodeAddressList) String() string {
 // NewNodes creates a new cluster manager.
 func NewNodes(lmd *Daemon, addresses []string, listen string) *Nodes {
 	node := &Nodes{
-		WaitGroupInit:   lmd.waitGroupInit,
-		ShutdownChannel: lmd.shutdownChannel,
+		waitGroupInit:   lmd.waitGroupInit,
+		shutdownChannel: lmd.shutdownChannel,
 		stopChannel:     make(chan bool),
 		nodeBackends:    make(map[string][]string),
+		lock:            new(deadlock.RWMutex),
 		lmd:             lmd,
 	}
 	tlsConfig := getMinimalTLSConfig(lmd.Config)
-	node.HTTPClient = NewLMDHTTPClient(tlsConfig, "")
+	node.httpClient = NewLMDHTTPClient(tlsConfig, "")
 	for i := range lmd.Config.Connections {
 		node.backends = append(node.backends, lmd.Config.Connections[i].ID)
 	}
@@ -165,7 +169,7 @@ func (n *Nodes) Initialize(ctx context.Context) {
 	*ownIdentifier += ":" + generateUUID()
 
 	// Wait for own listener(s) to initialize
-	n.WaitGroupInit.Wait()
+	n.waitGroupInit.Wait()
 
 	// Start all peers in single mode
 	if !n.IsClustered() {
@@ -213,7 +217,7 @@ func (n *Nodes) loop(ctx context.Context) {
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	for {
 		select {
-		case <-n.ShutdownChannel:
+		case <-n.shutdownChannel:
 			ticker.Stop()
 
 			return
@@ -260,7 +264,9 @@ func (n *Nodes) checkNodeAvailability(ctx context.Context) {
 				redistribute = true
 			}
 			if isOnline {
+				n.lock.Lock()
 				newOnlineNodes = append(newOnlineNodes, node)
+				n.lock.Unlock()
 			}
 			waitGroup.Done()
 		}(&waitGroup, node)
@@ -280,8 +286,16 @@ func (n *Nodes) checkNodeAvailability(ctx context.Context) {
 	}
 
 	// Redistribute backends
+	needRedistribute := false
+	n.lock.RLock()
 	if redistribute || n.onlineNodes.String() != newOnlineNodes.String() {
+		needRedistribute = true
+	}
+	n.lock.RUnlock()
+	if needRedistribute {
+		n.lock.Lock()
 		n.onlineNodes = newOnlineNodes
+		n.lock.Unlock()
 		n.redistribute(ctx)
 	}
 }
@@ -414,6 +428,8 @@ func (n *Nodes) getOnlineNodes() (ownIndex int, nodeOnline []bool, numberAllNode
 	numberAvailableNodes = 0
 	nodeOnline = make([]bool, numberAllNodes)
 	ownIndex = -1
+	n.lock.RLock()
+	defer n.lock.RUnlock()
 	for idx, node := range allNodes {
 		isOnline := false
 		for _, otherNode := range n.onlineNodes {
@@ -473,7 +489,7 @@ func (n *Nodes) SendQuery(ctx context.Context, node *NodeAddress, name string, p
 	url := node.url + "query"
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(rawRequest))
 	req.Header.Set("Content-Type", contentType)
-	res, err := n.HTTPClient.Do(req)
+	res, err := n.httpClient.Do(req)
 	if err != nil {
 		log.Debugf("error sending query (%s) to node (%s): %s", name, node, err.Error())
 
