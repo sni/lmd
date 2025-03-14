@@ -77,11 +77,11 @@ func (res *ResultSet) Precompress(offset int, columns ColumnList) {
 
 // SortByPrimaryKey sorts the resultset by their primary columns.
 func (res *ResultSet) SortByPrimaryKey(table *Table, req *Request) ResultSet {
-	if len(table.PrimaryKey) == 0 {
+	if len(table.primaryKey) == 0 {
 		return *res
 	}
 	sorted := ResultSetSorted{Data: *res}
-	for _, name := range table.PrimaryKey {
+	for _, name := range table.primaryKey {
 		for x, col := range req.Columns {
 			if name == col {
 				sorted.Keys = append(sorted.Keys, x)

@@ -101,7 +101,7 @@ func TestRequestHeaderFilter1(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: name != test\n"))
 	req, _, _ := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
 	assert.Len(t, req.Filter, 1)
-	assert.Equal(t, "name", req.Filter[0].Column.Name)
+	assert.Equal(t, "name", req.Filter[0].column.Name)
 }
 
 func TestRequestHeaderFilter2(t *testing.T) {
@@ -109,9 +109,9 @@ func TestRequestHeaderFilter2(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces \n"))
 	req, _, _ := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
 	assert.Len(t, req.Filter, 2)
-	assert.Equal(t, "state", req.Filter[0].Column.Name)
-	assert.Equal(t, "name", req.Filter[1].Column.Name)
-	assert.Equal(t, "with spaces", req.Filter[1].StrValue)
+	assert.Equal(t, "state", req.Filter[0].column.Name)
+	assert.Equal(t, "name", req.Filter[1].column.Name)
+	assert.Equal(t, "with spaces", req.Filter[1].stringVal)
 }
 
 func TestRequestHeaderFilter3(t *testing.T) {
@@ -119,8 +119,8 @@ func TestRequestHeaderFilter3(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces\nOr: 2"))
 	req, _, _ := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
 	assert.Len(t, req.Filter, 1)
-	assert.Len(t, req.Filter[0].Filter, 2)
-	assert.Equal(t, Or, req.Filter[0].GroupOperator)
+	assert.Len(t, req.Filter[0].filter, 2)
+	assert.Equal(t, Or, req.Filter[0].groupOperator)
 }
 
 func TestRequestHeaderFilter4(t *testing.T) {
@@ -128,8 +128,8 @@ func TestRequestHeaderFilter4(t *testing.T) {
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces\nAnd: 2"))
 	req, _, _ := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
 	assert.Len(t, req.Filter, 2)
-	assert.Empty(t, req.Filter[0].Filter)
-	assert.Equal(t, "state", req.Filter[0].Column.Name)
+	assert.Empty(t, req.Filter[0].filter)
+	assert.Equal(t, "state", req.Filter[0].column.Name)
 }
 
 func TestRequestListFilter(t *testing.T) {
@@ -612,11 +612,11 @@ func TestHTTPCommands(t *testing.T) {
 
 	assert.Equal(t, "command broken", err.Error())
 	assert.Equal(t, 400, err.(*PeerCommandError).code)
-	assert.InDeltaf(t, 2.20, peer.ThrukVersion.Get(), 0, "version set correctly")
+	assert.InDeltaf(t, 2.20, peer.thrukVersion.Get(), 0, "version set correctly")
 
 	// newer thruk versions return result directly
 	thrukVersion := 2.26
-	peer.ThrukVersion.Set(thrukVersion)
+	peer.thrukVersion.Set(thrukVersion)
 
 	res, _, err = peer.QueryString("COMMAND [0] test_ok")
 	require.NoError(t, err)
@@ -628,7 +628,7 @@ func TestHTTPCommands(t *testing.T) {
 
 	assert.Equal(t, "command broken", err.Error())
 	assert.Equal(t, 400, err.(*PeerCommandError).code)
-	assert.InDeltaf(t, thrukVersion, peer.ThrukVersion.Get(), 0, "version set correctly")
+	assert.InDeltaf(t, thrukVersion, peer.thrukVersion.Get(), 0, "version set correctly")
 }
 
 func TestHTTPPeer(t *testing.T) {
@@ -1006,7 +1006,7 @@ ResponseHeader: fixed16
 
 	req, _, err := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	require.NoErrorf(t, err, "query successful")
-	assert.Equalf(t, "name_lc", req.Filter[0].Column.Name, "column name is correct")
+	assert.Equalf(t, "name_lc", req.Filter[0].column.Name, "column name is correct")
 
 	res, meta, err := peer.QueryString(query)
 	require.NoErrorf(t, err, "query string successful")
@@ -1023,7 +1023,7 @@ ResponseHeader: fixed16
 	`
 	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	require.NoErrorf(t, err, "request successful")
-	assert.Equalf(t, "host_name_lc", req.Filter[0].Column.Name, "column name is correct")
+	assert.Equalf(t, "host_name_lc", req.Filter[0].column.Name, "column name is correct")
 
 	res, meta, err = peer.QueryString(query)
 	require.NoErrorf(t, err, "request successful")
@@ -1040,7 +1040,7 @@ ResponseHeader: fixed16
 	`
 	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	require.NoErrorf(t, err, "request successful")
-	assert.Equalf(t, "host_alias_lc", req.Filter[0].Column.Name, "column name is correct")
+	assert.Equalf(t, "host_alias_lc", req.Filter[0].column.Name, "column name is correct")
 
 	res, meta, err = peer.QueryString(query)
 	require.NoErrorf(t, err, "query string successful")
@@ -1060,7 +1060,7 @@ ResponseHeader: fixed16
 	`
 	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	require.NoErrorf(t, err, "request successful")
-	assert.Equalf(t, "host_name_lc", req.Filter[0].Column.Name, "column name is correct")
+	assert.Equalf(t, "host_name_lc", req.Filter[0].column.Name, "column name is correct")
 
 	res, meta, err = peer.QueryString(query)
 	require.NoErrorf(t, err, "query string successful")
@@ -1079,7 +1079,7 @@ ResponseHeader: fixed16
 	`
 	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	require.NoErrorf(t, err, "request successful")
-	assert.Equalf(t, "host_name", req.Filter[0].Column.Name, "column name is correct")
+	assert.Equalf(t, "host_name", req.Filter[0].column.Name, "column name is correct")
 
 	res, meta, err = peer.QueryString(query)
 	require.NoErrorf(t, err, "query string successful")
@@ -1105,7 +1105,7 @@ func TestRequestLowercaseHostFilter(t *testing.T) {
 	`
 	req, _, err := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	require.NoErrorf(t, err, "request successful")
-	assert.Equalf(t, "alias_lc", req.Filter[0].Column.Name, "column name is correct")
+	assert.Equalf(t, "alias_lc", req.Filter[0].column.Name, "column name is correct")
 
 	res, meta, err := peer.QueryString(query)
 	require.NoErrorf(t, err, "query string successful")
@@ -1123,7 +1123,7 @@ func TestRequestLowercaseHostFilter(t *testing.T) {
 	`
 	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	require.NoErrorf(t, err, "request successful")
-	assert.Equalf(t, "name", req.Filter[0].Column.Name, "column name is correct")
+	assert.Equalf(t, "name", req.Filter[0].column.Name, "column name is correct")
 
 	res, meta, err = peer.QueryString(query)
 	require.NoErrorf(t, err, "query string successful")
@@ -1142,7 +1142,7 @@ func TestRequestLowercaseHostFilter(t *testing.T) {
 	`
 	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	require.NoErrorf(t, err, "request successful")
-	assert.Equalf(t, "name_lc", req.Filter[0].Column.Name, "column name is correct")
+	assert.Equalf(t, "name_lc", req.Filter[0].column.Name, "column name is correct")
 
 	res, meta, err = peer.QueryString(query)
 	require.NoErrorf(t, err, "query string successful")
@@ -1161,7 +1161,7 @@ func TestRequestLowercaseHostFilter(t *testing.T) {
 	`
 	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	require.NoErrorf(t, err, "request successful")
-	assert.Equalf(t, "name", req.Filter[0].Column.Name, "column name is correct")
+	assert.Equalf(t, "name", req.Filter[0].column.Name, "column name is correct")
 
 	res, meta, err = peer.QueryString(query)
 	require.NoErrorf(t, err, "query string successful")
@@ -1211,7 +1211,7 @@ func TestRequestLowercaseHostFilter2(t *testing.T) {
 		`
 		req, _, err := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 		require.NoErrorf(t, err, "request successful")
-		assert.Equalf(t, "name_lc", req.Filter[0].Column.Name, "column name is correct")
+		assert.Equalf(t, "name_lc", req.Filter[0].column.Name, "column name is correct")
 
 		res, meta, err := peer.QueryString(query)
 		require.NoErrorf(t, err, "query string successful: %s", pattern)
@@ -1265,7 +1265,7 @@ func TestRequestLowercaseHostFilter3(t *testing.T) {
 		`
 		req, _, err := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 		require.NoErrorf(t, err, "request successful")
-		assert.Equalf(t, "alias_lc", req.Filter[0].Column.Name, "column name is correct")
+		assert.Equalf(t, "alias_lc", req.Filter[0].column.Name, "column name is correct")
 
 		res, meta, err := peer.QueryString(query)
 		require.NoErrorf(t, err, "query string successful")
@@ -1540,10 +1540,10 @@ StatsAnd: 2
 	req, _, err := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
 	require.NoError(t, err)
 	assert.Len(t, req.StatsGrouped, 2)
-	assert.Equal(t, Counter, req.StatsGrouped[0].StatsType)
-	assert.Equal(t, StatsGroup, req.StatsGrouped[1].StatsType)
-	assert.Len(t, req.StatsGrouped[1].Filter, 3)
-	assert.Equal(t, 3, req.StatsGrouped[1].Filter[2].StatsPos)
+	assert.Equal(t, Counter, req.StatsGrouped[0].statsType)
+	assert.Equal(t, StatsGroup, req.StatsGrouped[1].statsType)
+	assert.Len(t, req.StatsGrouped[1].filter, 3)
+	assert.Equal(t, 3, req.StatsGrouped[1].filter[2].statsPos)
 }
 
 func TestStatsQueryOptimizer2(t *testing.T) {
@@ -1638,7 +1638,7 @@ func TestStatusJSONColumns(t *testing.T) {
 
 	jsonStr := `{"core_type":null,"obj_check_cmd":1,"obj_readonly":null,"obj_reload_cmd":1}`
 	peerKey := mockLmd.PeerMapOrder[0]
-	mockLmd.PeerMap[peerKey].ThrukExtras.Set(jsonStr)
+	mockLmd.PeerMap[peerKey].thrukExtras.Set(jsonStr)
 
 	res, _, err := peer.QueryString("GET status\nColumns: peer_key configtool thruk\n")
 	require.NoError(t, err)

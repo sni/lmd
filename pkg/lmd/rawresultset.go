@@ -19,22 +19,22 @@ type RawResultSet struct {
 // PostProcessing does all the post processing required for a request like sorting
 // and cutting of limits, applying offsets.
 func (raw *RawResultSet) PostProcessing(res *Response) {
-	if len(res.Request.Stats) > 0 {
+	if len(res.request.Stats) > 0 {
 		return
 	}
 	log.Tracef("PostProcessing")
 
 	// offset outside
-	if res.Request.Offset > raw.Total {
+	if res.request.Offset > raw.Total {
 		raw.DataResult = make([]*DataRow, 0)
 
 		return
 	}
 
 	// sort our result
-	if len(res.Request.Sort) > 0 {
+	if len(res.request.Sort) > 0 {
 		// skip sorting if there is only one backend requested and we want the default sort order
-		if len(res.Request.BackendsMap) >= 1 || !res.Request.IsDefaultSortOrder() {
+		if len(res.request.BackendsMap) >= 1 || !res.request.IsDefaultSortOrder() {
 			t1 := time.Now()
 			sort.Sort(raw)
 			duration := time.Since(t1)
@@ -43,13 +43,13 @@ func (raw *RawResultSet) PostProcessing(res *Response) {
 	}
 
 	// apply request offset
-	if res.Request.Offset > 0 {
-		raw.DataResult = raw.DataResult[res.Request.Offset:]
+	if res.request.Offset > 0 {
+		raw.DataResult = raw.DataResult[res.request.Offset:]
 	}
 
 	// apply request limit
-	if res.Request.Limit != nil && *res.Request.Limit >= 0 && *res.Request.Limit < len(raw.DataResult) {
-		raw.DataResult = raw.DataResult[0:*res.Request.Limit]
+	if res.request.Limit != nil && *res.request.Limit >= 0 && *res.request.Limit < len(raw.DataResult) {
+		raw.DataResult = raw.DataResult[0:*res.request.Limit]
 	}
 }
 

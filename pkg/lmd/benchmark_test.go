@@ -19,8 +19,8 @@ func BenchmarkParseResultJSON(b *testing.B) {
 	columns := make([]string, 0)
 	data := peer.data.Load()
 	store := data.Get(TableServices)
-	for i := range store.table.Columns {
-		col := store.table.Columns[i]
+	for i := range store.table.columns {
+		col := store.table.columns[i]
 		if col.StorageType == LocalStore && col.Optional == NoFlags {
 			columns = append(columns, col.Name)
 		}
@@ -31,7 +31,7 @@ func BenchmarkParseResultJSON(b *testing.B) {
 	conn, connType, err := peer.GetConnection(req)
 	require.NoError(b, err)
 
-	resBytes, _, err := peer.getQueryResponse(context.TODO(), req, req.String(), peer.PeerAddr.Get(), conn, connType)
+	resBytes, _, err := peer.getQueryResponse(context.TODO(), req, req.String(), peer.peerAddr.Get(), conn, connType)
 	require.NoError(b, err)
 
 	b.StartTimer()
@@ -61,8 +61,8 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 	columns := make([]string, 0)
 	data := peer.data.Load()
 	store := data.Get(TableServices)
-	for i := range store.table.Columns {
-		col := store.table.Columns[i]
+	for i := range store.table.columns {
+		col := store.table.columns[i]
 		if col.StorageType == LocalStore && col.Optional == NoFlags {
 			columns = append(columns, col.Name)
 		}
@@ -73,7 +73,7 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 	conn, connType, err := peer.GetConnection(req)
 	require.NoError(b, err)
 
-	resBytes, _, err := peer.getQueryResponse(context.TODO(), req, req.String(), peer.PeerAddr.Get(), conn, connType)
+	resBytes, _, err := peer.getQueryResponse(context.TODO(), req, req.String(), peer.peerAddr.Get(), conn, connType)
 	require.NoError(b, err)
 
 	b.StartTimer()
@@ -123,7 +123,7 @@ func BenchmarkPeerUpdateServiceInsert(b *testing.B) {
 	data := peer.data.Load()
 	table := data.Get(TableServices)
 	req := &Request{
-		Table:           table.table.Name,
+		Table:           table.table.name,
 		Columns:         table.dynamicColumnNamesCache,
 		ResponseFixed16: true,
 		OutputFormat:    OutputFormatJSON,

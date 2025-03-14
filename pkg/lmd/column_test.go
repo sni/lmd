@@ -11,10 +11,10 @@ func TestColumnFlag(t *testing.T) {
 	connection := Connection{Name: "Test", Source: []string{"http://localhost/test/"}}
 	peer := NewPeer(lmd, &connection)
 
-	assert.Equal(t, uint32(NoFlags), peer.Flags)
+	assert.Equal(t, uint32(NoFlags), peer.flags)
 
 	peer.SetFlag(Naemon)
-	assert.Equal(t, uint32(Naemon), peer.Flags)
+	assert.Equal(t, uint32(Naemon), peer.flags)
 	assert.True(t, peer.HasFlag(Naemon))
 	assert.False(t, peer.HasFlag(HasDependencyColumn))
 
@@ -24,7 +24,7 @@ func TestColumnFlag(t *testing.T) {
 
 	peer.ResetFlags()
 	assert.False(t, peer.HasFlag(Naemon))
-	assert.Equal(t, uint32(NoFlags), peer.Flags)
+	assert.Equal(t, uint32(NoFlags), peer.flags)
 }
 
 func TestColumnList(t *testing.T) {

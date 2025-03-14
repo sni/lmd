@@ -104,15 +104,15 @@ func (ex *Exporter) exportPeers() (err error) {
 		total += written
 		for _, table := range Objects.Tables {
 			switch {
-			case table.PassthroughOnly:
+			case table.passthroughOnly:
 				continue
-			case table.Name == TableBackends:
+			case table.name == TableBackends:
 				continue
-			case table.Name == TableSites:
+			case table.name == TableSites:
 				continue
-			case table.Name == TableColumns:
+			case table.name == TableColumns:
 				continue
-			case table.Virtual != nil:
+			case table.virtual != nil:
 				continue
 			default:
 				written, err = ex.addTable(peer, table)
@@ -143,9 +143,9 @@ func (ex *Exporter) addDir(name string) (err error) {
 }
 
 func (ex *Exporter) addTable(peer *Peer, table *Table) (written int64, err error) {
-	logWith(peer).Debugf("exporting table: %s", table.Name.String())
+	logWith(peer).Debugf("exporting table: %s", table.name.String())
 	req := &Request{
-		Table:           table.Name,
+		Table:           table.name,
 		Columns:         ex.exportableColumns(peer, table),
 		ColumnsHeaders:  true,
 		ResponseFixed16: true,
@@ -169,7 +169,7 @@ func (ex *Exporter) addTable(peer *Peer, table *Table) (written int64, err error
 	}
 
 	header := &tar.Header{
-		Name:    fmt.Sprintf("sites/%s/%s.json", peer.ID, table.Name.String()),
+		Name:    fmt.Sprintf("sites/%s/%s.json", peer.ID, table.name.String()),
 		Size:    int64(buf.Len()),
 		Mode:    DefaultFilePerm,
 		ModTime: ex.exportTime,
@@ -227,7 +227,7 @@ func (ex *Exporter) initPeers(ctx context.Context) {
 	hasSubPeers := false
 	for _, id := range ex.lmd.PeerMapOrder {
 		peer := ex.lmd.PeerMap[id]
-		if peer.ParentID == "" {
+		if peer.parentID == "" {
 			continue
 		}
 		hasSubPeers = true
@@ -253,7 +253,7 @@ func (ex *Exporter) initPeers(ctx context.Context) {
 
 // exportableColumns generates list of columns to export.
 func (ex *Exporter) exportableColumns(p *Peer, t *Table) (columns []string) {
-	for _, col := range t.Columns {
+	for _, col := range t.columns {
 		if ex.isExportColumn(p, col) {
 			columns = append(columns, col.Name)
 		}
@@ -267,10 +267,10 @@ func (ex *Exporter) isExportColumn(p *Peer, col *Column) bool {
 	if col.Optional != NoFlags && !p.HasFlag(col.Optional) {
 		return false
 	}
-	if col.Table.Name == TableSites {
+	if col.Table.name == TableSites {
 		return true
 	}
-	if col.Table.Name == TableStatus {
+	if col.Table.name == TableStatus {
 		return true
 	}
 	if col.StorageType == RefStore {

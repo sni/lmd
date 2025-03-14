@@ -202,7 +202,7 @@ func (l *LogPrefixer) prefix() (prefix string) {
 		case *Request:
 			prefix = fmt.Sprintf("%s[%s]", prefix, val.ID())
 		case *Response:
-			prefix = fmt.Sprintf("%s[%s]", prefix, val.Request.ID())
+			prefix = fmt.Sprintf("%s[%s]", prefix, val.request.ID())
 		case *ClientConnection:
 			prefix = fmt.Sprintf("%s[%s->%s]", prefix, val.remoteAddr, val.localAddr)
 		case *DataRow:

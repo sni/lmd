@@ -10,44 +10,44 @@ import (
 func TestStringFilter(t *testing.T) {
 	// compare empty strings
 	val := ""
-	assert.True(t, (&Filter{Operator: Equal, StrValue: ""}).MatchString(val))
-	assert.False(t, (&Filter{Operator: Unequal, StrValue: ""}).MatchString(val))
+	assert.True(t, (&Filter{operator: Equal, stringVal: ""}).MatchString(val))
+	assert.False(t, (&Filter{operator: Unequal, stringVal: ""}).MatchString(val))
 }
 
 func TestStringListFilter(t *testing.T) {
 	value := []string{"abc", "def"}
-	assert.True(t, (&Filter{Operator: GreaterThan, StrValue: "def"}).MatchStringList(value))
-	assert.False(t, (&Filter{Operator: GreaterThan, StrValue: "xyz"}).MatchStringList(value))
+	assert.True(t, (&Filter{operator: GreaterThan, stringVal: "def"}).MatchStringList(value))
+	assert.False(t, (&Filter{operator: GreaterThan, stringVal: "xyz"}).MatchStringList(value))
 }
 
 func TestStringListNegatedFilter(t *testing.T) {
 	value := []string{"abc", "def"}
-	assert.False(t, (&Filter{Operator: ContainsNot, StrValue: "def"}).MatchStringList(value))
-	assert.True(t, (&Filter{Operator: GroupContainsNot, StrValue: "xyz"}).MatchStringList(value))
+	assert.False(t, (&Filter{operator: ContainsNot, stringVal: "def"}).MatchStringList(value))
+	assert.True(t, (&Filter{operator: GroupContainsNot, stringVal: "xyz"}).MatchStringList(value))
 
 	value = []string{}
-	assert.True(t, (&Filter{Operator: ContainsNot, StrValue: "def"}).MatchStringList(value))
-	assert.True(t, (&Filter{Operator: GroupContainsNot, StrValue: "xyz"}).MatchStringList(value))
+	assert.True(t, (&Filter{operator: ContainsNot, stringVal: "def"}).MatchStringList(value))
+	assert.True(t, (&Filter{operator: GroupContainsNot, stringVal: "xyz"}).MatchStringList(value))
 }
 
 func TestInt64ListFilter(t *testing.T) {
 	value := []int64{1, 2, 3, 4, 5}
-	assert.True(t, (&Filter{Operator: GreaterThan, IntValue: 5}).MatchInt64List(value))
-	assert.False(t, (&Filter{Operator: GreaterThan, IntValue: 6}).MatchInt64List(value))
+	assert.True(t, (&Filter{operator: GreaterThan, intValue: 5}).MatchInt64List(value))
+	assert.False(t, (&Filter{operator: GreaterThan, intValue: 6}).MatchInt64List(value))
 }
 
 func TestRegexpStringFilter(t *testing.T) {
 	value := "1"
 	regex := regexp.MustCompile("[12]")
-	assert.True(t, (&Filter{Operator: RegexMatch, Regexp: regex}).MatchString(value))
+	assert.True(t, (&Filter{operator: RegexMatch, regexp: regex}).MatchString(value))
 	regex = regexp.MustCompile("[02]")
-	assert.False(t, (&Filter{Operator: RegexMatch, Regexp: regex}).MatchString(value))
+	assert.False(t, (&Filter{operator: RegexMatch, regexp: regex}).MatchString(value))
 }
 
 func TestRegexpListFilter(t *testing.T) {
 	value := []int64{1, 2, 3, 4, 5}
-	assert.True(t, (&Filter{Operator: GreaterThan, IntValue: 5}).MatchInt64List(value))
-	assert.False(t, (&Filter{Operator: GreaterThan, IntValue: 6}).MatchInt64List(value))
+	assert.True(t, (&Filter{operator: GreaterThan, intValue: 5}).MatchInt64List(value))
+	assert.False(t, (&Filter{operator: GreaterThan, intValue: 6}).MatchInt64List(value))
 }
 
 func TestRegexpDetection(t *testing.T) {

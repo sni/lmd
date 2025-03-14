@@ -107,7 +107,7 @@ func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (s
 
 	// fetch remote objects
 	req := &Request{
-		Table:   store.table.Name,
+		Table:   store.table.name,
 		Columns: keys,
 	}
 	peer.setQueryOptions(req)
@@ -122,12 +122,12 @@ func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (s
 	keyLen := len(keys)
 	for i, row := range res {
 		if len(row) != keyLen {
-			err = fmt.Errorf("%s result set verification failed: len mismatch in row %d, expected %d columns and got %d", store.table.Name.String(), i, keyLen, len(row))
-			if peer.ErrorCount.Load() > 0 {
+			err = fmt.Errorf("%s result set verification failed: len mismatch in row %d, expected %d columns and got %d", store.table.name.String(), i, keyLen, len(row))
+			if peer.errorCount.Load() > 0 {
 				// silently cancel, backend broke during initialization, should have been logged already
-				log.Debugf("error during %s initialization, but backend is already failed: %s", &table.Name, err.Error())
+				log.Debugf("error during %s initialization, but backend is already failed: %s", &table.name, err.Error())
 			} else {
-				log.Errorf("error during %s initialization: %s", &table.Name, err.Error())
+				log.Errorf("error during %s initialization: %s", &table.name, err.Error())
 			}
 
 			return nil, err
@@ -150,11 +150,11 @@ func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (s
 
 	time3 := time.Now()
 
-	peer.LastUpdate.Set(now)
-	peer.LastFullUpdate.Set(now)
+	peer.lastUpdate.Set(now)
+	peer.lastFullUpdate.Set(now)
 	durationLock := time.Since(time3).Truncate(time.Millisecond)
 
-	tableName := table.Name.String()
+	tableName := table.name.String()
 	promObjectCount.WithLabelValues(peer.Name, tableName).Set(float64(len(res)))
 
 	logWith(peer, req).Debugf("initial table: %15s - fetch: %9s - prepare: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
@@ -166,10 +166,10 @@ func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (s
 // SetReferences creates reference entries for all tables.
 func (ds *DataStoreSet) SetReferences() (err error) {
 	for tableName, table := range Objects.Tables {
-		if table.Virtual != nil {
+		if table.virtual != nil {
 			continue
 		}
-		if len(table.RefTables) == 0 {
+		if len(table.refTables) == 0 {
 			continue
 		}
 		store := ds.Get(tableName)
@@ -214,17 +214,17 @@ func (ds *DataStoreSet) UpdateFull(ctx context.Context, tables []TableName) (err
 	}
 	peer := ds.peer
 	duration := time.Since(time1)
-	peerState := peer.PeerState.Get()
+	peerState := peer.peerState.Get()
 	switch peerState {
 	case PeerStatusUp, PeerStatusPending, PeerStatusSyncing:
 	default:
-		logWith(peer).Infof("site soft recovered from short outage (reason: %s - %s)", peerState.String(), peer.LastError.Get())
+		logWith(peer).Infof("site soft recovered from short outage (reason: %s - %s)", peerState.String(), peer.lastError.Get())
 	}
 	now := currentUnixTime()
 	peer.resetErrors()
-	peer.LastUpdate.Set(now)
-	peer.LastFullUpdate.Set(now)
-	peer.ResponseTime.Set(duration.Seconds())
+	peer.lastUpdate.Set(now)
+	peer.lastFullUpdate.Set(now)
+	peer.responseTime.Set(duration.Seconds())
 	logWith(peer).Debugf("full update complete in: %s", duration.String())
 	promPeerUpdates.WithLabelValues(peer.Name).Inc()
 	promPeerUpdateDuration.WithLabelValues(peer.Name).Set(duration.Seconds())
@@ -299,10 +299,10 @@ func (ds *DataStoreSet) UpdateDelta(ctx context.Context, from, until float64) (e
 	logWith(peer).Debugf("delta update complete in: %s", duration.Truncate(time.Millisecond).String())
 
 	peer.resetErrors()
-	peer.LastUpdate.Set(until)
-	peer.ResponseTime.Set(duration.Seconds())
+	peer.lastUpdate.Set(until)
+	peer.responseTime.Set(duration.Seconds())
 
-	peerState := peer.PeerState.Get()
+	peerState := peer.peerState.Get()
 	if peerState != PeerStatusUp && peerState != PeerStatusPending {
 		logWith(peer).Infof("site soft recovered from short outage")
 	}
@@ -412,7 +412,7 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 	durationInsert := time.Since(time3).Truncate(time.Millisecond)
 
 	p := ds.peer
-	tableName := table.table.Name.String()
+	tableName := table.table.name.String()
 	promObjectUpdate.WithLabelValues(p.Name, tableName).Add(float64(len(res)))
 	logWith(p, resMeta.Request).Debugf("up. %-5s table: %15s - fetch: %9s - prep: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
 		updateType, tableName, resMeta.Duration.Truncate(time.Millisecond), durationPrepare, durationLock, durationInsert, len(updateSet), resMeta.Size/1024)
@@ -423,14 +423,14 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 // updateDeltaFullScanHostsServices is a table independent wrapper for UpdateDeltaFullScan
 // It returns true if an update was done and any error encountered.
 func (ds *DataStoreSet) updateDeltaFullScanHostsServices(ctx context.Context, store *DataStore, filterStr string, updateThreshold int64) (updated bool, err error) {
-	switch store.table.Name {
+	switch store.table.name {
 	case TableServices:
-		updated, err = ds.updateFullScan(ctx, store, &ds.peer.LastFullServiceUpdate, filterStr, updateThreshold, ds.UpdateDeltaServices)
+		updated, err = ds.updateFullScan(ctx, store, &ds.peer.lastFullServiceUpdate, filterStr, updateThreshold, ds.UpdateDeltaServices)
 	case TableHosts:
-		updated, err = ds.updateFullScan(ctx, store, &ds.peer.LastFullHostUpdate, filterStr, updateThreshold, ds.UpdateDeltaHosts)
+		updated, err = ds.updateFullScan(ctx, store, &ds.peer.lastFullHostUpdate, filterStr, updateThreshold, ds.UpdateDeltaHosts)
 	default:
 		p := ds.peer
-		logWith(p).Panicf("not implemented for: %s", store.table.Name.String())
+		logWith(p).Panicf("not implemented for: %s", store.table.name.String())
 	}
 
 	return
@@ -469,9 +469,9 @@ func (ds *DataStoreSet) updateFullScan(ctx context.Context, store *DataStore, la
 	}
 
 	// used to sort result later
-	scanColumns = append(scanColumns, store.table.PrimaryKey...)
+	scanColumns = append(scanColumns, store.table.primaryKey...)
 	req := &Request{
-		Table:   store.table.Name,
+		Table:   store.table.name,
 		Columns: scanColumns,
 	}
 	peer.setQueryOptions(req)
@@ -485,7 +485,7 @@ func (ds *DataStoreSet) updateFullScan(ctx context.Context, store *DataStore, la
 
 	columns := make(ColumnList, len(scanColumns))
 	for i, name := range scanColumns {
-		col := store.table.ColumnsIndex[name]
+		col := store.table.columnsIndex[name]
 		columns[i] = col
 	}
 
@@ -495,15 +495,15 @@ func (ds *DataStoreSet) updateFullScan(ctx context.Context, store *DataStore, la
 	}
 
 	if len(missing) == 0 {
-		logWith(ds, req).Tracef("%s delta scan did not find any timestamps", store.table.Name.String())
+		logWith(ds, req).Tracef("%s delta scan did not find any timestamps", store.table.name.String())
 
 		return false, nil
 	}
 
-	logWith(ds, req).Debugf("%s delta scan going to update %d timestamps", store.table.Name.String(), len(missing))
+	logWith(ds, req).Debugf("%s delta scan going to update %d timestamps", store.table.name.String(), len(missing))
 	timestampFilter := composeTimestampFilter(missing, "last_check")
 	if len(timestampFilter) > missedTimestampMaxFilter {
-		msg := fmt.Sprintf("%s delta scan timestamp filter too complex: %d", store.table.Name.String(), len(timestampFilter))
+		msg := fmt.Sprintf("%s delta scan timestamp filter too complex: %d", store.table.name.String(), len(timestampFilter))
 		logWith(ds, req).Debugf("%s", msg)
 		// sync at least a few to get back on track
 		missing = missing[0 : missedTimestampMaxFilter-1]
@@ -545,9 +545,9 @@ func (ds *DataStoreSet) getMissingTimestamps(ctx context.Context, store *DataSto
 		}
 
 		err = &PeerError{msg: fmt.Sprintf("%s cache not ready, got %d entries but only have %d in cache",
-			store.table.Name.String(), len(res), len(data)), kind: ResponseError}
+			store.table.name.String(), len(res), len(data)), kind: ResponseError}
 		logWith(peer).Warnf("%s", err.Error())
-		peer.setBroken(fmt.Sprintf("got more %s than expected. Hint: check clients 'max_response_size' setting.", store.table.Name.String()))
+		peer.setBroken(fmt.Sprintf("got more %s than expected. Hint: check clients 'max_response_size' setting.", store.table.name.String()))
 
 		return nil, err
 	}
@@ -728,10 +728,10 @@ func (ds *DataStoreSet) UpdateFullTable(ctx context.Context, tableName TableName
 
 	columns := store.dynamicColumnNamesCache
 	// primary keys are not required, we fetch everything anyway
-	primaryKeysLen := len(store.table.PrimaryKey)
+	primaryKeysLen := len(store.table.primaryKey)
 
 	req := &Request{
-		Table:   store.table.Name,
+		Table:   store.table.name,
 		Columns: columns,
 	}
 	peer.setQueryOptions(req)
@@ -750,7 +750,7 @@ func (ds *DataStoreSet) UpdateFullTable(ctx context.Context, tableName TableName
 	store.lock.RUnlock()
 	if len(res) != len(data) {
 		err = fmt.Errorf("site returned different number of objects, assuming backend has been restarted, table: %s, expected: %d, received: %d",
-			store.table.Name.String(), len(data), len(res))
+			store.table.name.String(), len(data), len(res))
 		logWith(peer).Debugf("%s", err.Error())
 
 		return &PeerError{msg: err.Error(), kind: RestartRequiredError}
@@ -763,7 +763,7 @@ func (ds *DataStoreSet) UpdateFullTable(ctx context.Context, tableName TableName
 	case TableTimeperiods:
 		// check for changed timeperiods, because we have to update the linked hosts and services as well
 		err = ds.updateTimeperiodsData(ctx, primaryKeysLen, store, res, store.dynamicColumnCache)
-		peer.LastTimeperiodUpdateMinute.Store(int32(interface2int8(time.Now().Format("4"))))
+		peer.lastTimeperiodUpdateMinute.Store(int32(interface2int8(time.Now().Format("4"))))
 		if err != nil {
 			return err
 		}
@@ -796,14 +796,14 @@ func (ds *DataStoreSet) skipTableUpdate(store *DataStore, table TableName) (bool
 	if store == nil {
 		return true, fmt.Errorf("skipped table %s update, store not initialized", table.String())
 	}
-	if store.table.Virtual != nil {
+	if store.table.virtual != nil {
 		return true, nil
 	}
 	// no updates for passthrough tables, ex.: log
-	if store.table.PassthroughOnly {
+	if store.table.passthroughOnly {
 		return true, nil
 	}
-	if ds.peer.HasFlag(MultiBackend) && store.table.Name != TableStatus {
+	if ds.peer.HasFlag(MultiBackend) && store.table.name != TableStatus {
 		return true, nil
 	}
 	if len(store.dynamicColumnNamesCache) == 0 {

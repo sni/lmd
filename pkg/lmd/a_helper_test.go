@@ -171,7 +171,7 @@ func prepareTmpData(dataFolder string, nr, numHosts, numServices int) (tempFolde
 	}
 	// read existing json files and extend hosts and services
 	for name, table := range Objects.Tables {
-		if table.Virtual != nil {
+		if table.virtual != nil {
 			continue
 		}
 		file, err := os.Create(fmt.Sprintf("%s/%s.map", tempFolder, name.String()))
@@ -202,7 +202,7 @@ func prepareTmpData(dataFolder string, nr, numHosts, numServices int) (tempFolde
 }
 
 func prepareTmpDataHostService(dataFolder, tempFolder string, table *Table, numHosts, numServices int) {
-	name := table.Name
+	name := table.name
 	dat, _ := os.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, name.String()))
 	raw := make([]map[string]interface{}, 0)
 	err := json.Unmarshal(dat, &raw)

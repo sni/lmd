@@ -34,8 +34,8 @@ func BuildTableColumnsStore(table *Table) *DataStore {
 	store := NewDataStore(table, nil)
 	data := make(ResultSet, 0)
 	for _, table := range Objects.Tables {
-		for i := range table.Columns {
-			col := table.Columns[i]
+		for i := range table.columns {
+			col := table.columns[i]
 			if col.StorageType == RefStore {
 				continue
 			}
@@ -50,11 +50,11 @@ func BuildTableColumnsStore(table *Table) *DataStore {
 			case StringListCol, Int64ListCol, ServiceMemberListCol, InterfaceListCol, CustomVarCol:
 				colTypeName = "list"
 			default:
-				log.Panicf("type not handled in table %s: %#v", table.Name.String(), col)
+				log.Panicf("type not handled in table %s: %#v", table.name.String(), col)
 			}
 			row := []interface{}{
 				col.Name,
-				table.Name.String(),
+				table.name.String(),
 				colTypeName,
 				col.Description,
 				col.FetchType.String(),
@@ -66,7 +66,7 @@ func BuildTableColumnsStore(table *Table) *DataStore {
 		}
 	}
 	columns := make(ColumnList, 0)
-	for _, col := range table.Columns {
+	for _, col := range table.columns {
 		if col.StorageType == RefStore {
 			continue
 		}
@@ -89,7 +89,7 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 	store.dataSet = peer.data.Load()
 	data := make(ResultSet, 0)
 	dataSet := store.dataSet
-	switch store.table.Name {
+	switch store.table.name {
 	case TableHostsbygroup:
 		table := dataSet.Get(TableHosts)
 		table.lock.RLock()
@@ -134,7 +134,7 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 			}
 		}
 	default:
-		log.Panicf("GetGroupByData not implemented for table: %s", store.table.Name.String())
+		log.Panicf("GetGroupByData not implemented for table: %s", store.table.name.String())
 	}
 	_, columns := store.GetInitialColumns()
 	err := store.InsertData(data, columns, true)

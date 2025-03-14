@@ -138,42 +138,42 @@ func (t *TableName) String() string {
 // Table defines available columns and table options.
 type Table struct {
 	noCopy          noCopy
-	DataSizes       map[DataType]int   // contains size used for the datastore
-	Lock            *deadlock.RWMutex  // must be used for DataSizes access
-	ColumnsIndex    map[string]*Column // access columns by name
-	Virtual         VirtualStoreResolveFunc
-	PrimaryKey      []string
-	RefTables       []TableRef // referenced tables
-	DefaultSort     []string   // columns used to sort if nothing is specified
-	Columns         ColumnList
-	Name            TableName
-	WorksUnlocked   bool // flag wether locking the peer.DataLock can be skipped to answer the query
-	PassthroughOnly bool // flag wether table will be cached or simply passed through to remote sites
+	name            TableName
+	dataSizes       map[DataType]int   // contains size used for the datastore
+	lock            *deadlock.RWMutex  // must be used for DataSizes access
+	columnsIndex    map[string]*Column // access columns by name
+	virtual         VirtualStoreResolveFunc
+	primaryKey      []string
+	refTables       []TableRef // referenced tables
+	defaultSort     []string   // columns used to sort if nothing is specified
+	columns         ColumnList
+	worksUnlocked   bool // flag wether locking the peer.DataLock can be skipped to answer the query
+	passthroughOnly bool // flag wether table will be cached or simply passed through to remote sites
 }
 
 // GetColumn returns a column for given name or nil if not found.
 func (t *Table) GetColumn(name string) *Column {
-	return t.ColumnsIndex[name]
+	return t.columnsIndex[name]
 }
 
 // GetColumnWithFallback returns a column for list of names, returns empty column as fallback.
 func (t *Table) GetColumnWithFallback(name string) *Column {
-	col, ok := t.ColumnsIndex[name]
+	col, ok := t.columnsIndex[name]
 	if ok {
 		return col
 	}
-	if !fixBrokenClientsRequestColumn(&name, t.Name) {
+	if !fixBrokenClientsRequestColumn(&name, t.name) {
 		return t.GetEmptyColumn()
 	}
 
-	return t.ColumnsIndex[name]
+	return t.columnsIndex[name]
 }
 
 // GetColumns returns a column list for list of names.
 func (t *Table) GetColumns(names []string) ColumnList {
 	columns := make(ColumnList, 0, len(names))
 	for i := range names {
-		columns = append(columns, t.ColumnsIndex[names[i]])
+		columns = append(columns, t.columnsIndex[names[i]])
 	}
 
 	return columns
@@ -217,11 +217,11 @@ func (t *Table) AddRefColumns(tableName TableName, prefix string, localName []st
 		log.Panicf("no such reference %s from column %s", tableName.String(), strings.Join(localName, ","))
 	}
 
-	t.RefTables = append(t.RefTables, TableRef{Table: refTable, Columns: t.GetColumns(localName)})
+	t.refTables = append(t.refTables, TableRef{Table: refTable, Columns: t.GetColumns(localName)})
 
 	// add fake columns for all columns from the referenced table
-	for i := range Objects.Tables[tableName].Columns {
-		col := Objects.Tables[tableName].Columns[i]
+	for i := range Objects.Tables[tableName].columns {
+		col := Objects.Tables[tableName].columns[i]
 		// skip peer_key and such things from ref table
 		if col.StorageType == RefStore {
 			continue
@@ -230,7 +230,7 @@ func (t *Table) AddRefColumns(tableName TableName, prefix string, localName []st
 		if prefix == "" {
 			refColName = col.Name
 		}
-		if _, ok := t.ColumnsIndex[refColName]; ok {
+		if _, ok := t.columnsIndex[refColName]; ok {
 			continue
 		}
 		NewColumn(t, refColName, RefStore, None, col.DataType, col.Optional, col, col.Description)

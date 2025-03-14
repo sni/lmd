@@ -172,7 +172,7 @@ func (n *Nodes) Initialize(ctx context.Context) {
 		n.lmd.PeerMapLock.RLock()
 		for id := range n.lmd.PeerMap {
 			peer := n.lmd.PeerMap[id]
-			if peer.Paused.Load() {
+			if peer.paused.Load() {
 				peer.Start(ctx)
 			}
 		}
@@ -350,11 +350,11 @@ func (n *Nodes) updateBackends(ctx context.Context, ourBackends []string) {
 	n.lmd.PeerMapLock.RLock()
 	for id := range n.lmd.PeerMap {
 		peer := n.lmd.PeerMap[id]
-		if peer.ParentID == "" {
+		if peer.parentID == "" {
 			continue
 		}
 		for _, id := range ourBackends {
-			if id == peer.ParentID {
+			if id == peer.parentID {
 				ourBackends = append(ourBackends, peer.ID)
 
 				break

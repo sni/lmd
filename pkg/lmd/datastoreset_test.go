@@ -56,14 +56,14 @@ func TestDSFullUpdate(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	peer.LastUpdate.Set(0)
-	peer.LastFullServiceUpdate.Set(0)
+	peer.lastUpdate.Set(0)
+	peer.lastFullServiceUpdate.Set(0)
 	data := peer.data.Load()
 	err := data.UpdateDeltaServices(context.TODO(), fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), false, 0)
 	require.NoError(t, err)
 
-	peer.LastUpdate.Set(0)
-	peer.LastFullServiceUpdate.Set(0)
+	peer.lastUpdate.Set(0)
+	peer.lastFullServiceUpdate.Set(0)
 	err = data.UpdateDeltaServices(context.TODO(), fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), true, time.Now().Unix())
 	require.NoError(t, err)
 

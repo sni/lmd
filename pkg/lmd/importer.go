@@ -152,7 +152,7 @@ func importPeerFromFile(peers []*Peer, filename string, lmd *Daemon) ([]*Peer, e
 	if err != nil {
 		return nil, fmt.Errorf("import error: %s", err.Error())
 	}
-	log.Debugf("adding %d %s rows", len(rows), table.Name.String())
+	log.Debugf("adding %d %s rows", len(rows), table.name.String())
 
 	return importData(peers, table, rows, columns, lmd)
 }
@@ -225,7 +225,7 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, l
 		colIndex[col] = i
 	}
 
-	if table.Name == TableBackends {
+	if table.name == TableBackends {
 		if len(rows) != 1 {
 			return peers, fmt.Errorf("wrong number of site rows, expected 1 but got: %d", len(rows))
 		}
@@ -242,19 +242,19 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, l
 		peers = append(peers, peer)
 		logWith(peer).Infof("restoring peer id %s", peer.ID)
 
-		peer.PeerState.Set(PeerStatus(interface2int8(rows[0][colIndex["status"]])))
-		peer.LastUpdate.Set(interface2float64(rows[0][colIndex["last_update"]]))
-		peer.LastError.Set(interface2stringNoDedup(rows[0][colIndex["last_error"]]))
-		peer.LastOnline.Set(interface2float64(rows[0][colIndex["last_online"]]))
-		peer.Queries.Store(interface2int64(rows[0][colIndex["queries"]]))
-		peer.ResponseTime.Set(interface2float64(rows[0][colIndex["response_time"]]))
+		peer.peerState.Set(PeerStatus(interface2int8(rows[0][colIndex["status"]])))
+		peer.lastUpdate.Set(interface2float64(rows[0][colIndex["last_update"]]))
+		peer.lastError.Set(interface2stringNoDedup(rows[0][colIndex["last_error"]]))
+		peer.lastOnline.Set(interface2float64(rows[0][colIndex["last_online"]]))
+		peer.queries.Store(interface2int64(rows[0][colIndex["queries"]]))
+		peer.responseTime.Set(interface2float64(rows[0][colIndex["response_time"]]))
 		peer.data.Store(NewDataStoreSet(peer))
 
 		flags := NoFlags
 		flags.Load(con.Flags)
-		atomic.StoreUint32(&peer.Flags, uint32(flags))
+		atomic.StoreUint32(&peer.flags, uint32(flags))
 	}
-	if table.Virtual != nil {
+	if table.virtual != nil {
 		return peers, nil
 	}
 
@@ -268,7 +268,7 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, l
 				return peers, fmt.Errorf("unknown column: %s", name)
 			}
 			if col.Index < 0 && col.StorageType == LocalStore {
-				return peers, fmt.Errorf("bad column: %s in table %s", name, table.Name.String())
+				return peers, fmt.Errorf("bad column: %s in table %s", name, table.name.String())
 			}
 			columnsList = append(columnsList, col)
 		}
@@ -278,7 +278,7 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, l
 			return peers, fmt.Errorf("failed to insert data: %s", err.Error())
 		}
 		data := peer.data.Load()
-		data.Set(table.Name, store)
+		data.Set(table.name, store)
 	}
 
 	return peers, nil
@@ -287,7 +287,7 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, l
 // importReadFile returns table, data and columns from json file.
 func importReadFile(tableName string, tarReader io.Reader, size int64) (table *Table, rows ResultSet, columns []string, err error) {
 	for _, t := range Objects.Tables {
-		if strings.EqualFold(t.Name.String(), tableName) {
+		if strings.EqualFold(t.name.String(), tableName) {
 			table = t
 		}
 	}

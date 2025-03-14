@@ -122,7 +122,7 @@ func (cl *ClientConnection) answer(ctx context.Context) error {
 			continue
 		default:
 			err = errors.New("bad request: empty request")
-			LogErrors((&Response{Code: ReturnCodeBadRequest, Request: &Request{}, Error: err}).Send(cl))
+			LogErrors((&Response{code: ReturnCodeBadRequest, request: &Request{}, err: err}).Send(cl))
 
 			return err
 		}
@@ -146,7 +146,7 @@ func (cl *ClientConnection) sendErrorResponse(err error) error {
 	if errors.Is(err, io.EOF) {
 		return nil
 	}
-	LogErrors((&Response{Code: ReturnCodeBadRequest, Request: &Request{}, Error: err}).Send(cl))
+	LogErrors((&Response{code: ReturnCodeBadRequest, request: &Request{}, err: err}).Send(cl))
 
 	return err
 }
@@ -221,18 +221,18 @@ func (cl *ClientConnection) processRequest(ctx context.Context, req *Request) (s
 	if err != nil {
 		var netErr net.Error
 		if errors.As(err, &netErr) {
-			LogErrors((&Response{Code: ReturnCodeConnectionError, Request: req, Error: netErr}).Send(cl))
+			LogErrors((&Response{code: ReturnCodeConnectionError, request: req, err: netErr}).Send(cl))
 
 			return
 		}
 
 		var peerErr *PeerError
 		if errors.As(err, &peerErr) && peerErr.kind == ConnectionError {
-			LogErrors((&Response{Code: ReturnCodeConnectionError, Request: req, Error: peerErr}).Send(cl))
+			LogErrors((&Response{code: ReturnCodeConnectionError, request: req, err: peerErr}).Send(cl))
 
 			return
 		}
-		LogErrors((&Response{Code: ReturnCodeBadRequest, Request: req, Error: err}).Send(cl))
+		LogErrors((&Response{code: ReturnCodeBadRequest, request: req, err: err}).Send(cl))
 
 		return
 	}

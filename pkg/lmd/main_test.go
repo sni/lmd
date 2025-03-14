@@ -130,9 +130,9 @@ func TestAllOps(t *testing.T) {
 				continue
 			}
 			for _, value := range values {
-				testqueryCol(t, peer, col.Table.Name, col.Name)
-				testqueryFilter(t, peer, col.Table.Name, col.Name, operator, value)
-				testqueryGroup(t, peer, col.Table.Name, col.Name, operator, value)
+				testqueryCol(t, peer, col.Table.name, col.Name)
+				testqueryFilter(t, peer, col.Table.name, col.Name, operator, value)
+				testqueryGroup(t, peer, col.Table.name, col.Name, operator, value)
 			}
 		}
 	}
@@ -233,7 +233,7 @@ func TestAllTables(t *testing.T) {
 		}
 	}()
 	for table := range Objects.Tables {
-		if Objects.Tables[table].PassthroughOnly {
+		if Objects.Tables[table].passthroughOnly {
 			continue
 		}
 		query = fmt.Sprintf("GET %s\n\n", table.String())

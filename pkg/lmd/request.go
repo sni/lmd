@@ -489,11 +489,11 @@ func (req *Request) getDistributedResponse(ctx context.Context) (*Response, erro
 				return nil, err
 			}
 			req.SendStatsData = false
-			if res.Result == nil {
+			if res.result == nil {
 				res.SetResultData()
 			}
-			collectedDatasets <- res.Result
-			collectedFailedHashes <- res.Failed
+			collectedDatasets <- res.result
+			collectedFailedHashes <- res.failed
 
 			continue
 		}
@@ -563,7 +563,7 @@ func (req *Request) getDistributedResponse(ctx context.Context) (*Response, erro
 
 	// Process results
 	// This also applies sort/offset/limit settings
-	if len(res.Request.Stats) > 0 {
+	if len(res.request.Stats) > 0 {
 		res.CalculateFinalStats()
 	} else {
 		res.PostProcessing()
@@ -672,9 +672,9 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 func (req *Request) mergeDistributedResponse(collectedDatasets chan ResultSet, collectedFailedHashes chan map[string]string) *Response {
 	// Build response object
 	res := &Response{
-		Code:    200,
-		Failed:  make(map[string]string),
-		Request: req,
+		code:    200,
+		failed:  make(map[string]string),
+		request: req,
 	}
 
 	// Merge data
@@ -710,10 +710,10 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan ResultSet, c
 			}
 		} else {
 			// Regular request
-			res.Result = append(res.Result, currentRows...)
+			res.result = append(res.result, currentRows...)
 			currentFailedHash := <-collectedFailedHashes
 			for id, val := range currentFailedHash {
-				res.Failed[id] = val
+				res.failed[id] = val
 			}
 		}
 	}
@@ -875,7 +875,7 @@ func parseStatsGroupOp(op GroupOperator, value []byte, table TableName, stats *[
 	if err != nil {
 		return err
 	}
-	(*stats)[len(*stats)-1].StatsType = Counter
+	(*stats)[len(*stats)-1].statsType = Counter
 
 	return
 }
@@ -932,15 +932,15 @@ func (req *Request) SetRequestColumns() {
 	table := Objects.Tables[req.Table]
 	numColumns := len(req.Columns) + len(req.Stats)
 	if numColumns == 0 {
-		numColumns = len(table.Columns)
+		numColumns = len(table.columns)
 	}
 	columns := make([]*Column, 0, numColumns)
 
 	// if no column header was given, return all columns
 	// but only if this is no stats query
 	if len(req.Columns) == 0 && len(req.Stats) == 0 {
-		for j := range table.Columns {
-			col := table.Columns[j]
+		for j := range table.columns {
+			col := table.columns[j]
 			columns = append(columns, col)
 		}
 	}
@@ -1069,9 +1069,9 @@ func (req *Request) optimizeResultLimit() (limit int) {
 // optimizeFilterIndentation removes unnecessary filter indentation unless it is negated.
 func (req *Request) optimizeFilterIndentation() {
 	for {
-		if len(req.Filter) == 1 && len(req.Filter[0].Filter) > 0 &&
-			req.Filter[0].GroupOperator == And && !req.Filter[0].Negate {
-			req.Filter = req.Filter[0].Filter
+		if len(req.Filter) == 1 && len(req.Filter[0].filter) > 0 &&
+			req.Filter[0].groupOperator == And && !req.Filter[0].negate {
+			req.Filter = req.Filter[0].filter
 		} else {
 			break
 		}
@@ -1104,9 +1104,9 @@ func (req *Request) optimizeStatsGroups(stats []*Filter, renumber bool) []*Filte
 	for idx := range stats {
 		stat := stats[idx]
 		if renumber {
-			stat.StatsPos = idx
+			stat.statsPos = idx
 		}
-		if stat.StatsType != Counter || stat.Column != nil || len(stat.Filter) < 2 {
+		if stat.statsType != Counter || stat.column != nil || len(stat.filter) < 2 {
 			groupedStats = append(groupedStats, stat)
 
 			continue
@@ -1114,15 +1114,15 @@ func (req *Request) optimizeStatsGroups(stats []*Filter, renumber bool) []*Filte
 
 		// append to previous group?
 		if idx >= 1 && lastGroup != nil {
-			firstFilter := stat.Filter[0]
+			firstFilter := stat.filter[0]
 			switch {
-			case lastGroup.Column != firstFilter.Column:
-			case lastGroup.Operator != firstFilter.Operator:
-			case lastGroup.StrValue != firstFilter.StrValue:
-			case lastGroup.Negate != firstFilter.Negate:
-			case len(firstFilter.Filter) != 0:
+			case lastGroup.column != firstFilter.column:
+			case lastGroup.operator != firstFilter.operator:
+			case lastGroup.stringVal != firstFilter.stringVal:
+			case lastGroup.negate != firstFilter.negate:
+			case len(firstFilter.filter) != 0:
 			default:
-				lastGroup.Filter = append(lastGroup.Filter, removeFirstStatsFilter(stat))
+				lastGroup.filter = append(lastGroup.filter, removeFirstStatsFilter(stat))
 
 				continue
 			}
@@ -1134,20 +1134,20 @@ func (req *Request) optimizeStatsGroups(stats []*Filter, renumber bool) []*Filte
 		// start a new group if the current first stats filter matches the next first stats filter
 		if len(stats) > idx+1 {
 			next := stats[idx+1]
-			if next.StatsType != Counter || next.Column != nil || len(next.Filter) < 2 || stat.Filter[0].GroupOperator == Or {
+			if next.statsType != Counter || next.column != nil || len(next.filter) < 2 || stat.filter[0].groupOperator == Or {
 				groupedStats = append(groupedStats, stat)
 
 				continue
 			}
-			if !next.Filter[0].Equals(stat.Filter[0]) {
+			if !next.filter[0].Equals(stat.filter[0]) {
 				groupedStats = append(groupedStats, stat)
 
 				continue
 			}
 
-			group := stat.Filter[0]
-			group.StatsType = StatsGroup
-			group.Filter = []*Filter{removeFirstStatsFilter(stat)}
+			group := stat.filter[0]
+			group.statsType = StatsGroup
+			group.filter = []*Filter{removeFirstStatsFilter(stat)}
 
 			groupedStats = append(groupedStats, group)
 			lastGroup = group
@@ -1168,25 +1168,25 @@ func (req *Request) optimizeStatsGroupsRecurse(lastGroup *Filter) {
 		return
 	}
 
-	subgroup := req.optimizeStatsGroups(lastGroup.Filter, false)
+	subgroup := req.optimizeStatsGroups(lastGroup.filter, false)
 	if subgroup != nil {
-		lastGroup.Filter = subgroup
+		lastGroup.filter = subgroup
 	}
 }
 
 func removeFirstStatsFilter(stat *Filter) *Filter {
 	// strip first filter, this one is handled in the parent group
-	stat.Filter = stat.Filter[1:]
+	stat.filter = stat.filter[1:]
 
 	// still multiple filters, keep list
-	if len(stat.Filter) > 1 {
+	if len(stat.filter) > 1 {
 		return stat
 	}
 
 	// remove indentation lvl if only one remaining
-	stat.Filter[0].StatsPos = stat.StatsPos
-	stat = stat.Filter[0]
-	stat.StatsType = Counter
+	stat.filter[0].statsPos = stat.statsPos
+	stat = stat.filter[0]
+	stat.statsType = Counter
 
 	return stat
 }

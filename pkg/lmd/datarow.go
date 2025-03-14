@@ -42,8 +42,8 @@ func NewDataRow(store *DataStore, raw []interface{}, columns ColumnList, timesta
 		return
 	}
 
-	if !store.table.PassthroughOnly && len(store.table.RefTables) > 0 {
-		d.refs = make(map[TableName]*DataRow, len(store.table.RefTables))
+	if !store.table.passthroughOnly && len(store.table.refTables) > 0 {
+		d.refs = make(map[TableName]*DataRow, len(store.table.refTables))
 	}
 
 	err = d.SetData(raw, columns, timestamp)
@@ -62,20 +62,20 @@ func NewDataRow(store *DataStore, raw []interface{}, columns ColumnList, timesta
 
 // GetID calculates and returns the ID value (nul byte concatenated primary key values).
 func (d *DataRow) GetID() string {
-	if len(d.dataStore.table.PrimaryKey) == 0 {
+	if len(d.dataStore.table.primaryKey) == 0 {
 		return ""
 	}
-	if len(d.dataStore.table.PrimaryKey) == 1 {
-		id := d.GetStringByName(d.dataStore.table.PrimaryKey[0])
+	if len(d.dataStore.table.primaryKey) == 1 {
+		id := d.GetStringByName(d.dataStore.table.primaryKey[0])
 		if id == "" {
-			logWith(d).Errorf("id for %s is null", d.dataStore.table.Name.String())
+			logWith(d).Errorf("id for %s is null", d.dataStore.table.name.String())
 		}
 
 		return id
 	}
 
 	var key strings.Builder
-	for i, k := range d.dataStore.table.PrimaryKey {
+	for i, k := range d.dataStore.table.primaryKey {
 		if i > 0 {
 			key.WriteString(ListSepChar1)
 		}
@@ -83,7 +83,7 @@ func (d *DataRow) GetID() string {
 	}
 	id := key.String()
 	if id == "" || id == ListSepChar1 {
-		logWith(d).Errorf("id for %s is null", d.dataStore.table.Name.String())
+		logWith(d).Errorf("id for %s is null", d.dataStore.table.name.String())
 	}
 
 	return id
@@ -91,13 +91,13 @@ func (d *DataRow) GetID() string {
 
 // GetID2 returns the 2 strings for tables with 2 primary keys.
 func (d *DataRow) GetID2() (id1, id2 string) {
-	id1 = d.GetStringByName(d.dataStore.table.PrimaryKey[0])
+	id1 = d.GetStringByName(d.dataStore.table.primaryKey[0])
 	if id1 == "" {
-		logWith(d).Errorf("id1 for %s is null", d.dataStore.table.Name.String())
+		logWith(d).Errorf("id1 for %s is null", d.dataStore.table.name.String())
 	}
-	id2 = d.GetStringByName(d.dataStore.table.PrimaryKey[1])
+	id2 = d.GetStringByName(d.dataStore.table.primaryKey[1])
 	if id2 == "" {
-		logWith(d).Errorf("id2 for %s is null", d.dataStore.table.Name.String())
+		logWith(d).Errorf("id2 for %s is null", d.dataStore.table.name.String())
 	}
 
 	return id1, id2
@@ -105,7 +105,7 @@ func (d *DataRow) GetID2() (id1, id2 string) {
 
 // SetData creates initial data.
 func (d *DataRow) SetData(raw []interface{}, columns ColumnList, timestamp float64) error {
-	for key, size := range d.dataStore.table.DataSizes {
+	for key, size := range d.dataStore.table.dataSizes {
 		if size == 0 {
 			continue
 		}
@@ -146,9 +146,9 @@ func (d *DataRow) setLowerCaseCache() {
 // SetReferences creates reference entries for cross referenced objects.
 func (d *DataRow) SetReferences() (err error) {
 	store := d.dataStore
-	for i := range store.table.RefTables {
-		ref := &store.table.RefTables[i]
-		tableName := ref.Table.Name
+	for i := range store.table.refTables {
+		ref := &store.table.refTables[i]
+		tableName := ref.Table.name
 		refsByName := store.dataSet.Get(tableName).index
 		refsByName2 := store.dataSet.Get(tableName).index2
 
@@ -159,12 +159,12 @@ func (d *DataRow) SetReferences() (err error) {
 			d.refs[tableName] = refsByName2[d.GetString(ref.Columns[0])][d.GetString(ref.Columns[1])]
 		}
 		if _, ok := d.refs[tableName]; !ok {
-			if tableName == TableServices && (store.table.Name == TableComments || store.table.Name == TableDowntimes) {
+			if tableName == TableServices && (store.table.name == TableComments || store.table.name == TableDowntimes) {
 				// this may happen for optional reference columns, ex. services in comments
 				continue
 			}
 
-			return fmt.Errorf("%s reference not found from table %s, refmap contains %d elements", tableName.String(), store.table.Name.String(), len(refsByName))
+			return fmt.Errorf("%s reference not found from table %s, refmap contains %d elements", tableName.String(), store.table.name.String(), len(refsByName))
 		}
 	}
 
@@ -212,7 +212,7 @@ func (d *DataRow) GetString(col *Column) string {
 
 // GetStringByName returns the string value for given column name.
 func (d *DataRow) GetStringByName(name string) string {
-	return d.GetString(d.dataStore.table.ColumnsIndex[name])
+	return d.GetString(d.dataStore.table.columnsIndex[name])
 }
 
 // GetStringList returns the string list for given column.
@@ -238,7 +238,7 @@ func (d *DataRow) GetStringList(col *Column) []string {
 
 // GetStringListByName returns the string list for given column name.
 func (d *DataRow) GetStringListByName(name string) []string {
-	return d.GetStringList(d.dataStore.table.ColumnsIndex[name])
+	return d.GetStringList(d.dataStore.table.columnsIndex[name])
 }
 
 // GetFloat returns the float64 value for given column.
@@ -322,12 +322,12 @@ func (d *DataRow) GetInt64(col *Column) int64 {
 
 // GetIntByName returns the int value for given column name.
 func (d *DataRow) GetInt8ByName(name string) int8 {
-	return d.GetInt8(d.dataStore.table.ColumnsIndex[name])
+	return d.GetInt8(d.dataStore.table.columnsIndex[name])
 }
 
 // GetInt64ByName returns the int value for given column name.
 func (d *DataRow) GetInt64ByName(name string) int64 {
-	return d.GetInt64(d.dataStore.table.ColumnsIndex[name])
+	return d.GetInt64(d.dataStore.table.columnsIndex[name])
 }
 
 // GetInt64List returns the int64 list for given column.
@@ -353,7 +353,7 @@ func (d *DataRow) GetInt64List(col *Column) []int64 {
 
 // GetInt64ListByName returns the int64 list for given column name.
 func (d *DataRow) GetInt64ListByName(name string) []int64 {
-	return d.GetInt64List(d.dataStore.table.ColumnsIndex[name])
+	return d.GetInt64List(d.dataStore.table.columnsIndex[name])
 }
 
 // GetServiceMemberList returns the a list of service members.
@@ -379,7 +379,7 @@ func (d *DataRow) GetServiceMemberList(col *Column) []ServiceMember {
 
 // GetServiceMemberListByName returns the service member list for given column name.
 func (d *DataRow) GetServiceMemberListByName(name string) []ServiceMember {
-	return d.GetServiceMemberList(d.dataStore.table.ColumnsIndex[name])
+	return d.GetServiceMemberList(d.dataStore.table.columnsIndex[name])
 }
 
 // GetInterfaceList returns the a list of interfaces.
@@ -430,7 +430,7 @@ func (d *DataRow) GetValueByColumn(col *Column) interface{} {
 		case ServiceMemberListCol:
 			return d.dataServiceMemberList[col.Index]
 		default:
-			log.Panicf("unsupported column %s (type %s) in table %s", col.Name, col.DataType.String(), d.dataStore.table.Name.String())
+			log.Panicf("unsupported column %s (type %s) in table %s", col.Name, col.DataType.String(), d.dataStore.table.name.String())
 		}
 	case RefStore:
 		return d.refs[col.RefColTableName].GetValueByColumn(col.RefCol)
@@ -444,28 +444,28 @@ func (d *DataRow) GetValueByColumn(col *Column) interface{} {
 func (d *DataRow) getVirtualRowValue(col *Column) interface{} {
 	var value interface{}
 	peer := d.dataStore.peer
-	if col.VirtualMap.StatusKey > 0 {
+	if col.VirtualMap.statusKey > 0 {
 		if peer == nil {
-			log.Panicf("requesting column '%s' from table '%s' with peer", col.Name, d.dataStore.table.Name.String())
+			log.Panicf("requesting column '%s' from table '%s' with peer", col.Name, d.dataStore.table.name.String())
 		}
 		ok := false
 		if peer.HasFlag(LMDSub) {
 			value, ok = d.getVirtualSubLMDValue(peer, col)
 		}
 		if !ok {
-			switch col.VirtualMap.StatusKey {
+			switch col.VirtualMap.statusKey {
 			case PeerName:
 				return &(peer.Name)
 			case PeerKey:
 				return &(peer.ID)
 			case Section:
-				return &(peer.Section)
+				return &(peer.section)
 			case PeerParent:
-				return &(peer.ParentID)
+				return &(peer.parentID)
 			}
 		}
 	} else {
-		value = col.VirtualMap.ResolveFunc(peer, d, col)
+		value = col.VirtualMap.resolveFunc(peer, d, col)
 	}
 
 	return cast2Type(value, col)
@@ -506,7 +506,7 @@ func VirtualColLastStateChangeOrder(p *Peer, d *DataRow, _ *Column) interface{} 
 	// return last_state_change or program_start
 	lastStateChange := d.GetInt64ByName("last_state_change")
 	if lastStateChange == 0 {
-		return p.ProgramStart.Load()
+		return p.programStart.Load()
 	}
 
 	return lastStateChange
@@ -562,7 +562,7 @@ func VirtualColServicesWithInfo(_ *Peer, d *DataRow, col *Column) interface{} {
 
 // VirtualColMembersWithState returns a list of hostgroup/servicegroup members with their states.
 func VirtualColMembersWithState(_ *Peer, dRow *DataRow, _ *Column) interface{} {
-	switch dRow.dataStore.table.Name {
+	switch dRow.dataStore.table.name {
 	case TableHostgroups:
 		members := dRow.GetStringListByName("members")
 		hostsStore := dRow.dataStore.dataSet.Get(TableHosts)
@@ -604,7 +604,7 @@ func VirtualColMembersWithState(_ *Peer, dRow *DataRow, _ *Column) interface{} {
 
 		return res
 	default:
-		log.Panicf("unsupported table: %s", dRow.dataStore.table.Name.String())
+		log.Panicf("unsupported table: %s", dRow.dataStore.table.name.String())
 	}
 
 	return nil
@@ -713,15 +713,15 @@ func VirtualColTotalServices(_ *Peer, d *DataRow, _ *Column) interface{} {
 
 // VirtualColFlags returns flags for peer.
 func VirtualColFlags(p *Peer, _ *DataRow, _ *Column) interface{} {
-	peerflags := OptionalFlags(atomic.LoadUint32(&p.Flags))
+	peerflags := OptionalFlags(atomic.LoadUint32(&p.flags))
 
 	return peerflags.List()
 }
 
 // getVirtualSubLMDValue returns status values for LMDSub backends.
 func (d *DataRow) getVirtualSubLMDValue(peer *Peer, col *Column) (val interface{}, ok bool) {
-	peerState := peer.PeerState.Get()
-	peerData := peer.SubPeerStatus.Load()
+	peerState := peer.peerState.Get()
+	peerData := peer.subPeerStatus.Load()
 
 	if peerData == nil {
 		return nil, false
@@ -738,8 +738,8 @@ func (d *DataRow) getVirtualSubLMDValue(peer *Peer, col *Column) (val interface{
 		return val, ok
 	case "last_error":
 		// return worst state of LMD and LMDSubs state
-		if peer.LastError.Get() != "" {
-			return peer.LastError.Get(), true
+		if peer.lastError.Get() != "" {
+			return peer.lastError.Get(), true
 		}
 		val, ok = (*peerData)[col.Name]
 
@@ -755,8 +755,8 @@ func (d *DataRow) getVirtualSubLMDValue(peer *Peer, col *Column) (val interface{
 // negate param is to force filter to be negated. Default is false.
 func (d *DataRow) MatchFilter(filter *Filter, negate bool) bool {
 	// recursive group filter
-	groupOperator := filter.GroupOperator
-	negate = negate || filter.Negate
+	groupOperator := filter.groupOperator
+	negate = negate || filter.negate
 
 	if negate {
 		// Inverse the operation if negate is done at the GroupOperator
@@ -770,7 +770,7 @@ func (d *DataRow) MatchFilter(filter *Filter, negate bool) bool {
 
 	switch groupOperator {
 	case And:
-		for _, f := range filter.Filter {
+		for _, f := range filter.filter {
 			if !d.MatchFilter(f, negate) {
 				return false
 			}
@@ -778,7 +778,7 @@ func (d *DataRow) MatchFilter(filter *Filter, negate bool) bool {
 
 		return true
 	case Or:
-		for _, f := range filter.Filter {
+		for _, f := range filter.filter {
 			if d.MatchFilter(f, negate) {
 				return true
 			}
@@ -788,20 +788,20 @@ func (d *DataRow) MatchFilter(filter *Filter, negate bool) bool {
 	}
 
 	// if this is a optional column and we do not meet the requirements, match against an empty default column
-	if filter.ColumnOptional != NoFlags && !d.dataStore.peer.HasFlag(filter.ColumnOptional) {
+	if filter.columnOptional != NoFlags && !d.dataStore.peer.HasFlag(filter.columnOptional) {
 		// duplicate filter, but use the empty column
 		dupFilter := &Filter{
-			Column:      d.dataStore.table.GetEmptyColumn(),
-			Operator:    filter.Operator,
-			StrValue:    filter.StrValue,
-			Regexp:      filter.Regexp,
-			IsEmpty:     filter.IsEmpty,
-			CustomTag:   filter.CustomTag,
-			Negate:      negate,
-			ColumnIndex: -1,
+			column:      d.dataStore.table.GetEmptyColumn(),
+			operator:    filter.operator,
+			stringVal:   filter.stringVal,
+			regexp:      filter.regexp,
+			isEmpty:     filter.isEmpty,
+			customTag:   filter.customTag,
+			negate:      negate,
+			columnIndex: -1,
 		}
-		dupFilter.Column.DataType = filter.Column.DataType
-		if dupFilter.Negate {
+		dupFilter.column.DataType = filter.column.DataType
+		if dupFilter.negate {
 			return !dupFilter.Match(d)
 		}
 
@@ -815,12 +815,12 @@ func (d *DataRow) MatchFilter(filter *Filter, negate bool) bool {
 }
 
 func (d *DataRow) getStatsKey(res *Response) string {
-	if len(res.Request.RequestColumns) == 0 {
+	if len(res.request.RequestColumns) == 0 {
 		return ""
 	}
 	keyValues := []string{}
-	for i := range res.Request.RequestColumns {
-		keyValues = append(keyValues, d.GetString(res.Request.RequestColumns[i]))
+	for i := range res.request.RequestColumns {
+		keyValues = append(keyValues, d.GetString(res.request.RequestColumns[i]))
 	}
 
 	return strings.Join(keyValues, ListSepChar1)
@@ -829,7 +829,7 @@ func (d *DataRow) getStatsKey(res *Response) string {
 // UpdateValues updates this datarow with new values.
 func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns ColumnList, timestamp float64) error {
 	if len(columns) != len(data)-dataOffset {
-		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.dataStore.table.Name.String(), len(columns), len(data))
+		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.dataStore.table.name.String(), len(columns), len(data))
 	}
 	for idx, col := range columns {
 		localIndex := col.Index
@@ -837,7 +837,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 			continue
 		}
 		if localIndex < 0 {
-			log.Panicf("%s: tried to update bad column, index %d - %s", d.dataStore.table.Name.String(), localIndex, col.Name)
+			log.Panicf("%s: tried to update bad column, index %d - %s", d.dataStore.table.name.String(), localIndex, col.Name)
 		}
 		resIndex := idx + dataOffset
 		switch col.DataType {
@@ -860,7 +860,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 		case InterfaceListCol:
 			d.dataInterfaceList[localIndex] = interface2interfacelist(data[resIndex])
 		default:
-			log.Panicf("unsupported column %s (type %d) in table %s", col.Name, col.DataType, d.dataStore.table.Name.String())
+			log.Panicf("unsupported column %s (type %d) in table %s", col.Name, col.DataType, d.dataStore.table.name.String())
 		}
 	}
 	if timestamp == 0 {
@@ -874,7 +874,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 // UpdateValuesNumberOnly updates this datarow with new values but skips strings.
 func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, columns ColumnList, timestamp float64) error {
 	if len(columns) != len(data)-dataOffset {
-		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.dataStore.table.Name.String(), len(columns), len(data))
+		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.dataStore.table.name.String(), len(columns), len(data))
 	}
 	for i, col := range columns {
 		localIndex := col.Index
@@ -1653,7 +1653,7 @@ func (d *DataRow) checkAuth(authUser string) (canView bool) {
 
 	table := d.dataStore.table
 
-	switch table.Name {
+	switch table.name {
 	case TableHosts:
 		hostNameIndex := table.GetColumn("name").Index
 		hostName := d.dataString[hostNameIndex]
@@ -1685,7 +1685,7 @@ func (d *DataRow) checkAuth(authUser string) (canView bool) {
 		serviceIndex := table.GetColumn("description").Index
 		serviceDescription := d.dataString[serviceIndex]
 
-		if table.Name == TableServicesbygroup {
+		if table.name == TableServicesbygroup {
 			servicegroupIndex := table.GetColumn("servicegroup_name").Index
 			servicegroupName := d.dataString[servicegroupIndex]
 			canView = d.isAuthorizedFor(authUser, hostName, serviceDescription) && d.isAuthorizedForServiceGroup(authUser, servicegroupName)
@@ -1709,24 +1709,24 @@ func (d *DataRow) checkAuth(authUser string) (canView bool) {
 
 func (d *DataRow) CountStats(stats, result []*Filter) {
 	for resultPos, stat := range stats {
-		if stat.StatsPos > 0 {
-			resultPos = stat.StatsPos
+		if stat.statsPos > 0 {
+			resultPos = stat.statsPos
 		}
 		// avg/sum/min/max are passed through, they don't have filter
 		// counter must match their filter
-		switch stat.StatsType {
+		switch stat.statsType {
 		case Counter:
 			if d.MatchFilter(stat, false) {
-				result[resultPos].Stats++
-				result[resultPos].StatsCount++
+				result[resultPos].stats++
+				result[resultPos].statsCount++
 			}
 		case StatsGroup:
 			// if filter matches, recurse into sub stats
 			if d.MatchFilter(stat, false) {
-				d.CountStats(stat.Filter, result)
+				d.CountStats(stat.filter, result)
 			}
 		default:
-			result[resultPos].ApplyValue(d.GetFloat(stat.Column), 1)
+			result[resultPos].ApplyValue(d.GetFloat(stat.column), 1)
 		}
 	}
 }
