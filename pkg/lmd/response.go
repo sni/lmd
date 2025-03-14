@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,18 +27,19 @@ const (
 
 // Response contains the livestatus response data as long with some meta data.
 type Response struct {
-	noCopy        noCopy
-	Error         error             // error object if the query was not successful
-	Lock          *deadlock.RWMutex // must be used for Result and Failed access
-	Request       *Request          // the initial request
-	RawResults    *RawResultSet     // collected results from peers
-	lockedStores  map[*Peer]*DataStore
-	Failed        map[string]string // map of failed backends by key
-	Result        ResultSet         // final processed result table
-	SelectedPeers []*Peer           // peers used for this response
-	Code          int               // 200 if the query was successful
-	ResultTotal   int
-	RowsScanned   int // total number of data rows scanned for this result
+	noCopy         noCopy
+	Error          error             // error object if the query was not successful
+	Lock           *deadlock.RWMutex // must be used for Result and Failed access
+	Request        *Request          // the initial request
+	RawResults     *RawResultSet     // collected results from peers
+	lockedStores   []*DataStore      // list of locked stores
+	affectedTables []TableName       // list of affected tables
+	Failed         map[string]string // map of failed backends by key
+	Result         ResultSet         // final processed result table
+	SelectedPeers  []*Peer           // peers used for this response
+	Code           int               // 200 if the query was successful
+	ResultTotal    int
+	RowsScanned    int // total number of data rows scanned for this result
 }
 
 // PeerResponse is the sub result from a peer before merged into the end result.
@@ -77,7 +80,6 @@ func NewResponse(ctx context.Context, req *Request, client *ClientConnection) (r
 		res.PostProcessing()
 	default:
 		// normal requests
-
 		if res.Request.WaitTrigger != "" {
 			for i := range res.SelectedPeers {
 				p := res.SelectedPeers[i]
@@ -85,8 +87,10 @@ func NewResponse(ctx context.Context, req *Request, client *ClientConnection) (r
 			}
 		}
 
+		res.affectedTables = res.getAffectedTables(table)
+
 		// set locks for required stores
-		res.lockedStores = make(map[*Peer]*DataStore)
+		res.lockedStores = make([]*DataStore, 0, len(res.SelectedPeers)*len(res.affectedTables))
 		stores := make(map[*Peer]*DataStore)
 		for i := range res.SelectedPeers {
 			peer := res.SelectedPeers[i]
@@ -99,8 +103,7 @@ func NewResponse(ctx context.Context, req *Request, client *ClientConnection) (r
 				continue
 			}
 			if !table.WorksUnlocked {
-				store.DataSet.lock.RLock()
-				res.lockedStores[peer] = store
+				res.lockStores(store.DataSet)
 			}
 			stores[peer] = store
 		}
@@ -124,16 +127,49 @@ func NewResponse(ctx context.Context, req *Request, client *ClientConnection) (r
 	return res, 0, err
 }
 
+func (res *Response) lockStores(data *DataStoreSet) {
+	for _, table := range res.affectedTables {
+		store, ok := data.tables[table]
+		if ok {
+			store.lock.RLock()
+			res.lockedStores = append(res.lockedStores, store)
+		}
+	}
+}
+
 func (res *Response) unlockStores() {
 	if res.lockedStores == nil {
 		return
 	}
 
 	for _, s := range res.lockedStores {
-		s.DataSet.lock.RUnlock()
+		s.lock.RUnlock()
 	}
 
 	res.lockedStores = nil
+}
+
+func (res *Response) getAffectedTables(reqTable *Table) []TableName {
+	if len(reqTable.RefTables) == 0 {
+		return ([]TableName{reqTable.Name})
+	}
+
+	uniq := map[TableName]bool{
+		res.Request.Table: true,
+	}
+
+	for _, col := range res.Request.RequestColumns {
+		if col.StorageType == RefStore {
+			uniq[col.RefCol.Table.Name] = true
+		}
+	}
+
+	tables := slices.Collect(maps.Keys(uniq))
+
+	// sort tables by id, otherwise race condition will detect random ordered locks
+	slices.Sort(tables)
+
+	return tables
 }
 
 func (res *Response) prepareResponse(ctx context.Context, req *Request) {

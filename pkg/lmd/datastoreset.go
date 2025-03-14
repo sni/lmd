@@ -15,13 +15,13 @@ const missedTimestampMaxFilter = 150
 // DataStoreSet is a collection of data stores.
 type DataStoreSet struct {
 	peer   *Peer
-	lock   *deadlock.RWMutex
+	tlock  *deadlock.RWMutex
 	tables map[TableName]*DataStore
 }
 
 func NewDataStoreSet(peer *Peer) *DataStoreSet {
 	dataset := DataStoreSet{
-		lock:   new(deadlock.RWMutex),
+		tlock:  new(deadlock.RWMutex),
 		tables: make(map[TableName]*DataStore),
 		peer:   peer,
 	}
@@ -30,16 +30,16 @@ func NewDataStoreSet(peer *Peer) *DataStoreSet {
 }
 
 func (ds *DataStoreSet) Set(name TableName, store *DataStore) {
-	ds.lock.Lock()
+	ds.tlock.Lock()
 	ds.tables[name] = store
 	store.DataSet = ds
-	ds.lock.Unlock()
+	ds.tlock.Unlock()
 }
 
 func (ds *DataStoreSet) Get(name TableName) *DataStore {
-	ds.lock.RLock()
+	ds.tlock.RLock()
 	store := ds.tables[name]
-	ds.lock.RUnlock()
+	ds.tlock.RUnlock()
 
 	return store
 }
@@ -130,14 +130,14 @@ func (ds *DataStoreSet) hasChanged(ctx context.Context) (changed bool) {
 	tablenames := []TableName{TableCommands, TableContactgroups, TableContacts, TableHostgroups, TableHosts, TableServicegroups, TableTimeperiods}
 	for _, name := range tablenames {
 		counter := ds.peer.countFromServer(ctx, name.String(), "name !=")
-		ds.lock.RLock()
+		ds.tables[name].lock.RLock()
 		changed = changed || (counter != len(ds.tables[name].Data))
-		ds.lock.RUnlock()
+		ds.tables[name].lock.RUnlock()
 	}
 	counter := ds.peer.countFromServer(ctx, "services", "host_name !=")
-	ds.lock.RLock()
+	ds.tables[TableServices].lock.RLock()
 	changed = changed || (counter != len(ds.tables[TableServices].Data))
-	ds.lock.RUnlock()
+	ds.tables[TableServices].lock.RUnlock()
 	ds.peer.clearLastRequest()
 
 	return
@@ -330,7 +330,7 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 		updateType = "full"
 	}
 
-	ds.lock.Lock()
+	table.lock.Lock()
 	durationLock := time.Since(time2).Truncate(time.Millisecond)
 	time3 := time.Now()
 
@@ -341,12 +341,12 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 			err = update.DataRow.UpdateValuesNumberOnly(dataOffset, update.ResultRow, table.DynamicColumnCache, now)
 		}
 		if err != nil {
-			ds.lock.Unlock()
+			table.lock.Unlock()
 
 			return err
 		}
 	}
-	ds.lock.Unlock()
+	table.lock.Unlock()
 
 	durationInsert := time.Since(time3).Truncate(time.Millisecond)
 
@@ -472,11 +472,11 @@ func (ds *DataStoreSet) updateFullScan(ctx context.Context, store *DataStore, la
 
 // getMissingTimestamps returns list of last_check dates which can be used to delta update.
 func (ds *DataStoreSet) getMissingTimestamps(ctx context.Context, store *DataStore, res ResultSet, columns ColumnList, updateThreshold int64) (missing []int64, err error) {
-	ds.lock.RLock()
+	store.lock.RLock()
 	peer := ds.peer
 	data := store.Data
 	if len(data) < len(res) {
-		ds.lock.RUnlock()
+		store.lock.RUnlock()
 		if peer.HasFlag(Icinga2) || len(data) == 0 {
 			err = ds.reloadIfNumberOfObjectsChanged(ctx)
 
@@ -501,7 +501,7 @@ func (ds *DataStoreSet) getMissingTimestamps(ctx context.Context, store *DataSto
 			missedUnique[ts] = true
 		}
 	}
-	ds.lock.RUnlock()
+	store.lock.RUnlock()
 
 	// return uniq sorted keys
 	missing = make([]int64, len(missedUnique))
@@ -549,7 +549,7 @@ func (ds *DataStoreSet) updateDeltaCommentsOrDowntimes(ctx context.Context, name
 	if store == nil {
 		return nil
 	}
-	ds.lock.Lock()
+	store.lock.Lock()
 	idIndex := store.Index
 	missingIDs := []int64{}
 	resIndex := make(map[string]bool)
@@ -573,7 +573,7 @@ func (ds *DataStoreSet) updateDeltaCommentsOrDowntimes(ctx context.Context, name
 			store.RemoveItem(tmp)
 		}
 	}
-	ds.lock.Unlock()
+	store.lock.Unlock()
 
 	if len(missingIDs) > 0 {
 		keys, columns := store.GetInitialColumns()
@@ -635,12 +635,12 @@ func (ds *DataStoreSet) maxIDOrSizeChanged(ctx context.Context, name TableName) 
 
 	store := ds.Get(name)
 	var maxID int64
-	ds.lock.RLock()
+	store.lock.RLock()
 	entries := len(store.Data)
 	if entries > 0 {
 		maxID = store.Data[entries-1].GetInt64ByName("id")
 	}
-	ds.lock.RUnlock()
+	store.lock.RUnlock()
 
 	if len(res) == 0 || float64(entries) == interface2float64(res[0][0]) && (entries == 0 || interface2float64(res[0][1]) == float64(maxID)) {
 		logWith(peer, req).Tracef("%s did not change", name.String())
@@ -684,9 +684,9 @@ func (ds *DataStoreSet) UpdateFullTable(ctx context.Context, tableName TableName
 	res = res.SortByPrimaryKey(store.Table, req)
 	durationSort := time.Since(t1).Truncate(time.Millisecond)
 
-	ds.lock.RLock()
+	store.lock.RLock()
 	data := store.Data
-	ds.lock.RUnlock()
+	store.lock.RUnlock()
 	if len(res) != len(data) {
 		err = fmt.Errorf("site returned different number of objects, assuming backend has been restarted, table: %s, expected: %d, received: %d",
 			store.Table.Name.String(), len(data), len(res))
@@ -755,11 +755,11 @@ func (ds *DataStoreSet) skipTableUpdate(store *DataStore, table TableName) (bool
 func (ds *DataStoreSet) updateTimeperiodsData(ctx context.Context, dataOffset int, store *DataStore, res ResultSet, columns ColumnList) (err error) {
 	changedTimeperiods := make(map[string]bool)
 
-	ds.lock.Lock()
+	store.lock.Lock()
 	data := store.Data
 	now := currentUnixTime()
 	nameCol := store.GetColumn("name")
-	ds.lock.Unlock()
+	store.lock.Unlock()
 
 	for i := range res {
 		row := res[i]
@@ -818,23 +818,28 @@ func (ds *DataStoreSet) RebuildDowntimesList() (err error) {
 
 // buildDowntimeCommentsList updates the downtimes/comments id list for all hosts and services.
 func (ds *DataStoreSet) buildDowntimeCommentsList(name TableName) (err error) {
-	ds.lock.Lock()
-	defer ds.lock.Unlock()
-
 	store := ds.tables[name]
 	if store == nil {
 		return fmt.Errorf("cannot build id list, peer is down: %s", ds.peer.getError())
 	}
+
+	store.lock.Lock()
+	defer store.lock.Unlock()
+
 	hostStore := ds.tables[TableHosts]
 	if hostStore == nil {
 		return fmt.Errorf("cannot build id list, peer is down: %s", ds.peer.getError())
 	}
+	hostStore.lock.Lock()
+	defer hostStore.lock.Unlock()
 	hostIdx := hostStore.Table.GetColumn(name.String()).Index
 
 	serviceStore := ds.tables[TableServices]
 	if serviceStore == nil {
 		return fmt.Errorf("cannot build id list, peer is down: %s", ds.peer.getError())
 	}
+	serviceStore.lock.Lock()
+	defer serviceStore.lock.Unlock()
 	serviceIdx := serviceStore.Table.GetColumn(name.String()).Index
 
 	hostResult := make(map[*DataRow][]int64)

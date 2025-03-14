@@ -354,9 +354,9 @@ func StartTestPeerExtra(numPeers, numHosts, numServices int, extraConfig string)
 		err := peer.InitAllTables(context.TODO())
 		if err == nil {
 			data := peer.data.Load()
-			data.lock.RLock()
+			data.tlock.RLock()
 			gotPeers := len(data.tables[TableStatus].Data)
-			data.lock.RUnlock()
+			data.tlock.RUnlock()
 			if gotPeers == numPeers {
 				break
 			}

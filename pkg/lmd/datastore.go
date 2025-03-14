@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/sasha-s/go-deadlock"
 )
 
 // DataStore contains the actual data rows with a reference to the table and peer.
 type DataStore struct {
 	noCopy                  noCopy
+	lock                    *deadlock.RWMutex
 	Index                   map[string]*DataRow            // access data rows from primary key, ex.: hostname or comment id
 	Index2                  map[string]map[string]*DataRow // access data rows from 2 primary keys, ex.: host and service
 	IndexLowerCase          map[string][]string            // access data rows from lower case primary key
@@ -26,6 +29,7 @@ type DataStore struct {
 // NewDataStore creates a new datastore with columns based on given flags.
 func NewDataStore(table *Table, peer *Peer) (d *DataStore) {
 	d = &DataStore{
+		lock:                    new(deadlock.RWMutex),
 		Data:                    make([]*DataRow, 0),
 		Index:                   make(map[string]*DataRow),
 		Index2:                  make(map[string]map[string]*DataRow),
@@ -121,8 +125,8 @@ func (d *DataStore) InsertData(rows ResultSet, columns ColumnList, setReferences
 
 // AppendData append a list of results and initializes the store table.
 func (d *DataStore) AppendData(data ResultSet, columns ColumnList) error {
-	d.DataSet.lock.Lock()
-	defer d.DataSet.lock.Unlock()
+	d.lock.Lock()
+	defer d.lock.Unlock()
 	d.Table.Lock.RLock()
 	defer d.Table.Lock.RUnlock()
 	if d.Index == nil {

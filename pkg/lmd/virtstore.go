@@ -89,10 +89,10 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 	store.DataSet = peer.data.Load()
 	data := make(ResultSet, 0)
 	dataSet := store.DataSet
-	dataSet.lock.RLock()
-	defer dataSet.lock.RUnlock()
 	switch store.Table.Name {
 	case TableHostsbygroup:
+		dataSet.tables[TableHosts].lock.RLock()
+		defer dataSet.tables[TableHosts].lock.RUnlock()
 		nameCol := dataSet.tables[TableHosts].GetColumn("name")
 		groupCol := dataSet.tables[TableHosts].GetColumn("groups")
 		for _, row := range dataSet.tables[TableHosts].Data {
@@ -103,6 +103,8 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 			}
 		}
 	case TableServicesbygroup:
+		dataSet.tables[TableServices].lock.RLock()
+		defer dataSet.tables[TableServices].lock.RUnlock()
 		hostNameCol := dataSet.tables[TableServices].GetColumn("host_name")
 		descCol := dataSet.tables[TableServices].GetColumn("description")
 		groupCol := dataSet.tables[TableServices].GetColumn("groups")
@@ -115,6 +117,8 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 			}
 		}
 	case TableServicesbyhostgroup:
+		dataSet.tables[TableServices].lock.RLock()
+		defer dataSet.tables[TableServices].lock.RUnlock()
 		hostNameCol := dataSet.tables[TableServices].GetColumn("host_name")
 		descCol := dataSet.tables[TableServices].GetColumn("description")
 		hostGroupsCol := dataSet.tables[TableServices].GetColumn("host_groups")
