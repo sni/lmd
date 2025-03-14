@@ -19,6 +19,7 @@ jobs:
     - uses: actions/checkout@v4
     - run: make clean
     - run: make citest
+    - run: make longtest
     - run: make
     - name: extract built binary
       uses: actions/upload-artifact@v4
