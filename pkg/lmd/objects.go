@@ -51,6 +51,8 @@ func InitObjects() {
 	Objects.AddTable(NewHostsByGroupTable())
 	Objects.AddTable(NewServicesByGroupTable())
 	Objects.AddTable(NewServicesByHostgroupTable())
+
+	columnsStore = BuildTableColumnsStore(Objects.Tables[TableColumns])
 }
 
 // AddTable appends a table object to the Objects and verifies that no table is added twice.

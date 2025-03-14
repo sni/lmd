@@ -78,6 +78,7 @@ type Peer struct { //nolint:govet // not fieldalignment relevant
 	lmd             *Daemon         // reference to main lmd instance
 	config          *Connection     // reference to the peer configuration from the config file
 	shutdownChannel chan bool       // channel used to wait to finish shutdown
+	statusStore     *DataStore      // the cached pseudo store for the status table
 	cache           struct {
 		HTTPClient             *http.Client  // cached http client for http backends
 		connectionPool         chan net.Conn // tcp connection get stored here for reuse
@@ -231,7 +232,7 @@ func (e *PeerCommandError) Error() string {
 // NewPeer creates a new peer object.
 // It returns the created peer.
 func NewPeer(lmd *Daemon, config *Connection) *Peer {
-	peer := Peer{
+	peer := &Peer{
 		Name:            config.Name,
 		ID:              config.ID,
 		Source:          config.Source,
@@ -265,9 +266,11 @@ func NewPeer(lmd *Daemon, config *Connection) *Peer {
 	/* initialize http client if there are any http(s) connections */
 	peer.SetHTTPClient()
 
+	peer.statusStore = BuildTableBackendsStore(Objects.Tables[TableStatus], peer)
+
 	peer.ResetFlags()
 
-	return &peer
+	return peer
 }
 
 // Start creates the initial objects and starts the update loop in a separate goroutine.

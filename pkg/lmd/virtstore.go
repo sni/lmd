@@ -1,9 +1,16 @@
 package lmd
 
+var columnsStore *DataStore
+
 type VirtualStoreResolveFunc func(table *Table, peer *Peer) *DataStore
 
 // GetTableBackendsStore returns the virtual data used for the backends livestatus table.
-func GetTableBackendsStore(table *Table, peer *Peer) *DataStore {
+func GetTableBackendsStore(_ *Table, peer *Peer) *DataStore {
+	return (peer.statusStore)
+}
+
+// BuildTableBackendsStore returns the virtual data used for the backends livestatus table.
+func BuildTableBackendsStore(table *Table, peer *Peer) *DataStore {
 	// simply return a new DataStore with a single row, since all columns are virtual anyway
 	store := NewDataStore(table, peer)
 	rows := make(ResultSet, 1)
@@ -17,7 +24,13 @@ func GetTableBackendsStore(table *Table, peer *Peer) *DataStore {
 }
 
 // GetTableColumnsStore returns the virtual data used for the columns/table livestatus table.
-func GetTableColumnsStore(table *Table, _ *Peer) *DataStore {
+func GetTableColumnsStore(_ *Table, _ *Peer) *DataStore {
+	return columnsStore
+}
+
+// BuildTableColumnsStore creates the virtual data used for the columns/table livestatus table.
+// it only needs to be created once, since all the data is static.
+func BuildTableColumnsStore(table *Table) *DataStore {
 	store := NewDataStore(table, nil)
 	data := make(ResultSet, 0)
 	for _, table := range Objects.Tables {
