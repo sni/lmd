@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/OneOfOne/xxhash"
 	"github.com/sasha-s/go-deadlock"
 )
 
@@ -116,8 +117,9 @@ func (d *DataStore) InsertData(rows ResultSet, columns ColumnList, setReferences
 		}
 		d.InsertItem(idx, row)
 	}
-	// only required during initial setup
-	d.dupStringList = nil
+
+	// reset after initial setup
+	d.dupStringList = make(map[uint32][]string)
 
 	return nil
 }
@@ -420,7 +422,7 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 		// prepare deduped strings if required
 		if prep.FullUpdate {
 			for i, col := range columns {
-				res[rowNum][i+dataOffset] = cast2Type(res[rowNum][i+dataOffset], col)
+				res[rowNum][i+dataOffset] = cast2Type(res[rowNum][i+dataOffset], col, d)
 			}
 		}
 		updateSet = append(updateSet, prep)
@@ -702,4 +704,24 @@ func (d *DataStore) appendIndexFromPrimaryKey(uniqRows map[string]bool, fil *Fil
 	}
 
 	return false
+}
+
+// deduplicateStringlist store duplicate string lists only once.
+func (d *DataStore) deduplicateStringlist(list []string) []string {
+	sum := xxhash.ChecksumString32(strings.Join(list, ListSepChar1))
+	if l, ok := d.dupStringList[sum]; ok {
+		return l
+	}
+
+	// adding new list, deduplicate strings as well
+	dedupedList := make([]string, 0, len(list))
+	for i := range list {
+		dedupedList = append(dedupedList, dedup.S(list[i]))
+	}
+
+	if sum > 0 {
+		d.dupStringList[sum] = dedupedList
+	}
+
+	return dedupedList
 }

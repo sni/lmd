@@ -138,7 +138,6 @@ func (t *TableName) String() string {
 // Table defines available columns and table options.
 type Table struct {
 	noCopy          noCopy
-	name            TableName
 	dataSizes       map[DataType]int   // contains size used for the datastore
 	lock            *deadlock.RWMutex  // must be used for DataSizes access
 	columnsIndex    map[string]*Column // access columns by name
@@ -147,6 +146,7 @@ type Table struct {
 	refTables       []TableRef // referenced tables
 	defaultSort     []string   // columns used to sort if nothing is specified
 	columns         ColumnList
+	name            TableName
 	worksUnlocked   bool // flag wether locking the peer.DataLock can be skipped to answer the query
 	passthroughOnly bool // flag wether table will be cached or simply passed through to remote sites
 }

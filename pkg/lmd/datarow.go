@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/OneOfOne/xxhash"
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -468,7 +467,7 @@ func (d *DataRow) getVirtualRowValue(col *Column) interface{} {
 		value = col.VirtualMap.resolveFunc(peer, d, col)
 	}
 
-	return cast2Type(value, col)
+	return cast2Type(value, col, nil)
 }
 
 // GetCustomVarValue returns custom variable value for given name.
@@ -844,7 +843,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 		case StringCol:
 			d.dataString[localIndex] = *(interface2string(data[resIndex]))
 		case StringListCol:
-			d.dataStringList[localIndex] = d.deduplicateStringlist(interface2stringlist(data[resIndex]))
+			d.dataStringList[localIndex] = d.dataStore.deduplicateStringlist(interface2stringlist(data[resIndex]))
 		case StringLargeCol:
 			d.dataStringLarge[localIndex] = *interface2stringlarge(data[resIndex])
 		case IntCol:
@@ -1301,34 +1300,19 @@ func interface2jsonstring(raw interface{}) string {
 	}
 }
 
-// deduplicateStringlist store duplicate string lists only once.
-func (d *DataRow) deduplicateStringlist(list []string) []string {
-	var sum uint32
-	if d.dataStore.dupStringList != nil {
-		sum = xxhash.ChecksumString32(strings.Join(list, ListSepChar1))
-		if l, ok := d.dataStore.dupStringList[sum]; ok {
-			return l
-		}
-	}
-
-	// adding new list, deduplicate strings as well
-	dedupedList := make([]string, 0, len(list))
-	for i := range list {
-		dedupedList = append(dedupedList, dedup.S(list[i]))
-	}
-
-	if sum > 0 {
-		d.dataStore.dupStringList[sum] = dedupedList
-	}
-
-	return dedupedList
-}
-
-func cast2Type(val interface{}, col *Column) interface{} {
+func cast2Type(val interface{}, col *Column, dedupStore *DataStore) interface{} {
 	switch col.DataType {
 	case StringCol:
+		if dedupStore != nil {
+			return (interface2string(val))
+		}
+
 		return (interface2stringNoDedup(val))
 	case StringListCol:
+		if dedupStore != nil {
+			return (dedupStore.deduplicateStringlist(interface2stringlist(val)))
+		}
+
 		return (interface2stringlist(val))
 	case StringLargeCol:
 		return (interface2stringlarge(val))
