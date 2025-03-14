@@ -171,11 +171,6 @@ func (d *DataRow) SetReferences() (err error) {
 	return
 }
 
-// GetColumn returns the column by name.
-func (d *DataRow) GetColumn(name string) *Column {
-	return d.DataStore.Table.ColumnsIndex[name]
-}
-
 // GetString returns the string value for given column.
 func (d *DataRow) GetString(col *Column) string {
 	switch col.StorageType {
