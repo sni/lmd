@@ -446,7 +446,7 @@ func (p *Peer) periodicUpdate(ctx context.Context) (ok bool, err error) {
 		}
 
 		// run update if it was just a short outage
-		return ok, data.UpdateFull(ctx, Objects.UpdateTables)
+		return ok, data.UpdateDelta(ctx, lastUpdate, now)
 	case PeerStatusUp, PeerStatusSyncing:
 		if data == nil {
 			logWith(p).Warnf("inconsistent state, no data with state: %s", lastStatus.String())
