@@ -898,7 +898,7 @@ func (p *Peer) initTable(ctx context.Context, data *DataStoreSet, table *Table) 
 
 // updateInitialStatus updates peer meta data from last status request.
 func (p *Peer) updateInitialStatus(ctx context.Context, store *DataStore) (err error) {
-	statusData := store.Data
+	statusData := store.data
 	hasStatus := len(statusData) > 0
 	// this may happen if we query another lmd daemon which has no backends ready yet
 	if !hasStatus {
@@ -924,8 +924,8 @@ func (p *Peer) updateInitialStatus(ctx context.Context, store *DataStore) (err e
 		}
 		thrukextras["configtool"] = configtool
 	}
-	p.LogErrors(p.fetchRemotePeers(ctx, store.DataSet))
-	p.LogErrors(p.checkStatusFlags(ctx, store.DataSet))
+	p.LogErrors(p.fetchRemotePeers(ctx, store.dataSet))
+	p.LogErrors(p.checkStatusFlags(ctx, store.dataSet))
 
 	err = p.checkAvailableTables(ctx) // must be done after checkStatusFlags, because it does not work on Icinga2
 	if err != nil {
@@ -1615,7 +1615,7 @@ func (p *Peer) closeConnectionPool() {
 }
 
 func (p *Peer) checkStatusFlags(ctx context.Context, store *DataStoreSet) (err error) {
-	data := store.Get(TableStatus).Data
+	data := store.Get(TableStatus).data
 	if len(data) == 0 {
 		return nil
 	}
@@ -2396,8 +2396,8 @@ func (p *Peer) getError() string {
 
 func (p *Peer) waitConditionTableMatches(store *DataStore, filter []*Filter) bool {
 Rows:
-	for j := range store.Data {
-		row := store.Data[j]
+	for j := range store.data {
+		row := store.data[j]
 		// does our filter match?
 		for _, f := range filter {
 			if !row.MatchFilter(f, false) {

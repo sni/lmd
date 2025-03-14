@@ -206,9 +206,9 @@ func (l *LogPrefixer) prefix() (prefix string) {
 		case *ClientConnection:
 			prefix = fmt.Sprintf("%s[%s->%s]", prefix, val.remoteAddr, val.localAddr)
 		case *DataRow:
-			prefix = fmt.Sprintf("%s[%s]", prefix, val.DataStore.Peer.Name)
+			prefix = fmt.Sprintf("%s[%s]", prefix, val.dataStore.peer.Name)
 		case *DataStore:
-			prefix = fmt.Sprintf("%s[%s]", prefix, val.Peer.Name)
+			prefix = fmt.Sprintf("%s[%s]", prefix, val.peer.Name)
 		case *DataStoreSet:
 			prefix = fmt.Sprintf("%s[%s]", prefix, val.peer.Name)
 		case context.Context:

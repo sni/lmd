@@ -260,7 +260,7 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, l
 
 	if peer != nil && peer.isOnline() {
 		store := NewDataStore(table, peer)
-		store.DataSet = peer.data.Load()
+		store.dataSet = peer.data.Load()
 		columnsList := ColumnList{}
 		for _, name := range columns {
 			col := store.GetColumn(name)

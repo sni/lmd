@@ -46,7 +46,7 @@ var VirtualColumnList = []VirtualColumnMapEntry{
 	{Name: "federation_version", ResolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.SubVersion.Get() }},
 
 	// calculated columns by ResolveFunc
-	{Name: "lmd_last_cache_update", ResolveFunc: func(_ *Peer, d *DataRow, _ *Column) interface{} { return d.LastUpdate }},
+	{Name: "lmd_last_cache_update", ResolveFunc: func(_ *Peer, d *DataRow, _ *Column) interface{} { return d.lastUpdate }},
 	{Name: "lmd_version", ResolveFunc: func(_ *Peer, _ *DataRow, _ *Column) interface{} { return fmt.Sprintf("%s-%s", NAME, Version()) }},
 	{Name: "state_order", ResolveFunc: VirtualColStateOrder},
 	{Name: "last_state_change_order", ResolveFunc: VirtualColLastStateChangeOrder},

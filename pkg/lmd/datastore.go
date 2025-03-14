@@ -12,34 +12,33 @@ import (
 type DataStore struct {
 	noCopy                  noCopy
 	lock                    *deadlock.RWMutex
-	Index                   map[string]*DataRow            // access data rows from primary key, ex.: hostname or comment id
-	Index2                  map[string]map[string]*DataRow // access data rows from 2 primary keys, ex.: host and service
-	IndexLowerCase          map[string][]string            // access data rows from lower case primary key
-	Peer                    *Peer                          // reference to our peer
-	LowerCaseColumns        map[int]int                    // list of string column indexes with their corresponding lower case index
+	index                   map[string]*DataRow            // access data rows from primary key, ex.: hostname or comment id
+	index2                  map[string]map[string]*DataRow // access data rows from 2 primary keys, ex.: host and service
+	indexLowerCase          map[string][]string            // access data rows from lower case primary key
+	peer                    *Peer                          // reference to our peer
+	lowerCaseColumns        map[int]int                    // list of string column indexes with their corresponding lower case index
 	dupStringList           map[uint32][]string            // lookup pointer to other stringlists during initialization
-	Table                   *Table                         // reference to table definition
-	DataSet                 *DataStoreSet                  // reference to parent DataSet
-	DynamicColumnCache      ColumnList                     // contains list of keys used to run periodic update
-	Data                    []*DataRow                     // the actual data rows
-	Columns                 ColumnList                     // reference to the used columns
-	DynamicColumnNamesCache []string                       // contains list of keys used to run periodic update
+	table                   *Table                         // reference to table definition
+	dataSet                 *DataStoreSet                  // reference to parent DataSet
+	dynamicColumnCache      ColumnList                     // contains list of keys used to run periodic update
+	data                    []*DataRow                     // the actual data rows
+	dynamicColumnNamesCache []string                       // contains list of keys used to run periodic update
 }
 
 // NewDataStore creates a new datastore with columns based on given flags.
 func NewDataStore(table *Table, peer *Peer) (d *DataStore) {
 	d = &DataStore{
 		lock:                    new(deadlock.RWMutex),
-		Data:                    make([]*DataRow, 0),
-		Index:                   make(map[string]*DataRow),
-		Index2:                  make(map[string]map[string]*DataRow),
-		IndexLowerCase:          make(map[string][]string),
-		DynamicColumnCache:      make(ColumnList, 0),
-		DynamicColumnNamesCache: make([]string, 0),
+		data:                    make([]*DataRow, 0),
+		index:                   make(map[string]*DataRow),
+		index2:                  make(map[string]map[string]*DataRow),
+		indexLowerCase:          make(map[string][]string),
+		dynamicColumnCache:      make(ColumnList, 0),
+		dynamicColumnNamesCache: make([]string, 0),
 		dupStringList:           make(map[uint32][]string),
-		Table:                   table,
-		Peer:                    peer,
-		LowerCaseColumns:        make(map[int]int),
+		table:                   table,
+		peer:                    peer,
+		lowerCaseColumns:        make(map[int]int),
 	}
 
 	// create columns list
@@ -49,7 +48,7 @@ func NewDataStore(table *Table, peer *Peer) (d *DataStore) {
 
 	for i := range table.Columns {
 		col := table.Columns[i]
-		if col.Optional != NoFlags && !d.Peer.HasFlag(col.Optional) {
+		if col.Optional != NoFlags && !d.peer.HasFlag(col.Optional) {
 			continue
 		}
 		if col.StorageType != LocalStore {
@@ -69,11 +68,11 @@ func NewDataStore(table *Table, peer *Peer) (d *DataStore) {
 			}
 		}
 		if col.FetchType == Dynamic {
-			d.DynamicColumnCache = append(d.DynamicColumnCache, col)
+			d.dynamicColumnCache = append(d.dynamicColumnCache, col)
 		}
 		if strings.HasSuffix(col.Name, "_lc") {
 			refCol := table.GetColumn(strings.TrimSuffix(col.Name, "_lc"))
-			d.LowerCaseColumns[refCol.Index] = col.Index
+			d.lowerCaseColumns[refCol.Index] = col.Index
 		}
 	}
 
@@ -84,10 +83,10 @@ func NewDataStore(table *Table, peer *Peer) (d *DataStore) {
 	}
 
 	// prepend primary keys to dynamic keys, since they are required to map the results back to specific items
-	if len(d.DynamicColumnCache) > 0 {
-		d.DynamicColumnNamesCache = append(d.DynamicColumnNamesCache, table.PrimaryKey...)
-		for _, col := range d.DynamicColumnCache {
-			d.DynamicColumnNamesCache = append(d.DynamicColumnNamesCache, col.Name)
+	if len(d.dynamicColumnCache) > 0 {
+		d.dynamicColumnNamesCache = append(d.dynamicColumnNamesCache, table.PrimaryKey...)
+		for _, col := range d.dynamicColumnCache {
+			d.dynamicColumnNamesCache = append(d.dynamicColumnNamesCache, col.Name)
 		}
 	}
 
@@ -97,21 +96,21 @@ func NewDataStore(table *Table, peer *Peer) (d *DataStore) {
 // InsertData adds a list of results and initializes the store table.
 func (d *DataStore) InsertData(rows ResultSet, columns ColumnList, setReferences bool) error {
 	now := currentUnixTime()
-	switch len(d.Table.PrimaryKey) {
+	switch len(d.table.PrimaryKey) {
 	case 0:
 	case 1:
-		d.Index = make(map[string]*DataRow, len(rows))
+		d.index = make(map[string]*DataRow, len(rows))
 	case 2:
-		d.Index2 = make(map[string]map[string]*DataRow)
+		d.index2 = make(map[string]map[string]*DataRow)
 	default:
 		panic("not supported number of primary keys")
 	}
 
-	d.Data = make([]*DataRow, len(rows))
+	d.data = make([]*DataRow, len(rows))
 	for idx, raw := range rows {
 		row, err := NewDataRow(d, raw, columns, now, setReferences)
 		if err != nil {
-			log.Errorf("adding new %s failed: %s", d.Table.Name.String(), err.Error())
+			log.Errorf("adding new %s failed: %s", d.table.Name.String(), err.Error())
 
 			return err
 		}
@@ -127,9 +126,9 @@ func (d *DataStore) InsertData(rows ResultSet, columns ColumnList, setReferences
 func (d *DataStore) AppendData(data ResultSet, columns ColumnList) error {
 	d.lock.Lock()
 	defer d.lock.Unlock()
-	d.Table.Lock.RLock()
-	defer d.Table.Lock.RUnlock()
-	if d.Index == nil {
+	d.table.Lock.RLock()
+	defer d.table.Lock.RUnlock()
+	if d.index == nil {
 		// should not happen but might indicate a recent restart or backend issue
 		return fmt.Errorf("index not ready, cannot append data")
 	}
@@ -147,26 +146,26 @@ func (d *DataStore) AppendData(data ResultSet, columns ColumnList) error {
 
 // InsertItem adds an new DataRow to a DataStore at given Index.
 func (d *DataStore) InsertItem(index int, row *DataRow) {
-	d.Data[index] = row
-	switch len(d.Table.PrimaryKey) {
+	d.data[index] = row
+	switch len(d.table.PrimaryKey) {
 	case 0:
 	case 1:
 		id := dedup.S(row.GetID())
-		d.Index[id] = row
-		if d.Table.Name == TableHosts {
+		d.index[id] = row
+		if d.table.Name == TableHosts {
 			idLower := dedup.S(strings.ToLower(id))
 			if idLower != id {
-				d.IndexLowerCase[idLower] = append(d.IndexLowerCase[idLower], id)
+				d.indexLowerCase[idLower] = append(d.indexLowerCase[idLower], id)
 			}
 		}
 	case 2:
 		id1, id2 := row.GetID2()
 		id1 = dedup.S(id1)
 		id2 = dedup.S(id2)
-		if _, ok := d.Index2[id1]; !ok {
-			d.Index2[id1] = make(map[string]*DataRow)
+		if _, ok := d.index2[id1]; !ok {
+			d.index2[id1] = make(map[string]*DataRow)
 		}
-		d.Index2[id1][id2] = row
+		d.index2[id1][id2] = row
 	default:
 		panic("not supported number of primary keys")
 	}
@@ -174,26 +173,26 @@ func (d *DataStore) InsertItem(index int, row *DataRow) {
 
 // AddItem adds an new DataRow to a DataStore.
 func (d *DataStore) AddItem(row *DataRow) {
-	d.Data = append(d.Data, row)
-	switch len(d.Table.PrimaryKey) {
+	d.data = append(d.data, row)
+	switch len(d.table.PrimaryKey) {
 	case 0:
 	case 1:
 		id := dedup.S(row.GetID())
-		d.Index[id] = row
-		if d.Table.Name == TableHosts {
+		d.index[id] = row
+		if d.table.Name == TableHosts {
 			idLower := dedup.S(strings.ToLower(id))
 			if idLower != id {
-				d.IndexLowerCase[idLower] = append(d.IndexLowerCase[idLower], id)
+				d.indexLowerCase[idLower] = append(d.indexLowerCase[idLower], id)
 			}
 		}
 	case 2:
 		id1, id2 := row.GetID2()
 		id1 = dedup.S(id1)
 		id2 = dedup.S(id2)
-		if _, ok := d.Index2[id1]; !ok {
-			d.Index2[id1] = make(map[string]*DataRow)
+		if _, ok := d.index2[id1]; !ok {
+			d.index2[id1] = make(map[string]*DataRow)
 		}
-		d.Index2[id1][id2] = row
+		d.index2[id1][id2] = row
 	default:
 		panic("not supported number of primary keys")
 	}
@@ -201,19 +200,19 @@ func (d *DataStore) AddItem(row *DataRow) {
 
 // RemoveItem removes a DataRow from a DataStore.
 func (d *DataStore) RemoveItem(row *DataRow) {
-	switch len(d.Table.PrimaryKey) {
+	switch len(d.table.PrimaryKey) {
 	case 0:
 	case 1:
-		delete(d.Index, row.GetID())
-		if d.Table.Name == TableHosts {
+		delete(d.index, row.GetID())
+		if d.table.Name == TableHosts {
 			panic("removing from hosts index is not supported")
 		}
 	default:
 		panic("not supported number of primary keys")
 	}
-	for i := range d.Data {
-		if d.Data[i] == row {
-			d.Data = append(d.Data[:i], d.Data[i+1:]...)
+	for i := range d.data {
+		if d.data[i] == row {
+			d.data = append(d.data[:i], d.data[i+1:]...)
 
 			return
 		}
@@ -223,10 +222,14 @@ func (d *DataStore) RemoveItem(row *DataRow) {
 
 // SetReferences creates reference entries for this tables.
 func (d *DataStore) SetReferences() (err error) {
-	for _, row := range d.Data {
+	if len(d.table.RefTables) == 0 {
+		return
+	}
+
+	for _, row := range d.data {
 		err = row.SetReferences()
 		if err != nil {
-			logWith(d).Debugf("setting references on table %s failed: %s", d.Table.Name.String(), err.Error())
+			logWith(d).Debugf("setting references on table %s failed: %s", d.table.Name.String(), err.Error())
 
 			return
 		}
@@ -237,16 +240,16 @@ func (d *DataStore) SetReferences() (err error) {
 
 // GetColumn returns column by name.
 func (d *DataStore) GetColumn(name string) *Column {
-	return d.Table.ColumnsIndex[name]
+	return d.table.ColumnsIndex[name]
 }
 
 // GetInitialColumns returns list of columns required to fill initial dataset.
 func (d *DataStore) GetInitialColumns() ([]string, ColumnList) {
 	columns := make(ColumnList, 0)
 	keys := make([]string, 0)
-	for i := range d.Table.Columns {
-		col := d.Table.Columns[i]
-		if d.Peer != nil && !d.Peer.HasFlag(col.Optional) {
+	for i := range d.table.Columns {
+		col := d.table.Columns[i]
+		if d.peer != nil && !d.peer.HasFlag(col.Optional) {
 			continue
 		}
 		if col.StorageType != LocalStore {
@@ -265,12 +268,12 @@ func (d *DataStore) GetInitialColumns() ([]string, ColumnList) {
 func (d *DataStore) GetWaitObject(req *Request) (*DataRow, bool) {
 	if req.Table == TableServices {
 		parts := strings.SplitN(req.WaitObject, ";", 2)
-		obj, ok := d.Index2[parts[0]][parts[1]]
+		obj, ok := d.index2[parts[0]][parts[1]]
 
 		return obj, ok
 	}
 
-	obj, ok := d.Index[req.WaitObject]
+	obj, ok := d.index[req.WaitObject]
 
 	return obj, ok
 }
@@ -280,28 +283,28 @@ type getPreFilteredDataFilter func(map[string]bool, *Filter) bool
 // GetPreFilteredData returns d.Data but try to return reduced dataset by using host / service index if table supports it.
 func (d *DataStore) GetPreFilteredData(filter []*Filter) []*DataRow {
 	if len(filter) == 0 {
-		return d.Data
+		return d.data
 	}
 
 	switch {
-	case d.Table.Name == TableHosts:
+	case d.table.Name == TableHosts:
 		return (d.tryFilterIndexData(filter, d.appendIndexHostsFromHostColumns))
-	case d.Table.Name == TableServices:
+	case d.table.Name == TableServices:
 		return (d.tryFilterIndexData(filter, d.appendIndexHostsFromServiceColumns))
-	case len(d.Table.PrimaryKey) == 1:
+	case len(d.table.PrimaryKey) == 1:
 		return (d.tryFilterIndexData(filter, d.appendIndexFromPrimaryKey))
 	default:
 		// only hosts and services are supported
 	}
 
-	return d.Data
+	return d.data
 }
 
 func (d *DataStore) tryFilterIndexData(filter []*Filter, fn getPreFilteredDataFilter) []*DataRow {
 	uniqRows := make(map[string]bool)
 	ok := d.TryFilterIndex(uniqRows, filter, fn, false)
 	if !ok {
-		return d.Data
+		return d.data
 	}
 	// sort and return list of index names used
 	primaryKeyList := []string{}
@@ -310,10 +313,10 @@ func (d *DataStore) tryFilterIndexData(filter []*Filter, fn getPreFilteredDataFi
 	}
 	sort.Strings(primaryKeyList)
 	indexedData := make([]*DataRow, 0)
-	switch d.Table.Name {
+	switch d.table.Name {
 	case TableServices:
 		for _, name := range primaryKeyList {
-			services, ok := d.Index2[name]
+			services, ok := d.index2[name]
 			if ok {
 				// Sort services by description, asc
 				keys := make([]string, 0)
@@ -331,13 +334,13 @@ func (d *DataStore) tryFilterIndexData(filter []*Filter, fn getPreFilteredDataFi
 		}
 	default:
 		for _, name := range primaryKeyList {
-			row, ok := d.Index[name]
+			row, ok := d.index[name]
 			if ok {
 				indexedData = append(indexedData, row)
 			}
 		}
 	}
-	log.Tracef("using indexed %s dataset of size: %d", d.Table.Name.String(), len(indexedData))
+	log.Tracef("using indexed %s dataset of size: %d", d.table.Name.String(), len(indexedData))
 
 	return indexedData
 }
@@ -349,11 +352,11 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 	lastCheckDataIdx, lastCheckResIdx := d.getUpdateColumn("last_check", dataOffset)
 	lastUpdateDataIdx, lastUpdateResIdx := d.getUpdateColumn("last_update", dataOffset)
 
-	useIndex := dataOffset == 0 || len(res) == len(d.Data)
+	useIndex := dataOffset == 0 || len(res) == len(d.data)
 
 	// prepare update
-	nameIndex := d.Index
-	nameIndex2 := d.Index2
+	nameIndex := d.index
+	nameIndex2 := d.index2
 	for rowNum := range res {
 		resRow := res[rowNum]
 		prep := &ResultPrepared{
@@ -361,9 +364,9 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 			FullUpdate: false,
 		}
 		if useIndex {
-			prep.DataRow = d.Data[rowNum]
+			prep.DataRow = d.data[rowNum]
 		} else {
-			switch d.Table.Name {
+			switch d.table.Name {
 			case TableHosts:
 				hostName := interface2stringNoDedup(resRow[0])
 				dataRow := nameIndex[hostName]
@@ -381,7 +384,7 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 
 				prep.DataRow = dataRow
 			default:
-				log.Panicf("table not supported: %s", d.Table.Name.String())
+				log.Panicf("table not supported: %s", d.table.Name.String())
 			}
 		}
 
@@ -436,15 +439,15 @@ func (d *DataStore) getUpdateColumn(columnName string, dataOffset int) (dataInde
 		return
 	}
 	// double  check last_update column
-	if columnName == "last_update" && !d.Peer.HasFlag(HasLastUpdateColumn) {
+	if columnName == "last_update" && !d.peer.HasFlag(HasLastUpdateColumn) {
 		return
 	}
 
 	dataIndex = checkCol.Index
-	resIndex = d.DynamicColumnCache.GetColumnIndex(columnName) + dataOffset
+	resIndex = d.dynamicColumnCache.GetColumnIndex(columnName) + dataOffset
 	if checkCol.DataType != Int64Col {
 		log.Panicf("%s: assumption about column type for %s is wrong, expected %s and got %s",
-			d.Table.Name.String(), checkCol.Name, Int64Col.String(), checkCol.DataType.String())
+			d.table.Name.String(), checkCol.Name, Int64Col.String(), checkCol.DataType.String())
 	}
 
 	return
@@ -498,7 +501,7 @@ func (d *DataStore) appendIndexHostsFromHostColumns(uniqHosts map[string]bool, f
 		// name =~ <value>
 		case EqualNocase:
 			uniqHosts[fil.StrValue] = true
-			for _, key := range d.IndexLowerCase[strings.ToLower(fil.StrValue)] {
+			for _, key := range d.indexLowerCase[strings.ToLower(fil.StrValue)] {
 				uniqHosts[key] = true
 			}
 
@@ -511,7 +514,7 @@ func (d *DataStore) appendIndexHostsFromHostColumns(uniqHosts map[string]bool, f
 		// name == <value>
 		case Equal, EqualNocase:
 			uniqHosts[fil.StrValue] = true
-			for _, key := range d.IndexLowerCase[strings.ToLower(fil.StrValue)] {
+			for _, key := range d.indexLowerCase[strings.ToLower(fil.StrValue)] {
 				uniqHosts[key] = true
 			}
 
@@ -524,8 +527,8 @@ func (d *DataStore) appendIndexHostsFromHostColumns(uniqHosts map[string]bool, f
 		switch fil.Operator {
 		// groups >= <value>
 		case GreaterThan:
-			store := d.DataSet.tables[TableHostgroups]
-			group, ok := store.Index[fil.StrValue]
+			store := d.dataSet.Get(TableHostgroups)
+			group, ok := store.index[fil.StrValue]
 			if ok {
 				members := group.GetStringListByName("members")
 				for _, m := range members {
@@ -535,8 +538,8 @@ func (d *DataStore) appendIndexHostsFromHostColumns(uniqHosts map[string]bool, f
 
 			return true
 		case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase:
-			store := d.DataSet.tables[TableHostgroups]
-			for groupname, group := range store.Index {
+			store := d.dataSet.Get(TableHostgroups)
+			for groupname, group := range store.index {
 				if fil.MatchString(strings.ToLower(groupname)) {
 					members := group.GetStringListByName("members")
 					for _, m := range members {
@@ -565,8 +568,8 @@ func (d *DataStore) appendIndexHostsFromServiceColumns(uniqHosts map[string]bool
 			return true
 		// host_name ~ <value>
 		case RegexMatch, Contains:
-			store := d.DataSet.tables[TableHosts]
-			for hostname := range store.Index {
+			store := d.dataSet.Get(TableHosts)
+			for hostname := range store.index {
 				if fil.MatchString(hostname) {
 					uniqHosts[hostname] = true
 				}
@@ -580,8 +583,8 @@ func (d *DataStore) appendIndexHostsFromServiceColumns(uniqHosts map[string]bool
 		switch fil.Operator {
 		// host_name ~~ <value>
 		case RegexMatch, Contains, RegexNoCaseMatch, ContainsNoCase, EqualNocase, Equal:
-			store := d.DataSet.tables[TableHosts]
-			for hostname := range store.Index {
+			store := d.dataSet.Get(TableHosts)
+			for hostname := range store.index {
 				if fil.MatchString(strings.ToLower(hostname)) {
 					uniqHosts[hostname] = true
 				}
@@ -596,8 +599,8 @@ func (d *DataStore) appendIndexHostsFromServiceColumns(uniqHosts map[string]bool
 		switch fil.Operator {
 		// groups >= <value>
 		case GreaterThan:
-			store := d.DataSet.tables[TableHostgroups]
-			group, ok := store.Index[fil.StrValue]
+			store := d.dataSet.Get(TableHostgroups)
+			group, ok := store.index[fil.StrValue]
 			if ok {
 				members := group.GetStringListByName("members")
 				for _, m := range members {
@@ -607,8 +610,8 @@ func (d *DataStore) appendIndexHostsFromServiceColumns(uniqHosts map[string]bool
 
 			return true
 		case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase:
-			store := d.DataSet.tables[TableHostgroups]
-			for groupname, group := range store.Index {
+			store := d.dataSet.Get(TableHostgroups)
+			for groupname, group := range store.index {
 				if fil.MatchString(strings.ToLower(groupname)) {
 					members := group.GetStringListByName("members")
 					for _, m := range members {
@@ -626,8 +629,8 @@ func (d *DataStore) appendIndexHostsFromServiceColumns(uniqHosts map[string]bool
 		switch fil.Operator {
 		// groups >= <value>
 		case GreaterThan:
-			store := d.DataSet.tables[TableServicegroups]
-			group, ok := store.Index[fil.StrValue]
+			store := d.dataSet.Get(TableServicegroups)
+			group, ok := store.index[fil.StrValue]
 			if ok {
 				members := group.GetServiceMemberListByName("members")
 				for i := range members {
@@ -637,8 +640,8 @@ func (d *DataStore) appendIndexHostsFromServiceColumns(uniqHosts map[string]bool
 
 			return true
 		case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase:
-			store := d.DataSet.tables[TableServicegroups]
-			for groupname, group := range store.Index {
+			store := d.dataSet.Get(TableServicegroups)
+			for groupname, group := range store.index {
 				if fil.MatchString(groupname) {
 					members := group.GetServiceMemberListByName("members")
 					for i := range members {
@@ -659,7 +662,7 @@ func (d *DataStore) appendIndexHostsFromServiceColumns(uniqHosts map[string]bool
 }
 
 func (d *DataStore) appendIndexFromPrimaryKey(uniqRows map[string]bool, fil *Filter) bool {
-	key := d.Table.PrimaryKey[0]
+	key := d.table.PrimaryKey[0]
 
 	switch fil.Column.Name {
 	case key:
@@ -673,7 +676,7 @@ func (d *DataStore) appendIndexFromPrimaryKey(uniqRows map[string]bool, fil *Fil
 		// name =~ <value>
 		case EqualNocase:
 			uniqRows[fil.StrValue] = true
-			for _, key := range d.IndexLowerCase[strings.ToLower(fil.StrValue)] {
+			for _, key := range d.indexLowerCase[strings.ToLower(fil.StrValue)] {
 				uniqRows[key] = true
 			}
 
@@ -686,7 +689,7 @@ func (d *DataStore) appendIndexFromPrimaryKey(uniqRows map[string]bool, fil *Fil
 		// name == <value>
 		case Equal, EqualNocase:
 			uniqRows[fil.StrValue] = true
-			for _, key := range d.IndexLowerCase[strings.ToLower(fil.StrValue)] {
+			for _, key := range d.indexLowerCase[strings.ToLower(fil.StrValue)] {
 				uniqRows[key] = true
 			}
 

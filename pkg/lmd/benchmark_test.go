@@ -18,8 +18,9 @@ func BenchmarkParseResultJSON(b *testing.B) {
 
 	columns := make([]string, 0)
 	data := peer.data.Load()
-	for i := range data.tables[TableServices].Table.Columns {
-		col := data.tables[TableServices].Table.Columns[i]
+	store := data.Get(TableServices)
+	for i := range store.table.Columns {
+		col := store.table.Columns[i]
 		if col.StorageType == LocalStore && col.Optional == NoFlags {
 			columns = append(columns, col.Name)
 		}
@@ -59,8 +60,9 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 
 	columns := make([]string, 0)
 	data := peer.data.Load()
-	for i := range data.tables[TableServices].Table.Columns {
-		col := data.tables[TableServices].Table.Columns[i]
+	store := data.Get(TableServices)
+	for i := range store.table.Columns {
+		col := store.table.Columns[i]
 		if col.StorageType == LocalStore && col.Optional == NoFlags {
 			columns = append(columns, col.Name)
 		}
@@ -119,10 +121,10 @@ func BenchmarkPeerUpdateServiceInsert(b *testing.B) {
 	PauseTestPeers(peer)
 
 	data := peer.data.Load()
-	table := data.tables[TableServices]
+	table := data.Get(TableServices)
 	req := &Request{
-		Table:           table.Table.Name,
-		Columns:         table.DynamicColumnNamesCache,
+		Table:           table.table.Name,
+		Columns:         table.dynamicColumnNamesCache,
 		ResponseFixed16: true,
 		OutputFormat:    OutputFormatJSON,
 		FilterStr:       "Filter: host_name !=\n",

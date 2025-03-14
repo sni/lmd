@@ -103,7 +103,7 @@ func NewResponse(ctx context.Context, req *Request, client *ClientConnection) (r
 				continue
 			}
 			if !table.WorksUnlocked {
-				res.lockStores(store.DataSet)
+				res.lockStores(store.dataSet)
 			}
 			stores[peer] = store
 		}
@@ -128,9 +128,13 @@ func NewResponse(ctx context.Context, req *Request, client *ClientConnection) (r
 }
 
 func (res *Response) lockStores(data *DataStoreSet) {
-	for _, table := range res.affectedTables {
-		store, ok := data.tables[table]
-		if ok {
+	for _, tableName := range res.affectedTables {
+		table := Objects.Tables[tableName]
+		if table.Virtual != nil {
+			continue
+		}
+		store := data.Get(tableName)
+		if store != nil {
 			store.lock.RLock()
 			res.lockedStores = append(res.lockedStores, store)
 		}
@@ -668,7 +672,7 @@ func (res *Response) buildLocalResponse(ctx context.Context, stores map[*Peer]*D
 		}
 
 		// process virtual tables serially without go routines to maintain the correct order, ex.: from the sites table
-		if store.Table.Virtual != nil {
+		if store.table.Virtual != nil {
 			res.buildLocalResponseData(ctx, store, resultcollector)
 
 			continue
@@ -861,9 +865,9 @@ func SpinUpPeers(ctx context.Context, peers []*Peer) {
 
 // buildLocalResponseData returns the result data for a given request.
 func (res *Response) buildLocalResponseData(ctx context.Context, store *DataStore, resultcollector chan *PeerResponse) {
-	logWith(store.Peer, res).Tracef("BuildLocalResponseData")
+	logWith(store.peer, res).Tracef("BuildLocalResponseData")
 
-	if len(store.Data) == 0 {
+	if len(store.data) == 0 {
 		return
 	}
 
@@ -887,7 +891,7 @@ func (res *Response) gatherResultRows(ctx context.Context, store *DataStore, res
 	// we can drastically reduce the result set by applying the limit here already
 	limit := req.optimizeResultLimit()
 	if limit <= 0 {
-		limit = len(store.Data) + 1
+		limit = len(store.data) + 1
 	}
 
 	// no need to count all the way to the end unless the total number is required in wrapped_json output

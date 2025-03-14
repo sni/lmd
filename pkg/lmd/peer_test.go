@@ -151,7 +151,7 @@ func TestPeerUpdate(t *testing.T) {
 	data, _ := peer.GetDataStoreSet()
 	svcTbl, _ := peer.GetDataStore(TableServices)
 	lastCheckCol := svcTbl.GetColumn("last_check")
-	for _, row := range svcTbl.Data {
+	for _, row := range svcTbl.data {
 		row.dataInt64[lastCheckCol.Index] = 2
 	}
 	ctx := context.TODO()
