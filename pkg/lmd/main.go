@@ -134,6 +134,7 @@ type Daemon struct {
 	initChannel       chan bool
 	mainSignalChannel chan os.Signal
 	PeerMapOrder      []string
+	qStat             *QueryStats
 	flags             struct {
 		flagLogFile      string
 		flagPidfile      string
@@ -301,14 +302,13 @@ func (lmd *Daemon) mainLoop() (exitCode int) {
 	// initialize prometheus
 	prometheusListener := initPrometheus(lmd)
 
-	var qStat *QueryStats
 	if localConfig.LogQueryStats {
 		log.Debugf("query stats enabled")
-		qStat = NewQueryStats()
+		lmd.qStat = NewQueryStats()
 	}
 
 	// start local listeners
-	lmd.initializeListeners(qStat)
+	lmd.initializeListeners()
 
 	// start remote connections
 	if lmd.flags.flagImport != "" {
@@ -334,13 +334,13 @@ func (lmd *Daemon) mainLoop() (exitCode int) {
 	for {
 		select {
 		case sig := <-osSignalChannel:
-			return lmd.mainSignalHandler(sig, prometheusListener, qStat)
+			return lmd.mainSignalHandler(sig, prometheusListener)
 		case sig := <-osSignalUsrChannel:
-			lmd.mainSignalHandler(sig, prometheusListener, qStat)
+			lmd.mainSignalHandler(sig, prometheusListener)
 		case sig := <-lmd.mainSignalChannel:
-			return lmd.mainSignalHandler(sig, prometheusListener, qStat)
+			return lmd.mainSignalHandler(sig, prometheusListener)
 		case <-statsTimer.C:
-			updateStatistics(qStat)
+			updateStatistics(lmd.qStat)
 		}
 	}
 }
@@ -358,7 +358,7 @@ func buildSignalChannel() chan os.Signal {
 func (lmd *Daemon) mainImport(importFile string, osSignalChannel chan os.Signal) {
 	go func() {
 		sig := <-osSignalChannel
-		lmd.mainSignalHandler(sig, nil, nil)
+		lmd.mainSignalHandler(sig, nil)
 		os.Exit(1)
 	}()
 	err := initializePeersWithImport(lmd, importFile)
@@ -400,7 +400,7 @@ func Version() string {
 	return fmt.Sprintf("%s (Build: %s, %s)", VERSION, Build, runtime.Version())
 }
 
-func (lmd *Daemon) initializeListeners(qStat *QueryStats) {
+func (lmd *Daemon) initializeListeners() {
 	ListenersNew := make(map[string]*Listener)
 
 	// close all listeners which are no longer defined
@@ -426,7 +426,7 @@ func (lmd *Daemon) initializeListeners(qStat *QueryStats) {
 			ListenersNew[listen] = l
 		} else {
 			lmd.waitGroupInit.Add(1)
-			l := NewListener(lmd, listen, qStat)
+			l := NewListener(lmd, listen)
 			ListenersNew[listen] = l
 		}
 	}
@@ -622,16 +622,17 @@ func deletePidFile(f string) {
 
 // wraps log.Fatalf but removes the pid file and such...
 func (lmd *Daemon) cleanFatalf(format string, args ...interface{}) {
-	lmd.onExit(nil)
+	lmd.onExit()
 	log.Errorf(format, args...)
 
 	os.Exit(ExitCritical)
 }
 
-func (lmd *Daemon) onExit(qStat *QueryStats) {
+func (lmd *Daemon) onExit() {
 	deletePidFile(lmd.flags.flagPidfile)
-	if qStat != nil {
-		close(qStat.In)
+	if lmd.qStat != nil {
+		close(lmd.qStat.In)
+		lmd.qStat = nil
 	}
 	if lmd.flags.flagCPUProfile != "" {
 		pprof.StopCPUProfile()
@@ -740,7 +741,7 @@ func NewLMDHTTPClient(tlsConfig *tls.Config, proxy string) *http.Client {
 	return netClient
 }
 
-func (lmd *Daemon) mainSignalHandler(sig os.Signal, prometheusListener io.Closer, qStat *QueryStats) (exitCode int) {
+func (lmd *Daemon) mainSignalHandler(sig os.Signal, prometheusListener io.Closer) (exitCode int) {
 	switch sig {
 	case syscall.SIGTERM:
 		log.Infof("got sigterm, quiting gracefully")
@@ -756,7 +757,7 @@ func (lmd *Daemon) mainSignalHandler(sig os.Signal, prometheusListener io.Closer
 		}
 		lmd.waitGroupListener.Wait()
 		lmd.waitGroupPeers.Wait()
-		lmd.onExit(qStat)
+		lmd.onExit()
 
 		return (0)
 	case syscall.SIGINT, os.Interrupt:
@@ -775,8 +776,8 @@ func (lmd *Daemon) mainSignalHandler(sig os.Signal, prometheusListener io.Closer
 		if lmd.waitGroupListener != nil {
 			waitTimeout(context.TODO(), lmd.waitGroupListener, time.Second)
 		}
-		if qStat != nil {
-			lmd.onExit(qStat)
+		if lmd.qStat != nil {
+			lmd.onExit()
 		}
 
 		return (1)

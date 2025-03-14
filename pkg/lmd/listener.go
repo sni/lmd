@@ -38,14 +38,13 @@ type Listener struct {
 	lmd              *Daemon
 	waitGroupDone    *sync.WaitGroup
 	waitGroupInit    *sync.WaitGroup
-	queryStats       *QueryStats
 	cleanup          func()
 	connectionString string
 	openConnections  atomic.Int64
 }
 
 // NewListener creates a new Listener object.
-func NewListener(lmd *Daemon, listen string, qStat *QueryStats) *Listener {
+func NewListener(lmd *Daemon, listen string) *Listener {
 	listener := Listener{
 		Lock:             new(deadlock.RWMutex),
 		lmd:              lmd,
@@ -53,7 +52,6 @@ func NewListener(lmd *Daemon, listen string, qStat *QueryStats) *Listener {
 		waitGroupDone:    lmd.waitGroupListener,
 		waitGroupInit:    lmd.waitGroupInit,
 		Connection:       nil,
-		queryStats:       qStat,
 		cleanup:          nil,
 	}
 	go func() {
@@ -154,7 +152,7 @@ func (l *Listener) localListenerLivestatus(connType ConnectionType, listen strin
 		}
 
 		num := l.openConnections.Add(1)
-		clConn := NewClientConnection(l.lmd, conn, l.lmd.Config.ListenTimeout, l.lmd.Config.LogSlowQueryThreshold, l.lmd.Config.LogHugeQueryThreshold, l.queryStats)
+		clConn := NewClientConnection(l.lmd, conn, l.lmd.Config.ListenTimeout, l.lmd.Config.LogSlowQueryThreshold, l.lmd.Config.LogHugeQueryThreshold)
 		promFrontendOpenConnections.WithLabelValues(l.connectionString).Set(float64(num))
 
 		// background waiting for query to finish/timeout

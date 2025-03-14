@@ -25,7 +25,6 @@ type ClientConnection struct {
 	connection            net.Conn
 	lmd                   *Daemon
 	keepAliveTimer        *time.Timer
-	queryStats            *QueryStats
 	curRequest            *Request
 	localAddr             string
 	remoteAddr            string
@@ -36,7 +35,7 @@ type ClientConnection struct {
 }
 
 // NewClientConnection creates a new client connection object.
-func NewClientConnection(lmd *Daemon, c net.Conn, listenTimeout, logSlowThreshold, logHugeThreshold int, qStat *QueryStats) *ClientConnection {
+func NewClientConnection(lmd *Daemon, c net.Conn, listenTimeout, logSlowThreshold, logHugeThreshold int) *ClientConnection {
 	clCon := &ClientConnection{
 		lmd:                   lmd,
 		connection:            c,
@@ -46,7 +45,6 @@ func NewClientConnection(lmd *Daemon, c net.Conn, listenTimeout, logSlowThreshol
 		listenTimeout:         listenTimeout,
 		logSlowQueryThreshold: logSlowThreshold,
 		logHugeQueryThreshold: logHugeThreshold,
-		queryStats:            qStat,
 	}
 	if clCon.remoteAddr == "" {
 		clCon.remoteAddr = "unknown"
@@ -191,8 +189,8 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 		} else if size > int64(cl.logHugeQueryThreshold*1024*1024) {
 			logWith(reqctx).Warnf("huge client query finished after %s, response size: %s\n%s", duration.String(), byteCountBinary(size), strings.TrimSpace(req.String()))
 		}
-		if cl.queryStats != nil {
-			cl.queryStats.In <- QueryStatIn{
+		if cl.lmd.qStat != nil {
+			cl.lmd.qStat.In <- QueryStatIn{
 				Query:    req.String(),
 				Duration: duration,
 			}

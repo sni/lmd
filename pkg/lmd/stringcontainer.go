@@ -57,7 +57,9 @@ func (s *StringContainer) Set(data *string) {
 	ratio := 100 - (float64(compLen) / float64(dataLen) * 100)
 
 	// only use compressed data if it actually safes space
-	log.Tracef("compressed string from %d to %d (%.1f%%) mode:%s min:%d", dataLen, compLen, ratio, CompressionLevel.String(), CompressionMinimumSize)
+	if log.IsV(2) {
+		log.Tracef("compressed string from %d to %d (%.1f%%) mode:%s min:%d", dataLen, compLen, ratio, CompressionLevel.String(), CompressionMinimumSize)
+	}
 	if ratio < CompressionThreshold {
 		s.stringData = dedup.S(*data)
 		s.compressedData = nil
