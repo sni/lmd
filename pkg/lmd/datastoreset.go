@@ -884,27 +884,24 @@ func (ds *DataStoreSet) buildDowntimeCommentsList(name TableName) (err error) {
 		return fmt.Errorf("cannot build id list, peer is down: %s", ds.peer.getError())
 	}
 
-	store.lock.Lock()
-	defer store.lock.Unlock()
-
 	hostStore := ds.Get(TableHosts)
 	if hostStore == nil {
 		return fmt.Errorf("cannot build id list, peer is down: %s", ds.peer.getError())
 	}
-	hostStore.lock.Lock()
-	defer hostStore.lock.Unlock()
 	hostIdx := hostStore.table.GetColumn(name.String()).Index
 
 	serviceStore := ds.Get(TableServices)
 	if serviceStore == nil {
 		return fmt.Errorf("cannot build id list, peer is down: %s", ds.peer.getError())
 	}
-	serviceStore.lock.Lock()
-	defer serviceStore.lock.Unlock()
 	serviceIdx := serviceStore.table.GetColumn(name.String()).Index
 
 	hostResult := make(map[*DataRow][]int64)
 	serviceResult := make(map[*DataRow][]int64)
+
+	hostStore.lock.RLock()
+	serviceStore.lock.RLock()
+	store.lock.RLock()
 	idIndex := store.table.GetColumn("id").Index
 	hostNameIndex := store.table.GetColumn("host_name").Index
 	serviceDescIndex := store.table.GetColumn("service_description").Index
@@ -925,23 +922,30 @@ func (ds *DataStoreSet) buildDowntimeCommentsList(name TableName) (err error) {
 			}
 		}
 	}
+	hostStore.lock.RUnlock()
+	serviceStore.lock.RUnlock()
+	store.lock.RUnlock()
 	promObjectCount.WithLabelValues(ds.peer.Name, name.String()).Set(float64(len(store.data)))
 
 	// empty current lists
+	hostStore.lock.Lock()
 	for _, d := range hostStore.data {
 		d.dataInt64List[hostIdx] = emptyInt64List
 	}
-	for _, d := range serviceStore.data {
-		d.dataInt64List[serviceIdx] = emptyInt64List
-	}
-
 	// store updated lists
-	for d, ids := range serviceResult {
-		d.dataInt64List[serviceIdx] = ids
-	}
 	for d, ids := range hostResult {
 		d.dataInt64List[hostIdx] = ids
 	}
+	hostStore.lock.Unlock()
+
+	serviceStore.lock.Lock()
+	for _, d := range serviceStore.data {
+		d.dataInt64List[serviceIdx] = emptyInt64List
+	}
+	for d, ids := range serviceResult {
+		d.dataInt64List[serviceIdx] = ids
+	}
+	serviceStore.lock.Unlock()
 
 	return nil
 }

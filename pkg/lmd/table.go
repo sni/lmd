@@ -22,6 +22,10 @@ const (
 	TableNone TableName = iota
 	TableBackends
 	TableSites
+	TableHosts
+	TableServices
+	TableHostgroups
+	TableServicegroups
 	TableColumns
 	TableTables
 	TableStatus
@@ -29,10 +33,6 @@ const (
 	TableContacts
 	TableContactgroups
 	TableCommands
-	TableHosts
-	TableHostgroups
-	TableServices
-	TableServicegroups
 	TableComments
 	TableDowntimes
 	TableLog
