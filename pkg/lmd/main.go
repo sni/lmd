@@ -631,7 +631,7 @@ func (lmd *Daemon) cleanFatalf(format string, args ...interface{}) {
 func (lmd *Daemon) onExit() {
 	deletePidFile(lmd.flags.flagPidfile)
 	if lmd.qStat != nil {
-		close(lmd.qStat.In)
+		close(lmd.qStat.in)
 		lmd.qStat = nil
 	}
 	if lmd.flags.flagCPUProfile != "" {
@@ -921,7 +921,7 @@ func updateStatistics(qStat *QueryStats) {
 	promStringDedupBytes.Set(float64(dedup.Statistics().BytesInMemory))
 	promStringDedupIndexBytes.Set(float64(32 * size))
 	if qStat != nil {
-		qStat.LogTrigger <- true
+		qStat.logTrigger <- true
 	}
 }
 

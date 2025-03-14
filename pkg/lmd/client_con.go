@@ -190,9 +190,9 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 			logWith(reqctx).Warnf("huge client query finished after %s, response size: %s\n%s", duration.String(), byteCountBinary(size), strings.TrimSpace(req.String()))
 		}
 		if cl.lmd.qStat != nil {
-			cl.lmd.qStat.In <- QueryStatIn{
-				Query:    req.String(),
-				Duration: duration,
+			cl.lmd.qStat.in <- QueryStatIn{
+				query:    req.String(),
+				duration: duration,
 			}
 		}
 		promFrontendRequestDuration.Observe(float64(duration / time.Second))
