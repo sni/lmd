@@ -41,17 +41,6 @@ const (
 	TableServicesbyhostgroup
 )
 
-// PeerLockMode sets full or simple lock mode.
-type PeerLockMode int
-
-const (
-	// PeerLockModeSimple locks each peer.Status access separately.
-	PeerLockModeSimple PeerLockMode = iota
-
-	// PeerLockModeFull locks peer once before createing the result.
-	PeerLockModeFull
-)
-
 // NewTableName returns a table for given name or an error.
 func NewTableName(name string) (TableName, error) {
 	switch strings.ToLower(name) {
