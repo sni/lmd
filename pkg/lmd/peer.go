@@ -1580,7 +1580,11 @@ func (p *Peer) setNextAddrFromErr(err error, req *Request, source []string) {
 
 	switch peerState {
 	case PeerStatusUp, PeerStatusPending, PeerStatusSyncing:
-		p.peerState.Set(PeerStatusWarning)
+		// only set into warning state if there is cached data
+		data := p.data.Load()
+		if data != nil {
+			p.peerState.Set(PeerStatusWarning)
+		}
 	default:
 		// peer state won't be updated, because it is worse than warning already
 	}
