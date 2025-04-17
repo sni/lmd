@@ -1505,7 +1505,11 @@ func (d *DataRow) WriteJSONVirtualColumn(jsonwriter *jsoniter.Stream, col *Colum
 					jsonwriter.WriteMore()
 				}
 				jsonwriter.WriteObjectField(names[i])
-				jsonwriter.WriteString(values[i])
+				if i < len(values) {
+					jsonwriter.WriteString(values[i])
+				} else {
+					jsonwriter.WriteRaw("null")
+				}
 			}
 			jsonwriter.WriteObjectEnd()
 		}
