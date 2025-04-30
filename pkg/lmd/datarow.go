@@ -1496,23 +1496,26 @@ func (d *DataRow) WriteJSONVirtualColumn(jsonwriter *jsoniter.Stream, col *Colum
 		if namesCol.Optional != NoFlags && !d.dataStore.peer.HasFlag(namesCol.Optional) {
 			jsonwriter.WriteObjectStart()
 			jsonwriter.WriteObjectEnd()
-		} else {
-			names := d.dataStringList[namesCol.Index]
-			values := d.dataStringList[valuesCol.Index]
-			jsonwriter.WriteObjectStart()
-			for i := range names {
-				if i > 0 {
-					jsonwriter.WriteMore()
-				}
-				jsonwriter.WriteObjectField(names[i])
-				if i < len(values) {
-					jsonwriter.WriteString(values[i])
-				} else {
-					jsonwriter.WriteRaw("null")
-				}
-			}
-			jsonwriter.WriteObjectEnd()
+
+			return
 		}
+		names := d.dataStringList[namesCol.Index]
+		values := d.dataStringList[valuesCol.Index]
+		if len(values) != len(names) {
+			jsonwriter.WriteObjectStart()
+			jsonwriter.WriteObjectEnd()
+
+			return
+		}
+		jsonwriter.WriteObjectStart()
+		for i := range names {
+			if i > 0 {
+				jsonwriter.WriteMore()
+			}
+			jsonwriter.WriteObjectField(names[i])
+			jsonwriter.WriteString(values[i])
+		}
+		jsonwriter.WriteObjectEnd()
 	case JSONCol:
 		jsonwriter.WriteRaw(d.GetString(col))
 	default:
