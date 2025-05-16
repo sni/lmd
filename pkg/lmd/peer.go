@@ -61,6 +61,9 @@ const (
 
 	// Time after which a broken peer restarts.
 	BrokenPeerGraceTimeSeconds = 300
+
+	// Max size when logging the response of a query in errors.
+	LogResponseErrorMaxSize = 10240 // 10kB
 )
 
 // Peer is the object which handles collecting and updating data and connections.
@@ -1058,9 +1061,8 @@ func (p *Peer) query(ctx context.Context, req *Request) (ResultSet, *ResultMetaD
 
 	data, meta, err := req.parseResult(resBytes)
 	if err != nil {
-		logWith(p, req).Debugf("fetched table %20s time: %s, size: %d kB", req.Table.String(), duration, len(resBytes)/1024)
-		logWith(p, req).Errorf("result json string: %s", string(resBytes))
-		logWith(p, req).Errorf("result parse error: %s", err.Error())
+		logWith(p, req).Errorf("fetching table failed %20s time: %s, size: %d kB", req.Table.String(), duration, len(resBytes)/1024)
+		p.logJSONRequestParseErrorDetails(req, resBytes, err)
 
 		return nil, nil, &PeerError{msg: err.Error(), kind: ResponseError, srcErr: err}
 	}
@@ -1075,6 +1077,22 @@ func (p *Peer) query(ctx context.Context, req *Request) (ResultSet, *ResultMetaD
 	}
 
 	return data, meta, nil
+}
+
+func (p *Peer) logJSONRequestParseErrorDetails(req *Request, resBytes []byte, err error) {
+	resStr := string(resBytes)
+	if log.IsV(LogVerbosityDebug) {
+		logWith(p, req).Debugf("result json string: %s", resStr)
+	} else {
+		if len(resStr) > LogResponseErrorMaxSize {
+			resStr = resStr[:LogResponseErrorMaxSize]
+			logWith(p, req).Errorf("result json string: %s", resStr)
+			logWith(p, req).Errorf("result json string too long, truncated to %s", byteCountBinary(LogResponseErrorMaxSize))
+		} else {
+			logWith(p, req).Errorf("result json string: %s", resStr)
+		}
+	}
+	logWith(p, req).Errorf("result parse error: %s", err.Error())
 }
 
 func (p *Peer) getQueryResponse(ctx context.Context, req *Request, query, peerAddr string, conn net.Conn, connType ConnectionType) ([]byte, net.Conn, error) {
