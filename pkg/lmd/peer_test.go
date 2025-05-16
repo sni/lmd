@@ -139,6 +139,45 @@ func TestParseResultJSONEscapeSequences(t *testing.T) {
 	}
 }
 
+func TestParseResultJSONBrokenNaN(t *testing.T) {
+	lmd := createTestLMDInstance()
+	req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name hourly_value\nOutputFormat: json\n")), ParseOptimize)
+	if err != nil {
+		panic(err.Error())
+	}
+	data := []byte(`[
+	 ["host1", 1],
+	 ["host2", nan],
+	]`)
+
+	InitLogging(&Config{LogLevel: "off", LogFile: "stderr"})
+	res, _, err := req.parseResult(data)
+	InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
+
+	require.NoError(t, err)
+	assert.Len(t, res, 2)
+}
+
+func TestParseResultJSONBrokenError(t *testing.T) {
+	lmd := createTestLMDInstance()
+	req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name hourly_value\nOutputFormat: json\n")), ParseOptimize)
+	if err != nil {
+		panic(err.Error())
+	}
+	data := []byte(`[
+	 ["host1", 1],
+	 ["host2", broken],
+	]`)
+
+	InitLogging(&Config{LogLevel: "off", LogFile: "stderr"})
+	res, _, err := req.parseResult(data)
+	InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
+
+	require.Errorf(t, err, "got no error but expected broken peer")
+	require.Nilf(t, res, "did not expect result for broken json")
+	assert.ErrorContainsf(t, err, "json parse error in row 2 at offset 11: invalid character 'b' looking for beginning of value", "got error %v", err)
+}
+
 func TestPeerUpdate(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
