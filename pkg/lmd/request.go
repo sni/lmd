@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -18,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/buger/jsonparser"
+	"github.com/willabides/rjson"
 )
 
 // Request defines a livestatus request object.
@@ -983,53 +982,147 @@ func (req *Request) parseResult(resBytes []byte) (ResultSet, *ResultMetaData, er
 		return nil, nil, &PeerError{msg: fmt.Sprintf("response does not look like a json result: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
 	}
 	if req.OutputFormat == OutputFormatWrappedJSON {
-		dataBytes, err2 := req.parseWrappedJSONMeta(resBytes, meta)
+		res, err2 := req.parseWrappedJSONMeta(resBytes, meta)
+		Dump("parseWrappedJSONMeta 2")
+		Dump(len(res))
 		if err2 != nil {
 			return nil, nil, fmt.Errorf("parserResult: %w", err2)
 		}
-		resBytes = dataBytes
+
+		return res, meta, err
+	} else {
+		res, err := NewResultSet(resBytes)
+
+		return res, meta, err
 	}
-
-	res, err := NewResultSet(resBytes)
-
-	return res, meta, err
 }
 
-func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) ([]byte, error) {
-	var dataBytes []byte
-	err := jsonparser.ObjectEach(resBytes, func(keyBytes []byte, valueBytes []byte, _ jsonparser.ValueType, _ int) error {
-		key := string(keyBytes)
-		switch key {
-		case "total_count":
-			val, err := jsonparser.ParseInt(valueBytes)
-			if err != nil {
-				return &PeerError{msg: fmt.Sprintf("total_count meta data parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
-			}
-			meta.Total = val
-		case "columns":
-			var columns []string
-			err := json.Unmarshal(valueBytes, &columns)
-			if err != nil {
-				return &PeerError{msg: fmt.Sprintf("columns meta data parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
-			}
-			meta.Columns = columns
-		case "rows_scanned":
-			val, err := jsonparser.ParseInt(valueBytes)
-			if err != nil {
-				return &PeerError{msg: fmt.Sprintf("rows_scanned meta data parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
-			}
-			meta.RowsScanned = val
-		case "data":
-			dataBytes = valueBytes
+func parseJSONResult(data []byte) (res ResultSet, remaining []byte, err error) {
+	res = make(ResultSet, 0)
+	rowNum := 0
+
+	finalPos := 0
+	data, trim := trimLeftTracking(data)
+	finalPos += trim
+
+	if len(data) < 1 {
+		return nil, nil, fmt.Errorf("empty json data")
+	}
+	if data[0] != '[' {
+		return nil, nil, fmt.Errorf("json data should start with '['")
+	}
+
+	data, trim = trimLeftTracking(data[1:])
+	finalPos += trim + 1
+	var linePos int
+
+	// TODO: double check memory usage
+	json := &rjson.ValueReader{}
+	for {
+		if len(data) >= 1 && data[0] == ']' {
+			data, trim = trimLeftTracking(data[1:])
+			finalPos += trim + 1
+
+			break
 		}
 
-		return nil
-	})
+		rowNum++
+		row, pos, jErr := json.ReadArray(data)
+		linePos = pos
+		if jErr != nil {
+			data = tryRecoverJSON(data, jErr)
+			row, pos, jErr = json.ReadArray(data)
+			linePos = pos
+			finalPos += pos
+			if jErr != nil {
+				err = jErr
+
+				break
+			}
+		}
+		finalPos += pos
+		res = append(res, row)
+
+		data, trim = trimLeftTracking(data[pos:])
+		finalPos += trim
+
+		if len(data) >= 1 && data[0] == ',' {
+			data, trim = trimLeftTracking(data[1:])
+			finalPos += trim + 1
+		}
+	}
+
+	if err != nil {
+		return nil,
+			nil,
+			fmt.Errorf("json parse error at row %d pos %d (byte offset %d): %s",
+				rowNum,
+				linePos,
+				finalPos+1,
+				err.Error(),
+			)
+	}
+
+	return res, data, nil
+}
+
+func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) (res ResultSet, err error) {
+	json := &rjson.ValueReader{}
+
+	wrapped, _, err := json.ReadObject(resBytes)
 	if err != nil {
 		return nil, &PeerError{msg: fmt.Sprintf("json parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
 	}
 
-	return dataBytes, nil
+	for key, value := range wrapped {
+		switch key {
+		case "total_count":
+			meta.Total = interface2int64(value)
+		case "columns":
+			if l, ok := value.([]string); ok {
+				meta.Columns = l
+			} else {
+				return nil, &PeerError{msg: fmt.Sprintf("columns meta data invalid type: %#T", value), kind: ResponseError, req: req, resBytes: resBytes}
+			}
+			meta.Columns = interface2stringlist(value)
+		case "rows_scanned":
+			meta.RowsScanned = interface2int64(value)
+		case "data":
+			l, ok := value.([][]interface{})
+			if ok {
+				return l, nil
+			}
+			Dump(value)
+		}
+	}
+
+	return res, nil
+}
+
+// trim leading whitespace bytes and return the number of trimmed bytes.
+func trimLeftTracking(data []byte) (dat []byte, numTrimmed int) {
+	whiteSpace := "\t\n\v\f\r "
+	len1 := len(data)
+	data = bytes.TrimLeft(data, whiteSpace)
+	len2 := len(data)
+
+	return data, len1 - len2
+}
+
+func tryRecoverJSON(rowBytes []byte, err error) []byte {
+	// try to fix invalid escape sequences and unknown utf8 characters
+	if strings.Contains(err.Error(), "invalid json string") {
+		// TODO: check if it breaks other json
+		rowBytes = bytesToValidUTF8(rowBytes, []byte("\uFFFD"))
+	}
+
+	// try to fix invalid nan for numbers
+	if strings.Contains(err.Error(), "not null") {
+		rowBytes = bytes.ReplaceAll(rowBytes, []byte("nan,"), []byte("null,"))
+		rowBytes = bytes.ReplaceAll(rowBytes, []byte("nan]"), []byte("null]"))
+	}
+
+	return rowBytes
 }
 
 // IsDefaultSortOrder returns true if the sortfields are the default for the given table.

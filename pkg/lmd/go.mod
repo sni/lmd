@@ -7,8 +7,6 @@ toolchain go1.23.6
 require (
 	github.com/BurntSushi/toml v1.5.0
 	github.com/OneOfOne/xxhash v1.2.8
-	github.com/a8m/djson v0.0.0-20170509170705-c02c5aef757f
-	github.com/buger/jsonparser v1.1.1
 	github.com/json-iterator/go v1.1.12
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/kdar/factorlog v0.0.0-20211012144011-6ea75a169038
@@ -17,6 +15,7 @@ require (
 	github.com/prometheus/client_golang v1.22.0
 	github.com/sasha-s/go-deadlock v0.3.5
 	github.com/stretchr/testify v1.10.0
+	github.com/willabides/rjson v0.2.0
 )
 
 require (
