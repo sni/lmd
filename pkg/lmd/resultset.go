@@ -30,7 +30,7 @@ func NewResultSet(data []byte) (res ResultSet, err error) {
 		return nil, fmt.Errorf("json parse error, stray data: %s", data)
 	}
 
-	return res, nil
+	return res, err
 }
 
 // Precompress compresses large strings in result set to allow faster updates (compressing would happen during locked update loop otherwise).

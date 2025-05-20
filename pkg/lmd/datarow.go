@@ -1127,6 +1127,39 @@ func interface2stringlist(raw interface{}) []string {
 	return val
 }
 
+func interface2stringlistnodedup(raw interface{}) []string {
+	switch list := raw.(type) {
+	case *[]string:
+		return *list
+	case []string:
+		return list
+	case float64:
+		val := make([]string, 0, 1)
+		// icinga 2 sends a 0 for empty lists, ex.: modified_attributes_list
+		if list != 0 {
+			val = append(val, interface2stringNoDedup(raw))
+		}
+
+		return val
+	case string:
+		return []string{list}
+	case *string:
+		return []string{*list}
+	case []interface{}:
+		val := make([]string, 0, len(list))
+		for i := range list {
+			val = append(val, interface2stringNoDedup(list[i]))
+		}
+
+		return val
+	}
+
+	log.Warnf("unsupported stringlist type: %#v (%T)", raw, raw)
+	val := make([]string, 0)
+
+	return val
+}
+
 func interface2servicememberlist(raw interface{}) []ServiceMember {
 	switch list := raw.(type) {
 	case *[]ServiceMember:

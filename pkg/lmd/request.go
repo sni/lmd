@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	jsoniter "github.com/json-iterator/go"
 	"github.com/willabides/rjson"
 )
 
@@ -157,11 +158,12 @@ func (op *GroupOperator) String() string {
 // ResultMetaData contains meta from the response data.
 type ResultMetaData struct {
 	Request     *Request      // the request itself
-	Columns     []string      // list of requested columns
-	Total       int64         // total number of result rows
-	RowsScanned int64         // total number of scanned rows for this result
+	Columns     []string      `json:"columns"`      // list of requested columns
+	Total       int64         `json:"total_count"`  // total number of result rows
+	RowsScanned int64         `json:"rows_scanned"` // total number of scanned rows for this result
 	Duration    time.Duration // response time in seconds
 	Size        int           // result size in bytes
+	Res         ResultSet     `json:"data"` // result data temp store
 }
 
 var (
@@ -983,8 +985,6 @@ func (req *Request) parseResult(resBytes []byte) (ResultSet, *ResultMetaData, er
 	}
 	if req.OutputFormat == OutputFormatWrappedJSON {
 		res, err2 := req.parseWrappedJSONMeta(resBytes, meta)
-		Dump("parseWrappedJSONMeta 2")
-		Dump(len(res))
 		if err2 != nil {
 			return nil, nil, fmt.Errorf("parserResult: %w", err2)
 		}
@@ -1067,36 +1067,12 @@ func parseJSONResult(data []byte) (res ResultSet, remaining []byte, err error) {
 }
 
 func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) (res ResultSet, err error) {
-	json := &rjson.ValueReader{}
-
-	wrapped, _, err := json.ReadObject(resBytes)
+	err = jsoniter.ConfigDefault.Unmarshal(resBytes, &meta)
 	if err != nil {
-		return nil, &PeerError{msg: fmt.Sprintf("json parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
+		return nil, err
 	}
 
-	for key, value := range wrapped {
-		switch key {
-		case "total_count":
-			meta.Total = interface2int64(value)
-		case "columns":
-			if l, ok := value.([]string); ok {
-				meta.Columns = l
-			} else {
-				return nil, &PeerError{msg: fmt.Sprintf("columns meta data invalid type: %#T", value), kind: ResponseError, req: req, resBytes: resBytes}
-			}
-			meta.Columns = interface2stringlist(value)
-		case "rows_scanned":
-			meta.RowsScanned = interface2int64(value)
-		case "data":
-			l, ok := value.([][]interface{})
-			if ok {
-				return l, nil
-			}
-			Dump(value)
-		}
-	}
-
-	return res, nil
+	return meta.Res, err
 }
 
 // trim leading whitespace bytes and return the number of trimmed bytes.

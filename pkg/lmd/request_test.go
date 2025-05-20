@@ -551,8 +551,6 @@ func TestRequestColumnsWrappedJson(t *testing.T) {
 	peer.lmd.Config.SaveTempRequests = true
 	res, meta, err := peer.QueryString("GET hosts\nColumns: name state alias\nOutputFormat: wrapped_json\nColumnHeaders: on\nLimit: 5\n\n")
 	require.NoErrorf(t, err, "query successful")
-	Dump(res)
-	Dump(err)
 
 	var jsonTest interface{}
 	jErr := json.Unmarshal(*peer.last.Response.Load(), &jsonTest)
