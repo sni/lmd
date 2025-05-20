@@ -99,7 +99,7 @@ BackendKeepAlive = true
 #ListenPrometheus = "127.0.0.1:8080"
 
 # Sets wether peer queries req/res object will be saved for crash reports
-SaveTempRequests = true
+SaveTempRequests = false
 
 # Naemon automatically regards a contact for a host also as a contact for all
 # services of that host. We call this method loose. By setting it to strict, one
