@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1647,5 +1648,21 @@ func TestStatusJSONColumns(t *testing.T) {
 
 	if err = cleanup(); err != nil {
 		t.Error(err)
+	}
+}
+
+func TestReplaceInvalidUTF8(t *testing.T) {
+	for _, s := range []string{"\x00", "\x01", "\x02", "\x02", "\x06", "a\xc5z"} {
+		for _, repeat := range []int{1, 2, 3} {
+			data := []byte(strings.Repeat(s, repeat))
+
+			orig := []byte{}
+			orig = append(orig, data...)
+
+			replaceInvalidUTF8(data)
+
+			require.Len(t, data, len(orig))
+			assert.Truef(t, utf8.Valid(data), "string is valid utf8: %#v", data)
+		}
 	}
 }

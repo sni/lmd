@@ -38,9 +38,9 @@ func TestParseResultJSON(t *testing.T) {
 	require.NoError(t, err)
 
 	data := []byte(`[
-	 ["host1", "desc1", 0, [1,2], {"a": 1}],
-	 ["host2", "desc2", 1, [1,2], {"a": 1}],
-	]`)
+	 ["host1", "desc1", 0, [1,2], {"a": 1}] , [
+	 "host2", "desc2", 1, [1,2], {"a": 1}] , ]
+	`)
 
 	res, _, err := req.parseResult(data)
 	require.NoError(t, err)
@@ -49,6 +49,38 @@ func TestParseResultJSON(t *testing.T) {
 	assert.Len(t, res[0], 5)
 	assert.Equal(t, "host2", res[1][0])
 	assert.InDelta(t, float64(1), res[1][2], 0)
+}
+
+func TestParseResultJSON2(t *testing.T) {
+	lmd := createTestLMDInstance()
+	req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
+	require.NoError(t, err)
+
+	data := []byte(`[["host1", "desc1", 0, [1,2], {"a": 1}],
+["host2", "desc2", 1, [1,2], {"a": 1}],
+]
+	`)
+
+	res, _, err := req.parseResult(data)
+	require.NoError(t, err)
+
+	assert.Len(t, res, 2)
+	assert.Len(t, res[0], 5)
+	assert.Equal(t, "host2", res[1][0])
+	assert.InDelta(t, float64(1), res[1][2], 0)
+}
+
+func TestParseResultJSONEmpty(t *testing.T) {
+	lmd := createTestLMDInstance()
+	req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
+	require.NoError(t, err)
+
+	data := []byte(`[]`)
+
+	res, _, err := req.parseResult(data)
+	require.NoError(t, err)
+
+	assert.Empty(t, res)
 }
 
 func TestParseResultWrappedJSON(t *testing.T) {
@@ -127,14 +159,17 @@ func TestParseResultJSONEscapeSequences(t *testing.T) {
 		panic(err.Error())
 	}
 	for _, s := range []string{"\x00", "\x01", "\x02", "\x02", "\x06", "a\xc5z"} {
-		data := []byte(fmt.Sprintf("[[\"null%s\"]]", s))
+		data := []byte(fmt.Sprintf(`[["null%s"] ,
+			["xy%cz"],
+			[null],
+		]`, s, 0))
 
 		InitLogging(&Config{LogLevel: "off", LogFile: "stderr"})
 		res, _, err := req.parseResult(data)
 		InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
 
 		require.NoError(t, err)
-		assert.Len(t, res, 1)
+		require.Len(t, res, 3)
 		assert.Contains(t, res[0][0], "null")
 	}
 }
@@ -175,7 +210,7 @@ func TestParseResultJSONBrokenError(t *testing.T) {
 
 	require.Errorf(t, err, "got no error but expected broken peer")
 	require.Nilf(t, res, "did not expect result for broken json")
-	assert.ErrorContainsf(t, err, "json parse error in row 2 at offset 11: invalid character 'b' looking for beginning of value", "got error %v", err)
+	assert.ErrorContainsf(t, err, "json parse error at row 2 pos 10 (byte offset 31): invalid json array", "got error %v", err)
 }
 
 func TestPeerUpdate(t *testing.T) {

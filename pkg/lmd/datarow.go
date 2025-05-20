@@ -845,7 +845,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 		case StringListCol:
 			d.dataStringList[localIndex] = d.dataStore.deduplicateStringlist(interface2stringlist(data[resIndex]))
 		case StringLargeCol:
-			d.dataStringLarge[localIndex] = *interface2stringlarge(data[resIndex])
+			d.dataStringLarge[localIndex] = *interface2stringLarge(data[resIndex])
 		case IntCol:
 			d.dataInt[localIndex] = interface2int8(data[resIndex])
 		case Int64Col:
@@ -1073,7 +1073,7 @@ func interface2stringNoDedup(raw interface{}) string {
 	return fmt.Sprintf("%v", raw)
 }
 
-func interface2stringlarge(raw interface{}) *StringContainer {
+func interface2stringLarge(raw interface{}) *StringContainer {
 	switch str := raw.(type) {
 	case string:
 		return NewStringContainer(&str)
@@ -1116,6 +1116,39 @@ func interface2stringlist(raw interface{}) []string {
 		val := make([]string, 0, len(list))
 		for i := range list {
 			val = append(val, *(interface2string(list[i])))
+		}
+
+		return val
+	}
+
+	log.Warnf("unsupported stringlist type: %#v (%T)", raw, raw)
+	val := make([]string, 0)
+
+	return val
+}
+
+func interface2stringListNoDedup(raw interface{}) []string {
+	switch list := raw.(type) {
+	case *[]string:
+		return *list
+	case []string:
+		return list
+	case float64:
+		val := make([]string, 0, 1)
+		// icinga 2 sends a 0 for empty lists, ex.: modified_attributes_list
+		if list != 0 {
+			val = append(val, interface2stringNoDedup(raw))
+		}
+
+		return val
+	case string:
+		return []string{list}
+	case *string:
+		return []string{*list}
+	case []interface{}:
+		val := make([]string, 0, len(list))
+		for i := range list {
+			val = append(val, interface2stringNoDedup(list[i]))
 		}
 
 		return val
@@ -1315,7 +1348,7 @@ func cast2Type(val interface{}, col *Column, dedupStore *DataStore) interface{} 
 
 		return (interface2stringlist(val))
 	case StringLargeCol:
-		return (interface2stringlarge(val))
+		return (interface2stringLarge(val))
 	case IntCol:
 		return (interface2int8(val))
 	case Int64Col:

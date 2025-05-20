@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,8 +16,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
-	"github.com/buger/jsonparser"
+	"github.com/willabides/rjson"
 )
 
 // Request defines a livestatus request object.
@@ -158,9 +158,10 @@ func (op *GroupOperator) String() string {
 // ResultMetaData contains meta from the response data.
 type ResultMetaData struct {
 	Request     *Request      // the request itself
-	Columns     []string      // list of requested columns
-	Total       int64         // total number of result rows
-	RowsScanned int64         // total number of scanned rows for this result
+	Res         ResultSet     `json:"data"`         // result data temp store
+	Columns     []string      `json:"columns"`      // list of requested columns
+	Total       int64         `json:"total_count"`  // total number of result rows
+	RowsScanned int64         `json:"rows_scanned"` // total number of scanned rows for this result
 	Duration    time.Duration // response time in seconds
 	Size        int           // result size in bytes
 }
@@ -983,53 +984,224 @@ func (req *Request) parseResult(resBytes []byte) (ResultSet, *ResultMetaData, er
 		return nil, nil, &PeerError{msg: fmt.Sprintf("response does not look like a json result: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
 	}
 	if req.OutputFormat == OutputFormatWrappedJSON {
-		dataBytes, err2 := req.parseWrappedJSONMeta(resBytes, meta)
+		res, err2 := req.parseWrappedJSONMeta(resBytes, meta)
 		if err2 != nil {
 			return nil, nil, fmt.Errorf("parserResult: %w", err2)
 		}
-		resBytes = dataBytes
-	}
 
+		return res, meta, err
+	}
 	res, err := NewResultSet(resBytes)
 
 	return res, meta, err
 }
 
-func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) ([]byte, error) {
-	var dataBytes []byte
-	err := jsonparser.ObjectEach(resBytes, func(keyBytes []byte, valueBytes []byte, _ jsonparser.ValueType, _ int) error {
-		key := string(keyBytes)
-		switch key {
-		case "total_count":
-			val, err := jsonparser.ParseInt(valueBytes)
-			if err != nil {
-				return &PeerError{msg: fmt.Sprintf("total_count meta data parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
-			}
-			meta.Total = val
-		case "columns":
-			var columns []string
-			err := json.Unmarshal(valueBytes, &columns)
-			if err != nil {
-				return &PeerError{msg: fmt.Sprintf("columns meta data parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
-			}
-			meta.Columns = columns
-		case "rows_scanned":
-			val, err := jsonparser.ParseInt(valueBytes)
-			if err != nil {
-				return &PeerError{msg: fmt.Sprintf("rows_scanned meta data parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
-			}
-			meta.RowsScanned = val
-		case "data":
-			dataBytes = valueBytes
+func parseJSONResult(data []byte) (res ResultSet, remaining []byte, err error) {
+	res = make(ResultSet, 0)
+	rowNum := 0
+
+	finalPos := 0
+	data, trim := trimLeftTracking(data)
+	finalPos += trim
+
+	if len(data) < 1 {
+		return nil, nil, fmt.Errorf("empty json data")
+	}
+	if data[0] != '[' {
+		return nil, nil, fmt.Errorf("json data should start with '['")
+	}
+
+	// remove leading '['
+	data, trim = trimLeftTracking(data[1:])
+	finalPos += trim + 1
+	var linePos int
+
+	json := &rjson.ValueReader{}
+	for {
+		if len(data) >= 1 && data[0] == ']' {
+			data, trim = trimLeftTracking(data[1:])
+			finalPos += trim + 1
+
+			break
 		}
 
-		return nil
-	})
+		rowNum++
+		row, pos, jErr := json.ReadArray(data)
+		linePos = pos
+		if jErr != nil {
+			var newPos int
+			errPos := pos
+			for {
+				tryRecoverJSON(data[errPos:], jErr)
+				row, newPos, jErr = json.ReadArray(data)
+				if jErr == nil {
+					err = nil
+
+					break
+				}
+				err = jErr
+				// position of error did not advance
+				if newPos == errPos {
+					break
+				}
+			}
+			pos = newPos
+			linePos = pos
+			finalPos += pos
+			if err != nil {
+				break
+			}
+		}
+		finalPos += pos
+		res = append(res, row)
+
+		data, trim = trimLeftTracking(data[pos:])
+		finalPos += trim
+
+		if len(data) >= 1 && data[0] == ',' {
+			data, trim = trimLeftTracking(data[1:])
+			finalPos += trim + 1
+		}
+	}
+
+	if err != nil {
+		return nil,
+			nil,
+			fmt.Errorf("json parse error at row %d pos %d (byte offset %d): %s",
+				rowNum,
+				linePos,
+				finalPos+1,
+				err.Error(),
+			)
+	}
+
+	return res, data, nil
+}
+
+func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) (res ResultSet, err error) {
+	resBytes, _ = trimLeftTracking(resBytes)
+	if len(resBytes) == 0 || resBytes[0] != '{' {
+		return nil, &PeerError{msg: "json parse error: expected {", kind: ResponseError, req: req, resBytes: resBytes}
+	}
+
+	idx := bytes.Index(resBytes, []byte("\"data\":"))
+	if idx < 0 {
+		return nil, &PeerError{msg: "json parse error: expected \"data\":", kind: ResponseError, req: req, resBytes: resBytes}
+	}
+	pre := resBytes[:idx]
+
+	res, post, err := parseJSONResult(resBytes[idx+7:])
+	if err != nil {
+		return nil, &PeerError{msg: fmt.Sprintf("json parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
+	}
+	post, _ = trimLeftTracking(post)
+	if (len(pre) < 3 && len(post) > 1) && post[0] == ',' {
+		post = post[1:]
+		post, _ = trimLeftTracking(post)
+	}
+
+	json := &rjson.ValueReader{}
+	remaining := []byte{}
+	remaining = append(remaining, pre...)
+	remaining = append(remaining, post...)
+	wrapped, _, err := json.ReadObject(remaining)
 	if err != nil {
 		return nil, &PeerError{msg: fmt.Sprintf("json parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
 	}
 
-	return dataBytes, nil
+	for key, value := range wrapped {
+		switch key {
+		case "total_count":
+			meta.Total = interface2int64(value)
+		case "columns":
+			meta.Columns = interface2stringListNoDedup(value)
+		case "rows_scanned":
+			meta.RowsScanned = interface2int64(value)
+		case "failed":
+			// ignored, contains backend ids which failed
+		}
+	}
+
+	return res, nil
+}
+
+// trim leading whitespace bytes and return the number of trimmed bytes.
+func trimLeftTracking(data []byte) (dat []byte, numTrimmed int) {
+	whiteSpace := "\t\n\v\f\r "
+	len1 := len(data)
+	data = bytes.TrimLeft(data, whiteSpace)
+	len2 := len(data)
+
+	return data, len1 - len2
+}
+
+// replace invalid json characters inline, does not change length of the byte array.
+func tryRecoverJSON(data []byte, err error) {
+	// try to fix invalid escape sequences and unknown utf8 characters
+	if strings.Contains(err.Error(), "invalid json string") {
+		replaceInvalidUTF8(data)
+	}
+
+	// try to fix invalid nan for numbers (simply replace with 0)
+	if strings.Contains(err.Error(), "not null") {
+		for idx := 0; idx != -1; idx = bytes.Index(data, []byte("nan,")) {
+			data[idx] = 32
+			data[idx+1] = 48
+			data[idx+2] = 32
+		}
+		for idx := 0; idx != -1; idx = bytes.Index(data, []byte("nan]")) {
+			data[idx] = 32
+			data[idx+1] = 48
+			data[idx+2] = 32
+		}
+	}
+}
+
+// bytes.ToValidUTF8 replaces invalid utf8 characters
+// taken from go 1.13 beta
+// https://github.com/golang/go/commit/3259bc441957bf74f069cf7df961367a3472afb2
+// https://github.com/golang/go/issues/25805
+// enhanced with removing ctrl characters like in
+// https://rosettacode.org/wiki/Strip_control_codes_and_extended_characters_from_a_string#Go
+// replaces characters inline with spaces so length is not changed.
+func replaceInvalidUTF8(src []byte) {
+	invalid := false // previous byte was from an invalid UTF-8 sequence
+
+	for idx := 0; idx < len(src); {
+		chr := src[idx]
+
+		// stop at the first newline
+		if chr == '\n' {
+			return
+		}
+
+		// the byte range from 32 to 126 contains valid one byte size characters
+		// excluding control characters (0-31)
+		// and the del character (127)
+		if chr >= 32 && chr <= 126 {
+			idx++
+			invalid = false
+
+			continue
+		}
+
+		// try to read a utf8 character, returns (err, 1) if invalid
+		_, wid := utf8.DecodeRune(src[idx:])
+		if wid == 1 {
+			if !invalid {
+				invalid = true
+				src[idx] = '.'
+			}
+
+			idx++
+
+			continue
+		}
+
+		// read valid utf8 character
+		invalid = false
+		idx += wid
+	}
 }
 
 // IsDefaultSortOrder returns true if the sortfields are the default for the given table.
