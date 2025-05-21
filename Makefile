@@ -87,12 +87,14 @@ build-linux-amd64: vendor
 
 
 test: dump vendor
+	rm -f pkg/lmd/mock*.sock
 	$(GO) test -short -v $(TEST_FLAGS) pkg/*
 	if grep -Irn TODO: ./cmd/ ./pkg/;  then exit 1; fi
 	if grep -Irn Dump ./cmd/ ./pkg/ | grep -v 'Data::Dumper' | grep -v 'httputil.Dump' | grep -v logThreadDump | grep -v dump.go; then exit 1; fi
 
 # test with filter
 testf: vendor
+	rm -f pkg/lmd/mock*.sock
 	$(GO) test -v $(TEST_FLAGS) pkg/* -run "$(filter-out $@,$(MAKECMDGOALS))" 2>&1 | grep -v "no test files" | grep -v "no tests to run" | grep -v "^PASS"
 
 longtest: vendor
