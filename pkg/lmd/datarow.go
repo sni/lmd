@@ -1127,7 +1127,7 @@ func interface2stringlist(raw interface{}) []string {
 	return val
 }
 
-func interface2stringlistnodedup(raw interface{}) []string {
+func interface2stringListNoDedup(raw interface{}) []string {
 	switch list := raw.(type) {
 	case *[]string:
 		return *list

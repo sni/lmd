@@ -1066,9 +1066,32 @@ func parseJSONResult(data []byte) (res ResultSet, remaining []byte, err error) {
 }
 
 func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) (res ResultSet, err error) {
-	json := &rjson.ValueReader{}
+	resBytes, _ = trimLeftTracking(resBytes)
+	if len(resBytes) == 0 || resBytes[0] != '{' {
+		return nil, &PeerError{msg: fmt.Sprintf("json parse error: expected {"), kind: ResponseError, req: req, resBytes: resBytes}
+	}
 
-	wrapped, _, err := json.ReadObject(resBytes)
+	idx := bytes.Index(resBytes, []byte("\"data\":"))
+	if idx < 0 {
+		return nil, &PeerError{msg: fmt.Sprintf("json parse error: expected \"data\":"), kind: ResponseError, req: req, resBytes: resBytes}
+	}
+	pre := resBytes[:idx]
+
+	res, post, err := parseJSONResult(resBytes[idx+7:])
+	if err != nil {
+		return nil, &PeerError{msg: fmt.Sprintf("json parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
+	}
+	post, _ = trimLeftTracking(post)
+	if (len(pre) < 3 && len(post) > 1) && post[0] == ',' {
+		post = post[1:]
+		post, _ = trimLeftTracking(post)
+	}
+
+	json := &rjson.ValueReader{}
+	remaining := []byte{}
+	remaining = append(remaining, pre...)
+	remaining = append(remaining, post...)
+	wrapped, _, err := json.ReadObject(remaining)
 	if err != nil {
 		return nil, &PeerError{msg: fmt.Sprintf("json parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
 	}
@@ -1078,29 +1101,13 @@ func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) 
 		case "total_count":
 			meta.Total = interface2int64(value)
 		case "columns":
-			if l, ok := value.([]string); ok {
-				meta.Columns = l
-			} else {
-				return nil, &PeerError{msg: fmt.Sprintf("columns meta data invalid type: %#T", value), kind: ResponseError, req: req, resBytes: resBytes}
-			}
-			meta.Columns = interface2stringlist(value)
+			meta.Columns = interface2stringListNoDedup(value)
 		case "rows_scanned":
 			meta.RowsScanned = interface2int64(value)
-		case "data":
-			l, ok := value.([]interface{})
-			if !ok {
-				return nil, &PeerError{msg: fmt.Sprintf("invalid type type: %#T", value), kind: ResponseError, req: req, resBytes: resBytes}
-			}
-			for _, r := range l {
-				d, ok := r.([]interface{})
-				if !ok {
-					return nil, &PeerError{msg: fmt.Sprintf("invalid type type: %#T", value), kind: ResponseError, req: req, resBytes: resBytes}
-				}
-				res = append(res, d)
-			}
+		case "failed":
+			// ignored, contains backend ids which failed
 		}
 	}
-
 	return res, nil
 }
 
