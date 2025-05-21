@@ -1051,7 +1051,11 @@ func parseJSONResult(data []byte) (res ResultSet, remaining []byte, err error) {
 		}
 	}
 
+	Dump(err)
 	if err != nil {
+		Dump("////////////")
+		Dump(err)
+		Dump(data)
 		return nil,
 			nil,
 			fmt.Errorf("json parse error at row %d pos %d (byte offset %d): %s",
@@ -1123,6 +1127,9 @@ func trimLeftTracking(data []byte) (dat []byte, numTrimmed int) {
 
 func tryRecoverJSON(rowBytes []byte, err error) []byte {
 	// try to fix invalid escape sequences and unknown utf8 characters
+	Dump("*****")
+	Dump(err)
+	Dump(rowBytes)
 	if strings.Contains(err.Error(), "invalid json string") {
 		// TODO: check if it breaks other json
 		rowBytes = bytesToValidUTF8(rowBytes, []byte("\uFFFD"))

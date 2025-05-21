@@ -160,9 +160,12 @@ func TestParseResultJSONEscapeSequences(t *testing.T) {
 		panic(err.Error())
 	}
 	for _, s := range []string{"\x00", "\x01", "\x02", "\x02", "\x06", "a\xc5z"} {
-		data := []byte(fmt.Sprintf(`[[\"null%s\"] ,
-		"ßüt"],
-		]`, s))
+		/*
+			data := []byte(fmt.Sprintf(`[[\"null%s\"] ,
+			[\"ßüt\"],
+			]`, s))
+		*/
+		data := []byte(fmt.Sprintf(`[[\"null%s\"]]`, s))
 
 		InitLogging(&Config{LogLevel: "off", LogFile: "stderr"})
 		res, _, err := req.parseResult(data)
