@@ -17,7 +17,6 @@ import (
 	"sync"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
 	"github.com/willabides/rjson"
 )
 
@@ -1067,12 +1066,42 @@ func parseJSONResult(data []byte) (res ResultSet, remaining []byte, err error) {
 }
 
 func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) (res ResultSet, err error) {
-	err = jsoniter.ConfigDefault.Unmarshal(resBytes, &meta)
+	json := &rjson.ValueReader{}
+
+	wrapped, _, err := json.ReadObject(resBytes)
 	if err != nil {
-		return nil, err
+		return nil, &PeerError{msg: fmt.Sprintf("json parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
 	}
 
-	return meta.Res, err
+	for key, value := range wrapped {
+		switch key {
+		case "total_count":
+			meta.Total = interface2int64(value)
+		case "columns":
+			if l, ok := value.([]string); ok {
+				meta.Columns = l
+			} else {
+				return nil, &PeerError{msg: fmt.Sprintf("columns meta data invalid type: %#T", value), kind: ResponseError, req: req, resBytes: resBytes}
+			}
+			meta.Columns = interface2stringlist(value)
+		case "rows_scanned":
+			meta.RowsScanned = interface2int64(value)
+		case "data":
+			l, ok := value.([]interface{})
+			if !ok {
+				return nil, &PeerError{msg: fmt.Sprintf("invalid type type: %#T", value), kind: ResponseError, req: req, resBytes: resBytes}
+			}
+			for _, r := range l {
+				d, ok := r.([]interface{})
+				if !ok {
+					return nil, &PeerError{msg: fmt.Sprintf("invalid type type: %#T", value), kind: ResponseError, req: req, resBytes: resBytes}
+				}
+				res = append(res, d)
+			}
+		}
+	}
+
+	return res, nil
 }
 
 // trim leading whitespace bytes and return the number of trimmed bytes.
