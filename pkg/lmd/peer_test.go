@@ -154,27 +154,23 @@ func TestParseResultJSONBroken2(t *testing.T) {
 
 func TestParseResultJSONEscapeSequences(t *testing.T) {
 	lmd := createTestLMDInstance()
-	// TODO: double check
 	req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name\nOutputFormat: json\n")), ParseOptimize)
 	if err != nil {
 		panic(err.Error())
 	}
 	for _, s := range []string{"\x00", "\x01", "\x02", "\x02", "\x06", "a\xc5z"} {
-		/*
-			data := []byte(fmt.Sprintf(`[[\"null%s\"] ,
-			[\"ßüt\"],
-			]`, s))
-		*/
-		data := []byte(fmt.Sprintf(`[[\"null%s\"]]`, s))
+		data := []byte(fmt.Sprintf(`[["null%s"] ,
+			["xy%cz"],
+			[null],
+		]`, s, 0))
 
 		InitLogging(&Config{LogLevel: "off", LogFile: "stderr"})
 		res, _, err := req.parseResult(data)
 		InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
 
 		require.NoError(t, err)
-		require.Len(t, res, 2)
+		require.Len(t, res, 3)
 		assert.Contains(t, res[0][0], "null")
-		assert.Contains(t, res[0][1], "ßüt")
 	}
 }
 

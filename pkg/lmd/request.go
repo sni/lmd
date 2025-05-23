@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/willabides/rjson"
 )
@@ -157,12 +158,12 @@ func (op *GroupOperator) String() string {
 // ResultMetaData contains meta from the response data.
 type ResultMetaData struct {
 	Request     *Request      // the request itself
+	Res         ResultSet     `json:"data"`         // result data temp store
 	Columns     []string      `json:"columns"`      // list of requested columns
 	Total       int64         `json:"total_count"`  // total number of result rows
 	RowsScanned int64         `json:"rows_scanned"` // total number of scanned rows for this result
 	Duration    time.Duration // response time in seconds
 	Size        int           // result size in bytes
-	Res         ResultSet     `json:"data"` // result data temp store
 }
 
 var (
@@ -989,11 +990,10 @@ func (req *Request) parseResult(resBytes []byte) (ResultSet, *ResultMetaData, er
 		}
 
 		return res, meta, err
-	} else {
-		res, err := NewResultSet(resBytes)
-
-		return res, meta, err
 	}
+	res, err := NewResultSet(resBytes)
+
+	return res, meta, err
 }
 
 func parseJSONResult(data []byte) (res ResultSet, remaining []byte, err error) {
@@ -1011,11 +1011,11 @@ func parseJSONResult(data []byte) (res ResultSet, remaining []byte, err error) {
 		return nil, nil, fmt.Errorf("json data should start with '['")
 	}
 
+	// remove leading '['
 	data, trim = trimLeftTracking(data[1:])
 	finalPos += trim + 1
 	var linePos int
 
-	// TODO: double check memory usage
 	json := &rjson.ValueReader{}
 	for {
 		if len(data) >= 1 && data[0] == ']' {
@@ -1029,13 +1029,26 @@ func parseJSONResult(data []byte) (res ResultSet, remaining []byte, err error) {
 		row, pos, jErr := json.ReadArray(data)
 		linePos = pos
 		if jErr != nil {
-			data = tryRecoverJSON(data, jErr)
-			row, pos, jErr = json.ReadArray(data)
+			var newPos int
+			errPos := pos
+			for {
+				tryRecoverJSON(data[errPos:], jErr)
+				row, newPos, jErr = json.ReadArray(data)
+				if jErr == nil {
+					err = nil
+
+					break
+				}
+				err = jErr
+				// position of error did not advance
+				if newPos == errPos {
+					break
+				}
+			}
+			pos = newPos
 			linePos = pos
 			finalPos += pos
-			if jErr != nil {
-				err = jErr
-
+			if err != nil {
 				break
 			}
 		}
@@ -1051,11 +1064,7 @@ func parseJSONResult(data []byte) (res ResultSet, remaining []byte, err error) {
 		}
 	}
 
-	Dump(err)
 	if err != nil {
-		Dump("////////////")
-		Dump(err)
-		Dump(data)
 		return nil,
 			nil,
 			fmt.Errorf("json parse error at row %d pos %d (byte offset %d): %s",
@@ -1072,12 +1081,12 @@ func parseJSONResult(data []byte) (res ResultSet, remaining []byte, err error) {
 func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) (res ResultSet, err error) {
 	resBytes, _ = trimLeftTracking(resBytes)
 	if len(resBytes) == 0 || resBytes[0] != '{' {
-		return nil, &PeerError{msg: fmt.Sprintf("json parse error: expected {"), kind: ResponseError, req: req, resBytes: resBytes}
+		return nil, &PeerError{msg: "json parse error: expected {", kind: ResponseError, req: req, resBytes: resBytes}
 	}
 
 	idx := bytes.Index(resBytes, []byte("\"data\":"))
 	if idx < 0 {
-		return nil, &PeerError{msg: fmt.Sprintf("json parse error: expected \"data\":"), kind: ResponseError, req: req, resBytes: resBytes}
+		return nil, &PeerError{msg: "json parse error: expected \"data\":", kind: ResponseError, req: req, resBytes: resBytes}
 	}
 	pre := resBytes[:idx]
 
@@ -1112,6 +1121,7 @@ func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) 
 			// ignored, contains backend ids which failed
 		}
 	}
+
 	return res, nil
 }
 
@@ -1125,23 +1135,73 @@ func trimLeftTracking(data []byte) (dat []byte, numTrimmed int) {
 	return data, len1 - len2
 }
 
-func tryRecoverJSON(rowBytes []byte, err error) []byte {
+// replace invalid json characters inline, does not change length of the byte array.
+func tryRecoverJSON(data []byte, err error) {
 	// try to fix invalid escape sequences and unknown utf8 characters
-	Dump("*****")
-	Dump(err)
-	Dump(rowBytes)
 	if strings.Contains(err.Error(), "invalid json string") {
-		// TODO: check if it breaks other json
-		rowBytes = bytesToValidUTF8(rowBytes, []byte("\uFFFD"))
+		replaceInvalidUTF8(data)
 	}
 
-	// try to fix invalid nan for numbers
+	// try to fix invalid nan for numbers (simply replace with 0)
 	if strings.Contains(err.Error(), "not null") {
-		rowBytes = bytes.ReplaceAll(rowBytes, []byte("nan,"), []byte("null,"))
-		rowBytes = bytes.ReplaceAll(rowBytes, []byte("nan]"), []byte("null]"))
+		for idx := 0; idx != -1; idx = bytes.Index(data, []byte("nan,")) {
+			data[idx] = 32
+			data[idx+1] = 48
+			data[idx+2] = 32
+		}
+		for idx := 0; idx != -1; idx = bytes.Index(data, []byte("nan]")) {
+			data[idx] = 32
+			data[idx+1] = 48
+			data[idx+2] = 32
+		}
 	}
+}
 
-	return rowBytes
+// bytes.ToValidUTF8 replaces invalid utf8 characters
+// taken from go 1.13 beta
+// https://github.com/golang/go/commit/3259bc441957bf74f069cf7df961367a3472afb2
+// https://github.com/golang/go/issues/25805
+// enhanced with removing ctrl characters like in
+// https://rosettacode.org/wiki/Strip_control_codes_and_extended_characters_from_a_string#Go
+// replaces characters inline with spaces so length is not changed.
+func replaceInvalidUTF8(src []byte) {
+	invalid := false // previous byte was from an invalid UTF-8 sequence
+
+	for idx := 0; idx < len(src); {
+		chr := src[idx]
+
+		// stop at the first newline
+		if chr == '\n' {
+			return
+		}
+
+		// the byte range from 32 to 126 contains valid one byte size characters
+		// excluding control characters (0-31)
+		// and the del character (127)
+		if chr >= 32 && chr <= 126 {
+			idx++
+			invalid = false
+
+			continue
+		}
+
+		// try to read a utf8 character, returns (err, 1) if invalid
+		_, wid := utf8.DecodeRune(src[idx:])
+		if wid == 1 {
+			if !invalid {
+				invalid = true
+				src[idx] = '.'
+			}
+
+			idx++
+
+			continue
+		}
+
+		// read valid utf8 character
+		invalid = false
+		idx += wid
+	}
 }
 
 // IsDefaultSortOrder returns true if the sortfields are the default for the given table.
