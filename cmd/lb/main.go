@@ -7,10 +7,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"pkg/lmd"
 	"strings"
 	"time"
-
-	"pkg/lmd"
 )
 
 // Build contains the current git commit id
@@ -168,6 +167,11 @@ func (cmd *Cmd) printResults(final map[string]*result) {
 	totalRate := float64(0)
 	for _, t := range testQueries {
 		r := final[t.name]
+		if r == nil {
+			fmt.Fprintf(os.Stdout, "got no data for: %s\n", t.name)
+
+			continue
+		}
 		rate := float64(r.total) / cmd.flags.flagDuration.Seconds()
 		fmt.Fprintf(os.Stdout, "%15s: total: %10d | errors: %3d | rate: %9.2f req/s\n", r.name, r.total, r.errors, rate)
 		totalRate += rate
