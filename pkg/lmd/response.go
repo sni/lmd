@@ -44,7 +44,7 @@ type Response struct {
 
 // PeerResponse is the sub result from a peer before merged into the end result.
 type PeerResponse struct {
-	rows        []*DataRow // set of datarows
+	rows        []*DataRow // set of data rows
 	total       int        // total number of matched rows regardless of any limits or offsets
 	rowsScanned int        // total number of rows scanned to create result
 }
@@ -645,14 +645,16 @@ func (res *Response) WriteColumnsResponse(json *jsoniter.Stream) {
 
 // buildLocalResponse builds local data table result for all selected peers.
 func (res *Response) buildLocalResponse(ctx context.Context, stores map[*Peer]*DataStore) {
-	var resultcollector chan *PeerResponse
-	var waitChan chan bool
+	var resultCollector chan *PeerResponse
+	waitChan := make(chan bool)
+	defer func() {
+		close(waitChan)
+	}()
 	if len(res.request.Stats) == 0 {
-		waitChan = make(chan bool)
-		resultcollector = make(chan *PeerResponse, len(res.selectedPeers))
+		resultCollector = make(chan *PeerResponse, len(res.selectedPeers))
 		go func() {
 			result := res.rawResults
-			for subRes := range resultcollector {
+			for subRes := range resultCollector {
 				result.Total += subRes.total
 				result.RowsScanned += subRes.rowsScanned
 				result.DataResult = append(result.DataResult, subRes.rows...)
@@ -673,7 +675,7 @@ func (res *Response) buildLocalResponse(ctx context.Context, stores map[*Peer]*D
 
 		// process virtual tables serially without go routines to maintain the correct order, ex.: from the sites table
 		if store.table.virtual != nil {
-			res.buildLocalResponseData(ctx, store, resultcollector)
+			res.buildLocalResponseData(ctx, store, resultCollector)
 
 			continue
 		}
@@ -685,14 +687,14 @@ func (res *Response) buildLocalResponse(ctx context.Context, stores map[*Peer]*D
 
 			defer wg.Done()
 
-			res.buildLocalResponseData(ctx, store, resultcollector)
+			res.buildLocalResponseData(ctx, store, resultCollector)
 		}(peer, waitgroup)
 	}
 	logWith(res).Tracef("waiting...")
 
 	waitgroup.Wait()
-	if resultcollector != nil {
-		close(resultcollector)
+	if resultCollector != nil {
+		close(resultCollector)
 		select {
 		case <-waitChan:
 		case <-ctx.Done():
@@ -837,10 +839,10 @@ func (res *Response) SetResultData() {
 	res.result = make(ResultSet, 0, len(res.rawResults.DataResult))
 	rowSize := len(res.request.RequestColumns)
 	for i := range res.rawResults.DataResult {
-		datarow := res.rawResults.DataResult[i]
+		dataRow := res.rawResults.DataResult[i]
 		row := make([]interface{}, rowSize)
 		for j := range res.request.RequestColumns {
-			row[j] = datarow.GetValueByColumn(res.request.RequestColumns[j])
+			row[j] = dataRow.GetValueByColumn(res.request.RequestColumns[j])
 		}
 		res.result = append(res.result, row)
 	}
@@ -864,7 +866,7 @@ func SpinUpPeers(ctx context.Context, peers []*Peer) {
 }
 
 // buildLocalResponseData returns the result data for a given request.
-func (res *Response) buildLocalResponseData(ctx context.Context, store *DataStore, resultcollector chan *PeerResponse) {
+func (res *Response) buildLocalResponseData(ctx context.Context, store *DataStore, resultCollector chan *PeerResponse) {
 	logWith(store.peer, res).Tracef("BuildLocalResponseData")
 
 	if len(store.data) == 0 {
@@ -876,14 +878,14 @@ func (res *Response) buildLocalResponseData(ctx context.Context, store *DataStor
 		res.MergeStats(res.gatherStatsResult(ctx, store))
 	} else {
 		// data queries
-		res.gatherResultRows(ctx, store, resultcollector)
+		res.gatherResultRows(ctx, store, resultCollector)
 	}
 }
 
-func (res *Response) gatherResultRows(ctx context.Context, store *DataStore, resultcollector chan *PeerResponse) {
+func (res *Response) gatherResultRows(ctx context.Context, store *DataStore, resultCollector chan *PeerResponse) {
 	result := &PeerResponse{}
 	defer func() {
-		resultcollector <- result
+		resultCollector <- result
 	}()
 	req := res.request
 

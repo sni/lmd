@@ -5,6 +5,7 @@ This file documents the revision history for the Livestatus Multitool Daemon (LM
 next:
           - synchronize initial tables in blocks of 500k objects
           - switch to rjson and jsoniter library
+          - fix go routine leak on query timeouts
 
 2.4.3    Tue May 20 13:27:06 CEST 2025
           - improve handling of broken json data
