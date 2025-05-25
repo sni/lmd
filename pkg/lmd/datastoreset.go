@@ -98,50 +98,75 @@ func (ds *DataStoreSet) Get(name TableName) *DataStore {
 
 // CreateObjectByType fetches all static and dynamic data from the remote site and creates the initial table.
 // It returns any error encountered.
-func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (store *DataStore, err error) {
+func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (*DataStore, error) {
 	peer := ds.peer
 
-	store = NewDataStore(table, peer)
+	store := NewDataStore(table, peer)
 	store.dataSet = ds
 	keys, columns := store.GetInitialColumns()
 
-	// fetch remote objects
-	req := &Request{
-		Table:   store.table.name,
-		Columns: keys,
-	}
-	peer.setQueryOptions(req)
-	res, resMeta, err := peer.Query(ctx, req)
-	if err != nil {
-		return nil, err
+	// fetch remote objects in blocks
+	limit := peer.lmd.Config.InitialSyncBlockSize
+	if limit <= 0 {
+		limit = DefaultInitialSyncBlockSize
 	}
 
-	time1 := time.Now()
-
-	// verify result set
-	keyLen := len(keys)
-	for i, row := range res {
-		if len(row) != keyLen {
-			err = fmt.Errorf("%s result set verification failed: len mismatch in row %d, expected %d columns and got %d", store.table.name.String(), i, keyLen, len(row))
-			if peer.errorCount.Load() > 0 {
-				// silently cancel, backend broke during initialization, should have been logged already
-				log.Debugf("error during %s initialization, but backend is already failed: %s", &table.name, err.Error())
-			} else {
-				log.Errorf("error during %s initialization: %s", &table.name, err.Error())
-			}
-
+	var lastReq *Request
+	offset := 0
+	results := []*ResultSet{}
+	metas := []*ResultMetaData{}
+	totalPrepTime := time.Duration(0)
+	for {
+		req := &Request{
+			Table:   store.table.name,
+			Columns: keys,
+			Limit:   &limit,
+			Offset:  offset,
+		}
+		lastReq = req
+		peer.setQueryOptions(req)
+		res, resMeta, err := peer.Query(ctx, req)
+		if err != nil {
 			return nil, err
 		}
+
+		time1 := time.Now()
+
+		// verify result set
+		keyLen := len(keys)
+		for i, row := range res {
+			if len(row) != keyLen {
+				err := fmt.Errorf("%s result set verification failed: len mismatch in row %d, expected %d columns and got %d", store.table.name.String(), i, keyLen, len(row))
+				if peer.errorCount.Load() > 0 {
+					// silently cancel, backend broke during initialization, should have been logged already
+					log.Debugf("error during %s initialization, but backend is already failed: %s", &table.name, err.Error())
+				} else {
+					log.Errorf("error during %s initialization: %s", &table.name, err.Error())
+				}
+
+				return nil, err
+			}
+		}
+
+		metas = append(metas, resMeta)
+		results = append(results, &res)
+
+		totalPrepTime += time.Since(time1).Truncate(time.Millisecond)
+
+		if len(res) < limit {
+			break
+		}
+		offset += limit
 	}
 
+	totalRes, resMeta := mergeResultSets(results, metas)
+
 	// make sure all backends are sorted the same way
-	res = res.SortByPrimaryKey(table, req)
+	totalRes = totalRes.SortByPrimaryKey(table, lastReq)
 
-	durationPrepare := time.Since(time1).Truncate(time.Millisecond)
 	time2 := time.Now()
-
 	now := currentUnixTime()
-	err = store.InsertData(res, columns, false)
+	err := store.InsertData(totalRes, columns, false)
 	if err != nil {
 		return nil, err
 	}
@@ -155,12 +180,41 @@ func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (s
 	durationLock := time.Since(time3).Truncate(time.Millisecond)
 
 	tableName := table.name.String()
-	promObjectCount.WithLabelValues(peer.Name, tableName).Set(float64(len(res)))
+	promObjectCount.WithLabelValues(peer.Name, tableName).Set(float64(len(totalRes)))
 
-	logWith(peer, req).Debugf("initial table: %15s - fetch: %9s - prepare: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
-		tableName, resMeta.Duration.Truncate(time.Millisecond), durationPrepare, durationLock, durationInsert, len(res), resMeta.Size/1024)
+	logWith(peer, lastReq).Debugf("initial table: %15s - fetch: %9s - prepare: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
+		tableName, resMeta.Duration.Truncate(time.Millisecond), totalPrepTime, durationLock, durationInsert, len(totalRes), resMeta.Size/1024)
 
 	return store, nil
+}
+
+func mergeResultSets(results []*ResultSet, metas []*ResultMetaData) (totalRes ResultSet, resMeta *ResultMetaData) {
+	if len(metas) == 0 {
+		return nil, nil
+	}
+
+	if len(metas) == 1 {
+		return *results[0], metas[0]
+	}
+
+	resMeta = metas[0]
+	for i, meta := range metas {
+		if i == 0 {
+			continue
+		}
+		resMeta.Size += meta.Size
+		resMeta.Duration += meta.Duration
+		resMeta.RowsScanned += meta.RowsScanned
+		resMeta.Total += meta.Total
+	}
+
+	// merge all result sets
+	totalRes = make(ResultSet, 0, resMeta.Total)
+	for _, res := range results {
+		totalRes = append(totalRes, *res...)
+	}
+
+	return totalRes, resMeta
 }
 
 // SetReferences creates reference entries for all tables.

@@ -75,6 +75,10 @@ UpdateOffset = 3
 # reasons some updates slip through the normal delta updates.
 #FullUpdateInterval = 600
 
+# Import initial objects in bulks of this size. This prevents having to large
+# queries.
+InitialSyncBlockSize = 500000
+
 # After `IdleTimeout` seconds of no activity (incoming queries for this backend)
 # the slower update interval of `IdleInterval` seconds will be used.
 # Don't set the timeout to low, clients will have to wait for a "spin up"

@@ -13,6 +13,8 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
+const DefaultInitialSyncBlockSize = 500000
+
 // Connection defines a single connection configuration.
 type Connection struct {
 	TLSCertificate string   `toml:"tlscertificate"`
@@ -88,6 +90,7 @@ type Config struct {
 	IdleTimeout                int64        `toml:"IdleTimeout"`
 	IdleInterval               int64        `toml:"IdleInterval"`
 	FullUpdateInterval         int64        `toml:"FullUpdateInterval"`
+	InitialSyncBlockSize       int          `toml:"InitialSyncBlockSize"`
 	MaxParallelPeerConnections int          `toml:"MaxParallelPeerConnections"`
 	SkipSSLCheck               int          `toml:"SkipSSLCheck"`
 	LogSlowQueryThreshold      int          `toml:"LogSlowQueryThreshold"`
@@ -107,13 +110,14 @@ func NewConfig(files []string) *Config {
 	conf := Config{
 		UpdateInterval:             7,
 		FullUpdateInterval:         0,
+		InitialSyncBlockSize:       DefaultInitialSyncBlockSize,
 		LogLevel:                   "Info",
 		LogSlowQueryThreshold:      5,
 		LogHugeQueryThreshold:      100,
 		ConnectTimeout:             30,
 		NetTimeout:                 120,
 		ListenTimeout:              60,
-		SaveTempRequests:           true,
+		SaveTempRequests:           false,
 		IdleTimeout:                120,
 		IdleInterval:               1800,
 		StaleBackendTimeout:        30,
