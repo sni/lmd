@@ -546,7 +546,7 @@ func (p *Peer) periodicUpdateLMD(ctx context.Context, data *DataStoreSet, force 
 
 		return ok, err
 	}
-	resHash := res.Result2Hash(columns)
+	resHash := res.result2Hash(columns)
 
 	// check if we need to start/stop peers
 	logWith(p).Debugf("checking for changed remote lmd backends")
@@ -754,7 +754,7 @@ func (p *Peer) InitAllTables(ctx context.Context) (err error) {
 			return err
 		}
 
-		err = data.RebuildDowntimesList()
+		err = data.rebuildDowntimesList()
 		if err != nil {
 			return err
 		}

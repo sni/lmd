@@ -33,30 +33,17 @@ func NewResultSet(data []byte) (res ResultSet, err error) {
 	return res, err
 }
 
-// Precompress compresses large strings in result set to allow faster updates (compressing would happen during locked update loop otherwise).
-func (res *ResultSet) Precompress(offset int, columns ColumnList) {
-	for i := range columns {
-		col := columns[i]
-		if col.DataType == StringLargeCol {
-			replaceIndex := i + offset
-			for _, row := range *res {
-				row[replaceIndex] = interface2stringLarge(row[replaceIndex])
-			}
-		}
-	}
-}
-
-// SortByPrimaryKey sorts the resultset by their primary columns.
-func (res *ResultSet) SortByPrimaryKey(table *Table, req *Request) ResultSet {
+// sortByPrimaryKey sorts the resultset by their primary columns.
+func (res *ResultSet) sortByPrimaryKey(table *Table, columns ColumnList) ResultSet {
 	if len(table.primaryKey) == 0 {
 		return *res
 	}
 	sorted := ResultSetSorted{Data: *res}
 	for _, name := range table.primaryKey {
-		for x, col := range req.Columns {
-			if name == col {
+		for x, col := range columns {
+			if name == col.Name {
 				sorted.Keys = append(sorted.Keys, x)
-				sorted.Types = append(sorted.Types, table.GetColumn(col).DataType)
+				sorted.Types = append(sorted.Types, col.DataType)
 			}
 		}
 	}
@@ -65,8 +52,8 @@ func (res *ResultSet) SortByPrimaryKey(table *Table, req *Request) ResultSet {
 	return sorted.Data
 }
 
-// Result2Hash converts list result into hashes.
-func (res *ResultSet) Result2Hash(columns []string) []map[string]interface{} {
+// result2Hash converts list result into hashes.
+func (res *ResultSet) result2Hash(columns []string) []map[string]interface{} {
 	hash := make([]map[string]interface{}, 0)
 	for _, row := range *res {
 		rowHash := make(map[string]interface{})

@@ -94,32 +94,45 @@ func NewDataStore(table *Table, peer *Peer) (d *DataStore) {
 	return d
 }
 
-// InsertData adds a list of results and initializes the store table.
-func (d *DataStore) InsertData(rows ResultSet, columns ColumnList, setReferences bool) error {
-	now := currentUnixTime()
-	switch len(d.table.primaryKey) {
-	case 0:
-	case 1:
-		d.index = make(map[string]*DataRow, len(rows))
-	case 2:
-		d.index2 = make(map[string]map[string]*DataRow)
-	default:
-		panic("not supported number of primary keys")
+// InsertData adds a resultSet and initializes the store table.
+func (d *DataStore) InsertData(row ResultSet, columns ColumnList, setReferences bool) error {
+	return d.InsertDataMulti([]*ResultSet{&row}, columns, setReferences)
+}
+
+// InsertDataMulti adds a list of resultSets and initializes the store table.
+func (d *DataStore) InsertDataMulti(rowSet []*ResultSet, columns ColumnList, setReferences bool) error {
+	totalNum := 0
+	for _, rows := range rowSet {
+		totalNum += len(*rows)
 	}
+	now := currentUnixTime()
+	d.data = make([]*DataRow, totalNum)
 
-	d.data = make([]*DataRow, len(rows))
-	for idx, raw := range rows {
-		row, err := NewDataRow(d, raw, columns, now, setReferences)
-		if err != nil {
-			log.Errorf("adding new %s failed: %s", d.table.name.String(), err.Error())
+	num := 0
+	for idx := range rowSet {
+		rows := *rowSet[idx]
+		for i, raw := range rows {
+			row, err := NewDataRow(d, raw, columns, now, setReferences)
+			rows[i] = nil // free memory
+			if err != nil {
+				log.Errorf("adding new %s failed: %s", d.table.name.String(), err.Error())
 
-			return err
+				return err
+			}
+			d.data[num] = row
+			num++
 		}
-		d.InsertItem(idx, row)
+		*rowSet[idx] = nil // free memory
 	}
 
 	// reset after initial setup
 	d.dupStringList = make(map[uint32][]string)
+
+	// make sure all backends are sorted the same way
+	d.sortByPrimaryKey()
+
+	// create index
+	d.rebuildIndex()
 
 	return nil
 }
@@ -146,28 +159,36 @@ func (d *DataStore) AppendData(data ResultSet, columns ColumnList) error {
 	return nil
 }
 
-// InsertItem adds an new DataRow to a DataStore at given Index.
-func (d *DataStore) InsertItem(index int, row *DataRow) {
-	d.data[index] = row
+// rebuildIndex refreshes the index for all data rows.
+func (d *DataStore) rebuildIndex() {
 	switch len(d.table.primaryKey) {
 	case 0:
+		return
 	case 1:
-		id := dedup.S(row.GetID())
-		d.index[id] = row
-		if d.table.name == TableHosts {
-			idLower := dedup.S(strings.ToLower(id))
-			if idLower != id {
-				d.indexLowerCase[idLower] = append(d.indexLowerCase[idLower], id)
+		d.index = make(map[string]*DataRow, len(d.data))
+		for i := range d.data {
+			row := d.data[i]
+			id := dedup.S(row.GetID())
+			d.index[id] = row
+			if d.table.name == TableHosts {
+				idLower := dedup.S(strings.ToLower(id))
+				if idLower != id {
+					d.indexLowerCase[idLower] = append(d.indexLowerCase[idLower], id)
+				}
 			}
 		}
 	case 2:
-		id1, id2 := row.GetID2()
-		id1 = dedup.S(id1)
-		id2 = dedup.S(id2)
-		if _, ok := d.index2[id1]; !ok {
-			d.index2[id1] = make(map[string]*DataRow)
+		d.index2 = make(map[string]map[string]*DataRow)
+		for i := range d.data {
+			row := d.data[i]
+			id1, id2 := row.GetID2()
+			id1 = dedup.S(id1)
+			id2 = dedup.S(id2)
+			if _, ok := d.index2[id1]; !ok {
+				d.index2[id1] = make(map[string]*DataRow)
+			}
+			d.index2[id1][id2] = row
 		}
-		d.index2[id1][id2] = row
 	default:
 		panic("not supported number of primary keys")
 	}
@@ -355,6 +376,11 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 	lastUpdateDataIdx, lastUpdateResIdx := d.getUpdateColumn("last_update", dataOffset)
 
 	useIndex := dataOffset == 0 || len(res) == len(d.data)
+
+	if !useIndex {
+		// make sure all backends are sorted the same way
+		res = res.sortByPrimaryKey(d.table, columns)
+	}
 
 	// prepare update
 	nameIndex := d.index
@@ -724,4 +750,51 @@ func (d *DataStore) deduplicateStringlist(list []string) []string {
 	}
 
 	return dedupedList
+}
+
+func (d *DataStore) sortByPrimaryKey() {
+	if len(d.table.primaryKey) == 0 {
+		return
+	}
+
+	sort.Sort(d)
+}
+
+// Len returns the result length used for sorting results.
+func (d *DataStore) Len() int {
+	return len(d.data)
+}
+
+// Less returns the sort result of two data rows.
+func (d *DataStore) Less(idx1, idx2 int) bool {
+	for _, colName := range d.table.primaryKey {
+		col := d.table.columnsIndex[colName]
+		switch col.DataType {
+		case IntCol, Int64Col, FloatCol:
+			valueA := d.data[idx1].GetFloat(col)
+			valueB := d.data[idx2].GetFloat(col)
+			if valueA == valueB {
+				continue
+			}
+
+			return valueA < valueB
+		case StringCol:
+			str1 := d.data[idx1].GetString(col)
+			str2 := d.data[idx2].GetString(col)
+			if str1 == str2 {
+				continue
+			}
+
+			return str1 < str2
+		default:
+			panic(fmt.Sprintf("sorting not implemented for type %s", col.DataType))
+		}
+	}
+
+	return true
+}
+
+// Swap replaces two data rows while sorting.
+func (d *DataStore) Swap(i, j int) {
+	d.data[i], d.data[j] = d.data[j], d.data[i]
 }

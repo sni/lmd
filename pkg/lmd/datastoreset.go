@@ -116,6 +116,7 @@ func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (*
 	results := []*ResultSet{}
 	metas := []*ResultMetaData{}
 	totalPrepTime := time.Duration(0)
+	totalRowNum := 0
 	for {
 		req := &Request{
 			Table:   store.table.name,
@@ -152,6 +153,7 @@ func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (*
 		results = append(results, &res)
 
 		totalPrepTime += time.Since(time1).Truncate(time.Millisecond)
+		totalRowNum += len(res)
 
 		if len(res) < limit {
 			break
@@ -159,14 +161,11 @@ func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (*
 		offset += limit
 	}
 
-	totalRes, resMeta := mergeResultSets(results, metas)
-
-	// make sure all backends are sorted the same way
-	totalRes = totalRes.SortByPrimaryKey(table, lastReq)
+	resMeta := mergeResultMetas(metas)
 
 	time2 := time.Now()
 	now := currentUnixTime()
-	err := store.InsertData(totalRes, columns, false)
+	err := store.InsertDataMulti(results, columns, false)
 	if err != nil {
 		return nil, err
 	}
@@ -180,21 +179,21 @@ func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (*
 	durationLock := time.Since(time3).Truncate(time.Millisecond)
 
 	tableName := table.name.String()
-	promObjectCount.WithLabelValues(peer.Name, tableName).Set(float64(len(totalRes)))
+	promObjectCount.WithLabelValues(peer.Name, tableName).Set(float64(totalRowNum))
 
 	logWith(peer, lastReq).Debugf("initial table: %15s - fetch: %9s - prepare: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
-		tableName, resMeta.Duration.Truncate(time.Millisecond), totalPrepTime, durationLock, durationInsert, len(totalRes), resMeta.Size/1024)
+		tableName, resMeta.Duration.Truncate(time.Millisecond), totalPrepTime, durationLock, durationInsert, totalRowNum, resMeta.Size/1024)
 
 	return store, nil
 }
 
-func mergeResultSets(results []*ResultSet, metas []*ResultMetaData) (totalRes ResultSet, resMeta *ResultMetaData) {
+func mergeResultMetas(metas []*ResultMetaData) (resMeta *ResultMetaData) {
 	if len(metas) == 0 {
-		return nil, nil
+		return nil
 	}
 
 	if len(metas) == 1 {
-		return *results[0], metas[0]
+		return metas[0]
 	}
 
 	resMeta = metas[0]
@@ -208,13 +207,7 @@ func mergeResultSets(results []*ResultSet, metas []*ResultMetaData) (totalRes Re
 		resMeta.Total += meta.Total
 	}
 
-	// merge all result sets
-	totalRes = make(ResultSet, 0, resMeta.Total)
-	for _, res := range results {
-		totalRes = append(totalRes, *res...)
-	}
-
-	return totalRes, resMeta
+	return resMeta
 }
 
 // SetReferences creates reference entries for all tables.
@@ -410,9 +403,6 @@ func (ds *DataStoreSet) updateDeltaHostsServices(ctx context.Context, tableName 
 		return err
 	}
 
-	// make sure all backends are sorted the same way
-	res = res.SortByPrimaryKey(table.table, req)
-
 	switch tableName {
 	case TableHosts:
 		hostDataOffset := 1
@@ -533,9 +523,6 @@ func (ds *DataStoreSet) updateFullScan(ctx context.Context, store *DataStore, la
 	if err != nil {
 		return false, err
 	}
-
-	// make sure all backends are sorted the same way
-	res = res.SortByPrimaryKey(store.table, req)
 
 	columns := make(ColumnList, len(scanColumns))
 	for i, name := range scanColumns {
@@ -721,7 +708,7 @@ func (ds *DataStoreSet) updateDeltaCommentsOrDowntimes(ctx context.Context, name
 			return err
 		}
 	case TableDowntimes:
-		err = ds.RebuildDowntimesList()
+		err = ds.rebuildDowntimesList()
 		if err != nil {
 			return err
 		}
@@ -794,11 +781,6 @@ func (ds *DataStoreSet) UpdateFullTable(ctx context.Context, tableName TableName
 		return err
 	}
 
-	// make sure all backends are sorted the same way
-	t1 := time.Now()
-	res = res.SortByPrimaryKey(store.table, req)
-	durationSort := time.Since(t1).Truncate(time.Millisecond)
-
 	store.lock.RLock()
 	data := store.data
 	store.lock.RUnlock()
@@ -821,8 +803,8 @@ func (ds *DataStoreSet) UpdateFullTable(ctx context.Context, tableName TableName
 		if err != nil {
 			return err
 		}
-		logWith(peer, req).Debugf("up. full  table: %15s - fetch: %9s - sort: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
-			tableName.String(), resMeta.Duration.Truncate(time.Millisecond), durationSort, durationLock, durationInsert, len(res), resMeta.Size/1024)
+		logWith(peer, req).Debugf("up. full  table: %15s - fetch: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
+			tableName.String(), resMeta.Duration.Truncate(time.Millisecond), durationLock, durationInsert, len(res), resMeta.Size/1024)
 	case TableStatus:
 		// check pid and date before updating tables.
 		// Otherwise we and up with inconsistent state until the full refresh is finished
@@ -917,8 +899,8 @@ func (ds *DataStoreSet) rebuildCommentsList() (err error) {
 	return
 }
 
-// RebuildDowntimesList updates the downtimes column of hosts/services based on the downtimes table ids.
-func (ds *DataStoreSet) RebuildDowntimesList() (err error) {
+// rebuildDowntimesList updates the downtimes column of hosts/services based on the downtimes table ids.
+func (ds *DataStoreSet) rebuildDowntimesList() (err error) {
 	time1 := time.Now()
 	err = ds.buildDowntimeCommentsList(TableDowntimes)
 	if err != nil {
