@@ -108,6 +108,11 @@ func (d *DataStore) InsertDataMulti(rowSet []*ResultSet, columns ColumnList, set
 	now := currentUnixTime()
 	d.data = make([]*DataRow, totalNum)
 
+	// do not set references for multi inserts
+	if len(rowSet) > 1 {
+		setReferences = false
+	}
+
 	num := 0
 	for idx := range rowSet {
 		rows := *rowSet[idx]
@@ -377,7 +382,7 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 
 	useIndex := dataOffset == 0 || len(res) == len(d.data)
 
-	if !useIndex {
+	if useIndex {
 		// make sure all backends are sorted the same way
 		res = res.sortByPrimaryKey(d.table, columns)
 	}
