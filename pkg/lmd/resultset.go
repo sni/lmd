@@ -34,9 +34,9 @@ func NewResultSet(data []byte) (res ResultSet, err error) {
 }
 
 // sortByPrimaryKey sorts the resultset by their primary columns.
-func (res *ResultSet) sortByPrimaryKey(table *Table, columns ColumnList) ResultSet {
+func (res *ResultSet) sortByPrimaryKey(table *Table, columns ColumnList) {
 	if len(table.primaryKey) == 0 {
-		return *res
+		return
 	}
 	sorted := ResultSetSorted{Data: *res}
 	for _, name := range table.primaryKey {
@@ -49,7 +49,7 @@ func (res *ResultSet) sortByPrimaryKey(table *Table, columns ColumnList) ResultS
 	}
 	sort.Sort(&sorted)
 
-	return sorted.Data
+	return
 }
 
 // result2Hash converts list result into hashes.
