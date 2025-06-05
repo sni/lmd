@@ -34,22 +34,22 @@ func NewResultSet(data []byte) (res ResultSet, err error) {
 }
 
 // sortByPrimaryKey sorts the resultset by their primary columns.
-func (res *ResultSet) sortByPrimaryKey(table *Table, columns ColumnList) {
+func (res *ResultSet) sortByPrimaryKey(table *Table) {
 	if len(table.primaryKey) == 0 {
 		return
 	}
 	sorted := ResultSetSorted{Data: *res}
-	for _, name := range table.primaryKey {
-		for x, col := range columns {
-			if name == col.Name {
-				sorted.Keys = append(sorted.Keys, x)
-				sorted.Types = append(sorted.Types, col.DataType)
-			}
-		}
+	for x, name := range table.primaryKey {
+		// convention is that the primary keys are always the first columns
+		sorted.Keys = append(sorted.Keys, x)
+		sorted.Types = append(sorted.Types, table.GetColumn(name).DataType)
 	}
-	sort.Sort(&sorted)
 
-	return
+	if len(sorted.Keys) == 0 || len(sorted.Types) == 0 {
+		log.Panicf("keys not found in table %s for sorting", table.name.String())
+	}
+
+	sort.Sort(&sorted)
 }
 
 // result2Hash converts list result into hashes.
@@ -105,7 +105,7 @@ func (res *ResultSetSorted) Less(idx1, idx2 int) bool {
 		}
 	}
 
-	return true
+	panic("sorting requires keys and types set")
 }
 
 // Swap replaces two data rows while sorting.

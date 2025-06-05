@@ -830,6 +830,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 	if len(columns) != len(data)-dataOffset {
 		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.dataStore.table.name.String(), len(columns), len(data))
 	}
+
 	for idx, col := range columns {
 		localIndex := col.Index
 		if col.StorageType != LocalStore {

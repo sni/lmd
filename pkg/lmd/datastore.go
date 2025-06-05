@@ -384,7 +384,7 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 
 	if useIndex {
 		// make sure all backends are sorted the same way
-		res.sortByPrimaryKey(d.table, columns)
+		res.sortByPrimaryKey(d.table)
 	}
 
 	// prepare update
