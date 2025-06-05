@@ -825,7 +825,7 @@ func (d *DataRow) getStatsKey(res *Response) string {
 	return strings.Join(keyValues, ListSepChar1)
 }
 
-// UpdateValues updates this datarow with new values.
+// UpdateValues updates this data row with new values.
 func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns ColumnList, timestamp float64) error {
 	if len(columns) != len(data)-dataOffset {
 		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.dataStore.table.name.String(), len(columns), len(data))
@@ -844,7 +844,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 		case StringCol:
 			d.dataString[localIndex] = *(interface2string(data[resIndex]))
 		case StringListCol:
-			d.dataStringList[localIndex] = d.dataStore.deduplicateStringlist(interface2stringlist(data[resIndex]))
+			d.dataStringList[localIndex] = d.dataStore.deduplicateStringList(interface2stringlist(data[resIndex]))
 		case StringLargeCol:
 			d.dataStringLarge[localIndex] = *interface2stringLarge(data[resIndex])
 		case IntCol:
@@ -1344,7 +1344,7 @@ func cast2Type(val interface{}, col *Column, dedupStore *DataStore) interface{} 
 		return (interface2stringNoDedup(val))
 	case StringListCol:
 		if dedupStore != nil {
-			return (dedupStore.deduplicateStringlist(interface2stringlist(val)))
+			return (dedupStore.deduplicateStringList(interface2stringlist(val)))
 		}
 
 		return (interface2stringlist(val))

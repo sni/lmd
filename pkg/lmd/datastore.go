@@ -737,8 +737,8 @@ func (d *DataStore) appendIndexFromPrimaryKey(uniqRows map[string]bool, fil *Fil
 	return false
 }
 
-// deduplicateStringlist store duplicate string lists only once.
-func (d *DataStore) deduplicateStringlist(list []string) []string {
+// deduplicateStringList store duplicate string lists only once.
+func (d *DataStore) deduplicateStringList(list []string) []string {
 	sum := xxhash.ChecksumString32(strings.Join(list, ListSepChar1))
 	if l, ok := d.dupStringList[sum]; ok {
 		return l
