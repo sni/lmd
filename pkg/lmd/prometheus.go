@@ -214,27 +214,6 @@ var (
 		},
 		[]string{"peer", "type"},
 	)
-
-	promStringDedupCount = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: NAME,
-			Name:      "string_dedup_count",
-			Help:      "total number of deduplicated strings",
-		})
-
-	promStringDedupBytes = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: NAME,
-			Name:      "string_dedup_bytes",
-			Help:      "total bytes of all deduplicated strings",
-		})
-
-	promStringDedupIndexBytes = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: NAME,
-			Name:      "string_dedup_index_bytes",
-			Help:      "total bytes for storing the index",
-		})
 )
 
 func initPrometheus(lmd *Daemon) (prometheusListener io.Closer) {
@@ -286,9 +265,6 @@ func initPrometheus(lmd *Daemon) (prometheusListener io.Closer) {
 	prometheus.MustRegister(promPeerUpdateDuration)
 	prometheus.MustRegister(promObjectUpdate)
 	prometheus.MustRegister(promObjectCount)
-	prometheus.MustRegister(promStringDedupCount)
-	prometheus.MustRegister(promStringDedupBytes)
-	prometheus.MustRegister(promStringDedupIndexBytes)
 
 	promInfoCount.WithLabelValues(VERSION).Set(1)
 

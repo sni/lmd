@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"unique"
 
 	"github.com/klauspost/compress/zstd"
 )
@@ -37,7 +38,7 @@ func NewStringContainer(data *string) *StringContainer {
 func (s *StringContainer) Set(data *string) {
 	// it only makes sense to compress larger strings
 	if len(*data) < CompressionMinimumSize {
-		s.stringData = dedup.S(*data)
+		s.stringData = unique.Make(*data).Value()
 		s.compressedData = nil
 
 		return
@@ -61,7 +62,7 @@ func (s *StringContainer) Set(data *string) {
 		log.Tracef("compressed string from %d to %d (%.1f%%) mode:%s min:%d", dataLen, compLen, ratio, CompressionLevel.String(), CompressionMinimumSize)
 	}
 	if ratio < CompressionThreshold {
-		s.stringData = dedup.S(*data)
+		s.stringData = unique.Make(*data).Value()
 		s.compressedData = nil
 	} else {
 		s.compressedData = compressed

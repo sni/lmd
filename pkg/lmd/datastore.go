@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unique"
 
 	"github.com/OneOfOne/xxhash"
 	"github.com/sasha-s/go-deadlock"
@@ -173,10 +174,10 @@ func (d *DataStore) rebuildIndex() {
 		d.index = make(map[string]*DataRow, len(d.data))
 		for i := range d.data {
 			row := d.data[i]
-			id := dedup.S(row.GetID())
+			id := unique.Make(row.GetID()).Value()
 			d.index[id] = row
 			if d.table.name == TableHosts {
-				idLower := dedup.S(strings.ToLower(id))
+				idLower := unique.Make(strings.ToLower(id)).Value()
 				if idLower != id {
 					d.indexLowerCase[idLower] = append(d.indexLowerCase[idLower], id)
 				}
@@ -187,8 +188,8 @@ func (d *DataStore) rebuildIndex() {
 		for i := range d.data {
 			row := d.data[i]
 			id1, id2 := row.GetID2()
-			id1 = dedup.S(id1)
-			id2 = dedup.S(id2)
+			id1 = unique.Make(id1).Value()
+			id2 = unique.Make(id2).Value()
 			if _, ok := d.index2[id1]; !ok {
 				d.index2[id1] = make(map[string]*DataRow)
 			}
@@ -205,18 +206,18 @@ func (d *DataStore) AddItem(row *DataRow) {
 	switch len(d.table.primaryKey) {
 	case 0:
 	case 1:
-		id := dedup.S(row.GetID())
+		id := unique.Make(row.GetID()).Value()
 		d.index[id] = row
 		if d.table.name == TableHosts {
-			idLower := dedup.S(strings.ToLower(id))
+			idLower := unique.Make(strings.ToLower(id)).Value()
 			if idLower != id {
 				d.indexLowerCase[idLower] = append(d.indexLowerCase[idLower], id)
 			}
 		}
 	case 2:
 		id1, id2 := row.GetID2()
-		id1 = dedup.S(id1)
-		id2 = dedup.S(id2)
+		id1 = unique.Make(id1).Value()
+		id2 = unique.Make(id2).Value()
 		if _, ok := d.index2[id1]; !ok {
 			d.index2[id1] = make(map[string]*DataRow)
 		}
@@ -747,7 +748,7 @@ func (d *DataStore) deduplicateStringList(list []string) []string {
 	// adding new list, deduplicate strings as well
 	dedupedList := make([]string, 0, len(list))
 	for i := range list {
-		dedupedList = append(dedupedList, dedup.S(list[i]))
+		dedupedList = append(dedupedList, unique.Make(list[i]).Value())
 	}
 
 	if sum > 0 {

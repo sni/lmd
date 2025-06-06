@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"unique"
 
 	jsoniter "github.com/json-iterator/go"
 )
@@ -23,8 +24,8 @@ type DataRow struct {
 	dataInt               []int8                 // stores integers
 	dataInt64             []int64                // stores large integers
 	dataFloat             []float64              // stores floats
-	dataStringList        [][]string             // stores stringlists
-	dataServiceMemberList [][]ServiceMember      // stores list of servicemembers
+	dataStringList        [][]string             // stores string lists
+	dataServiceMemberList [][]ServiceMember      // stores list of service members
 	dataStringLarge       []StringContainer      // stores large strings
 	dataInterfaceList     [][]interface{}        // stores anything else
 	lastUpdate            float64                // timestamp of last update
@@ -225,12 +226,12 @@ func (d *DataRow) GetStringList(col *Column) []string {
 	case RefStore:
 		ref := d.refs[col.RefColTableName]
 		if ref == nil {
-			return interface2stringlist(col.GetEmptyValue())
+			return interface2stringList(col.GetEmptyValue())
 		}
 
 		return ref.GetStringList(col.RefCol)
 	case VirtualStore:
-		return interface2stringlist(d.getVirtualRowValue(col))
+		return interface2stringList(d.getVirtualRowValue(col))
 	}
 	panic(fmt.Sprintf("unsupported type: %s", col.DataType))
 }
@@ -366,12 +367,12 @@ func (d *DataRow) GetServiceMemberList(col *Column) []ServiceMember {
 	case RefStore:
 		ref := d.refs[col.RefColTableName]
 		if ref == nil {
-			return interface2servicememberlist(col.GetEmptyValue())
+			return interface2serviceMemberList(col.GetEmptyValue())
 		}
 
 		return ref.GetServiceMemberList(col.RefCol)
 	case VirtualStore:
-		return interface2servicememberlist(d.getVirtualRowValue(col))
+		return interface2serviceMemberList(d.getVirtualRowValue(col))
 	}
 	panic(fmt.Sprintf("unsupported type: %s", col.StorageType))
 }
@@ -844,7 +845,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 		case StringCol:
 			d.dataString[localIndex] = *(interface2string(data[resIndex]))
 		case StringListCol:
-			d.dataStringList[localIndex] = d.dataStore.deduplicateStringList(interface2stringlist(data[resIndex]))
+			d.dataStringList[localIndex] = d.dataStore.deduplicateStringList(interface2stringList(data[resIndex]))
 		case StringLargeCol:
 			d.dataStringLarge[localIndex] = *interface2stringLarge(data[resIndex])
 		case IntCol:
@@ -856,7 +857,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 		case FloatCol:
 			d.dataFloat[localIndex] = interface2float64(data[resIndex])
 		case ServiceMemberListCol:
-			d.dataServiceMemberList[localIndex] = interface2servicememberlist(data[resIndex])
+			d.dataServiceMemberList[localIndex] = interface2serviceMemberList(data[resIndex])
 		case InterfaceListCol:
 			d.dataInterfaceList[localIndex] = interface2interfacelist(data[resIndex])
 		default:
@@ -1037,15 +1038,15 @@ func interface2int64(raw interface{}) int64 {
 func interface2string(raw interface{}) *string {
 	switch str := raw.(type) {
 	case string:
-		dedupedstring := dedup.S(str)
+		dedupedstring := unique.Make(str).Value()
 
 		return &dedupedstring
 	case []byte:
-		dedupedstring := dedup.BS(str)
+		dedupedstring := unique.Make(string(str)).Value()
 
 		return &dedupedstring
 	case *[]byte:
-		dedupedstring := dedup.BS(*str)
+		dedupedstring := unique.Make(string(*str)).Value()
 
 		return &dedupedstring
 	case *string:
@@ -1056,7 +1057,7 @@ func interface2string(raw interface{}) *string {
 		return &val
 	}
 
-	dedupedstring := dedup.S(fmt.Sprintf("%v", raw))
+	dedupedstring := unique.Make(fmt.Sprintf("%v", raw)).Value()
 
 	return &dedupedstring
 }
@@ -1092,7 +1093,7 @@ func interface2stringLarge(raw interface{}) *StringContainer {
 	return NewStringContainer(&str)
 }
 
-func interface2stringlist(raw interface{}) []string {
+func interface2stringList(raw interface{}) []string {
 	switch list := raw.(type) {
 	case *[]string:
 		return *list
@@ -1161,7 +1162,7 @@ func interface2stringListNoDedup(raw interface{}) []string {
 	return val
 }
 
-func interface2servicememberlist(raw interface{}) []ServiceMember {
+func interface2serviceMemberList(raw interface{}) []ServiceMember {
 	switch list := raw.(type) {
 	case *[]ServiceMember:
 		return *list
@@ -1337,17 +1338,13 @@ func interface2jsonstring(raw interface{}) string {
 func cast2Type(val interface{}, col *Column, dedupStore *DataStore) interface{} {
 	switch col.DataType {
 	case StringCol:
-		if dedupStore != nil {
-			return (interface2string(val))
-		}
-
-		return (interface2stringNoDedup(val))
+		return (interface2string(val))
 	case StringListCol:
 		if dedupStore != nil {
-			return (dedupStore.deduplicateStringList(interface2stringlist(val)))
+			return (dedupStore.deduplicateStringList(interface2stringList(val)))
 		}
 
-		return (interface2stringlist(val))
+		return (interface2stringList(val))
 	case StringLargeCol:
 		return (interface2stringLarge(val))
 	case IntCol:
@@ -1361,7 +1358,7 @@ func cast2Type(val interface{}, col *Column, dedupStore *DataStore) interface{} 
 	case CustomVarCol:
 		return (interface2hashmap(val))
 	case ServiceMemberListCol:
-		return (interface2servicememberlist(val))
+		return (interface2serviceMemberList(val))
 	case InterfaceListCol:
 		return val
 	case JSONCol:

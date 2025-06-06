@@ -25,9 +25,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/OneOfOne/xxhash"
 	"github.com/klauspost/compress/zstd"
-	"github.com/lkarlslund/stringdedup"
 	"github.com/sasha-s/go-deadlock"
 )
 
@@ -116,8 +114,6 @@ func (c ConnectionType) String() string {
 
 	return ""
 }
-
-var dedup = stringdedup.New(xxhash.Checksum32)
 
 type Daemon struct {
 	waitGroupListener *sync.WaitGroup
@@ -916,10 +912,6 @@ func byteCountBinary(bytes int64) string {
 }
 
 func updateStatistics(qStat *QueryStats) {
-	size := dedup.Size()
-	promStringDedupCount.Set(float64(size))
-	promStringDedupBytes.Set(float64(dedup.Statistics().BytesInMemory))
-	promStringDedupIndexBytes.Set(float64(32 * size))
 	if qStat != nil {
 		qStat.logTrigger <- true
 	}
