@@ -226,12 +226,12 @@ func (d *DataRow) GetStringList(col *Column) []string {
 	case RefStore:
 		ref := d.refs[col.RefColTableName]
 		if ref == nil {
-			return interface2stringList(col.GetEmptyValue())
+			return interface2stringListNoDedup(col.GetEmptyValue())
 		}
 
 		return ref.GetStringList(col.RefCol)
 	case VirtualStore:
-		return interface2stringList(d.getVirtualRowValue(col))
+		return interface2stringListNoDedup(d.getVirtualRowValue(col))
 	}
 	panic(fmt.Sprintf("unsupported type: %s", col.DataType))
 }
@@ -845,7 +845,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 		case StringCol:
 			d.dataString[localIndex] = *(interface2string(data[resIndex]))
 		case StringListCol:
-			d.dataStringList[localIndex] = dedupStringList(interface2stringList(data[resIndex]))
+			d.dataStringList[localIndex] = interface2stringList(data[resIndex])
 		case StringLargeCol:
 			d.dataStringLarge[localIndex] = *interface2stringLarge(data[resIndex])
 		case IntCol:
@@ -1096,31 +1096,31 @@ func interface2stringLarge(raw interface{}) *StringContainer {
 func interface2stringList(raw interface{}) []string {
 	switch list := raw.(type) {
 	case *[]string:
-		return *list
+		return dedupStringList(*list)
 	case []string:
 		return list
 	case float64:
 		val := make([]string, 0, 1)
 		// icinga 2 sends a 0 for empty lists, ex.: modified_attributes_list
 		if list != 0 {
-			val = append(val, *(interface2string(raw)))
+			val = append(val, interface2stringNoDedup(raw))
 		}
 
-		return val
+		return dedupStringList(val)
 	case string, *string:
 		val := make([]string, 0, 1)
 		if raw != "" {
-			val = append(val, *(interface2string(raw)))
+			val = append(val, interface2stringNoDedup(raw))
 		}
 
-		return val
+		return dedupStringList(val)
 	case []interface{}:
 		val := make([]string, 0, len(list))
 		for i := range list {
-			val = append(val, *(interface2string(list[i])))
+			val = append(val, interface2stringNoDedup(list[i]))
 		}
 
-		return val
+		return dedupStringList(val)
 	}
 
 	log.Warnf("unsupported stringlist type: %#v (%T)", raw, raw)
@@ -1340,7 +1340,7 @@ func cast2Type(val interface{}, col *Column) interface{} {
 	case StringCol:
 		return (interface2string(val))
 	case StringListCol:
-		return (dedupStringList(interface2stringList(val)))
+		return (interface2stringList(val))
 	case StringLargeCol:
 		return (interface2stringLarge(val))
 	case IntCol:

@@ -236,7 +236,7 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, l
 			ID:      interface2stringNoDedup(rows[0][colIndex["peer_key"]]),
 			Source:  []string{interface2stringNoDedup(rows[0][colIndex["addr"]])},
 			Section: interface2stringNoDedup(rows[0][colIndex["section"]]),
-			Flags:   interface2stringList(rows[0][colIndex["flags"]]),
+			Flags:   interface2stringListNoDedup(rows[0][colIndex["flags"]]),
 		}
 		peer = NewPeer(lmd, con)
 		peers = append(peers, peer)
