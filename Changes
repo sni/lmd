@@ -5,6 +5,7 @@ This file documents the revision history for the Livestatus Multitool Daemon (LM
 next:
           - switch to golang interning for string deduplication
           - fix mixed up hosts/services attributes
+          - fix crash after wake from idle timeout (#150)
 
 2.5.1    Mon Jun  2 17:09:40 CEST 2025
           - reduce memory usage during initial synchronization
