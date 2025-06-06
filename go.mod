@@ -13,6 +13,7 @@ require (
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/jellydator/ttlcache/v3 v3.3.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/julienschmidt/httprouter v1.3.0 // indirect
 	github.com/kdar/factorlog v0.0.0-20211012144011-6ea75a169038 // indirect
@@ -30,6 +31,7 @@ require (
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/sasha-s/go-deadlock v0.3.5 // indirect
 	github.com/willabides/rjson v0.2.0 // indirect
+	golang.org/x/sync v0.13.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 )

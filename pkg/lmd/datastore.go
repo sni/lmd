@@ -6,7 +6,6 @@ import (
 	"strings"
 	"unique"
 
-	"github.com/OneOfOne/xxhash"
 	"github.com/sasha-s/go-deadlock"
 )
 
@@ -19,7 +18,6 @@ type DataStore struct {
 	indexLowerCase          map[string][]string            // access data rows from lower case primary key
 	peer                    *Peer                          // reference to our peer
 	lowerCaseColumns        map[int]int                    // list of string column indexes with their corresponding lower case index
-	dupStringList           map[uint32][]string            // lookup pointer to other stringlists during initialization
 	table                   *Table                         // reference to table definition
 	dataSet                 *DataStoreSet                  // reference to parent DataSet
 	dynamicColumnCache      ColumnList                     // contains list of keys used to run periodic update
@@ -37,7 +35,6 @@ func NewDataStore(table *Table, peer *Peer) (d *DataStore) {
 		indexLowerCase:          make(map[string][]string),
 		dynamicColumnCache:      make(ColumnList, 0),
 		dynamicColumnNamesCache: make([]string, 0),
-		dupStringList:           make(map[uint32][]string),
 		table:                   table,
 		peer:                    peer,
 		lowerCaseColumns:        make(map[int]int),
@@ -130,9 +127,6 @@ func (d *DataStore) InsertDataMulti(rowSet []*ResultSet, columns ColumnList, set
 		}
 		*rowSet[idx] = nil // free memory
 	}
-
-	// reset after initial setup
-	d.dupStringList = make(map[uint32][]string)
 
 	// make sure all backends are sorted the same way
 	d.sortByPrimaryKey()
@@ -454,7 +448,7 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 		// prepare deduped strings if required
 		if prep.FullUpdate {
 			for i, col := range columns {
-				res[rowNum][i+dataOffset] = cast2Type(res[rowNum][i+dataOffset], col, d)
+				res[rowNum][i+dataOffset] = cast2Type(res[rowNum][i+dataOffset], col)
 			}
 		}
 		updateSet = append(updateSet, prep)
@@ -736,26 +730,6 @@ func (d *DataStore) appendIndexFromPrimaryKey(uniqRows map[string]bool, fil *Fil
 	}
 
 	return false
-}
-
-// deduplicateStringList store duplicate string lists only once.
-func (d *DataStore) deduplicateStringList(list []string) []string {
-	sum := xxhash.ChecksumString32(strings.Join(list, ListSepChar1))
-	if l, ok := d.dupStringList[sum]; ok {
-		return l
-	}
-
-	// adding new list, deduplicate strings as well
-	dedupedList := make([]string, 0, len(list))
-	for i := range list {
-		dedupedList = append(dedupedList, unique.Make(list[i]).Value())
-	}
-
-	if sum > 0 {
-		d.dupStringList[sum] = dedupedList
-	}
-
-	return dedupedList
 }
 
 func (d *DataStore) sortByPrimaryKey() {

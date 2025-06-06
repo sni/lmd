@@ -468,7 +468,7 @@ func (d *DataRow) getVirtualRowValue(col *Column) interface{} {
 		value = col.VirtualMap.resolveFunc(peer, d, col)
 	}
 
-	return cast2Type(value, col, nil)
+	return cast2Type(value, col)
 }
 
 // GetCustomVarValue returns custom variable value for given name.
@@ -845,7 +845,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 		case StringCol:
 			d.dataString[localIndex] = *(interface2string(data[resIndex]))
 		case StringListCol:
-			d.dataStringList[localIndex] = d.dataStore.deduplicateStringList(interface2stringList(data[resIndex]))
+			d.dataStringList[localIndex] = dedupStringList(interface2stringList(data[resIndex]))
 		case StringLargeCol:
 			d.dataStringLarge[localIndex] = *interface2stringLarge(data[resIndex])
 		case IntCol:
@@ -1335,16 +1335,12 @@ func interface2jsonstring(raw interface{}) string {
 	}
 }
 
-func cast2Type(val interface{}, col *Column, dedupStore *DataStore) interface{} {
+func cast2Type(val interface{}, col *Column) interface{} {
 	switch col.DataType {
 	case StringCol:
 		return (interface2string(val))
 	case StringListCol:
-		if dedupStore != nil {
-			return (dedupStore.deduplicateStringList(interface2stringList(val)))
-		}
-
-		return (interface2stringList(val))
+		return (dedupStringList(interface2stringList(val)))
 	case StringLargeCol:
 		return (interface2stringLarge(val))
 	case IntCol:
