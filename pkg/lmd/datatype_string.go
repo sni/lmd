@@ -10,20 +10,21 @@ func _() {
 	var x [1]struct{}
 	_ = x[StringCol-1]
 	_ = x[StringListCol-2]
-	_ = x[IntCol-3]
-	_ = x[Int64Col-4]
-	_ = x[Int64ListCol-5]
-	_ = x[FloatCol-6]
-	_ = x[JSONCol-7]
-	_ = x[CustomVarCol-8]
-	_ = x[ServiceMemberListCol-9]
-	_ = x[InterfaceListCol-10]
-	_ = x[StringLargeCol-11]
+	_ = x[StringListSortedCol-3]
+	_ = x[IntCol-4]
+	_ = x[Int64Col-5]
+	_ = x[Int64ListCol-6]
+	_ = x[FloatCol-7]
+	_ = x[JSONCol-8]
+	_ = x[CustomVarCol-9]
+	_ = x[ServiceMemberListCol-10]
+	_ = x[InterfaceListCol-11]
+	_ = x[StringLargeCol-12]
 }
 
-const _DataType_name = "StringColStringListColIntColInt64ColInt64ListColFloatColJSONColCustomVarColServiceMemberListColInterfaceListColStringLargeCol"
+const _DataType_name = "StringColStringListColStringListSortedColIntColInt64ColInt64ListColFloatColJSONColCustomVarColServiceMemberListColInterfaceListColStringLargeCol"
 
-var _DataType_index = [...]uint8{0, 9, 22, 28, 36, 48, 56, 63, 75, 95, 111, 125}
+var _DataType_index = [...]uint8{0, 9, 22, 41, 47, 55, 67, 75, 82, 94, 114, 130, 144}
 
 func (i DataType) String() string {
 	i -= 1

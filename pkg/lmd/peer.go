@@ -946,11 +946,11 @@ func (p *Peer) updateInitialStatus(ctx context.Context, store *DataStore) (err e
 	if !p.HasFlag(MultiBackend) {
 		// store as string, we simply passthrough it anyway
 		if configtool != nil {
-			val := interface2jsonstring(configtool)
+			val := interface2JSONString(configtool)
 			p.configTool.Set(val)
 		}
 		if thrukextras != nil {
-			val := interface2jsonstring(thrukextras)
+			val := interface2JSONString(thrukextras)
 			p.thrukExtras.Set(val)
 		}
 	}

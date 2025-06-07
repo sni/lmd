@@ -599,7 +599,7 @@ func (n *Nodes) sendPing(ctx context.Context, node *NodeAddress, initializing bo
 
 			// receive and update remote peer list
 			if _, exists := dataMap["peers"]; exists && dataMap["peers"] != nil {
-				peers := interface2interfacelist(dataMap["peers"])
+				peers := interface2interfaceList(dataMap["peers"])
 				nodeList := []string{}
 				for _, id := range peers {
 					nodeList = append(nodeList, interface2stringNoDedup(id))

@@ -30,13 +30,13 @@ func TestInterface2HashMap3(t *testing.T) {
 func TestInterface2Stringlist1(t *testing.T) {
 	in := ""
 	exp := []string{}
-	got := interface2stringList(in)
+	got := interface2stringList(in, false)
 	assert.Equal(t, exp, got)
 }
 
 func TestInterface2Stringlist2(t *testing.T) {
 	in := "test"
 	exp := []string{"test"}
-	got := interface2stringList(&in)
+	got := interface2stringList(&in, false)
 	assert.Equal(t, exp, got)
 }

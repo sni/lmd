@@ -443,6 +443,8 @@ func (f *Filter) setFilterValue(strVal string) (err error) {
 		return nil
 	case StringCol:
 		return nil
+	case StringListSortedCol:
+		log.Panicf("sorted string list is a virtual column type and not directly used")
 	}
 
 	log.Panicf("not implemented column type: %v", colType)
@@ -588,7 +590,7 @@ func parseFilterGroupOp(groupOp GroupOperator, value []byte, stack *[]*Filter) (
 	if stackLen < num {
 		return errors.New("not enough filter on stack")
 	}
-	// remove x entrys from stack and combine them to a new group
+	// remove x entries from stack and combine them to a new group
 	groupedStack, remainingStack := (*stack)[stackLen-num:], (*stack)[:stackLen-num]
 	stackedFilter := &Filter{filter: groupedStack, groupOperator: groupOp}
 	*stack = make([]*Filter, 0, len(remainingStack)+1)
@@ -659,6 +661,8 @@ func (f *Filter) Match(row *DataRow) bool {
 	case ServiceMemberListCol:
 		// not implemented
 		return false
+	case StringListSortedCol:
+		log.Panicf("sorted string list is a virtual column type and not directly used")
 	}
 
 	log.Panicf("not implemented filter match type: %s", f.column.DataType.String())
@@ -890,7 +894,7 @@ func (f *Filter) MatchInterfaceList(list []interface{}) bool {
 	switch f.operator {
 	case Equal, EqualNocase, Contains, ContainsNoCase, RegexMatch, RegexNoCaseMatch:
 		for _, irow := range list {
-			subrow := interface2interfacelist(irow)
+			subrow := interface2interfaceList(irow)
 			for _, entry := range subrow {
 				val := interface2stringNoDedup(entry)
 				if f.MatchString(val) {
@@ -902,7 +906,7 @@ func (f *Filter) MatchInterfaceList(list []interface{}) bool {
 		return false
 	case Unequal, UnequalNocase, ContainsNot, ContainsNoCaseNot, RegexMatchNot, RegexNoCaseMatchNot:
 		for _, irow := range list {
-			subrow := interface2interfacelist(irow)
+			subrow := interface2interfaceList(irow)
 			for _, entry := range subrow {
 				val := interface2stringNoDedup(entry)
 				if !f.MatchString(val) {

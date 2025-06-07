@@ -123,6 +123,8 @@ func (raw *RawResultSet) Less(idx1, idx2 int) bool {
 			}
 
 			return str1 > str2
+		case StringListSortedCol:
+			log.Panicf("sorted string list is a virtual column type and not directly used")
 		}
 		panic(fmt.Sprintf("sorting not implemented for type %s", field.Column.DataType))
 	}

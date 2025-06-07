@@ -1,4 +1,4 @@
-name: citest
+name: e2e test
 on:
   push:
   pull_request:
@@ -16,11 +16,5 @@ jobs:
       with:
         go-version-file: './go.mod'
     - run: make clean
-    - run: make citest
-    - run: make longtest
     - run: make
-    - name: extract built binary
-      uses: actions/upload-artifact@v4
-      with:
-        name: lmd
-        path: lmd
+    - run: make test-e2e

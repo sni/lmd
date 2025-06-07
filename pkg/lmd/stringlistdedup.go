@@ -18,13 +18,15 @@ var (
 	defaultCacheTTL = 10 * time.Minute
 )
 
-func dedupStringList(input []string) []string {
+func dedupStringList(input []string, sorted bool) []string {
 	if len(input) == 0 {
 		return input
 	}
 
 	// Sort the input to ensure consistent ordering for deduplication.
-	sort.Strings(input)
+	if sorted {
+		sort.Strings(input)
+	}
 
 	hasher := xxhash.New64()
 	for i := range input {

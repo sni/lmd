@@ -221,7 +221,7 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 	// Columns
 	var columns []string
 	if val, ok := requestData["columns"]; ok {
-		for _, column := range interface2interfacelist(val) {
+		for _, column := range interface2interfaceList(val) {
 			name := interface2stringNoDedup(column)
 			if name != "empty" {
 				columns = append(columns, name)
@@ -241,7 +241,7 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 	// Backends
 	var backends []string
 	if val, ok := requestData["backends"]; ok {
-		for _, backend := range interface2interfacelist(val) {
+		for _, backend := range interface2interfaceList(val) {
 			backends = append(backends, interface2stringNoDedup(backend))
 		}
 	}

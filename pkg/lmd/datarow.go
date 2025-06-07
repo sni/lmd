@@ -128,7 +128,7 @@ func (d *DataRow) SetData(raw []interface{}, columns ColumnList, timestamp float
 			d.dataInterfaceList = make([][]interface{}, size)
 		case StringLargeCol:
 			d.dataStringLarge = make([]StringContainer, size)
-		case JSONCol, CustomVarCol:
+		case JSONCol, CustomVarCol, StringListSortedCol:
 			log.Panicf("not implemented: %#v", key)
 		}
 	}
@@ -393,12 +393,12 @@ func (d *DataRow) GetInterfaceList(col *Column) []interface{} {
 	case RefStore:
 		ref := d.refs[col.RefColTableName]
 		if ref == nil {
-			return interface2interfacelist(col.GetEmptyValue())
+			return interface2interfaceList(col.GetEmptyValue())
 		}
 
 		return ref.GetInterfaceList(col.RefCol)
 	case VirtualStore:
-		return interface2interfacelist(d.getVirtualRowValue(col))
+		return interface2interfaceList(d.getVirtualRowValue(col))
 	}
 	panic(fmt.Sprintf("unsupported type: %s", col.StorageType))
 }
@@ -713,9 +713,9 @@ func VirtualColTotalServices(_ *Peer, d *DataRow, _ *Column) interface{} {
 
 // VirtualColFlags returns flags for peer.
 func VirtualColFlags(p *Peer, _ *DataRow, _ *Column) interface{} {
-	peerflags := OptionalFlags(atomic.LoadUint32(&p.flags))
+	peerFlags := OptionalFlags(atomic.LoadUint32(&p.flags))
 
-	return peerflags.List()
+	return peerFlags.List()
 }
 
 // getVirtualSubLMDValue returns status values for LMDSub backends.
@@ -751,7 +751,7 @@ func (d *DataRow) getVirtualSubLMDValue(peer *Peer, col *Column) (val interface{
 	return val, ok
 }
 
-// MatchFilter returns true if the given filter matches the given datarow.
+// MatchFilter returns true if the given filter matches the given data row.
 // negate param is to force filter to be negated. Default is false.
 func (d *DataRow) MatchFilter(filter *Filter, negate bool) bool {
 	// recursive group filter
@@ -845,7 +845,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 		case StringCol:
 			d.dataString[localIndex] = *(interface2string(data[resIndex]))
 		case StringListCol:
-			d.dataStringList[localIndex] = interface2stringList(data[resIndex])
+			d.dataStringList[localIndex] = interface2stringList(data[resIndex], col.SortedList)
 		case StringLargeCol:
 			d.dataStringLarge[localIndex] = *interface2stringLarge(data[resIndex])
 		case IntCol:
@@ -859,7 +859,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 		case ServiceMemberListCol:
 			d.dataServiceMemberList[localIndex] = interface2serviceMemberList(data[resIndex])
 		case InterfaceListCol:
-			d.dataInterfaceList[localIndex] = interface2interfacelist(data[resIndex])
+			d.dataInterfaceList[localIndex] = interface2interfaceList(data[resIndex])
 		default:
 			log.Panicf("unsupported column %s (type %d) in table %s", col.Name, col.DataType, d.dataStore.table.name.String())
 		}
@@ -872,7 +872,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 	return nil
 }
 
-// UpdateValuesNumberOnly updates this datarow with new values but skips strings.
+// UpdateValuesNumberOnly updates this data row with new values but skips strings.
 func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, columns ColumnList, timestamp float64) error {
 	if len(columns) != len(data)-dataOffset {
 		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.dataStore.table.name.String(), len(columns), len(data))
@@ -890,7 +890,7 @@ func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, col
 		case FloatCol:
 			d.dataFloat[localIndex] = interface2float64(data[resIndex])
 		case InterfaceListCol:
-			d.dataInterfaceList[localIndex] = interface2interfacelist(data[resIndex])
+			d.dataInterfaceList[localIndex] = interface2interfaceList(data[resIndex])
 		default:
 			// skipping non-numerical columns
 		}
@@ -1093,10 +1093,10 @@ func interface2stringLarge(raw interface{}) *StringContainer {
 	return NewStringContainer(&str)
 }
 
-func interface2stringList(raw interface{}) []string {
+func interface2stringList(raw interface{}, sorted bool) []string {
 	switch list := raw.(type) {
 	case *[]string:
-		return dedupStringList(*list)
+		return dedupStringList(*list, sorted)
 	case []string:
 		return list
 	case float64:
@@ -1106,24 +1106,24 @@ func interface2stringList(raw interface{}) []string {
 			val = append(val, interface2stringNoDedup(raw))
 		}
 
-		return dedupStringList(val)
+		return dedupStringList(val, sorted)
 	case string, *string:
 		val := make([]string, 0, 1)
 		if raw != "" {
 			val = append(val, interface2stringNoDedup(raw))
 		}
 
-		return dedupStringList(val)
+		return dedupStringList(val, sorted)
 	case []interface{}:
 		val := make([]string, 0, len(list))
 		for i := range list {
 			val = append(val, interface2stringNoDedup(list[i]))
 		}
 
-		return dedupStringList(val)
+		return dedupStringList(val, sorted)
 	}
 
-	log.Warnf("unsupported stringlist type: %#v (%T)", raw, raw)
+	log.Warnf("unsupported string list type: %#v (%T)", raw, raw)
 	val := make([]string, 0)
 
 	return val
@@ -1262,8 +1262,8 @@ func interface2hashmap(raw interface{}) map[string]string {
 	}
 }
 
-// interface2interfacelist converts anything to a list of interfaces.
-func interface2interfacelist(in interface{}) []interface{} {
+// interface2interfaceList converts anything to a list of interfaces.
+func interface2interfaceList(in interface{}) []interface{} {
 	if list, ok := in.([]interface{}); ok {
 		return (list)
 	}
@@ -1303,7 +1303,7 @@ func interface2bool(in interface{}) bool {
 	return false
 }
 
-func interface2jsonstring(raw interface{}) string {
+func interface2JSONString(raw interface{}) string {
 	if raw == nil {
 		return "{}"
 	}
@@ -1340,7 +1340,7 @@ func cast2Type(val interface{}, col *Column) interface{} {
 	case StringCol:
 		return (interface2string(val))
 	case StringListCol:
-		return (interface2stringList(val))
+		return (interface2stringList(val, col.SortedList))
 	case StringLargeCol:
 		return (interface2stringLarge(val))
 	case IntCol:
@@ -1358,7 +1358,9 @@ func cast2Type(val interface{}, col *Column) interface{} {
 	case InterfaceListCol:
 		return val
 	case JSONCol:
-		return (interface2jsonstring(val))
+		return (interface2JSONString(val))
+	case StringListSortedCol:
+		log.Panicf("unsupported type: %s", col.DataType)
 	}
 
 	log.Panicf("unsupported type: %s", col.DataType)
