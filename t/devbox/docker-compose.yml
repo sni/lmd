@@ -1,0 +1,19 @@
+networks:
+  default:
+    ipam:
+     config:
+       - subnet: 192.168.66.0/24
+
+services:
+  devbox:
+    build: .
+    volumes:
+      - ./:/box:ro
+      - ../..:/src:rw
+      - /etc/localtime:/etc/localtime:ro
+    # required for strace / gdb
+    cap_add:
+        - SYS_PTRACE
+    networks:
+      default:
+        ipv4_address: 192.168.66.66

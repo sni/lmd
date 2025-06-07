@@ -1,0 +1,42 @@
+---
+- hosts: all
+  tasks:
+  - name: create naemon site
+    shell: omd create naemon
+    args:
+      creates: /omd/sites/naemon
+
+  - name: Add the user 'demo' to the group 'naemon'
+    user:
+      name: demo
+      groups: naemon
+      append: yes
+
+
+# continue as naemon user
+- hosts: all
+  become: true
+  become_user: naemon
+  become_method: su
+  become_flags: '-l'
+  tasks:
+  - name: set omdadmin password
+    shell: set_admin_password omd
+
+  - name: omd stop
+    command: omd stop
+
+  - name: configure naemon site
+    vars:
+        config: |
+            PNP4NAGIOS=off
+            AUTOSTART=off
+            TMPFS=off
+    shell: echo "{{ config }}" | omd config change
+
+  - name: install test config
+    shell: install -m 644 /box/provision/data/naemon_test.cfg etc/naemon/conf.d/test.cfg
+
+  - name: start naemon site
+    shell: omd start
+

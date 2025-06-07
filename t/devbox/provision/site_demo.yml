@@ -1,0 +1,56 @@
+---
+- hosts: all
+  tasks:
+  - name: create demo site
+    shell: omd create demo
+    args:
+      creates: /omd/sites/demo
+
+
+# continue as demo user
+- hosts: all
+  become: true
+  become_user: demo
+  become_method: su
+  become_flags: '-l'
+  tasks:
+  - name: omd stop
+    command: omd stop
+
+  - name: configure demo site
+    vars:
+        config: |
+            PNP4NAGIOS=off
+            AUTOSTART=off
+            CORE=none
+            TMPFS=off
+    shell: echo "{{ config }}" | omd config change
+
+  - name: "install thruk_local.conf"
+    shell: install -m 644 /box/provision/data/lmd_thruk_local.conf etc/thruk/thruk_local.conf
+
+  - name: "enable demo"
+    lineinfile:
+        dest: /omd/sites/demo/etc/thruk/thruk_local.d/lmd.conf
+        state: present
+        regexp: 'use_lmd_core'
+        line: 'use_lmd_core=1'
+  - name: "adjust lmd path"
+    lineinfile:
+        dest: /omd/sites/demo/etc/thruk/thruk_local.d/lmd.conf
+        state: present
+        regexp: 'lmd_core_bin'
+        line: 'lmd_core_bin=/src/lmd'
+  - name: "replace lmd binary path in init script II"
+    lineinfile:
+        dest: /omd/sites/demo/etc/init.d/lmd
+        state: present
+        regexp: 'BINARY:'
+        line: '# BINARY:   src/lmd'
+
+  - name: set omdadmin password
+    shell: set_admin_password omd
+
+  - name: start demo site
+    shell: omd start
+

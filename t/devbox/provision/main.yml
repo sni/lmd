@@ -1,0 +1,24 @@
+---
+- hosts: all
+  tasks:
+  - yum:
+     name:
+        - glibc-langpack-en.x86_64
+        - lsof
+        - telnet
+        - golang
+        - git
+        - vim
+        - gdb
+        - valgrind
+        - wget
+        - bash-completion
+     state: installed
+  - shell: echo -e "*********\nYou can always reprovision by running\n%>bash /box/provision/ansible.sh\n*********\n" > /etc/motd
+  - shell: echo "alias la='ls -la'" > /etc/profile.d/dev.sh
+  - shell: "git config --global --add safe.directory '*'"
+
+- import_playbook: site_demo.yml
+- import_playbook: site_naemon.yml
+- import_playbook: site_icinga2.yml
+
