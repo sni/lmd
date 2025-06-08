@@ -7,6 +7,7 @@
         - lsof
         - telnet
         - golang
+        - expect
         - git
         - vim
         - gdb
@@ -17,6 +18,9 @@
   - shell: echo -e "*********\nYou can always reprovision by running\n%>bash /box/provision/ansible.sh\n*********\n" > /etc/motd
   - shell: echo "alias la='ls -la'" > /etc/profile.d/dev.sh
   - shell: "git config --global --add safe.directory '*'"
+  - shell: "cd / && git clone --depth=1 https://github.com/sni/thruk"
+    args:
+      creates: /thruk
 
 - import_playbook: site_demo.yml
 - import_playbook: site_naemon.yml

@@ -3,8 +3,10 @@ SHELL=bash
 .PHONY: test lmd_build provision
 
 test: lmd_build box_prepared
+	docker compose exec --user root devbox sudo -iu demo /box/tests/local_test.sh 0
 
 test_verbose: lmd_build box_prepared
+	docker compose exec --user root devbox sudo -iu demo /box/tests/local_test.sh 1
 
 prepare:
 	docker compose build

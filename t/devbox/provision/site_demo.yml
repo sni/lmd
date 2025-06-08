@@ -51,6 +51,8 @@
   - name: set omdadmin password
     shell: set_admin_password omd
 
+  - name: extend PATH
+    shell: echo "export PATH=/src/:$PATH" >> etc/profile.d/lmd_path.sh
+
   - name: start demo site
     shell: omd start
-
