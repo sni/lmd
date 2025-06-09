@@ -100,6 +100,8 @@ const (
 	StringCol DataType = iota + 1
 	// StringListCol is used for string list columns.
 	StringListCol
+	// StringListSortedCol is used for string list columns but sorted.
+	StringListSortedCol
 	// IntCol is used for small integer columns.
 	IntCol
 	// Int64Col is used for large integer columns.
@@ -291,10 +293,16 @@ type Column struct {
 	DataType        DataType               // Type of this column
 	FetchType       FetchType              // flag wether this columns needs to be updated
 	StorageType     StorageType            // flag how this column is stored
+	SortedList      bool                   // flag wether this column is a sorted list (only stringlists atm)
 }
 
 // NewColumn adds a column object.
 func NewColumn(table *Table, name string, storage StorageType, update FetchType, datatype DataType, restrict OptionalFlags, refCol *Column, descr string) {
+	sorted := false
+	if datatype == StringListSortedCol {
+		sorted = true
+		datatype = StringListCol // use normal string list for sorted lists
+	}
 	col := &Column{
 		Table:       table,
 		Name:        name,
@@ -305,6 +313,7 @@ func NewColumn(table *Table, name string, storage StorageType, update FetchType,
 		DataType:    datatype,
 		RefCol:      refCol,
 		Optional:    restrict,
+		SortedList:  sorted,
 	}
 	if col.Table == nil {
 		log.Panicf("missing table for %s", col.Name)

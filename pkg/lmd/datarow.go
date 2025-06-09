@@ -1093,10 +1093,10 @@ func interface2stringLarge(raw interface{}) *StringContainer {
 	return NewStringContainer(&str)
 }
 
-func interface2stringList(raw interface{}) []string {
+func interface2stringList(raw interface{}, sorted bool) []string {
 	switch list := raw.(type) {
 	case *[]string:
-		return dedupStringList(*list)
+		return dedupStringList(*list, sorted)
 	case []string:
 		return list
 	case float64:
@@ -1106,21 +1106,21 @@ func interface2stringList(raw interface{}) []string {
 			val = append(val, interface2stringNoDedup(raw))
 		}
 
-		return dedupStringList(val)
+		return dedupStringList(val, sorted)
 	case string, *string:
 		val := make([]string, 0, 1)
 		if raw != "" {
 			val = append(val, interface2stringNoDedup(raw))
 		}
 
-		return dedupStringList(val)
+		return dedupStringList(val, sorted)
 	case []interface{}:
 		val := make([]string, 0, len(list))
 		for i := range list {
 			val = append(val, interface2stringNoDedup(list[i]))
 		}
 
-		return dedupStringList(val)
+		return dedupStringList(val, sorted)
 	}
 
 	log.Warnf("unsupported stringlist type: %#v (%T)", raw, raw)
