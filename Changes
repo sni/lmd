@@ -2,6 +2,10 @@
 
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
+next:
+          - fix mixed up custom variables
+
+
 2.6.0    Fri Jun  6 16:27:39 CEST 2025
           - switch to golang interning for string deduplication
           - fix mixed up hosts/services attributes
