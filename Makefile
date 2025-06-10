@@ -170,6 +170,7 @@ clean:
 	rm -f lmd-*.html
 	rm -rf vendor/
 	rm -rf $(TOOLSFOLDER)
+	-$(MAKE) -C t/devbox clean
 
 GOVET=$(GO) vet -all
 SRCFOLDER=./cmd/. ./pkg/. ./buildtools/.

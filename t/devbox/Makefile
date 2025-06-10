@@ -30,7 +30,7 @@ update:
 	for IMG in $$(grep FROM Dockerfile | awk '{ print $$2 }' | sort -u); do docker pull $$IMG; done
 
 lmd_build:
-	@test -f ../../lmd || $(MAKE) -C ../..
+	@test -f ../../lmd || $(MAKE) -C ../.. build
 
 shell:
 	docker exec -ti "devbox-devbox-1" env TERM=xterm bash -l
