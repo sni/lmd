@@ -24,6 +24,7 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+	"unsafe"
 )
 
 var (
@@ -2099,9 +2100,8 @@ func (p *Peer) HTTPQuery(ctx context.Context, req *Request, peerAddr, query stri
 		return nil, &PeerError{msg: fmt.Sprintf("unknown site error, got: %#v", result), kind: ResponseError}
 	}
 	if v, ok := output[2].(string); ok {
-		res = []byte(v)
-
-		return res, nil
+		// return result string as bytes array without copying
+		return unsafe.Slice(unsafe.StringData(v), len(v)), nil
 	}
 
 	return nil, &PeerError{msg: fmt.Sprintf("unknown site error, got: %#v", result), kind: ResponseError}
