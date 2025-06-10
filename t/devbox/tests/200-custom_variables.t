@@ -6,7 +6,7 @@ use TestUtils;
 use lib('/box/tests/');
 use LMDTests;
 
-plan tests => 18;
+plan tests => 24;
 
 ###########################################################
 {
@@ -55,6 +55,19 @@ Filter: custom_variable_names !=';
           [ 'test', 'Ping', [ 'yyy', 'xxx', 'def', 'test2' ] ]
         ];
     LMDTests::lq_tests("services custom_variable_values", $query, $exp);
+};
+
+###########################################################
+{
+    my $query = 'GET services
+    Columns: host_name description
+    Filter: host_name = test
+    Filter: custom_variables = TEST3 xxx';
+    my $exp  = [
+          [ 'test', 'Load' ],
+          [ 'test', 'Ping' ]
+        ];
+    LMDTests::lq_tests("services custom_variable query", $query, $exp);
 };
 
 ###########################################################
