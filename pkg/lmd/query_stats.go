@@ -23,28 +23,28 @@ type QueryStatIn struct {
 // QueryStats is the stats collector.
 type QueryStats struct {
 	stats      map[string]*QueryStat
-	lock       *deadlock.RWMutex // use when accessing stats
+	lock       *deadlock.Mutex // use when accessing stats
 	in         chan QueryStatIn
 	logTrigger chan bool
+	done       chan bool // channel to close the stats collector
 }
 
 // NewQueryStats creates a new query stats object.
 func NewQueryStats() *QueryStats {
 	qStat := &QueryStats{
-		lock:       new(deadlock.RWMutex),
+		lock:       new(deadlock.Mutex),
 		stats:      make(map[string]*QueryStat),
 		in:         make(chan QueryStatIn),
 		logTrigger: make(chan bool),
+		done:       make(chan bool, 10),
 	}
 
 	go func() {
 		for {
 			select {
 			case stat := <-qStat.in:
-				qStat.lock.RLock()
-				item, ok := qStat.stats[stat.query]
-				qStat.lock.RUnlock()
 				qStat.lock.Lock()
+				item, ok := qStat.stats[stat.query]
 				if !ok {
 					item = &QueryStat{}
 					qStat.stats[stat.query] = item
@@ -53,7 +53,11 @@ func NewQueryStats() *QueryStats {
 				item.totalDuration += stat.duration
 				qStat.lock.Unlock()
 			case <-qStat.logTrigger:
-				qStat.LogStats()
+				qStat.logStats()
+			case <-qStat.done:
+				log.Debugf("query stats collector finished")
+
+				return
 			}
 		}
 	}()
@@ -61,17 +65,20 @@ func NewQueryStats() *QueryStats {
 	return qStat
 }
 
-// LogStats returns the string result.
-func (qs *QueryStats) LogStats() {
-	qs.lock.RLock()
-	if len(qs.stats) == 0 {
-		qs.lock.RUnlock()
-
-		return
+func (qs *QueryStats) stop() {
+	if qs != nil {
+		qs.done <- true
 	}
-	qs.lock.RUnlock()
+}
+
+// logStats logs the top 3 queries by duration and resets the stats.
+func (qs *QueryStats) logStats() {
 	qs.lock.Lock()
 	defer qs.lock.Unlock()
+
+	if len(qs.stats) == 0 {
+		return
+	}
 
 	keys := make([]string, 0, len(qs.stats))
 	for key := range qs.stats {

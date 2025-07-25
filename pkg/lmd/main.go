@@ -301,6 +301,12 @@ func (lmd *Daemon) mainLoop() (exitCode int) {
 	if localConfig.LogQueryStats {
 		log.Debugf("query stats enabled")
 		lmd.qStat = NewQueryStats()
+		defer func() {
+			if lmd.qStat != nil {
+				lmd.qStat.stop()
+				lmd.qStat = nil
+			}
+		}()
 	}
 
 	// start local listeners
@@ -320,7 +326,7 @@ func (lmd *Daemon) mainLoop() (exitCode int) {
 		lmd.initChannel <- true
 	}
 
-	// make garbagabe collectore more aggressive
+	// make garbage collector more aggressive
 	if os.Getenv("GOGC") == "" {
 		debug.SetGCPercent(GCPercentage)
 	}
@@ -627,7 +633,7 @@ func (lmd *Daemon) cleanFatalf(format string, args ...interface{}) {
 func (lmd *Daemon) onExit() {
 	deletePidFile(lmd.flags.flagPidfile)
 	if lmd.qStat != nil {
-		close(lmd.qStat.in)
+		lmd.qStat.stop()
 		lmd.qStat = nil
 	}
 	if lmd.flags.flagCPUProfile != "" {
@@ -740,7 +746,7 @@ func NewLMDHTTPClient(tlsConfig *tls.Config, proxy string) *http.Client {
 func (lmd *Daemon) mainSignalHandler(sig os.Signal, prometheusListener io.Closer) (exitCode int) {
 	switch sig {
 	case syscall.SIGTERM:
-		log.Infof("got sigterm, quiting gracefully")
+		log.Infof("got sigterm, quitting gracefully")
 		close(lmd.shutdownChannel)
 		lmd.ListenersLock.Lock()
 		for con, l := range lmd.Listeners {
