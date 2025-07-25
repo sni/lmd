@@ -746,40 +746,12 @@ func (lmd *Daemon) mainSignalHandler(sig os.Signal, prometheusListener io.Closer
 	switch sig {
 	case syscall.SIGTERM:
 		log.Infof("got sigterm, quitting gracefully")
-		close(lmd.shutdownChannel)
-		lmd.ListenersLock.Lock()
-		for con, l := range lmd.Listeners {
-			delete(lmd.Listeners, con)
-			l.Stop()
-		}
-		lmd.ListenersLock.Unlock()
-		if prometheusListener != nil {
-			prometheusListener.Close()
-		}
-		lmd.waitGroupListener.Wait()
-		lmd.waitGroupPeers.Wait()
-		lmd.onExit()
+		lmd.sigQuit(0, prometheusListener)
 
 		return (0)
 	case syscall.SIGINT, os.Interrupt:
 		log.Infof("got sigint, quitting")
-		close(lmd.shutdownChannel)
-		lmd.ListenersLock.Lock()
-		for con, l := range lmd.Listeners {
-			delete(lmd.Listeners, con)
-			l.Stop()
-		}
-		lmd.ListenersLock.Unlock()
-		if prometheusListener != nil {
-			prometheusListener.Close()
-		}
-		// wait one second which should be enough for the listeners
-		if lmd.waitGroupListener != nil {
-			waitTimeout(context.TODO(), lmd.waitGroupListener, time.Second)
-		}
-		if lmd.qStat != nil {
-			lmd.onExit()
-		}
+		lmd.sigQuit(time.Second, prometheusListener)
 
 		return (1)
 	case syscall.SIGHUP:
@@ -794,6 +766,34 @@ func (lmd *Daemon) mainSignalHandler(sig os.Signal, prometheusListener io.Closer
 	}
 
 	return (1)
+}
+
+// sigQuit is called when we want to quit the daemon from term/int signal.
+func (lmd *Daemon) sigQuit(maxWait time.Duration, prometheusListener io.Closer) {
+	close(lmd.shutdownChannel)
+	lmd.ListenersLock.Lock()
+	for con, l := range lmd.Listeners {
+		delete(lmd.Listeners, con)
+		l.Stop()
+	}
+	lmd.ListenersLock.Unlock()
+	if prometheusListener != nil {
+		prometheusListener.Close()
+	}
+
+	for _, wGroup := range []*sync.WaitGroup{lmd.waitGroupInit, lmd.waitGroupPeers} {
+		if wGroup == nil {
+			continue
+		}
+		// wait (with optional timeout) for graceful stop
+		if maxWait <= 0 {
+			wGroup.Wait()
+		} else {
+			waitTimeout(context.TODO(), wGroup, maxWait)
+		}
+	}
+
+	lmd.onExit()
 }
 
 func (lmd *Daemon) usrSignalListener() {
