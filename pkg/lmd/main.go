@@ -128,7 +128,7 @@ type Daemon struct {
 	PeerMap           map[string]*Peer // PeerMap contains a map of available remote peers.
 	waitGroupInit     *sync.WaitGroup
 	initChannel       chan bool
-	mainSignalChannel chan os.Signal
+	mainSignalChannel chan os.Signal // used for internal signals for testing
 	PeerMapOrder      []string
 	qStat             *QueryStats
 	flags             struct {
@@ -241,6 +241,9 @@ func Main(build string) {
 		os.Exit(0) //nolint:gocritic // ok, this defer is only relevant for panics
 	}
 
+	// listen for usr signals, like thread dumps...
+	lmd.usrSignalListener()
+
 	for {
 		exitCode := lmd.mainLoop()
 		if exitCode > 0 {
@@ -272,10 +275,6 @@ func (lmd *Daemon) mainLoop() (exitCode int) {
 
 	osSignalChannel := buildSignalChannel()
 
-	osSignalUsrChannel := make(chan os.Signal, 1)
-	signal.Notify(osSignalUsrChannel, syscall.SIGUSR1)
-	signal.Notify(osSignalUsrChannel, syscall.SIGUSR2)
-
 	lmd.lastMainRestart = currentUnixTime()
 	lmd.shutdownChannel = make(chan bool)
 	lmd.waitGroupInit = &sync.WaitGroup{}
@@ -290,7 +289,7 @@ func (lmd *Daemon) mainLoop() (exitCode int) {
 		log.Warnf("pprof profiler listening at http://%s/debug/pprof/", lmd.flags.flagProfile)
 	}
 
-	once.Do(lmd.PrintVersion)
+	once.Do(lmd.printVersionStdout)
 	log.Infof("%s - version %s started with config %s", NAME, Version(), lmd.flags.flagConfigFile)
 	localConfig.LogConfig()
 	ctx := context.Background()
@@ -333,12 +332,12 @@ func (lmd *Daemon) mainLoop() (exitCode int) {
 
 	// just wait till someone hits ctrl+c or we have to reload
 	statsTimer := time.NewTicker(StatsTimerInterval)
+	defer statsTimer.Stop()
+
 	for {
 		select {
 		case sig := <-osSignalChannel:
 			return lmd.mainSignalHandler(sig, prometheusListener)
-		case sig := <-osSignalUsrChannel:
-			lmd.mainSignalHandler(sig, prometheusListener)
 		case sig := <-lmd.mainSignalChannel:
 			return lmd.mainSignalHandler(sig, prometheusListener)
 		case <-statsTimer.C:
@@ -790,16 +789,36 @@ func (lmd *Daemon) mainSignalHandler(sig os.Signal, prometheusListener io.Closer
 		}
 
 		return (-1)
+	default:
+		log.Warnf("Signal not handled: %v", sig)
+	}
+
+	return (1)
+}
+
+func (lmd *Daemon) usrSignalListener() {
+	osSignalUsrChannel := make(chan os.Signal, 1)
+	signal.Notify(osSignalUsrChannel, syscall.SIGUSR1)
+	signal.Notify(osSignalUsrChannel, syscall.SIGUSR2)
+
+	go func() {
+		for {
+			sig := <-osSignalUsrChannel
+			lmd.usrSignalHandler(sig)
+		}
+	}()
+}
+
+func (lmd *Daemon) usrSignalHandler(sig os.Signal) {
+	switch sig {
 	case syscall.SIGUSR1:
 		log.Errorf("requested thread dump via signal %s", sig)
 		logThreaddump()
-
-		return (0)
 	case syscall.SIGUSR2:
 		if lmd.flags.flagMemProfile == "" {
 			log.Errorf("requested memory profile, but flag -memprofile missing")
 
-			return (0)
+			return
 		}
 		file, err := os.Create(lmd.flags.flagMemProfile)
 		if err != nil {
@@ -812,12 +831,10 @@ func (lmd *Daemon) mainSignalHandler(sig os.Signal, prometheusListener io.Closer
 		}
 		log.Warnf("memory profile written to: %s", lmd.flags.flagMemProfile)
 
-		return (0)
+		return
 	default:
 		log.Warnf("Signal not handled: %v", sig)
 	}
-
-	return (1)
 }
 
 func logThreaddump() {
@@ -853,8 +870,8 @@ func waitTimeout(ctx context.Context, waitGroup *sync.WaitGroup, timeout time.Du
 	}
 }
 
-// PrintVersion prints the version.
-func (lmd *Daemon) PrintVersion() {
+// printVersionStdout prints the version to stdout.
+func (lmd *Daemon) printVersionStdout() {
 	fmt.Fprintf(os.Stdout, "%s - version %s started with config %s\n", NAME, Version(), lmd.flags.flagConfigFile)
 }
 

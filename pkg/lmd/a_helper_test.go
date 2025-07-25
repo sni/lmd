@@ -33,7 +33,7 @@ func init() {
 	lmd := createTestLMDInstance()
 	InitLogging(&Config{LogLevel: testLogLevel, LogFile: testLogTarget})
 
-	once.Do(lmd.PrintVersion)
+	once.Do(lmd.printVersionStdout)
 
 	// make ctrl+c work
 	osSignalChannel := make(chan os.Signal, 1)

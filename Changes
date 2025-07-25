@@ -2,9 +2,11 @@
 
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
+next:
+          - make sure thread dumps can always be logged
+
 2.6.1    Tue Jun 10 16:35:50 CEST 2025
           - fix mixed up custom variables
-
 
 2.6.0    Fri Jun  6 16:27:39 CEST 2025
           - switch to golang interning for string deduplication
