@@ -2,7 +2,7 @@
 
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
-next:
+2.6.2    Fri Jul 25 11:53:14 CEST 2025
           - make sure thread dumps can always be logged
           - fix multiple query stats collector running
 
