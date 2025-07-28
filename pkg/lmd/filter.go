@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -921,6 +922,71 @@ func (f *Filter) MatchInterfaceList(list []interface{}) bool {
 
 		return false
 	}
+}
+
+// optimize removes unnecessary filter indentation unless it is negated.
+// it also sorts filter for better performance.
+func (f *Filter) optimize() *Filter {
+	if f.negate {
+		return f
+	}
+
+	// recursively optimize all filters
+	for i := range f.filter {
+		f.filter[i] = f.filter[i].optimize()
+	}
+
+	if len(f.filter) == 1 {
+		return f.filter[0]
+	}
+
+	// reorder by complexity
+	slices.SortStableFunc(f.filter, func(a, b *Filter) int {
+		return a.complexity() - b.complexity()
+	})
+
+	return f
+}
+
+// complexity calculates complexity of the filter.
+func (f *Filter) complexity() int {
+	complexity := 0
+
+	for i := range f.filter {
+		complexity += f.filter[i].complexity()
+	}
+
+	if f.column != nil {
+		// add column complexity
+		switch f.column.DataType {
+		case StringCol:
+			complexity += 3
+		case StringListCol, StringListSortedCol:
+			complexity += 6
+		case IntCol, Int64Col, FloatCol:
+			complexity++
+		case Int64ListCol:
+			complexity += 4
+		case JSONCol:
+			complexity += 5
+		case CustomVarCol:
+			complexity += 8
+		case ServiceMemberListCol:
+			complexity += 7
+		case InterfaceListCol:
+			complexity += 7
+		case StringLargeCol:
+			complexity += 30
+		default:
+			log.Panicf("not implemented: %#v", f.column.DataType)
+		}
+
+		if f.column.RefCol != nil {
+			complexity++
+		}
+	}
+
+	return complexity
 }
 
 // some broken clients request <table>_column instead of just column

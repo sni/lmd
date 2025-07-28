@@ -1521,6 +1521,60 @@ Or: 2
 	}
 }
 
+func TestQueryOptimizerIdentation(t *testing.T) {
+	query := `GET services
+Filter: plugin_output ~~ HTTP
+And: 1
+Filter: long_plugin_output ~~ HTTP
+And: 1
+Filter: host_groups >= linux
+And: 1
+Or: 1
+And: 1
+Filter: state = 0
+And: 1
+And: 1
+Or: 1
+`
+	expected := `GET services
+Filter: state = 0
+Filter: host_groups >= linux
+Filter: plugin_output ~~ http
+Filter: long_plugin_output ~~ http
+`
+	lmd := createTestLMDInstance()
+	req, _, err := NewRequestFromString(context.TODO(), lmd, &query, ParseOptimize)
+	require.NoError(t, err)
+
+	optimized := req.String()
+
+	assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(optimized), "Query optimizer removed unnecessary filter indentation")
+}
+
+func TestQueryOptimizerReorder(t *testing.T) {
+	query := `GET services
+Filter: plugin_output ~~ HTTP
+Filter: long_plugin_output ~~ HTTP
+Or: 2
+Filter: host_groups >= linux
+Filter: state = 0
+`
+	expected := `GET services
+Filter: state = 0
+Filter: host_groups >= linux
+Filter: plugin_output ~~ http
+Filter: long_plugin_output ~~ http
+Or: 2
+`
+	lmd := createTestLMDInstance()
+	req, _, err := NewRequestFromString(context.TODO(), lmd, &query, ParseOptimize)
+	require.NoError(t, err)
+
+	optimized := req.String()
+
+	assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(optimized), "Query optimizer did reorder the query as expected")
+}
+
 func TestStatsQueryOptimizer(t *testing.T) {
 	query := `GET services
 OutputFormat: wrapped_json

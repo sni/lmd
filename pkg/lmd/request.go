@@ -12,6 +12,7 @@ import (
 	"net"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -289,7 +290,7 @@ func (req *Request) String() (str string) {
 }
 
 // NewRequest reads a buffer and creates a new request object.
-// It returns the request as long with the number of bytes read and any error.
+// It returns the request along with the number of bytes read and any error.
 func NewRequest(ctx context.Context, lmd *Daemon, buf *bufio.Reader, options ParseOptions) (req *Request, size int, err error) {
 	firstLine, err := buf.ReadString('\n')
 	if errors.Is(err, io.EOF) {
@@ -349,7 +350,7 @@ func NewRequest(ctx context.Context, lmd *Daemon, buf *bufio.Reader, options Par
 
 	// remove unnecessary filter indentation
 	if options&ParseOptimize != 0 {
-		req.optimizeFilterIndentation()
+		req.optimizeFilter()
 		req.StatsGrouped = req.optimizeStatsGroups(req.Stats, true)
 	}
 
@@ -357,6 +358,14 @@ func NewRequest(ctx context.Context, lmd *Daemon, buf *bufio.Reader, options Par
 	err = req.SetSortColumns()
 
 	return req, size, err
+}
+
+// NewRequestFromString creates a new request object from query string.
+// It returns the request along with the number of bytes read and any error.
+func NewRequestFromString(ctx context.Context, lmd *Daemon, query *string, options ParseOptions) (req *Request, size int, err error) {
+	buf := bufio.NewReader(bytes.NewBufferString(*query))
+
+	return (NewRequest(ctx, lmd, buf, options))
 }
 
 // ID returns the uniq request id.
@@ -1238,8 +1247,17 @@ func (req *Request) optimizeResultLimit() (limit int) {
 	return
 }
 
-// optimizeFilterIndentation removes unnecessary filter indentation unless it is negated.
-func (req *Request) optimizeFilterIndentation() {
+// optimizeFilter recursively optimizes the filter.
+func (req *Request) optimizeFilter() {
+	for i, f := range req.Filter {
+		req.Filter[i] = f.optimize()
+	}
+
+	// reorder by complexity
+	slices.SortStableFunc(req.Filter, func(a, b *Filter) int {
+		return a.complexity() - b.complexity()
+	})
+
 	for {
 		if len(req.Filter) == 1 && len(req.Filter[0].filter) > 0 &&
 			req.Filter[0].groupOperator == And && !req.Filter[0].negate {
