@@ -759,6 +759,11 @@ func (p *Peer) InitAllTables(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
+
+		err = data.rebuildContactsGroups()
+		if err != nil {
+			return err
+		}
 	}
 
 	err = p.requestLocaltime(ctx)

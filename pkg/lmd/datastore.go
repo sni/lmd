@@ -47,11 +47,14 @@ func NewDataStore(table *Table, peer *Peer) (d *DataStore) {
 
 	for i := range table.columns {
 		col := table.columns[i]
-		if col.Optional != NoFlags && !d.peer.HasFlag(col.Optional) {
-			continue
-		}
 		if col.StorageType != LocalStore {
 			continue
+		}
+		if col.Optional != NoFlags && !d.peer.HasFlag(col.Optional) {
+			// this column will be filled separately, so it has to be created empty
+			if col.Optional != HasContactsGroupColumn {
+				continue
+			}
 		}
 		if col.Index == -1 {
 			// require write lock and update table column

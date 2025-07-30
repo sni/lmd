@@ -986,6 +986,82 @@ func (ds *DataStoreSet) buildDowntimeCommentsList(name TableName) (err error) {
 	return nil
 }
 
+// rebuildContactsGroups sets the contacts "groups" list from contactgroups members
+// in case the backend does not support the contacts->groups attribute, ex.: icinga2.
+func (ds *DataStoreSet) rebuildContactsGroups() (err error) {
+	// directly supported, nothing to do
+	if ds.peer.HasFlag(HasContactsGroupColumn) {
+		return
+	}
+
+	time1 := time.Now()
+	err = ds.buildContactsGroupsList()
+	if err != nil {
+		return
+	}
+
+	duration := time.Since(time1)
+	logWith(ds).Debugf("contacts groups rebuild (%s)", duration.Truncate(time.Millisecond))
+
+	return
+}
+
+// buildContactsGroupsList updates the contacts->groups attribute from contactsgroups->members.
+func (ds *DataStoreSet) buildContactsGroupsList() (err error) {
+	groupsStore := ds.Get(TableContactgroups)
+	if groupsStore == nil {
+		return fmt.Errorf("cannot build groups list, peer is down: %s", ds.peer.getError())
+	}
+	groupNameIdx := groupsStore.table.GetColumn("name").Index
+	membersIdx := groupsStore.table.GetColumn("members").Index
+
+	contactsStore := ds.Get(TableContacts)
+	if contactsStore == nil {
+		return fmt.Errorf("cannot build groups list, peer is down: %s", ds.peer.getError())
+	}
+	groupsIdx := contactsStore.table.GetColumn("groups").Index
+
+	// build groups->members relation
+	contactGroups := make(map[string][]string)
+	groupsStore.lock.RLock()
+	for _, row := range groupsStore.data {
+		groupName := row.dataString[groupNameIdx]
+		members := row.dataStringList[membersIdx]
+		for _, member := range members {
+			if _, ok := contactGroups[member]; !ok {
+				contactGroups[member] = []string{groupName}
+			} else {
+				contactGroups[member] = append(contactGroups[member], groupName)
+			}
+		}
+	}
+	groupsStore.lock.RUnlock()
+
+	// deduplicate data
+	for i, row := range contactGroups {
+		contactGroups[i] = dedupStringList(row, true)
+	}
+
+	// empty current lists
+	contactsStore.lock.Lock()
+	for _, d := range contactsStore.data {
+		d.dataStringList[groupsIdx] = emptyStringList
+	}
+	// store updated groups
+	for contactName, groups := range contactGroups {
+		row, ok := contactsStore.index[contactName]
+		if !ok {
+			logWith(ds).Warnf("unknown contact encountered: %s", contactName)
+
+			continue
+		}
+		row.dataStringList[groupsIdx] = groups
+	}
+	contactsStore.lock.Unlock()
+
+	return nil
+}
+
 func composeTimestampFilter(timestamps []int64, attribute string) []string {
 	filter := []string{}
 	block := struct {

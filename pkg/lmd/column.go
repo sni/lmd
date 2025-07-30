@@ -77,6 +77,7 @@ type FetchType uint8
 // placeholder to return in GetEmptyValue, no need to create empty lists over and over.
 var (
 	emptyInterfaceList = make([]interface{}, 0)
+	emptyStringList    = []string{}
 	emptyStringMap     = make(map[string]string)
 	emptyInt64List     = []int64{}
 )

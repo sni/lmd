@@ -1382,11 +1382,6 @@ func (d *DataRow) WriteJSON(jsonwriter *jsoniter.Stream, columns []*Column) {
 
 // WriteJSONColumn directly writes one column to the output buffer.
 func (d *DataRow) WriteJSONColumn(jsonwriter *jsoniter.Stream, col *Column) {
-	if col.Optional != NoFlags && !d.dataStore.peer.HasFlag(col.Optional) {
-		d.WriteJSONEmptyColumn(jsonwriter, col)
-
-		return
-	}
 	switch col.StorageType {
 	case LocalStore:
 		d.WriteJSONLocalColumn(jsonwriter, col)
@@ -1404,6 +1399,11 @@ func (d *DataRow) WriteJSONColumn(jsonwriter *jsoniter.Stream, col *Column) {
 
 // WriteJSONLocalColumn directly writes local storage columns to output buffer.
 func (d *DataRow) WriteJSONLocalColumn(jsonwriter *jsoniter.Stream, col *Column) {
+	if !d.hasJSONLocalColumn(col) {
+		d.WriteJSONEmptyColumn(jsonwriter, col)
+
+		return
+	}
 	switch col.DataType {
 	case StringCol:
 		jsonwriter.WriteString(d.dataString[col.Index])
@@ -1461,6 +1461,37 @@ func (d *DataRow) WriteJSONLocalColumn(jsonwriter *jsoniter.Stream, col *Column)
 	default:
 		log.Panicf("unsupported type: %s", col.DataType)
 	}
+}
+
+// WriteJSONLocalColumn directly writes local storage columns to output buffer.
+func (d *DataRow) hasJSONLocalColumn(col *Column) bool {
+	if col.Index == -1 {
+		return false
+	}
+	switch col.DataType {
+	case StringCol:
+		return col.Index < len(d.dataString)
+	case StringLargeCol:
+		return col.Index < len(d.dataStringLarge)
+	case StringListCol:
+		return col.Index < len(d.dataString)
+	case IntCol:
+		return col.Index < len(d.dataInt)
+	case Int64Col:
+		return col.Index < len(d.dataInt64)
+	case FloatCol:
+		return col.Index < len(d.dataFloat)
+	case Int64ListCol:
+		return col.Index < len(d.dataInt64List)
+	case ServiceMemberListCol:
+		return col.Index < len(d.dataServiceMemberList)
+	case InterfaceListCol:
+		return col.Index < len(d.dataInterfaceList)
+	default:
+		log.Panicf("unsupported type: %s", col.DataType)
+	}
+
+	return false
 }
 
 // WriteJSONEmptyColumn directly writes an empty columns to output buffer.
