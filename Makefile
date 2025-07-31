@@ -24,6 +24,12 @@ GO=go
 
 all: build
 
+lmd:
+	$(MAKE) build
+
+lq:
+	$(MAKE) build
+
 CMDS = $(shell cd ./cmd && ls -1)
 
 tools: | versioncheck
@@ -235,7 +241,7 @@ zip: clean
 lb: vendor buildtools/lb.go
 	$(GO) build $(BUILD_FLAGS) -o ./lb ./buildtools/lb.go
 
-test-e2e:
+test-e2e: lmd
 	$(MAKE) -C t/devbox/ clean update prepare
 	$(MAKE) -C t/devbox/ test
 	$(MAKE) -C t/devbox/ clean
