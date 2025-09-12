@@ -341,7 +341,7 @@ func (p *Peer) countFromServer(ctx context.Context, name, queryCondition string)
 		count = int(interface2float64(res[0][0]))
 	}
 
-	return
+	return count
 }
 
 // updateLoop is the main loop updating this peer.
@@ -481,7 +481,7 @@ func (p *Peer) handleBrokenPeer(ctx context.Context) (err error) {
 	if err != nil {
 		logWith(p).Debugf("waiting for reload")
 
-		return
+		return err
 	}
 
 	now := currentUnixTime()
@@ -669,20 +669,20 @@ func (p *Peer) periodicTimeperiodsUpdate(ctx context.Context, data *DataStoreSet
 	duration := time.Since(t1).Truncate(time.Millisecond)
 	logWith(p).Debugf("updating timeperiods and host/servicegroup statistics completed (%s)", duration)
 	if err != nil {
-		return
+		return err
 	}
-	if err = p.requestLocaltime(ctx); err != nil {
-		return
+	if err2 := p.requestLocaltime(ctx); err2 != nil {
+		return err2
 	}
 	// this also sets the thruk version and checks the clock, so it should be called first
 	if _, _, err = p.fetchThrukExtras(ctx); err != nil {
 		// log error, but this should not prevent accessing the backend
 		log.Debugf("fetchThrukExtras: %s ", err.Error())
 
-		return
+		return err
 	}
 
-	return
+	return err
 }
 
 func (p *Peer) initTablesIfRestartRequiredError(ctx context.Context, err error) error {
@@ -803,13 +803,13 @@ func (p *Peer) initAllTablesSerial(ctx context.Context, data *DataStoreSet) (err
 		if err != nil {
 			logWith(p).Debugf("fetching %s objects failed: %s", t.name.String(), err.Error())
 
-			return
+			return err
 		}
 	}
 
 	logWith(p).Debugf("objects fetched serially in %s", time.Since(time1).String())
 
-	return
+	return err
 }
 
 // fetches all objects at once.
@@ -1190,7 +1190,7 @@ func (p *Peer) parseResponse(req *Request, conn net.Conn) (b []byte, err error) 
 	if req.ResponseFixed16 {
 		b, err = p.parseResponseFixedSize(req, conn)
 
-		return
+		return b, err
 	}
 
 	// read result with unknown result size
@@ -1201,7 +1201,7 @@ func (p *Peer) parseResponse(req *Request, conn net.Conn) (b []byte, err error) 
 		err = nil
 	}
 
-	return
+	return b, err
 }
 
 func isTemporary(err error) bool {
@@ -1339,7 +1339,7 @@ func (p *Peer) Query(ctx context.Context, req *Request) (result ResultSet, meta 
 		p.setNextAddrFromErr(err, req, p.source)
 	}
 
-	return
+	return result, meta, err
 }
 
 // QueryString sends a livestatus request from a given string.
@@ -1420,7 +1420,7 @@ func (p *Peer) validateResponseHeader(resBytes []byte, req *Request, code int, e
 		return &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes, code: code}
 	}
 
-	return
+	return err
 }
 
 // GetConnection returns the next net.Conn object which answers to a connect.
@@ -1545,7 +1545,7 @@ func (p *Peer) GetCachedConnection(req *Request) (conn net.Conn) {
 			logWith(p, req).Tracef("using new connection")
 		}
 
-		return
+		return conn
 	default:
 		logWith(p, req).Tracef("no cached connection found")
 
@@ -1733,7 +1733,7 @@ func (p *Peer) checkAvailableTables(ctx context.Context) (err error) {
 func (p *Peer) fetchThrukExtras(ctx context.Context) (conf, thrukextras map[string]interface{}, err error) {
 	// no http client is a sure sign for no http connection
 	if p.cache.HTTPClient == nil {
-		return
+		return conf, thrukextras, err
 	}
 	// try all http connections and return first config tool config
 	for _, addr := range p.buildCombinedAddressList() {
@@ -1746,17 +1746,17 @@ func (p *Peer) fetchThrukExtras(ctx context.Context) (conf, thrukextras map[stri
 			if configTool != nil {
 				conf = configTool
 
-				return
+				return conf, thrukextras, err
 			}
 		}
 	}
 
-	return
+	return conf, thrukextras, err
 }
 
 func (p *Peer) fetchThrukExtrasFromAddr(ctx context.Context, peerAddr string) (conf, thrukextras map[string]interface{}, err error) {
 	if !strings.HasPrefix(peerAddr, "http") {
-		return
+		return conf, thrukextras, err
 	}
 	options := make(map[string]interface{})
 	options["action"] = "raw"
@@ -1766,21 +1766,21 @@ func (p *Peer) fetchThrukExtrasFromAddr(ctx context.Context, peerAddr string) (c
 	}
 	optionStr, err := json.Marshal(options)
 	if err != nil {
-		return
+		return conf, thrukextras, err
 	}
 	output, _, err := p.HTTPPostQuery(ctx, nil, peerAddr, url.Values{
 		"data": {fmt.Sprintf("{\"credential\": %q, \"options\": %s}", p.config.Auth, optionStr)},
 	}, nil)
 	if err != nil {
-		return
+		return conf, thrukextras, err
 	}
 
 	conf, thrukextras, err = p.extractThrukExtrasFromResult(output)
 	if err != nil {
-		return
+		return conf, thrukextras, err
 	}
 
-	return
+	return conf, thrukextras, err
 }
 
 func (p *Peer) extractThrukExtrasFromResult(output []interface{}) (configtool, thrukextras map[string]interface{}, err error) {
@@ -1881,13 +1881,13 @@ func (p *Peer) fetchRemotePeers(ctx context.Context, store *DataStoreSet) (sites
 
 func (p *Peer) fetchRemotePeersFromAddr(ctx context.Context, peerAddr string) (sites []interface{}, err error) {
 	if !strings.HasPrefix(peerAddr, "http") {
-		return
+		return sites, err
 	}
 	data, res, err := p.HTTPRestQuery(ctx, peerAddr, "/thruk/r/v1/sites")
 	if err != nil {
 		logWith(p).Warnf("rest query failed, cannot fetch all sites: %s", err.Error())
 
-		return
+		return sites, err
 	}
 	if s, ok := data.([]interface{}); ok {
 		sites = s
@@ -1895,7 +1895,7 @@ func (p *Peer) fetchRemotePeersFromAddr(ctx context.Context, peerAddr string) (s
 		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %v", res), kind: ResponseError, srcErr: err}
 	}
 
-	return
+	return sites, err
 }
 
 // WaitCondition waits for a given condition.
@@ -2063,7 +2063,7 @@ func (p *Peer) HTTPQueryWithRetries(ctx context.Context, req *Request, peerAddr,
 		}
 	}
 
-	return
+	return res, err
 }
 
 // HTTPQuery sends a query over http to a Thruk backend.
@@ -2618,7 +2618,7 @@ func (p *Peer) SendCommands(ctx context.Context, commands []string) (err error) 
 			logWith(ctx).Warnf("sending command failed: %s", err.Error())
 		}
 
-		return
+		return err
 	}
 	logWith(ctx).Infof("send %d commands successfully.", len(commands))
 
@@ -2629,7 +2629,7 @@ func (p *Peer) SendCommands(ctx context.Context, commands []string) (err error) 
 		p.forceFull.Store(true)
 	}
 
-	return
+	return err
 }
 
 // setFederationInfo updates federation information for /site request.
@@ -2769,7 +2769,7 @@ func (p *Peer) GetDataStoreSet() (store *DataStoreSet, err error) {
 		err = fmt.Errorf("peer is down: %s", p.getError())
 	}
 
-	return
+	return store, err
 }
 
 func (p *Peer) ResumeFromIdle(ctx context.Context) (err error) {
@@ -2781,11 +2781,11 @@ func (p *Peer) ResumeFromIdle(ctx context.Context) (err error) {
 		logWith(p).Debugf("spin up update")
 		err = data.UpdateFullTablesList(ctx, []TableName{TableTimeperiods})
 		if err != nil {
-			return
+			return err
 		}
 		err = data.UpdateDelta(ctx, p.lastUpdate.Get(), currentUnixTime())
 		if err != nil {
-			return
+			return err
 		}
 		logWith(p).Debugf("spin up update done")
 	} else {
@@ -2793,7 +2793,7 @@ func (p *Peer) ResumeFromIdle(ctx context.Context) (err error) {
 		p.lastUpdate.Set(currentUnixTime() - float64(p.lmd.Config.UpdateInterval))
 	}
 
-	return
+	return err
 }
 
 func (p *Peer) requestLocaltime(ctx context.Context) (err error) {
@@ -2807,10 +2807,10 @@ func (p *Peer) requestLocaltime(ctx context.Context) (err error) {
 	p.setQueryOptions(req)
 	res, _, err := p.Query(ctx, req)
 	if err != nil {
-		return
+		return err
 	}
 	if len(res) == 0 || len(res[0]) == 0 {
-		return
+		return err
 	}
 	unix := interface2float64(res[0][0])
 	err = p.CheckLocaltime(unix)
@@ -2818,7 +2818,7 @@ func (p *Peer) requestLocaltime(ctx context.Context) (err error) {
 		p.setNextAddrFromErr(err, req, p.source)
 	}
 
-	return
+	return err
 }
 
 func (p *Peer) CheckLocaltime(unix float64) (err error) {
@@ -2834,7 +2834,7 @@ func (p *Peer) CheckLocaltime(unix float64) (err error) {
 		return fmt.Errorf("clock error, peer is off by %s (threshold: %vs)", diff.Truncate(time.Millisecond).String(), p.lmd.Config.MaxClockDelta)
 	}
 
-	return
+	return err
 }
 
 // LogErrors i a generic error logger with peer prefix.

@@ -199,7 +199,7 @@ func NewLMDInstance() (lmd *Daemon) {
 		defaultReqestParseOption: ParseOptimize,
 	}
 
-	return
+	return lmd
 }
 
 func (lmd *Daemon) setFlags() {

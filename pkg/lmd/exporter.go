@@ -37,7 +37,7 @@ func exportData(lmd *Daemon) (err error) {
 	}
 	err = ex.Export(file)
 
-	return
+	return err
 }
 
 func (ex *Exporter) Export(file string) (err error) {
@@ -139,7 +139,7 @@ func (ex *Exporter) addDir(name string) (err error) {
 		Gname:   ex.group.Name,
 	})
 
-	return
+	return err
 }
 
 func (ex *Exporter) addTable(peer *Peer, table *Table) (written int64, err error) {
@@ -259,7 +259,7 @@ func (ex *Exporter) exportableColumns(p *Peer, t *Table) (columns []string) {
 		}
 	}
 
-	return
+	return columns
 }
 
 // isExportColumn returns true if column should be exported.

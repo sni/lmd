@@ -41,8 +41,8 @@ linters:
   disable:
     - cyclop
     - depguard
-    - exhaustruct
     - err113
+    - exhaustruct
     - gochecknoglobals
     - gochecknoinits
     - gofumpt
@@ -51,6 +51,7 @@ linters:
     - perfsprint
     - tagliatelle
     - testpackage
+    - wrapcheck
     - wsl
     # deprecated
     - tenv

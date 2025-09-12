@@ -3,7 +3,6 @@ package lmd
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -25,13 +24,13 @@ func BenchmarkParseResultJSON(b *testing.B) {
 			columns = append(columns, col.Name)
 		}
 	}
-	req, _, err := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(fmt.Sprintf("GET services\nOutputFormat: json\nColumns: %s\nColumnHeaders: on\n", strings.Join(columns, " ")))), ParseOptimize)
+	req, _, err := NewRequest(b.Context(), peer.lmd, bufio.NewReader(bytes.NewBufferString(fmt.Sprintf("GET services\nOutputFormat: json\nColumns: %s\nColumnHeaders: on\n", strings.Join(columns, " ")))), ParseOptimize)
 	require.NoError(b, err)
 
 	conn, connType, err := peer.GetConnection(req)
 	require.NoError(b, err)
 
-	resBytes, _, err := peer.getQueryResponse(context.TODO(), req, req.String(), peer.peerAddr.Get(), conn, connType)
+	resBytes, _, err := peer.getQueryResponse(b.Context(), req, req.String(), peer.peerAddr.Get(), conn, connType)
 	require.NoError(b, err)
 
 	b.StartTimer()
@@ -67,13 +66,13 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 			columns = append(columns, col.Name)
 		}
 	}
-	req, _, err := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(fmt.Sprintf("GET services\nOutputFormat: wrapped_json\nColumns: %s\nColumnHeaders: on\n", strings.Join(columns, " ")))), ParseOptimize)
+	req, _, err := NewRequest(b.Context(), peer.lmd, bufio.NewReader(bytes.NewBufferString(fmt.Sprintf("GET services\nOutputFormat: wrapped_json\nColumns: %s\nColumnHeaders: on\n", strings.Join(columns, " ")))), ParseOptimize)
 	require.NoError(b, err)
 
 	conn, connType, err := peer.GetConnection(req)
 	require.NoError(b, err)
 
-	resBytes, _, err := peer.getQueryResponse(context.TODO(), req, req.String(), peer.peerAddr.Get(), conn, connType)
+	resBytes, _, err := peer.getQueryResponse(b.Context(), req, req.String(), peer.peerAddr.Get(), conn, connType)
 	require.NoError(b, err)
 
 	b.StartTimer()
@@ -100,11 +99,10 @@ func BenchmarkPeerUpdate(b *testing.B) {
 	peer, cleanup, _ := StartTestPeer(1, 1000, 10000)
 	PauseTestPeers(peer)
 
-	ctx := context.TODO()
 	b.StartTimer()
 	data := peer.data.Load()
 	for range b.N {
-		err := data.UpdateFull(ctx, Objects.UpdateTables)
+		err := data.UpdateFull(b.Context(), Objects.UpdateTables)
 		if err != nil {
 			panic("Update failed")
 		}
@@ -129,7 +127,7 @@ func BenchmarkPeerUpdateServiceInsert(b *testing.B) {
 		OutputFormat:    OutputFormatJSON,
 		FilterStr:       "Filter: host_name !=\n",
 	}
-	res, meta, err := peer.Query(context.TODO(), req)
+	res, meta, err := peer.Query(b.Context(), req)
 	if err != nil {
 		return
 	}
@@ -335,7 +333,7 @@ func BenchmarkRequestParser1(b *testing.B) {
 	lmd := createTestLMDInstance()
 	for range b.N {
 		buf := bufio.NewReader(bytes.NewBufferString(servicesPageQuery))
-		_, size, err := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
+		_, size, err := NewRequest(b.Context(), lmd, buf, ParseOptimize)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -349,7 +347,7 @@ func BenchmarkRequestParser2(b *testing.B) {
 	lmd := createTestLMDInstance()
 	for range b.N {
 		buf := bufio.NewReader(bytes.NewBufferString(tacPageStatsQuery))
-		_, size, err := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
+		_, size, err := NewRequest(b.Context(), lmd, buf, ParseOptimize)
 		if err != nil {
 			panic(err.Error())
 		}

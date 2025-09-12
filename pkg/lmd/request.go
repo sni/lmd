@@ -180,7 +180,7 @@ func ParseRequest(ctx context.Context, lmd *Daemon, c net.Conn) (req *Request, e
 	req, size, err := NewRequest(ctx, lmd, b, lmd.defaultReqestParseOption)
 	promFrontendBytesReceived.WithLabelValues(localAddr).Add(float64(size))
 
-	return
+	return req, err
 }
 
 // ParseRequests reads from a connection and returns all requests read.
@@ -599,7 +599,7 @@ func (req *Request) getSubBackends(allBackendsRequested bool, nodeBackends []str
 		}
 	}
 
-	return
+	return subBackends
 }
 
 func (req *Request) buildDistributedRequestData(subBackends []string) (requestData map[string]interface{}) {
@@ -829,7 +829,7 @@ func parseResponseHeader(field *bool, value []byte) (err error) {
 	}
 	*field = true
 
-	return
+	return err
 }
 
 func parseIntHeader(field *int, value []byte, minValue int) (err error) {
@@ -839,7 +839,7 @@ func parseIntHeader(field *int, value []byte, minValue int) (err error) {
 	}
 	*field = intVal
 
-	return
+	return err
 }
 
 func parseSortHeader(field *[]*SortField, value []byte) (err error) {
@@ -887,7 +887,7 @@ func parseStatsGroupOp(op GroupOperator, value []byte, table TableName, stats *[
 	}
 	(*stats)[len(*stats)-1].statsType = Counter
 
-	return
+	return err
 }
 
 func parseOutputFormat(field *OutputFormat, value []byte) (err error) {
@@ -904,7 +904,7 @@ func parseOutputFormat(field *OutputFormat, value []byte) (err error) {
 		return errors.New("unrecognized outputformat, choose from json, wrapped_json, python and python3")
 	}
 
-	return
+	return err
 }
 
 // parseOnOff parses a on/off header
@@ -919,7 +919,7 @@ func parseOnOff(field *bool, value []byte) (err error) {
 		err = fmt.Errorf("must be 'on' or 'off'")
 	}
 
-	return
+	return err
 }
 
 func parseAuthUser(field *string, value []byte) (err error) {
@@ -930,7 +930,7 @@ func parseAuthUser(field *string, value []byte) (err error) {
 		err = fmt.Errorf("bad request: AuthUser should not be empty")
 	}
 
-	return
+	return err
 }
 
 // SetRequestColumns sets  list of used indexes and columns for this request.
@@ -967,7 +967,7 @@ func (req *Request) SetRequestColumns() {
 func (req *Request) SetSortColumns() (err error) {
 	logWith(req).Tracef("SetSortColumns")
 	if req.Command != "" {
-		return
+		return err
 	}
 	table := Objects.Tables[req.Table]
 
@@ -980,7 +980,7 @@ func (req *Request) SetSortColumns() (err error) {
 		req.Sort[j].Column = col
 	}
 
-	return
+	return err
 }
 
 // parseResult parses the result bytes and returns the data table and optional meta data for wrapped_json requests.
@@ -1244,7 +1244,7 @@ func (req *Request) optimizeResultLimit() (limit int) {
 		limit = -1
 	}
 
-	return
+	return limit
 }
 
 // optimizeFilter recursively optimizes the filter.

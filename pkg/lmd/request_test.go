@@ -3,7 +3,6 @@ package lmd
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -50,7 +49,7 @@ func TestRequestHeader(t *testing.T) {
 	}
 	for _, str := range testRequestStrings {
 		buf := bufio.NewReader(bytes.NewBufferString(str))
-		req, _, err := NewRequest(context.TODO(), lmd, buf, ParseDefault)
+		req, _, err := NewRequest(t.Context(), lmd, buf, ParseDefault)
 		require.NoError(t, err)
 		assert.Equal(t, str, req.String())
 	}
@@ -59,48 +58,48 @@ func TestRequestHeader(t *testing.T) {
 func TestRequestHeaderTable(t *testing.T) {
 	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\n"))
-	req, _, _ := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
+	req, _, _ := NewRequest(t.Context(), lmd, buf, ParseOptimize)
 	assert.Equal(t, "hosts", req.Table.String())
 }
 
 func TestRequestHeaderLimit(t *testing.T) {
 	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nLimit: 10\n"))
-	req, _, _ := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
+	req, _, _ := NewRequest(t.Context(), lmd, buf, ParseOptimize)
 	assert.Equal(t, 10, *req.Limit)
 }
 
 func TestRequestHeaderOffset(t *testing.T) {
 	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nOffset: 3\n"))
-	req, _, _ := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
+	req, _, _ := NewRequest(t.Context(), lmd, buf, ParseOptimize)
 	assert.Equal(t, 3, req.Offset)
 }
 
 func TestRequestHeaderColumns(t *testing.T) {
 	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name state\n"))
-	req, _, _ := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
+	req, _, _ := NewRequest(t.Context(), lmd, buf, ParseOptimize)
 	assert.Equal(t, []string{"name", "state"}, req.Columns)
 }
 
 func TestRequestHeaderSort(t *testing.T) {
 	lmd := createTestLMDInstance()
-	req, _, _ := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: latency state name\nSort: name desc\nSort: state asc\n")), ParseOptimize)
+	req, _, _ := NewRequest(t.Context(), lmd, bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: latency state name\nSort: name desc\nSort: state asc\n")), ParseOptimize)
 	assert.Equal(t, &SortField{Name: "name", Direction: Desc, Index: 0, Column: Objects.Tables[TableHosts].GetColumn("name")}, req.Sort[0])
 	assert.Equal(t, &SortField{Name: "state", Direction: Asc, Index: 0, Column: Objects.Tables[TableHosts].GetColumn("state")}, req.Sort[1])
 }
 
 func TestRequestHeaderSortCust(t *testing.T) {
 	lmd := createTestLMDInstance()
-	req, _, _ := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name custom_variables\nSort: custom_variables TEST asc\n")), ParseOptimize)
+	req, _, _ := NewRequest(t.Context(), lmd, bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name custom_variables\nSort: custom_variables TEST asc\n")), ParseOptimize)
 	assert.Equal(t, &SortField{Name: "custom_variables", Direction: Asc, Index: 0, Args: "TEST", Column: Objects.Tables[TableHosts].GetColumn("custom_variables")}, req.Sort[0])
 }
 
 func TestRequestHeaderFilter1(t *testing.T) {
 	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: name != test\n"))
-	req, _, _ := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
+	req, _, _ := NewRequest(t.Context(), lmd, buf, ParseOptimize)
 	assert.Len(t, req.Filter, 1)
 	assert.Equal(t, "name", req.Filter[0].column.Name)
 }
@@ -108,7 +107,7 @@ func TestRequestHeaderFilter1(t *testing.T) {
 func TestRequestHeaderFilter2(t *testing.T) {
 	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces \n"))
-	req, _, _ := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
+	req, _, _ := NewRequest(t.Context(), lmd, buf, ParseOptimize)
 	assert.Len(t, req.Filter, 2)
 	assert.Equal(t, "state", req.Filter[0].column.Name)
 	assert.Equal(t, "name", req.Filter[1].column.Name)
@@ -118,7 +117,7 @@ func TestRequestHeaderFilter2(t *testing.T) {
 func TestRequestHeaderFilter3(t *testing.T) {
 	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces\nOr: 2"))
-	req, _, _ := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
+	req, _, _ := NewRequest(t.Context(), lmd, buf, ParseOptimize)
 	assert.Len(t, req.Filter, 1)
 	assert.Len(t, req.Filter[0].filter, 2)
 	assert.Equal(t, Or, req.Filter[0].groupOperator)
@@ -127,7 +126,7 @@ func TestRequestHeaderFilter3(t *testing.T) {
 func TestRequestHeaderFilter4(t *testing.T) {
 	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\nFilter: state != 1\nFilter: name = with spaces\nAnd: 2"))
-	req, _, _ := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
+	req, _, _ := NewRequest(t.Context(), lmd, buf, ParseOptimize)
 	assert.Len(t, req.Filter, 2)
 	assert.Empty(t, req.Filter[0].filter)
 	assert.Equal(t, "state", req.Filter[0].column.Name)
@@ -168,12 +167,12 @@ func TestRequestHeaderMultipleCommands(t *testing.T) {
 Backends: mockid0
 
 COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web2;1473627610`))
-	req, size, err := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
+	req, size, err := NewRequest(t.Context(), lmd, buf, ParseOptimize)
 	require.NoError(t, err)
 	require.Equal(t, 87, size)
 	require.Equal(t, "COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web1;1473627610", req.Command)
 	require.Equal(t, "mockid0", req.Backends[0])
-	req, size, err = NewRequest(context.TODO(), lmd, buf, ParseOptimize)
+	req, size, err = NewRequest(t.Context(), lmd, buf, ParseOptimize)
 	require.NoError(t, err)
 	assert.Equal(t, 67, size)
 	assert.Equal(t, "COMMAND [1473627610] SCHEDULE_FORCED_SVC_CHECK;demo;Web2;1473627610", req.Command)
@@ -637,7 +636,7 @@ func TestHTTPPeer(t *testing.T) {
 	peer, cleanup := GetHTTPMockServerPeer(t, lmd)
 	defer cleanup()
 
-	if err := peer.InitAllTables(context.TODO()); err != nil {
+	if err := peer.InitAllTables(t.Context()); err != nil {
 		t.Error(err)
 	}
 }
@@ -1005,7 +1004,7 @@ OutputFormat: wrapped_json
 ResponseHeader: fixed16
 `
 
-	req, _, err := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	req, _, err := NewRequest(t.Context(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	require.NoErrorf(t, err, "query successful")
 	assert.Equalf(t, "name_lc", req.Filter[0].column.Name, "column name is correct")
 
@@ -1022,7 +1021,7 @@ ResponseHeader: fixed16
 	OutputFormat: wrapped_json
 	ResponseHeader: fixed16
 	`
-	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	req, _, err = NewRequest(t.Context(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	require.NoErrorf(t, err, "request successful")
 	assert.Equalf(t, "host_name_lc", req.Filter[0].column.Name, "column name is correct")
 
@@ -1039,7 +1038,7 @@ ResponseHeader: fixed16
 	OutputFormat: wrapped_json
 	ResponseHeader: fixed16
 	`
-	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	req, _, err = NewRequest(t.Context(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	require.NoErrorf(t, err, "request successful")
 	assert.Equalf(t, "host_alias_lc", req.Filter[0].column.Name, "column name is correct")
 
@@ -1059,7 +1058,7 @@ ResponseHeader: fixed16
 	OutputFormat: wrapped_json
 	ResponseHeader: fixed16
 	`
-	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	req, _, err = NewRequest(t.Context(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	require.NoErrorf(t, err, "request successful")
 	assert.Equalf(t, "host_name_lc", req.Filter[0].column.Name, "column name is correct")
 
@@ -1078,7 +1077,7 @@ ResponseHeader: fixed16
 	OutputFormat: wrapped_json
 	ResponseHeader: fixed16
 	`
-	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	req, _, err = NewRequest(t.Context(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	require.NoErrorf(t, err, "request successful")
 	assert.Equalf(t, "host_name", req.Filter[0].column.Name, "column name is correct")
 
@@ -1104,7 +1103,7 @@ func TestRequestLowercaseHostFilter(t *testing.T) {
 	OutputFormat: wrapped_json
 	ResponseHeader: fixed16
 	`
-	req, _, err := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	req, _, err := NewRequest(t.Context(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	require.NoErrorf(t, err, "request successful")
 	assert.Equalf(t, "alias_lc", req.Filter[0].column.Name, "column name is correct")
 
@@ -1122,7 +1121,7 @@ func TestRequestLowercaseHostFilter(t *testing.T) {
 	OutputFormat: wrapped_json
 	ResponseHeader: fixed16
 	`
-	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	req, _, err = NewRequest(t.Context(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	require.NoErrorf(t, err, "request successful")
 	assert.Equalf(t, "name", req.Filter[0].column.Name, "column name is correct")
 
@@ -1141,7 +1140,7 @@ func TestRequestLowercaseHostFilter(t *testing.T) {
 	OutputFormat: wrapped_json
 	ResponseHeader: fixed16
 	`
-	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	req, _, err = NewRequest(t.Context(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	require.NoErrorf(t, err, "request successful")
 	assert.Equalf(t, "name_lc", req.Filter[0].column.Name, "column name is correct")
 
@@ -1160,7 +1159,7 @@ func TestRequestLowercaseHostFilter(t *testing.T) {
 	OutputFormat: wrapped_json
 	ResponseHeader: fixed16
 	`
-	req, _, err = NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+	req, _, err = NewRequest(t.Context(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 	require.NoErrorf(t, err, "request successful")
 	assert.Equalf(t, "name", req.Filter[0].column.Name, "column name is correct")
 
@@ -1210,7 +1209,7 @@ func TestRequestLowercaseHostFilter2(t *testing.T) {
 		OutputFormat: wrapped_json
 		ResponseHeader: fixed16
 		`
-		req, _, err := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+		req, _, err := NewRequest(t.Context(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 		require.NoErrorf(t, err, "request successful")
 		assert.Equalf(t, "name_lc", req.Filter[0].column.Name, "column name is correct")
 
@@ -1264,7 +1263,7 @@ func TestRequestLowercaseHostFilter3(t *testing.T) {
 		OutputFormat: wrapped_json
 		ResponseHeader: fixed16
 		`
-		req, _, err := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
+		req, _, err := NewRequest(t.Context(), peer.lmd, bufio.NewReader(bytes.NewBufferString(query)), ParseOptimize)
 		require.NoErrorf(t, err, "request successful")
 		assert.Equalf(t, "alias_lc", req.Filter[0].column.Name, "column name is correct")
 
@@ -1305,7 +1304,7 @@ func TestRequestKeepalive(t *testing.T) {
 	// there should be one connection now
 	assert.Equal(t, int64(1), getOpenListeners())
 
-	req, _, _ := NewRequest(context.TODO(), peer.lmd, bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name\n")), ParseOptimize)
+	req, _, _ := NewRequest(t.Context(), peer.lmd, bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name\n")), ParseOptimize)
 	req.ResponseFixed16 = true
 
 	// send request without keepalive
@@ -1543,7 +1542,7 @@ Filter: plugin_output ~~ http
 Filter: long_plugin_output ~~ http
 `
 	lmd := createTestLMDInstance()
-	req, _, err := NewRequestFromString(context.TODO(), lmd, &query, ParseOptimize)
+	req, _, err := NewRequestFromString(t.Context(), lmd, &query, ParseOptimize)
 	require.NoError(t, err)
 
 	optimized := req.String()
@@ -1567,7 +1566,7 @@ Filter: long_plugin_output ~~ http
 Or: 2
 `
 	lmd := createTestLMDInstance()
-	req, _, err := NewRequestFromString(context.TODO(), lmd, &query, ParseOptimize)
+	req, _, err := NewRequestFromString(t.Context(), lmd, &query, ParseOptimize)
 	require.NoError(t, err)
 
 	optimized := req.String()
@@ -1592,7 +1591,7 @@ StatsAnd: 2
 `
 	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString(query))
-	req, _, err := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
+	req, _, err := NewRequest(t.Context(), lmd, buf, ParseOptimize)
 	require.NoError(t, err)
 	assert.Len(t, req.StatsGrouped, 2)
 	assert.Equal(t, Counter, req.StatsGrouped[0].statsType)
@@ -1621,7 +1620,7 @@ func TestStatsQueryOptimizer2(t *testing.T) {
 `
 	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString(query))
-	req, _, err := NewRequest(context.TODO(), lmd, buf, ParseOptimize)
+	req, _, err := NewRequest(t.Context(), lmd, buf, ParseOptimize)
 	require.NoError(t, err)
 	assert.Len(t, req.StatsGrouped, 2)
 	exp := `Stats: state_type = 0

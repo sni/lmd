@@ -249,7 +249,7 @@ func (d *DataStore) RemoveItem(row *DataRow) {
 // SetReferences creates reference entries for this tables.
 func (d *DataStore) SetReferences() (err error) {
 	if len(d.table.refTables) == 0 {
-		return
+		return err
 	}
 
 	for _, row := range d.data {
@@ -257,11 +257,11 @@ func (d *DataStore) SetReferences() (err error) {
 		if err != nil {
 			logWith(d).Debugf("setting references on table %s failed: %s", d.table.name.String(), err.Error())
 
-			return
+			return err
 		}
 	}
 
-	return
+	return err
 }
 
 // GetColumn returns column by name.
@@ -467,11 +467,11 @@ func (d *DataStore) getUpdateColumn(columnName string, dataOffset int) (dataInde
 	resIndex = -1
 	checkCol := d.GetColumn(columnName)
 	if checkCol == nil {
-		return
+		return dataIndex, resIndex
 	}
 	// double  check last_update column
 	if columnName == "last_update" && !d.peer.HasFlag(HasLastUpdateColumn) {
-		return
+		return dataIndex, resIndex
 	}
 
 	dataIndex = checkCol.Index
@@ -481,7 +481,7 @@ func (d *DataStore) getUpdateColumn(columnName string, dataOffset int) (dataInde
 			d.table.name.String(), checkCol.Name, Int64Col.String(), checkCol.DataType.String())
 	}
 
-	return
+	return dataIndex, resIndex
 }
 
 // TryFilterIndex returns list of hostname which can be used to reduce the initial dataset.

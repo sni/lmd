@@ -58,12 +58,12 @@ func (c *configFiles) Set(value string) (err error) {
 	_, err = os.Stat(value)
 	// check if the file exists but skip errors for file globs
 	if err != nil && !strings.ContainsAny(value, "?*") {
-		return
+		return err
 	}
 	err = nil
 	*c = append(*c, value)
 
-	return
+	return err
 }
 
 // Config defines the available configuration options from supplied config files.
@@ -303,5 +303,5 @@ func parseTLSMinVersion(version string) (tlsminversion uint16, err error) {
 		err = fmt.Errorf("cannot parse %s into tls version valid values are: tls1.0, tls1.1, tls1.2, tls1.3", version)
 	}
 
-	return
+	return tlsminversion, err
 }

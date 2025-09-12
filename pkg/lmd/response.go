@@ -296,7 +296,7 @@ func (req *Request) ExpandRequestedBackends() (err error) {
 			req.BackendsMap[p.ID] = p.ID
 		}
 
-		return
+		return err
 	}
 
 	for _, peerKey := range req.Backends {
@@ -309,7 +309,7 @@ func (req *Request) ExpandRequestedBackends() (err error) {
 		req.BackendsMap[peerKey] = peerKey
 	}
 
-	return
+	return err
 }
 
 // PostProcessing does all the post processing required for a request like sorting
@@ -430,7 +430,7 @@ func finalStatsApply(stat *Filter) (res float64) {
 		res = 0
 	}
 
-	return
+	return res
 }
 
 // Send converts the result object to a livestatus answer and writes the resulting bytes back to the client.

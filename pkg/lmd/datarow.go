@@ -39,7 +39,7 @@ func NewDataRow(store *DataStore, raw []interface{}, columns ColumnList, timesta
 	}
 	if raw == nil {
 		// virtual tables without data have no references or ids
-		return
+		return d, err
 	}
 
 	if !store.table.passthroughOnly && len(store.table.refTables) > 0 {
@@ -48,7 +48,7 @@ func NewDataRow(store *DataStore, raw []interface{}, columns ColumnList, timesta
 
 	err = d.SetData(raw, columns, timestamp)
 	if err != nil {
-		return
+		return d, err
 	}
 
 	d.setLowerCaseCache()
@@ -57,7 +57,7 @@ func NewDataRow(store *DataStore, raw []interface{}, columns ColumnList, timesta
 		err = d.SetReferences()
 	}
 
-	return
+	return d, err
 }
 
 // GetID calculates and returns the ID value (nul byte concatenated primary key values).
@@ -168,7 +168,7 @@ func (d *DataRow) SetReferences() (err error) {
 		}
 	}
 
-	return
+	return err
 }
 
 // GetString returns the string value for given column.

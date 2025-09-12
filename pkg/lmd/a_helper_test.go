@@ -394,7 +394,7 @@ func StartTestPeerExtra(numPeers, numHosts, numServices int, extraConfig string)
 			err = fmt.Errorf("timeout while waiting for mock listenern to stop")
 		}
 
-		return
+		return err
 	}
 
 	return peer, cleanup, mocklmd
@@ -503,7 +503,7 @@ func GetHTTPMockServerPeer(t *testing.T, lmd *Daemon) (peer *Peer, cleanup func(
 	ts, cleanup := StartHTTPMockServer(t, lmd)
 	peer = NewPeer(lmd, &Connection{Source: []string{ts.URL}, Name: "TestPeer", ID: "testid"})
 
-	return
+	return peer, cleanup
 }
 
 func convertTestDataMapToList(filename string, columns []string) []byte {
@@ -587,7 +587,7 @@ func getTestDataColumns(dataFolder string) (columns [][]string) {
 		}
 	}
 
-	return
+	return columns
 }
 
 func getTestLogStats(req *Request) []byte {
@@ -673,7 +673,7 @@ func TestMock1(t *testing.T) {
 		Name:   "TestPeer",
 	})
 
-	err := peer.InitAllTables(context.TODO())
+	err := peer.InitAllTables(t.Context())
 	require.NoErrorf(t, err, "init tables failed")
 
 	// tear down

@@ -610,7 +610,7 @@ func ParseFilterNegate(stack []*Filter) (err error) {
 
 	stack[stackLen-1].negate = true
 
-	return
+	return err
 }
 
 // Match returns true if the given filter matches the given value.

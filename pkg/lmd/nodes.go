@@ -446,7 +446,7 @@ func (n *Nodes) getOnlineNodes() (ownIndex int, nodeOnline []bool, numberAllNode
 		}
 	}
 
-	return
+	return ownIndex, nodeOnline, numberAllNodes, numberAvailableNodes
 }
 
 // IsOurBackend checks if backend is managed by this node.
@@ -536,12 +536,12 @@ func generateUUID() (uuid string) {
 	if _, err := rand.Read(byteList); err != nil {
 		log.Errorf("rand failed: %s", err.Error())
 
-		return
+		return uuid
 	}
 
 	uuid = fmt.Sprintf("%X-%X-%X-%X-%X", byteList[0:4], byteList[4:6], byteList[6:8], byteList[8:10], byteList[10:])
 
-	return
+	return uuid
 }
 
 func (n *Nodes) sendPing(ctx context.Context, node *NodeAddress, initializing bool, requestData map[string]interface{}) (isOnline, forceRedistribute bool) {

@@ -247,7 +247,7 @@ func (f *OptionalFlags) String() string {
 func (f *OptionalFlags) List() (list []string) {
 	list = make([]string, 0)
 	if *f == NoFlags {
-		return
+		return list
 	}
 	for _, fl := range OptionalFlagsStrings {
 		if f.HasFlag(fl.flag) {
@@ -255,7 +255,7 @@ func (f *OptionalFlags) List() (list []string) {
 		}
 	}
 
-	return
+	return list
 }
 
 // HasFlag returns true if flags are present.

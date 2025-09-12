@@ -3,7 +3,6 @@ package lmd
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -84,7 +83,7 @@ func TestMainReload(t *testing.T) {
 		l.Stop()
 	}
 	lmd.ListenersLock.Unlock()
-	if waitTimeout(context.TODO(), lmd.waitGroupPeers, 5*time.Second) {
+	if waitTimeout(t.Context(), lmd.waitGroupPeers, 5*time.Second) {
 		t.Errorf("timeout while waiting for peers to stop")
 	}
 	retries := 0
@@ -156,7 +155,7 @@ func testqueryCol(t *testing.T, peer *Peer, table TableName, column string) {
 		}
 	}()
 	buf := bufio.NewReader(bytes.NewBufferString(query))
-	req, _, err := NewRequest(context.TODO(), lmd, buf, ParseDefault)
+	req, _, err := NewRequest(t.Context(), lmd, buf, ParseDefault)
 	if err == nil {
 		require.Equal(t, query, req.String())
 	}
@@ -181,7 +180,7 @@ func testqueryFilter(t *testing.T, peer *Peer, table TableName, column, operator
 		}
 	}()
 	buf := bufio.NewReader(bytes.NewBufferString(query))
-	req, _, err := NewRequest(context.TODO(), lmd, buf, ParseDefault)
+	req, _, err := NewRequest(t.Context(), lmd, buf, ParseDefault)
 	if err == nil {
 		require.Equal(t, query, req.String())
 	}
@@ -208,7 +207,7 @@ func testqueryGroup(t *testing.T, peer *Peer, table TableName, column, operator,
 		}
 	}()
 	buf := bufio.NewReader(bytes.NewBufferString(query))
-	req, _, err := NewRequest(context.TODO(), lmd, buf, ParseDefault)
+	req, _, err := NewRequest(t.Context(), lmd, buf, ParseDefault)
 	if err == nil {
 		require.Equal(t, query, req.String())
 	}
@@ -299,7 +298,7 @@ func TestMainWaitTimeout(t *testing.T) {
 	wg.Add(1)
 	t1 := time.Now()
 	timeout := 50 * time.Millisecond
-	waitTimeout(context.TODO(), wg, timeout)
+	waitTimeout(t.Context(), wg, timeout)
 	if duration := time.Since(t1); duration < timeout {
 		t.Errorf("timeout too small: %s", duration)
 	}

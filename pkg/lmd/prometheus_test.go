@@ -1,7 +1,6 @@
 package lmd
 
 import (
-	"context"
 	"net/http"
 	"testing"
 
@@ -16,10 +15,9 @@ func TestPrometheus(t *testing.T) {
 	peer, cleanup, _ := StartTestPeerExtra(2, 10, 10, extraConfig)
 	PauseTestPeers(peer)
 
-	ctx := context.Background()
 	tlsconfig := getMinimalTLSConfig(peer.lmd.Config)
 	netClient := NewLMDHTTPClient(tlsconfig, "")
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:50999/metrics", http.NoBody)
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://127.0.0.1:50999/metrics", http.NoBody)
 	response, err := netClient.Do(req)
 	require.NoError(t, err)
 	contents, err := ExtractHTTPResponse(response)

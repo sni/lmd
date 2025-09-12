@@ -224,11 +224,11 @@ func (ds *DataStoreSet) SetReferences() (err error) {
 		if err != nil {
 			logWith(ds).Debugf("setting references on table %s failed: %s", tableName.String(), err.Error())
 
-			return
+			return err
 		}
 	}
 
-	return
+	return err
 }
 
 func (ds *DataStoreSet) hasChanged(ctx context.Context) (changed bool) {
@@ -248,7 +248,7 @@ func (ds *DataStoreSet) hasChanged(ctx context.Context) (changed bool) {
 	table.lock.RUnlock()
 	ds.peer.clearLastRequest()
 
-	return
+	return changed
 }
 
 // UpdateFull runs a full update on all dynamic values for all tables which have dynamic updated columns.
@@ -257,7 +257,7 @@ func (ds *DataStoreSet) UpdateFull(ctx context.Context, tables []TableName) (err
 	time1 := time.Now()
 	err = ds.UpdateFullTablesList(ctx, tables)
 	if err != nil {
-		return
+		return err
 	}
 	peer := ds.peer
 	duration := time.Since(time1)
@@ -276,7 +276,7 @@ func (ds *DataStoreSet) UpdateFull(ctx context.Context, tables []TableName) (err
 	promPeerUpdates.WithLabelValues(peer.Name).Inc()
 	promPeerUpdateDuration.WithLabelValues(peer.Name).Set(duration.Seconds())
 
-	return
+	return err
 }
 
 // UpdateFullTablesList updates list of tables and returns any error.
@@ -287,11 +287,11 @@ func (ds *DataStoreSet) UpdateFullTablesList(ctx context.Context, tables []Table
 		if err != nil {
 			logWith(ds).Debugf("update failed: %s", err.Error())
 
-			return
+			return err
 		}
 	}
 
-	return
+	return err
 }
 
 // UpdateDelta runs a delta update on all status, hosts, services, comments and downtimes table.
@@ -477,7 +477,7 @@ func (ds *DataStoreSet) updateDeltaFullScanHostsServices(ctx context.Context, st
 		logWith(p).Panicf("not implemented for: %s", store.table.name.String())
 	}
 
-	return
+	return updated, err
 }
 
 type fullUpdateCb func(context.Context, string, bool, int64) error
@@ -622,7 +622,7 @@ func (ds *DataStoreSet) reloadIfNumberOfObjectsChanged(ctx context.Context) (err
 		return (ds.peer.InitAllTables(ctx))
 	}
 
-	return
+	return err
 }
 
 // updateDeltaCommentsOrDowntimes update the comments or downtimes table. It fetches the number and highest id of
@@ -890,13 +890,13 @@ func (ds *DataStoreSet) rebuildCommentsList() (err error) {
 	time1 := time.Now()
 	err = ds.buildDowntimeCommentsList(TableComments)
 	if err != nil {
-		return
+		return err
 	}
 
 	duration := time.Since(time1)
 	logWith(ds).Debugf("comments rebuild (%s)", duration.Truncate(time.Millisecond))
 
-	return
+	return err
 }
 
 // rebuildDowntimesList updates the downtimes column of hosts/services based on the downtimes table ids.
@@ -904,13 +904,13 @@ func (ds *DataStoreSet) rebuildDowntimesList() (err error) {
 	time1 := time.Now()
 	err = ds.buildDowntimeCommentsList(TableDowntimes)
 	if err != nil {
-		return
+		return err
 	}
 
 	duration := time.Since(time1)
 	logWith(ds).Debugf("downtimes rebuild (%s)", duration.Truncate(time.Millisecond))
 
-	return
+	return err
 }
 
 // buildDowntimeCommentsList updates the downtimes/comments id list for all hosts and services.
@@ -991,19 +991,19 @@ func (ds *DataStoreSet) buildDowntimeCommentsList(name TableName) (err error) {
 func (ds *DataStoreSet) rebuildContactsGroups() (err error) {
 	// directly supported, nothing to do
 	if ds.peer.HasFlag(HasContactsGroupColumn) {
-		return
+		return err
 	}
 
 	time1 := time.Now()
 	err = ds.buildContactsGroupsList()
 	if err != nil {
-		return
+		return err
 	}
 
 	duration := time.Since(time1)
 	logWith(ds).Debugf("contacts groups rebuild (%s)", duration.Truncate(time.Millisecond))
 
-	return
+	return err
 }
 
 // buildContactsGroupsList updates the contacts->groups attribute from contactsgroups->members.

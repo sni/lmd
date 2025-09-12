@@ -22,7 +22,7 @@ func TestLogger(t *testing.T) {
 	var p2 *Peer
 	logWith(p2).Errorf("nil peer")
 
-	c := context.WithValue(context.Background(), CtxClient, "testclient")
+	c := context.WithValue(t.Context(), CtxClient, "testclient")
 	logWith(c).Errorf("context")
 
 	assert.Contains(t, devnull.String(), "nil peer")

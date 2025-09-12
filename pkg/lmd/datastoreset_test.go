@@ -1,7 +1,6 @@
 package lmd
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -45,7 +44,7 @@ func TestDSHasChanged(t *testing.T) {
 	PauseTestPeers(peer)
 
 	data := peer.data.Load()
-	err := data.reloadIfNumberOfObjectsChanged(context.TODO())
+	err := data.reloadIfNumberOfObjectsChanged(t.Context())
 	require.NoError(t, err)
 
 	err = cleanup()
@@ -59,12 +58,12 @@ func TestDSFullUpdate(t *testing.T) {
 	peer.lastUpdate.Set(0)
 	peer.lastFullServiceUpdate.Set(0)
 	data := peer.data.Load()
-	err := data.UpdateDeltaServices(context.TODO(), fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), false, 0)
+	err := data.UpdateDeltaServices(t.Context(), fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), false, 0)
 	require.NoError(t, err)
 
 	peer.lastUpdate.Set(0)
 	peer.lastFullServiceUpdate.Set(0)
-	err = data.UpdateDeltaServices(context.TODO(), fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), true, time.Now().Unix())
+	err = data.UpdateDeltaServices(t.Context(), fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), true, time.Now().Unix())
 	require.NoError(t, err)
 
 	err = cleanup()

@@ -3,7 +3,6 @@ package lmd
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -34,7 +33,7 @@ func TestPeerHTTPComplete(t *testing.T) {
 
 func TestParseResultJSON(t *testing.T) {
 	lmd := createTestLMDInstance()
-	req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
+	req, _, err := NewRequest(t.Context(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
 	require.NoError(t, err)
 
 	data := []byte(`[
@@ -53,7 +52,7 @@ func TestParseResultJSON(t *testing.T) {
 
 func TestParseResultJSON2(t *testing.T) {
 	lmd := createTestLMDInstance()
-	req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
+	req, _, err := NewRequest(t.Context(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
 	require.NoError(t, err)
 
 	data := []byte(`[["host1", "desc1", 0, [1,2], {"a": 1}],
@@ -72,7 +71,7 @@ func TestParseResultJSON2(t *testing.T) {
 
 func TestParseResultJSONEmpty(t *testing.T) {
 	lmd := createTestLMDInstance()
-	req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
+	req, _, err := NewRequest(t.Context(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
 	require.NoError(t, err)
 
 	data := []byte(`[]`)
@@ -85,7 +84,7 @@ func TestParseResultJSONEmpty(t *testing.T) {
 
 func TestParseResultWrappedJSON(t *testing.T) {
 	lmd := createTestLMDInstance()
-	req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: wrapped_json\n")), ParseOptimize)
+	req, _, err := NewRequest(t.Context(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: wrapped_json\n")), ParseOptimize)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -106,7 +105,7 @@ func TestParseResultWrappedJSON(t *testing.T) {
 
 func TestParseResultJSONBroken(t *testing.T) {
 	lmd := createTestLMDInstance()
-	req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
+	req, _, err := NewRequest(t.Context(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -130,7 +129,7 @@ func TestParseResultJSONBroken(t *testing.T) {
 
 func TestParseResultJSONBroken2(t *testing.T) {
 	lmd := createTestLMDInstance()
-	req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
+	req, _, err := NewRequest(t.Context(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name description state list hash\nOutputFormat: json\n")), ParseOptimize)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -154,7 +153,7 @@ func TestParseResultJSONBroken2(t *testing.T) {
 
 func TestParseResultJSONEscapeSequences(t *testing.T) {
 	lmd := createTestLMDInstance()
-	req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name\nOutputFormat: json\n")), ParseOptimize)
+	req, _, err := NewRequest(t.Context(), lmd, bufio.NewReader(bytes.NewBufferString("GET services\nColumns: host_name\nOutputFormat: json\n")), ParseOptimize)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -176,7 +175,7 @@ func TestParseResultJSONEscapeSequences(t *testing.T) {
 
 func TestParseResultJSONBrokenNaN(t *testing.T) {
 	lmd := createTestLMDInstance()
-	req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name hourly_value\nOutputFormat: json\n")), ParseOptimize)
+	req, _, err := NewRequest(t.Context(), lmd, bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name hourly_value\nOutputFormat: json\n")), ParseOptimize)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -195,7 +194,7 @@ func TestParseResultJSONBrokenNaN(t *testing.T) {
 
 func TestParseResultJSONBrokenError(t *testing.T) {
 	lmd := createTestLMDInstance()
-	req, _, err := NewRequest(context.TODO(), lmd, bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name hourly_value\nOutputFormat: json\n")), ParseOptimize)
+	req, _, err := NewRequest(t.Context(), lmd, bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name hourly_value\nOutputFormat: json\n")), ParseOptimize)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -218,7 +217,7 @@ func TestPeerUpdate(t *testing.T) {
 	PauseTestPeers(peer)
 
 	store := peer.data.Load()
-	err := store.UpdateFull(context.TODO(), Objects.UpdateTables)
+	err := store.UpdateFull(t.Context(), Objects.UpdateTables)
 	require.NoError(t, err)
 
 	// fake some last_update entries
@@ -228,36 +227,35 @@ func TestPeerUpdate(t *testing.T) {
 	for _, row := range svcTbl.data {
 		row.dataInt64[lastCheckCol.Index] = 2
 	}
-	ctx := context.TODO()
-	err = data.UpdateDelta(ctx, float64(5), float64(time.Now().Unix()+5))
+	err = data.UpdateDelta(t.Context(), float64(5), float64(time.Now().Unix()+5))
 	require.NoError(t, err)
 
 	peer.lastUpdate.Set(0)
-	_, err = peer.periodicUpdate(context.TODO())
+	_, err = peer.periodicUpdate(t.Context())
 	require.NoError(t, err)
 
 	peer.lastUpdate.Set(0)
 	peer.peerState.Set(PeerStatusWarning)
-	_, err = peer.periodicUpdate(context.TODO())
+	_, err = peer.periodicUpdate(t.Context())
 	require.NoError(t, err)
 
 	peer.lastUpdate.Set(0)
 	peer.peerState.Set(PeerStatusDown)
-	_, err = peer.periodicUpdate(context.TODO())
+	_, err = peer.periodicUpdate(t.Context())
 	require.NoError(t, err)
 
-	err = peer.periodicTimeperiodsUpdate(context.TODO(), store)
+	err = peer.periodicTimeperiodsUpdate(t.Context(), store)
 	require.NoError(t, err)
 
 	cList := peer.data.Load().Get(TableComments).table.GetColumns([]string{"id", "host_name", "service_description", "entry_time", "author", "comment", "persistent"})
 	err = peer.data.Load().Get(TableComments).AppendData(ResultSet([][]interface{}{{"666", "test", "svc", 123456, "author", "comment", 0}}), cList)
 	require.NoError(t, err)
-	err = peer.data.Load().UpdateDelta(context.TODO(), float64(time.Now().Unix())-60, float64(time.Now().Unix()))
+	err = peer.data.Load().UpdateDelta(t.Context(), float64(time.Now().Unix())-60, float64(time.Now().Unix()))
 	require.NoError(t, err)
 
 	peer.lastUpdate.Set(0)
 	peer.peerState.Set(PeerStatusBroken)
-	_, err = peer.periodicUpdate(context.TODO())
+	_, err = peer.periodicUpdate(t.Context())
 	require.Errorf(t, err, "got no error but expected broken peer")
 	assert.Contains(t, err.Error(), "waiting for peer to recover")
 
@@ -270,7 +268,7 @@ func TestPeerDeltaUpdate(t *testing.T) {
 	PauseTestPeers(peer)
 
 	store := peer.data.Load()
-	err := store.UpdateDelta(context.TODO(), 0, 0)
+	err := store.UpdateDelta(t.Context(), 0, 0)
 	require.NoError(t, err)
 
 	err = cleanup()
@@ -281,8 +279,7 @@ func TestPeerUpdateResume(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	ctx := context.TODO()
-	err := peer.ResumeFromIdle(ctx)
+	err := peer.ResumeFromIdle(t.Context())
 	require.NoError(t, err)
 
 	err = cleanup()
@@ -294,7 +291,7 @@ func TestPeerInitSerial(t *testing.T) {
 	PauseTestPeers(peer)
 
 	store := peer.data.Load()
-	err := peer.initAllTablesSerial(context.TODO(), store)
+	err := peer.initAllTablesSerial(t.Context(), store)
 	require.NoError(t, err)
 
 	err = cleanup()
@@ -308,13 +305,13 @@ func TestLMDPeerUpdate(t *testing.T) {
 	peer.lastUpdate.Set(0)
 	peer.SetFlag(LMD)
 	peer.SetFlag(MultiBackend)
-	_, err := peer.periodicUpdateLMD(context.TODO(), nil, true)
+	_, err := peer.periodicUpdateLMD(t.Context(), nil, true)
 	require.NoError(t, err)
 
 	peer.lastUpdate.Set(0)
 	peer.ResetFlags()
 	peer.SetFlag(MultiBackend)
-	_, err = peer.periodicUpdateMultiBackends(context.TODO(), nil, true)
+	_, err = peer.periodicUpdateMultiBackends(t.Context(), nil, true)
 	require.NoError(t, err)
 
 	err = cleanup()
@@ -327,7 +324,7 @@ func TestPeerLog(t *testing.T) {
 
 	peer.setBroken("test")
 	peer.logPeerStatus(log.Debugf)
-	err := peer.initTablesIfRestartRequiredError(context.TODO(), fmt.Errorf("test"))
+	err := peer.initTablesIfRestartRequiredError(t.Context(), fmt.Errorf("test"))
 	require.Errorf(t, err, "got no error but expected broken peer")
 	assert.Contains(t, err.Error(), "test")
 

@@ -270,12 +270,12 @@ func parseHTTPFilterRequestData(req *Request, val interface{}, prefix string) (e
 		if filterLine == "" {
 			continue
 		}
-		if err := req.ParseRequestHeaderLine([]byte(filterLine), ParseOptimize); err != nil {
-			return err
+		if err2 := req.ParseRequestHeaderLine([]byte(filterLine), ParseOptimize); err2 != nil {
+			return err2
 		}
 	}
 
-	return
+	return err
 }
 
 func initializeHTTPRouter(lmd *Daemon) (handler http.Handler) {
@@ -295,5 +295,5 @@ func initializeHTTPRouter(lmd *Daemon) (handler http.Handler) {
 
 	handler = router
 
-	return
+	return handler
 }

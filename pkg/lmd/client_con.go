@@ -221,27 +221,27 @@ func (cl *ClientConnection) processRequest(ctx context.Context, req *Request) (s
 		if errors.As(err, &netErr) {
 			LogErrors((&Response{code: ReturnCodeConnectionError, request: req, err: netErr}).Send(cl))
 
-			return
+			return size, err
 		}
 
 		var peerErr *PeerError
 		if errors.As(err, &peerErr) && peerErr.kind == ConnectionError {
 			LogErrors((&Response{code: ReturnCodeConnectionError, request: req, err: peerErr}).Send(cl))
 
-			return
+			return size, err
 		}
 		LogErrors((&Response{code: ReturnCodeBadRequest, request: req, err: err}).Send(cl))
 
-		return
+		return size, err
 	}
 
-	return
+	return size, err
 }
 
 // sendRemainingCommands sends all queued commands.
 func (cl *ClientConnection) sendRemainingCommands(ctx context.Context, commandsByPeer *map[string][]string) (err error) {
 	if len(*commandsByPeer) == 0 {
-		return
+		return err
 	}
 	time1 := time.Now()
 	code, msg := cl.SendCommands(ctx, *commandsByPeer)
@@ -250,11 +250,11 @@ func (cl *ClientConnection) sendRemainingCommands(ctx context.Context, commandsB
 	if code != ReturnCodeOK {
 		_, err = fmt.Fprintf(cl.connection, "%d: %s\n", code, msg)
 
-		return
+		return err
 	}
 	logWith(ctx).Infof("incoming command request finished in %s", time.Since(time1))
 
-	return
+	return err
 }
 
 // SendCommands sends commands for this request to all selected remote sites.
