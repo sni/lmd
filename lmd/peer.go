@@ -217,10 +217,14 @@ func (p *Peer) hasChanged() (changed bool) {
 	tablenames := []string{"commands", "contactgroups", "contacts", "hostgroups", "hosts", "servicegroups", "timeperiods"}
 	for _, name := range tablenames {
 		counter := p.countFromServer(name, "name !=")
-		changed = changed || (counter != len(p.Tables[name].Data))
+		if counter >= 0 {
+			changed = changed || (counter != len(p.Tables[name].Data))
+		}
 	}
 	counter := p.countFromServer("services", "host_name !=")
-	changed = changed || (counter != len(p.Tables["services"].Data))
+	if counter >= 0 {
+		changed = changed || (counter != len(p.Tables["services"].Data))
+	}
 
 	return
 }
