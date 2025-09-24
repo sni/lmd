@@ -238,13 +238,17 @@ func (ds *DataStoreSet) hasChanged(ctx context.Context) (changed bool) {
 		counter := ds.peer.countFromServer(ctx, name.String(), "name !=")
 		table := ds.Get(name)
 		table.lock.RLock()
-		changed = changed || (counter != len(table.data))
+		if counter >= 0 {
+			changed = changed || (counter != len(table.data))
+		}
 		table.lock.RUnlock()
 	}
 	counter := ds.peer.countFromServer(ctx, "services", "host_name !=")
 	table := ds.Get(TableServices)
 	table.lock.RLock()
-	changed = changed || (counter != len(table.data))
+	if counter >= 0 {
+		changed = changed || (counter != len(table.data))
+	}
 	table.lock.RUnlock()
 	ds.peer.clearLastRequest()
 
