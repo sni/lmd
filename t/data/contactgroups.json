@@ -1,2 +1,9 @@
-200          36
-[["demo contacts",["demo"],"demo"]]
+[
+  {
+    "alias": "example",
+    "members": [
+      "example"
+    ],
+    "name": "example"
+  }
+]

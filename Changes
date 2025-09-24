@@ -1,5 +1,360 @@
-This file documents the revision history for the Livestatus Multitool Daemon
+# Changes
 
+This file documents the revision history for the Livestatus Multitool Daemon (LMD)
+
+next:
+          - improve filter performance
+          - fix accessing contacts.groups column when using icinga2
+          - minimal supported golang 1.24
+
+2.6.2    Fri Jul 25 11:53:14 CEST 2025
+          - make sure thread dumps can always be logged
+          - fix multiple query stats collector running
+
+2.6.1    Tue Jun 10 16:35:50 CEST 2025
+          - fix mixed up custom variables
+
+2.6.0    Fri Jun  6 16:27:39 CEST 2025
+          - switch to golang interning for string deduplication
+          - fix mixed up hosts/services attributes
+          - fix crash after wake from idle timeout (#150)
+
+2.5.1    Mon Jun  2 17:09:40 CEST 2025
+          - reduce memory usage during initial synchronization
+
+2.5.0    Mon May 26 15:29:09 CEST 2025
+          - synchronize initial tables in blocks of 500k objects
+          - switch to rjson and jsoniter library
+          - fix go routine leak on query timeouts
+
+2.4.3    Tue May 20 13:27:06 CEST 2025
+          - improve handling of broken json data
+          - do not log hole json result on errors
+
+2.4.2    Wed Apr 30 10:27:16 CEST 2025
+          - fix crash on corrupt json data
+
+2.4.1    Mon Apr 14 16:29:14 CEST 2025
+          - performance improvements, lock specific tables instead of all together
+          - reduce number of update queries
+          - reduce memory usage
+          - fix inconsistent state if initial sync fails
+          - fix race condition if many peers initially connect simultaneously
+
+2.4.0    Wed Mar 12 16:48:28 CET 2025
+          - performance improvements, use atomic operations instead of locks
+          - use fallback addresses only if all primary fail
+          - add more columns to downtimes_with_info
+          - add more columns to comments_with_info
+          - retry broken backends after 5min
+          - change compression to zstd
+          - update dependencies
+          - go build dependency changed to v1.23
+
+2.3.0    Thu Jan 16 08:20:30 CET 2025
+          - use primary key index for all tables
+          - use output buffer for queries without fixed header to reduce locked time
+          - add lq cmd to simply send queries
+          - improve locking while result is transferred to clients
+
+2.2.5    Wed Dec 18 14:54:16 CET 2024
+          - add lb benchmark tool
+          - performance improvements
+
+2.2.4    Tue Nov 12 16:33:35 CET 2024
+          - fix more index based filters
+          - update dependencies
+
+2.2.3    Wed Oct 23 14:32:15 CEST 2024
+          - fix index based filter using regex
+
+2.2.2    Mon Oct 14 14:49:49 CEST 2024
+          - fix !>= operator on integer lists
+          - fix sorting by custom variables
+          - add support for filtering *_with_info columns
+
+2.2.1    Fri Jul 12 17:12:43 CEST 2024
+          - go build dependency changed to v1.22
+          - fix crash on log stat queries
+
+2.2.0    Tue Mar 12 15:03:31 CET 2024
+          - synchronize naemon more efficient based on last_update column
+          - reduce number direct dependencies (build tools moved into separate pkg)
+          - performance improvements
+          - fix crash in mixed core version setups
+          - fix crash on type assertion (#142)
+          - migrate test framework
+
+2.1.9    Wed Jan 24 20:50:13 CET 2024
+          - performance improvements
+          - fix regexp filter using case sensitive index
+
+2.1.8    Mon Jan 22 08:55:02 CET 2024
+          - submit pending commands as soon as syncing started
+          - accept python3 outputformat (#128)
+          - go build dependency changed to v1.21
+          - fix regexp filter using case sensitive index
+
+2.1.7    Fri Oct 20 10:08:38 CEST 2023
+          - improve full scan sync, less delta scan timestamp filter too complex messages
+          - add more contacts columns (id, host/service_notification_commands, in_host/service_notification_period,in_host_notification_period)
+          - fix modified attributes with icinga 2
+          - fix data corruption during update
+
+2.1.6    Fri Jul 14 08:44:27 CEST 2023
+          - add support for setting expected tls servername
+          - performance improvements
+          - fix service parents type
+
+2.1.5    Tue Mar 21 15:23:39 CET 2023
+          - fix stats query optimizer when using Or aggregation
+          - add support for contacts groups column
+          - add support for multiple column headers (#137)
+          - print errors on config parse errors (#135)
+          - add logmode "stdout-journal" (#136)
+
+2.1.4    Mon Feb 20 09:35:17 CET 2023
+          - add StatsNegate support (#133)
+          - fix reusing keepalive connections
+          - retry on temporary network problems
+          - improve error logging on http errors
+          - reduce amount of connections
+          - add request duration histogram to prometheus metrics
+          - drop golang 1.18 support
+
+2.1.2    Fri Nov 11 10:40:28 CET 2022
+          - fix trailing Or: in update query
+
+2.1.1    Tue Sep 27 15:08:02 CEST 2022
+          - update dependencies
+
+2.1.0    Fri Aug 12 19:17:52 CEST 2022
+          - improve synchronization and locking
+
+2.0.9    Thu Jul 21 14:29:20 CEST 2022
+          - fix wait condition queries always waiting 10seconds
+
+2.0.8    Mon Jul  4 08:59:06 CEST 2022
+          - use sub second precision timestamps
+          - fix regex search if host name contains uppercase characters
+
+2.0.7    Tue Mar  1 10:50:46 CET 2022
+          - fix crash when using wrong data index
+
+2.0.6    Tue Feb 22 16:07:38 CET 2022
+          - fix installing v2 version with go install
+          - fix data corruption with overlapping optional attributes
+
+2.0.5    Tue Feb 22 10:33:47 CET 2022
+          - add address1 to address6 fields to contacts (#122)
+          - always sort incoming data
+          - improve bad input data handling
+
+2.0.4    Mon Dec 13 12:52:23 CET 2021
+          - add MaxQueryFilter option to prevent to complex queries
+          - fix panic while accessing none-existing custom variable
+          - fix reading connections from multiple config files
+          - fix synchronization by is_executing flag
+
+2.0.3    Wed Oct 13 11:47:03 CEST 2021
+          - add process pid to log
+          - improve handling of duplicate or conflicting backend ids
+          - fix removing stale sockets on startup
+
+2.0.2    Tue Aug 31 17:26:18 CEST 2021
+          - rework comment/downtime id handling
+          - improve error logging on clock errors
+          - improve status table waitcondition queries during backend reloads
+          - fix crash after recover from short outage
+          - fix sending errored results
+          - fix crash on http timeouts
+          - fix crash on some wait conditions
+          - detect peer support for the following columns:
+            - services.check_freshness
+            - hosts.event_handler
+            - (services|hosts).staleness
+            - services.parents
+
+2.0.1    Thu Jun 10 19:27:05 CEST 2021
+          - add --export option to export all backends into json file structure
+          - add --import option to run lmd based on export file
+          - support <= as alternative to !>= group operator
+
+2.0.0    Mon Apr 26 11:41:42 CEST 2021
+          - use index to speed up hosts/services queries with hostname/group filter
+          - improve stats query performance
+          - fetch initial tables in parallel for quicker startup
+          - add config option TLSMinVersion
+          - add support for listen / connection parameters in -o
+          - add LogQueryStats option to log top 3 queries every minute
+
+1.9.5    Mon Feb  1 18:46:43 CET 2021
+          - fix negated group filters, ex host_groups !~~ ...
+          - fix accessing thruks config tool
+
+1.9.4    Mon Jan 25 11:15:51 CET 2021
+          - fix version string
+
+1.9.3    Fri Jan 22 15:34:01 CET 2021
+          - increase default update interval from 5 to 7 sec
+          - improve icinga2 sync
+          - fix icinga2 crash because it has no custom_variable_names column for contacts
+          - add support to check remote clock
+          - add localtime column to return the local unix timestamp
+          - add UpdateOffset option
+
+1.9.2    Mon Dec 14 11:02:02 CET 2020
+          - add hard service count columns (num_services_hard_X)
+          - fix syncing config tool options
+          - fix potential race condition when reloading backends
+
+1.9.1    Sat Sep 26 21:39:50 CEST 2020
+          - add generic -o option to set arbitrary parameters
+
+1.9.0    Tue Sep  8 10:32:12 CEST 2020
+          - add support for regex filter for number typed columns
+          - improve comments/downtimes synchronization
+          - improve slow query log when using wait conditions
+          - improve query performance when using regular expressions
+          - improve keepalive handling
+          - add open connections prometheus metric
+          - add optional connection flags, ex. to set a connection to type icinga2
+          - fix recovering broken peers
+          - add custom variables support for contacts
+
+1.8.3    Mon Jun  8 11:06:13 CEST 2020
+          - improve reload detection with icinga2
+          - sort incoming hosts and services for icinga2, since they seem to be in random order
+          - improve connection timeout handling
+          - improve backend error messages
+          - improve query performance
+
+1.8.2    Tue Mar 10 10:11:50 CET 2020
+          - improve synchronization when cascading LMDs by filtering by lmd_last_cache_update
+          - improve regex matching performance
+
+1.8.1    Thu Jan 16 17:05:44 CET 2020
+          - fix potential dead lock when updating comments
+
+1.8.0    Fr 10. Jan 10:22:20 CET 2020
+          - performance improvements
+          - add new configuration options:
+            - LogLockTimeout
+            - LogSlowQueryThreshold
+            - LogHugeQueryThreshold
+            - SyncIsExecuting
+            - SaveTempRequests
+            - CompressionMinimumSize
+            - CompressionLevel
+          - export some settings as metrics
+          - support globs in config files, ex.: --config=lmd.ini.d/*.ini
+
+1.7.1    Fri 18 Oct 2019 05:01:20 PM CEST
+          - fix comment handling
+
+1.7.0    Thu 17 Oct 2019 06:45:57 PM CEST
+          - support faster updates if client has a last_update column
+          - fix negate header in filter groups (#82)
+
+1.6.1    Thu Jul  4 13:58:48 CEST 2019
+          - remove not parsable characters from json input
+          - add support for the negate header (#79)
+          - add new columns (#81)
+          - improve memory usage
+
+1.6.0    Fri Jun 14 16:04:22 CEST 2019
+          - restructure internal data storage
+          - use string deduplication to use less memory
+          - add support for the AuthUser header (#71)
+          - add new columns:
+            - members_with_state (#74)
+            - `<table>_<column-name>` (#73)
+            - check_source
+
+1.5.0    Fri Mar 29 17:39:22 CET 2019
+          - add new columns:
+            - (host_)comments_with_info
+            - host dependencies
+            - service dependencies
+            - service parents
+            - services_with_info
+            - services_with_state
+          - Use keepalive for backend peer connections
+
+1.4.3    Mon Jan 14 10:57:05 CET 2019
+          - fix parsing http results
+
+1.4.2    Mon Jan  7 09:19:37 CET 2019
+          - fix returning command errors
+
+1.4.1    Fri Jan  4 23:24:02 CET 2019
+          - limit number of command retries
+          - send command errors for http backends as well
+
+1.4.0    Thu Jan  3 16:53:39 CET 2019
+          - buffer commands over short outages and reloads
+          - add proxy support for http backends
+          - fix panics on icinga2 host comments
+          - fix shinken specific columns (danirod)
+
+1.3.7    Tue Dec 18 14:12:03 CET 2018
+          - send back external command result if supported by core
+          - add more naemon specific columns (sidhartha-sankar)
+          - add more shinken specific columns (David Gil)
+
+1.3.6    Thu Nov 15 11:02:21 CET 2018
+          - fix parsing peers remote_name attribute
+
+1.3.5    Mon Oct 15 14:26:06 CEST 2018
+          - add version information to prometheus metrics
+
+1.3.4    Sat Oct 13 21:59:40 CEST 2018
+          - add support for http federation mode
+          - support regular expressions in list filter context, ex.: GET hosts\nFilter: groups ~~ name
+
+1.3.3    Wed Jul 25 13:29:58 CEST 2018
+          - support WaitConditionAnd and WaitConditionOr
+          - support WaitConditionNegate
+          - fix using WaitTrigger without WaitCondition (#14)
+          - fix requesting unknown columns for log table
+
+1.3.2    Tue Jun 19 09:55:56 CEST 2018
+          - fix typo in wrapped_json output
+
+1.3.1    Mon Jun 18 14:09:13 CEST 2018
+          - support sort by non-requested columns
+          - changed `total` into `total_count` to be compatible with the naemon format
+          - sync custom variables not only on start, they can be changed by external commands
+
+1.3.0    Tue Mar 13 10:39:03 CET 2018
+          - add tls listener support (including client certificate authorization)
+          - support client tls connections (with optional client authorization)
+          - only restart listeners and peers on SIGHUP if really changed
+          - provide thruk config tool settings for http backends
+          - fix overwriting svc accept_passive_checks (#20)
+          - fix evenly distribution in cluster mode (#18)
+
+1.2.0    Mon Feb  5 17:03:36 CET 2018
+          - support lmd federation mode with cascading lmd instances
+          - return empty result for unknown columns for better backwards compatibility
+          - fix blocking requests if there are long running queries
+
+1.1.5    Tue Dec  5 11:04:00 CET 2017
+          - add column lmd_last_cache_update to dynamic tables
+          - fix issue with using wrong key for http backends
+          - fix issue with icinga2 api added objects
+
+1.1.4    Mon Nov 27 13:54:07 CET 2017
+          - fix locking issue
+
+1.1.3    Sun Nov 26 23:12:20 CET 2017
+          - log last query on crash
+          - improved performance
+          - improved error handling when clients return incomplete results
+          - add ConnectTimeout option to distinguish between initial connection and transfer timeout
+
+1.1.2    Wed Aug 16 15:56:04 CEST 2017
+          - fix issue with broken pipes on http backends
 
 1.1.1    Sun May 14 10:58:28 CEST 2017
           - fix issue with multiple config files

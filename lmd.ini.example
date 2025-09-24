@@ -1,21 +1,62 @@
 # Listen for incoming livestatus requests here
 # TCP or unix sockets are allowed. Multiple entries are also valid.
 # An http address can be defined as well.
-Listen          = ["127.0.0.1:3333", "/tmp/lmd.sock", "http://*:8080"]
+Listen          = ["127.0.0.1:3333", "/tmp/lmd.sock", "http://*:8080", "https://*:8443", "tls://127.0.0.1:3334"]
 
 # List of cluster nodes (cluster mode).
 # All cluster nodes must have their http server enabled (see Listen).
 # A bare ip address may be provided if the port is the same on all nodes.
 #Nodes           = ["10.0.0.1", "http://10.0.0.2:8080"]
 
-# Timeout for incoming client requests on `Listen` threads
+# Timeout for incoming client requests on `Listen` threads.
+# Also the maximum request duration.
 ListenTimeout = 60
 
-# daemon will log to stdout if no logfile is set
+# TLS certificate settings for https and tls listeners
+#TLSKey         = "server.key"
+#TLSCertificate = "server.pem"
+# set CA file to enforce client certificates
+#TLSClientPems  = ["client.pem"]
+# set minimum allowed tls version, leave empty to allow all version or specify one of: tls1.0, tls1.1, tls1.2, tls1.3
+TLSMinVersion = "tls1.1"
+#TLSServerName = "server.fqdn" # set expected server name if different from connection string (used in certificate verification)
+
+# destinations the daemon will log to. Defaults to "stdout"
+# Choose from:
+# - "/var/log/lmd.log" (example)
+#   a literal file name to log to
+# - "stdout" or "stderr"
+#    to log to either standard output or standard error with colorized output
+# - "stdout-journal"
+#    same as stdout, but does not colorize the output and does not print the date/time prefix.
+#    this is more suitable if you connect stdout to a log shipping service like systemd-journald, which will supply the timestamp itself
 #LogFile         = "lmd.log"
 
 # May be Error, Warn, Info, Debug and Trace
 LogLevel        = "Info"
+
+# LogSlowQueryThreshold sets the maximum amount of seconds before logging a query as slow query
+LogSlowQueryThreshold = 5
+
+# LogHugeQueryThreshold sets the maximum size in megabytes before logging a query as huge query
+LogHugeQueryThreshold = 100
+
+# LogQueryStats logs top most 3 queries every minute by total duration
+LogQueryStats = false
+
+# SyncIsExecuting can be used to enable syncing hosts/services that are running right now. It is
+# used to indicate that a check is running but adds some additional overhead to syncing.
+SyncIsExecuting = true
+
+# Number of maximum parallel connections per backend. Used ex. to initially synchronize objects. Set to <= 1 to disable parallel fetching.
+MaxParallelPeerConnections = 3
+
+# CompressionMinimumSize sets the minimum number of characters to use compression
+CompressionMinimumSize = 500
+
+# CompressionLevel sets the compression level used to store plugin output, -1 is using the default level
+# Can be set from 0 = no compression to 9 = best compression
+CompressionLevel = -1
 
 # After this amount of seconds, a backend will be marked down when there
 # is no response
@@ -24,29 +65,67 @@ StaleBackendTimeout = 30
 # Refresh remote sites every x seconds.
 # Fast updates are ok, only changed hosts and services get fetched
 # and once every `FullUpdateInterval` everything gets updated.
-UpdateInterval = 5
+UpdateInterval = 7
+
+# Offset used to filter by timestamp during synchronization
+UpdateOffset = 3
 
 # Run a full update on all objects every x seconds. Set to zero to turn off
-# completly. This is usually not required and only needed if for uncommon
+# completely. This is usually not required and only needed if for uncommon
 # reasons some updates slip through the normal delta updates.
-FullUpdateInterval = 600
+#FullUpdateInterval = 600
 
-# After `IdleTimeout` seconds of no activity (incoming querys for this backend)
+# Import initial objects in bulks of this size. This prevents having to large
+# queries.
+InitialSyncBlockSize = 500000
+
+# After `IdleTimeout` seconds of no activity (incoming queries for this backend)
 # the slower update interval of `IdleInterval` seconds will be used.
 # Don't set the timeout to low, clients will have to wait for a "spin up"
 # query on the first access after idling.
 IdleTimeout = 120
 IdleInterval = 1800
 
-# Connection timeout for remote tcp connections
-NetTimeout = 30
+# Connection timeout settings for remote connections.
+# `ConnectTimeout` will be used when opening and testing
+# the initial connection and `NetTimeout` is used for transferring data.
+ConnectTimeout = 30
+NetTimeout = 120
 
 # Skip ssl certificate verification on https remote backends.
 # Set to 1 to disabled any ssl verification checks.
 SkipSSLCheck = 0
 
+# Use keepalive for backend peer connections.
+BackendKeepAlive = true
+
 # Uncomment to export runtime statistics in prometheus format
 #ListenPrometheus = "127.0.0.1:8080"
+
+# Sets wether peer queries req/res object will be saved for crash reports
+SaveTempRequests = false
+
+# Naemon automatically regards a contact for a host also as a contact for all
+# services of that host. We call this method loose. By setting it to strict, one
+# must be an explicitly contact of a service in order to see it when using the
+# AuthUser setting. Please note that Naemon makes all services that do not have
+# any contact at all inherit all contacts of the host - regardless whether this
+# option is set to strict or loose. The default option is loose.
+ServiceAuthorization = "loose"
+
+# If GroupAuthorization is strict (default), a user must be a contact on all
+# hosts in the hostgroup in able to see the hostgroup. If GroupAuthorization is
+# loose it is sufficient for the user to be a contact on one of the hosts in the
+# hostgroup.
+GroupAuthorization = "strict"
+
+# MaxQueryFilter sets the maximum number of query filters. Set to zero to disable this check.
+MaxQueryFilter = 1000
+
+# LMD can check clock differences if supported by the remote peer. Time delta is crucial
+# for synchronization. MaxClockDelta is the maximum amount of seconds a clock is allowed
+# to go off. Set to zero to disable this check.
+MaxClockDelta = 10.0
 
 # use tcp connections
 [[Connections]]
@@ -72,11 +151,28 @@ name   = "Monitoring Site A IPv6"
 id     = "id3"
 source = ["[::1]:6557"]
 
+# tcp connection to icinga2 with explicit flag set in case of autodetection fails
+[[Connections]]
+name   = "Icinga2 Backend"
+id     = "icinga2"
+source = ["[::1]:6557"]
+flags  = ["icinga2"]
+
 # connect to thruk http(s) api
 [[Connections]]
 name   = "Thruk HTTP"
 id     = "id4"
 source = ["http://thruk.monitoring/omdsite/"]
 auth   = "authkey..."
+
+# use tcp connections with tls encryption
+[[Connections]]
+name           = "Monitoring Site A TLS"
+id             = "id5"
+tlsCertificate = "client.pem"          # if key and cert is set, client cert authentication will be done
+tlsKey         = "client.key"
+tlsCA          = "optional_server.crt" # used to verify server certificate
+tlsSkipVerify  = 0                     # if set to 1, no common name verification will be done
+source         = ["tls://192.168.33.10:6557"]
 
 # add more connections as you like...

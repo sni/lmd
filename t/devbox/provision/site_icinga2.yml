@@ -1,0 +1,43 @@
+---
+- hosts: all
+  tasks:
+  - name: create icinga2 site
+    shell: omd create icinga2
+    args:
+      creates: /omd/sites/icinga2
+
+  - name: Add the user 'demo' to the group 'icinga2'
+    user:
+      name: demo
+      groups: icinga2
+      append: yes
+
+
+# continue as icinga2 user
+- hosts: all
+  become: true
+  become_user: icinga2
+  become_method: su
+  become_flags: '-l'
+  tasks:
+  - name: set omdadmin password
+    shell: set_admin_password omd
+
+  - name: omd stop
+    command: omd stop
+
+  - name: configure icinga2 site
+    vars:
+        config: |
+            PNP4NAGIOS=off
+            AUTOSTART=off
+            CORE=icinga2
+            TMPFS=off
+    shell: echo "{{ config }}" | omd config change
+
+  - name: adjust default config
+    shell: sed -i etc/icinga2/conf.d/hosts.conf -e 's/NodeName/"icinga2"/g'
+
+  - name: start icinga2 site
+    shell: omd start
+

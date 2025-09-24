@@ -1,2 +1,39 @@
-200         262
-[[1489205295,1,1,1291,1,1,1,763980,6.9244885676e-02,1,1,1,1,1,57915,1.2689371772e-01,126656,1.2992420958e-01,60,1489781150,1489705200,"1.2.6p12",33270,2.2079303856e-02,2629,5114730,8.9402087082e+00,0,1,1,"3.5.0",763900,7.1469617192e-02,795181,9.7276639838e-01]]
+[
+  {
+    "accept_passive_host_checks": 1,
+    "accept_passive_service_checks": 1,
+    "cached_log_messages": 0,
+    "check_external_commands": 1,
+    "check_host_freshness": 0,
+    "check_service_freshness": 1,
+    "connections": 26,
+    "connections_rate": 0.28834941604,
+    "enable_event_handlers": 1,
+    "enable_flap_detection": 1,
+    "enable_notifications": 1,
+    "execute_host_checks": 1,
+    "execute_service_checks": 1,
+    "forks": 0,
+    "forks_rate": 0,
+    "host_checks": 4,
+    "host_checks_rate": 0.0049540508833,
+    "interval_length": 60,
+    "last_command_check": 0,
+    "last_log_rotation": 0,
+    "livestatus_version": "1.0.10-naemon",
+    "log_messages": 10,
+    "log_messages_rate": 0.011026925377,
+    "nagios_pid": 1343,
+    "neb_callbacks": 563,
+    "neb_callbacks_rate": 0.98844203956,
+    "obsess_over_hosts": 0,
+    "obsess_over_services": 0,
+    "process_performance_data": 1,
+    "program_start": 1557953241,
+    "program_version": "1.0.10",
+    "requests": 27,
+    "requests_rate": 0.30845309755,
+    "service_checks": 10,
+    "service_checks_rate": 0.023679368836
+  }
+]

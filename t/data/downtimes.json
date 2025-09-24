@@ -1,3 +1,17 @@
-200         229
-[["omdadmin","test",7200,1489788600,1489781428,1,39035,1,1489781400,0,1,"Mail","Mail",[],[]],
-["omdadmin","test",7200,1489788600,1489781428,1,39036,1,1489781400,0,1,"New Test Business Process","New Test Business Process",[],[]]]
+[
+  {
+    "author": "thrukadmin",
+    "comment": "test",
+    "duration": 7200,
+    "end_time": 1557960660,
+    "entry_time": 1557953527,
+    "fixed": 1,
+    "host_name": "testhost_1",
+    "id": 1,
+    "is_service": 1,
+    "service_description": "testsvc_1",
+    "start_time": 1557953460,
+    "triggered_by": 0,
+    "type": 1
+  }
+]
