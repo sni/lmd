@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const queryLogQueueSize = 100
+
 // QueryStat is a single item of query statistics.
 type QueryStat struct {
 	count         int64
@@ -21,7 +23,6 @@ type QueryStatIn struct {
 // QueryStats is the stats collector.
 type QueryStats struct {
 	stats      map[string]*QueryStat
-	lock       *RWMutex // use when accessing stats
 	in         chan QueryStatIn
 	logTrigger chan bool
 	done       chan bool // channel to close the stats collector
@@ -30,9 +31,8 @@ type QueryStats struct {
 // NewQueryStats creates a new query stats object.
 func NewQueryStats() *QueryStats {
 	qStat := &QueryStats{
-		lock:       NewRWMutex("querystats"),
 		stats:      make(map[string]*QueryStat),
-		in:         make(chan QueryStatIn),
+		in:         make(chan QueryStatIn, queryLogQueueSize),
 		logTrigger: make(chan bool),
 		done:       make(chan bool, 10),
 	}
@@ -41,7 +41,6 @@ func NewQueryStats() *QueryStats {
 		for {
 			select {
 			case stat := <-qStat.in:
-				qStat.lock.Lock()
 				item, ok := qStat.stats[stat.query]
 				if !ok {
 					item = &QueryStat{}
@@ -49,7 +48,6 @@ func NewQueryStats() *QueryStats {
 				}
 				item.count++
 				item.totalDuration += stat.duration
-				qStat.lock.Unlock()
 			case <-qStat.logTrigger:
 				qStat.logStats()
 			case <-qStat.done:
@@ -71,9 +69,6 @@ func (qs *QueryStats) stop() {
 
 // logStats logs the top 3 queries by duration and resets the stats.
 func (qs *QueryStats) logStats() {
-	qs.lock.Lock()
-	defer qs.lock.Unlock()
-
 	if len(qs.stats) == 0 {
 		return
 	}

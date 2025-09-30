@@ -18,7 +18,7 @@ LogQueryStats = true
 	assert.Equal(t, "accept_passive_checks", res[0][0])
 	assert.InDelta(t, 1.0, res[1][0], 0)
 
-	mockLMD.qStat.logStats()
+	mockLMD.qStat.logTrigger <- true
 
 	err = cleanup()
 	require.NoError(t, err)
