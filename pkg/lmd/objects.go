@@ -153,7 +153,7 @@ func NewStatusTable() (t *Table) {
 	t.AddColumn("interval_length", Static, Int64Col, "The default interval length from the core configuration")
 	t.AddColumn("last_command_check", Dynamic, Int64Col, "The time of the last check for a command as UNIX timestamp")
 	t.AddColumn("last_log_rotation", Dynamic, Int64Col, "Time time of the last log file rotation")
-	t.AddColumn("livestatus_version", Static, StringCol, "The version of the MK Livestatus module")
+	t.AddColumn("livestatus_version", Static, StringCol, "The version of the Livestatus module")
 	t.AddColumn("log_messages", Dynamic, Int64Col, "The number of new log messages since program start")
 	t.AddColumn("log_messages_rate", Dynamic, FloatCol, "The number of new log messages since program start")
 	t.AddColumn("nagios_pid", Dynamic, Int64Col, "The process ID of the core main process")
