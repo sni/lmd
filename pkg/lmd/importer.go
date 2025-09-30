@@ -21,9 +21,7 @@ func initializePeersWithImport(lmd *Daemon, importFile string) (err error) {
 		return fmt.Errorf("cannot read %s: %s", importFile, err.Error())
 	}
 
-	lmd.PeerMapLock.RLock()
-	peerSize := len(lmd.PeerMapOrder)
-	lmd.PeerMapLock.RUnlock()
+	peerSize := len(lmd.peerMap.Peers())
 	if peerSize > 0 {
 		log.Warnf("reload from import file is not possible")
 
@@ -41,8 +39,7 @@ func initializePeersWithImport(lmd *Daemon, importFile string) (err error) {
 		return fmt.Errorf("import failed: %s", err.Error())
 	}
 
-	PeerMapNew := make(map[string]*Peer)
-	PeerMapOrderNew := make([]string, 0)
+	newPeers := make([]*Peer, 0, len(peers))
 	for i := range peers {
 		peer := peers[i]
 
@@ -53,20 +50,16 @@ func initializePeersWithImport(lmd *Daemon, importFile string) (err error) {
 			return fmt.Errorf("failed to set references: %s", err.Error())
 		}
 
-		PeerMapNew[peer.ID] = peer
-		PeerMapOrderNew = append(PeerMapOrderNew, peer.ID)
+		newPeers = append(newPeers, peer)
 	}
 
-	lmd.PeerMapLock.Lock()
-	lmd.PeerMapOrder = PeerMapOrderNew
-	lmd.PeerMap = PeerMapNew
-	lmd.PeerMapLock.Unlock()
+	lmd.peerMap.Add(newPeers...)
 
-	if len(PeerMapOrderNew) == 0 {
+	if len(newPeers) == 0 {
 		return fmt.Errorf("failed to find any useable data")
 	}
 
-	log.Infof("imported %d peers successfully", len(PeerMapOrderNew))
+	log.Infof("imported %d peers successfully", len(newPeers))
 
 	lmd.nodeAccessor = NewNodes(lmd, []string{}, "")
 

@@ -171,14 +171,11 @@ func (n *Nodes) Initialize(ctx context.Context) {
 
 	// Start all peers in single mode
 	if !n.IsClustered() {
-		n.lmd.PeerMapLock.RLock()
-		for id := range n.lmd.PeerMap {
-			peer := n.lmd.PeerMap[id]
+		for _, peer := range n.lmd.peerMap.Peers() {
 			if peer.paused.Load() {
 				peer.Start(ctx)
 			}
 		}
-		n.lmd.PeerMapLock.RUnlock()
 	}
 
 	// Send first ping (detect own ip) and wait for it to finish
@@ -359,9 +356,7 @@ func (n *Nodes) redistribute(ctx context.Context) {
 
 func (n *Nodes) updateBackends(ctx context.Context, ourBackends []string) {
 	// append sub peers
-	n.lmd.PeerMapLock.RLock()
-	for id := range n.lmd.PeerMap {
-		peer := n.lmd.PeerMap[id]
+	for _, peer := range n.lmd.peerMap.Peers() {
 		if peer.parentID == "" {
 			continue
 		}
@@ -373,7 +368,6 @@ func (n *Nodes) updateBackends(ctx context.Context, ourBackends []string) {
 			}
 		}
 	}
-	n.lmd.PeerMapLock.RUnlock()
 
 	// Determine backends this node is now (not anymore) responsible for
 	var addBackends []string
@@ -407,17 +401,15 @@ func (n *Nodes) updateBackends(ctx context.Context, ourBackends []string) {
 	n.assignedBackends = ourBackends
 
 	// Start/stop backends
-	n.lmd.PeerMapLock.RLock()
 	for _, oldBackend := range rmvBackends {
-		peer := n.lmd.PeerMap[oldBackend]
+		peer := n.lmd.peerMap.Get(oldBackend)
 		peer.Stop()
 		peer.data.Store(nil)
 	}
 	for _, newBackend := range addBackends {
-		peer := n.lmd.PeerMap[newBackend]
+		peer := n.lmd.peerMap.Get(newBackend)
 		peer.Start(ctx)
 	}
-	n.lmd.PeerMapLock.RUnlock()
 }
 
 func (n *Nodes) getOnlineNodes() (ownIndex int, nodeOnline []bool, numberAllNodes, numberAvailableNodes int) {

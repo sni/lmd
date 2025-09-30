@@ -402,8 +402,7 @@ func StartTestPeerExtra(numPeers, numHosts, numServices int, extraConfig string)
 
 func PauseTestPeers(peer *Peer) {
 	peer.Stop()
-	for id := range peer.lmd.PeerMap {
-		p := peer.lmd.PeerMap[id]
+	for _, p := range peer.lmd.peerMap.Peers() {
 		p.Stop()
 	}
 }
@@ -649,11 +648,8 @@ func panicFailedStartup(mocklmd *Daemon, peer *Peer, numPeers int, err error) {
 		info = append(info, string(txt))
 	}
 
-	for _, peerKey := range mocklmd.PeerMapOrder {
+	for _, p := range mocklmd.peerMap.Peers() {
 		log.Errorf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> mock lmd")
-		mocklmd.PeerMapLock.RLock()
-		p := mocklmd.PeerMap[peerKey]
-		mocklmd.PeerMapLock.RUnlock()
 		p.logPeerStatus(log.Errorf)
 	}
 

@@ -177,7 +177,7 @@ var (
 func ParseRequest(ctx context.Context, lmd *Daemon, c net.Conn) (req *Request, err error) {
 	b := bufio.NewReader(c)
 	localAddr := c.LocalAddr().String()
-	req, size, err := NewRequest(ctx, lmd, b, lmd.defaultReqestParseOption)
+	req, size, err := NewRequest(ctx, lmd, b, lmd.defaultRequestParseOption)
 	promFrontendBytesReceived.WithLabelValues(localAddr).Add(float64(size))
 
 	return req, err
@@ -190,7 +190,7 @@ func ParseRequests(ctx context.Context, lmd *Daemon, c net.Conn) (reqs []*Reques
 	localAddr := c.LocalAddr().String()
 	eof := false
 	for {
-		req, size, err := NewRequest(ctx, lmd, b, lmd.defaultReqestParseOption)
+		req, size, err := NewRequest(ctx, lmd, b, lmd.defaultRequestParseOption)
 		promFrontendBytesReceived.WithLabelValues(localAddr).Add(float64(size))
 		if err != nil {
 			if errors.Is(err, io.EOF) {

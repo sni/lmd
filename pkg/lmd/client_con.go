@@ -268,9 +268,7 @@ func (cl *ClientConnection) SendCommands(ctx context.Context, commandsByPeer map
 	resultChan := make(chan error, len(commandsByPeer))
 	wgroup := &sync.WaitGroup{}
 	for pID := range commandsByPeer {
-		cl.lmd.PeerMapLock.RLock()
-		peer := cl.lmd.PeerMap[pID]
-		cl.lmd.PeerMapLock.RUnlock()
+		peer := cl.lmd.peerMap.Get(pID)
 		wgroup.Add(1)
 		go func(peer *Peer) {
 			defer logPanicExitPeer(peer)

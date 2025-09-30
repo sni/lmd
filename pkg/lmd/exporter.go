@@ -83,10 +83,7 @@ func (ex *Exporter) exportPeers() (err error) {
 	if err != nil {
 		return err
 	}
-	ex.lmd.PeerMapLock.RLock()
-	defer ex.lmd.PeerMapLock.RUnlock()
-	for _, id := range ex.lmd.PeerMapOrder {
-		peer := ex.lmd.PeerMap[id]
+	for _, peer := range ex.lmd.peerMap.Peers() {
 		if peer.HasFlag(MultiBackend) {
 			continue
 		}
@@ -202,10 +199,7 @@ func (ex *Exporter) initPeers(ctx context.Context) {
 		c := ex.lmd.Config.Connections[i]
 		peer := NewPeer(ex.lmd, &c)
 		log.Debugf("creating peer: %s", peer.Name)
-		ex.lmd.PeerMapLock.Lock()
-		ex.lmd.PeerMap[peer.ID] = peer
-		ex.lmd.PeerMapOrder = append(ex.lmd.PeerMapOrder, peer.ID)
-		ex.lmd.PeerMapLock.Unlock()
+		ex.lmd.peerMap.Add(peer)
 		waitGroupPeers.Add(1)
 		go func() {
 			// make sure we log panics properly
@@ -222,11 +216,8 @@ func (ex *Exporter) initPeers(ctx context.Context) {
 	log.Infof("waiting for all peers to connect and initialize")
 	waitGroupPeers.Wait()
 
-	ex.lmd.PeerMapLock.RLock()
-	defer ex.lmd.PeerMapLock.RUnlock()
 	hasSubPeers := false
-	for _, id := range ex.lmd.PeerMapOrder {
-		peer := ex.lmd.PeerMap[id]
+	for _, peer := range ex.lmd.peerMap.Peers() {
 		if peer.parentID == "" {
 			continue
 		}

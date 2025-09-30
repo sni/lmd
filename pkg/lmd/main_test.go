@@ -71,11 +71,10 @@ func TestMainReload(t *testing.T) {
 	StartMockMainLoop(lmd, []string{"mock0.sock"}, "")
 	lmd.mainSignalChannel <- syscall.SIGHUP
 	// shutdown all peers
-	for id := range lmd.PeerMap {
-		p := lmd.PeerMap[id]
+	for _, p := range lmd.peerMap.Peers() {
 		p.Stop()
 		close(p.shutdownChannel)
-		lmd.PeerMapRemove(p.ID)
+		lmd.peerMap.Remove(p.ID)
 	}
 	// shutdown all listeners
 	lmd.ListenersLock.Lock()
@@ -97,7 +96,7 @@ func TestMainReload(t *testing.T) {
 		lmd.ListenersLock.Lock()
 		numListener := len(lmd.Listeners)
 		lmd.ListenersLock.Unlock()
-		if len(lmd.PeerMap)+numListener == 0 {
+		if len(lmd.peerMap.Peers())+numListener == 0 {
 			break
 		}
 	}

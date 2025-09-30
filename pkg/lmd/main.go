@@ -118,17 +118,15 @@ type Daemon struct {
 	waitGroupListener *sync.WaitGroup
 	Listeners         map[string]*Listener // Listeners stores if we started a listener
 	Config            *Config              // reference to global config object
-	PeerMapLock       *RWMutex             // PeerMapLock is the lock for the PeerMap map
 	waitGroupPeers    *sync.WaitGroup
 	ListenersLock     *RWMutex // ListenersLock is the lock for the Listeners map
 	nodeAccessor      *Nodes   // nodeAccessor manages cluster nodes and starts/stops peers.
 	shutdownChannel   chan bool
 	cpuProfileHandler *os.File
-	PeerMap           map[string]*Peer // PeerMap contains a map of available remote peers.
+	peerMap           *PeerMap
 	waitGroupInit     *sync.WaitGroup
 	initChannel       chan bool
 	mainSignalChannel chan os.Signal // used for internal signals for testing
-	PeerMapOrder      []string
 	qStat             *QueryStats
 	flags             struct {
 		flagLogFile      string
@@ -146,8 +144,8 @@ type Daemon struct {
 		flagTraceVerbose bool
 		flagVersion      bool
 	}
-	lastMainRestart          float64
-	defaultReqestParseOption ParseOptions
+	lastMainRestart           float64
+	defaultRequestParseOption ParseOptions
 }
 
 type ArrayFlags struct {
@@ -183,19 +181,17 @@ func init() {
 
 func NewLMDInstance() (lmd *Daemon) {
 	lmd = &Daemon{
-		lastMainRestart:          currentUnixTime(),
-		mainSignalChannel:        make(chan os.Signal),
-		initChannel:              nil,
-		PeerMapLock:              NewRWMutex("peermap"),
-		PeerMap:                  make(map[string]*Peer),
-		PeerMapOrder:             make([]string, 0),
-		Listeners:                make(map[string]*Listener),
-		ListenersLock:            NewRWMutex("listeners"),
-		waitGroupInit:            &sync.WaitGroup{},
-		waitGroupListener:        &sync.WaitGroup{},
-		waitGroupPeers:           &sync.WaitGroup{},
-		shutdownChannel:          make(chan bool),
-		defaultReqestParseOption: ParseOptimize,
+		lastMainRestart:           currentUnixTime(),
+		mainSignalChannel:         make(chan os.Signal),
+		initChannel:               nil,
+		peerMap:                   NewPeerMap(),
+		Listeners:                 make(map[string]*Listener),
+		ListenersLock:             NewRWMutex("listeners"),
+		waitGroupInit:             &sync.WaitGroup{},
+		waitGroupListener:         &sync.WaitGroup{},
+		waitGroupPeers:            &sync.WaitGroup{},
+		shutdownChannel:           make(chan bool),
+		defaultRequestParseOption: ParseOptimize,
 	}
 
 	return lmd
@@ -377,7 +373,7 @@ func (lmd *Daemon) mainExport() {
 	if err != nil {
 		lmd.cleanFatalf("export failed: %s", err)
 	}
-	log.Infof("exported %d peers successfully", len(lmd.PeerMapOrder))
+	log.Infof("exported %d peers successfully", len(lmd.peerMap.Peers()))
 }
 
 func (lmd *Daemon) ApplyFlags(conf *Config) {
@@ -449,43 +445,38 @@ func (lmd *Daemon) initializePeers(ctx context.Context) {
 	}
 
 	// Get rid of obsolete peers (removed from config)
-	lmd.PeerMapLock.Lock()
-	for peerKey, peer := range lmd.PeerMap {
+	removePeers := []string{}
+	for _, peer := range lmd.peerMap.Peers() {
 		found := false // id exists
 		for i := range lmd.Config.Connections {
-			if lmd.Config.Connections[i].ID == peerKey {
+			if lmd.Config.Connections[i].ID == peer.ID {
 				found = true
 			}
 		}
 		if !found {
 			peer.Stop()
 			peer.data.Store(nil)
-			lmd.PeerMapRemove(peerKey)
+			removePeers = append(removePeers, peer.ID)
 		}
 	}
-	lmd.PeerMapLock.Unlock()
+	lmd.peerMap.Remove(removePeers...)
 
 	// Create/set Peer objects
-	PeerMapNew := make(map[string]*Peer)
-	PeerMapOrderNew := make([]string, 0)
+	newPeerList := []*Peer{}
 	backends := make([]string, 0, len(lmd.Config.Connections))
 	for i := range lmd.Config.Connections {
 		conn := lmd.Config.Connections[i]
 		// Keep peer if connection settings unchanged
 		var peer *Peer
-		lmd.PeerMapLock.RLock()
-		v, ok := lmd.PeerMap[conn.ID]
-		lmd.PeerMapLock.RUnlock()
-		if ok {
-			peer = v
-			if conn.Equals(v.config) {
+		peer = lmd.peerMap.Get(conn.ID)
+		if peer != nil {
+			if conn.Equals(peer.config) {
 				peer.waitGroup = lmd.waitGroupPeers
 				peer.shutdownChannel = lmd.shutdownChannel
 				peer.SetHTTPClient()
 			} else {
 				peer.Stop()
 				peer.data.Store(nil)
-				lmd.PeerMapRemove(conn.ID)
 			}
 		}
 
@@ -501,17 +492,12 @@ func (lmd *Daemon) initializePeers(ctx context.Context) {
 			}
 		}
 		backends = append(backends, conn.ID)
+		newPeerList = append(newPeerList, peer)
 
-		// Put new or modified peer in map
-		PeerMapNew[conn.ID] = peer
-		PeerMapOrderNew = append(PeerMapOrderNew, conn.ID)
 		// Peer started later in node redistribution routine
 	}
 
-	lmd.PeerMapLock.Lock()
-	lmd.PeerMapOrder = PeerMapOrderNew
-	lmd.PeerMap = PeerMapNew
-	lmd.PeerMapLock.Unlock()
+	lmd.peerMap.Replace(newPeerList)
 
 	// Node accessor
 	nodeAddresses := lmd.Config.Nodes
@@ -892,19 +878,6 @@ func timeOrNever(timestamp float64) string {
 	}
 
 	return "never"
-}
-
-// PeerMapRemove deletes a peer from PeerMap and PeerMapOrder.
-func (lmd *Daemon) PeerMapRemove(peerID string) {
-	// find id in order array
-	for i, id := range lmd.PeerMapOrder {
-		if id == peerID {
-			lmd.PeerMapOrder = append(lmd.PeerMapOrder[:i], lmd.PeerMapOrder[i+1:]...)
-
-			break
-		}
-	}
-	delete(lmd.PeerMap, peerID)
 }
 
 // completePeerHTTPAddr returns autocompleted address for peer

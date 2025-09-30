@@ -15,9 +15,9 @@ func TestRequestStatsTac(t *testing.T) {
 	peer, cleanup, lmd := StartTestPeer(4, 10, 10)
 	PauseTestPeers(peer)
 
-	assert.Len(t, lmd.PeerMap, 4)
+	assert.Len(t, lmd.peerMap.Peers(), 4)
 
-	lmd.defaultReqestParseOption = ParseDefault
+	lmd.defaultRequestParseOption = ParseDefault
 	query := strings.ReplaceAll(tacPageStatsQuery, "OutputFormat: json", "OutputFormat: wrapped_json")
 	res, meta, err := peer.QueryString(query)
 	require.NoError(t, err)
@@ -28,7 +28,7 @@ func TestRequestStatsTac(t *testing.T) {
 	assert.InDelta(t, 24, res[0][8], 0)
 	assert.InDelta(t, 4, res[0][9], 0)
 
-	lmd.defaultReqestParseOption = ParseOptimize
+	lmd.defaultRequestParseOption = ParseOptimize
 	res2, meta2, err2 := peer.QueryString(query)
 	require.NoError(t, err2)
 

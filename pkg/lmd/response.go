@@ -190,9 +190,7 @@ func (res *Response) prepareResponse(ctx context.Context, req *Request) {
 	res.selectedPeers = make([]*Peer, 0)
 	spinUpPeers := make([]*Peer, 0)
 	// iterate over PeerMap instead of BackendsMap to retain backend order
-	req.lmd.PeerMapLock.RLock()
-	for _, id := range req.lmd.PeerMapOrder {
-		peer := req.lmd.PeerMap[id]
+	for _, peer := range req.lmd.peerMap.Peers() {
 		if _, ok := req.BackendsMap[peer.ID]; !ok {
 			continue
 		}
@@ -212,11 +210,10 @@ func (res *Response) prepareResponse(ctx context.Context, req *Request) {
 			}
 		}
 	}
-	req.lmd.PeerMapLock.RUnlock()
 
 	// only use the first backend when requesting table or columns table
 	if table.name == TableTables || table.name == TableColumns {
-		res.selectedPeers = []*Peer{req.lmd.PeerMap[req.lmd.PeerMapOrder[0]]}
+		res.selectedPeers = []*Peer{req.lmd.peerMap.Peers()[0]}
 	}
 
 	if !table.passthroughOnly && len(spinUpPeers) > 0 {
@@ -291,20 +288,18 @@ func (req *Request) ExpandRequestedBackends() (err error) {
 	req.BackendErrors = make(map[string]string)
 
 	// no backends selected means all backends
-	req.lmd.PeerMapLock.RLock()
-	defer req.lmd.PeerMapLock.RUnlock()
 	if len(req.Backends) == 0 {
-		for id := range req.lmd.PeerMap {
-			p := req.lmd.PeerMap[id]
-			req.BackendsMap[p.ID] = p.ID
+		for _, peer := range req.lmd.peerMap.Peers() {
+			req.BackendsMap[peer.ID] = peer.ID
 		}
 
 		return err
 	}
 
+	peerMap := req.lmd.peerMap.Refs()
 	for _, peerKey := range req.Backends {
-		_, Ok := req.lmd.PeerMap[peerKey]
-		if !Ok {
+		_, ok := peerMap[peerKey]
+		if !ok {
 			req.BackendErrors[peerKey] = fmt.Sprintf("bad request: backend %s does not exist", peerKey)
 
 			continue

@@ -1691,8 +1691,7 @@ func TestStatusJSONColumns(t *testing.T) {
 	PauseTestPeers(peer)
 
 	jsonStr := `{"core_type":null,"obj_check_cmd":1,"obj_readonly":null,"obj_reload_cmd":1}`
-	peerKey := mockLmd.PeerMapOrder[0]
-	mockLmd.PeerMap[peerKey].thrukExtras.Set(jsonStr)
+	mockLmd.peerMap.Peers()[0].thrukExtras.Set(jsonStr)
 
 	res, _, err := peer.QueryString("GET status\nColumns: peer_key configtool thruk\n")
 	require.NoError(t, err)
