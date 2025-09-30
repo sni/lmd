@@ -71,7 +71,7 @@ func (o *ObjectsType) AddTable(table *Table) {
 		FloatCol:      0,
 		CustomVarCol:  0,
 	}
-	table.lock = NewRWMutex()
+	table.lock = NewRWMutex("table " + name.String())
 	o.Tables[name] = table
 	if !table.passthroughOnly && table.virtual == nil {
 		o.UpdateTables = append(o.UpdateTables, name)

@@ -4,8 +4,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/sasha-s/go-deadlock"
 )
 
 // QueryStat is a single item of query statistics.
@@ -23,7 +21,7 @@ type QueryStatIn struct {
 // QueryStats is the stats collector.
 type QueryStats struct {
 	stats      map[string]*QueryStat
-	lock       *deadlock.Mutex // use when accessing stats
+	lock       *RWMutex // use when accessing stats
 	in         chan QueryStatIn
 	logTrigger chan bool
 	done       chan bool // channel to close the stats collector
@@ -32,7 +30,7 @@ type QueryStats struct {
 // NewQueryStats creates a new query stats object.
 func NewQueryStats() *QueryStats {
 	qStat := &QueryStats{
-		lock:       new(deadlock.Mutex),
+		lock:       NewRWMutex("querystats"),
 		stats:      make(map[string]*QueryStat),
 		in:         make(chan QueryStatIn),
 		logTrigger: make(chan bool),

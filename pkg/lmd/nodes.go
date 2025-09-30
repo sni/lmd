@@ -13,8 +13,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/sasha-s/go-deadlock"
 )
 
 var reNodeAddress = regexp.MustCompile(`^(https?)?(://)?(.*?)(:(\d+))?(/.*)?$`)
@@ -22,7 +20,7 @@ var reNodeAddress = regexp.MustCompile(`^(https?)?(://)?(.*?)(:(\d+))?(/.*)?$`)
 // Nodes is the cluster management object.
 type Nodes struct {
 	noCopy           noCopy
-	lock             *deadlock.RWMutex
+	lock             *RWMutex
 	httpClient       *http.Client
 	waitGroupInit    *sync.WaitGroup
 	shutdownChannel  chan bool
@@ -80,7 +78,7 @@ func NewNodes(lmd *Daemon, addresses []string, listen string) *Nodes {
 		shutdownChannel: lmd.shutdownChannel,
 		stopChannel:     make(chan bool),
 		nodeBackends:    make(map[string][]string),
-		lock:            new(deadlock.RWMutex),
+		lock:            NewRWMutex("nodes"),
 		lmd:             lmd,
 	}
 	tlsConfig := getMinimalTLSConfig(lmd.Config)

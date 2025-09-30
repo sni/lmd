@@ -44,7 +44,7 @@ type Listener struct {
 // NewListener creates a new Listener object.
 func NewListener(lmd *Daemon, listen string) *Listener {
 	listener := Listener{
-		Lock:             NewRWMutex(),
+		Lock:             NewRWMutex("listener lock" + listen),
 		lmd:              lmd,
 		connectionString: listen,
 		waitGroupDone:    lmd.waitGroupListener,

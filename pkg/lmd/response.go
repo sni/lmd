@@ -51,11 +51,15 @@ type PeerResponse struct {
 // NewResponse creates a new response object for a given request
 // It returns the Response object and any error encountered.
 func NewResponse(ctx context.Context, req *Request, client *ClientConnection) (res *Response, size int64, err error) {
+	name := "unknown"
+	if client != nil {
+		name = client.remoteAddr
+	}
 	res = &Response{
 		code:    200,
 		failed:  req.BackendErrors,
 		request: req,
-		lock:    NewRWMutex(),
+		lock:    NewRWMutex("response" + name),
 	}
 	res.prepareResponse(ctx, req)
 
