@@ -117,6 +117,8 @@ func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (*
 	metas := []*ResultMetaData{}
 	totalPrepTime := time.Duration(0)
 	totalRowNum := 0
+	tableName := table.name.String()
+
 	for {
 		req := &Request{
 			Table:   store.table.name,
@@ -158,6 +160,8 @@ func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (*
 		if len(res) < limit {
 			break
 		}
+		logWith(peer, lastReq).Debugf("initial table: %15s - fetching bulk: %d", tableName, offset)
+
 		offset += limit
 	}
 
@@ -178,7 +182,6 @@ func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (*
 	peer.lastFullUpdate.Set(now)
 	durationLock := time.Since(time3).Truncate(time.Millisecond)
 
-	tableName := table.name.String()
 	promObjectCount.WithLabelValues(peer.Name, tableName).Set(float64(totalRowNum))
 
 	logWith(peer, lastReq).Debugf("initial table: %15s - fetch: %9s - prepare: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
