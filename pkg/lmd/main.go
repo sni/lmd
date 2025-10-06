@@ -1,6 +1,8 @@
 package lmd
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -55,8 +57,11 @@ const (
 	// BlockProfileRateInterval sets the profiling interval when started with -profile.
 	BlockProfileRateInterval = 10
 
-	// GCPercentage sets gc level like GOGC environment.
-	GCPercentage = 30
+	// DefaultGCPercentage sets gc level like GOGC environment.
+	DefaultGCPercentage = 30
+
+	// DefaultMaxMemoryPercentage sets the maximum memory percentage to use.
+	DefaultMaxMemoryPercentage = 70
 
 	// DefaultFilePerm set default permissions for new files.
 	DefaultFilePerm = 0o644
@@ -320,10 +325,7 @@ func (lmd *Daemon) mainLoop() (exitCode int) {
 		lmd.initChannel <- true
 	}
 
-	// make garbage collector more aggressive
-	if os.Getenv("GOGC") == "" {
-		debug.SetGCPercent(GCPercentage)
-	}
+	lmd.adjustMemoryAndGCLimits()
 
 	// just wait till someone hits ctrl+c or we have to reload
 	statsTimer := time.NewTicker(StatsTimerInterval)
@@ -953,4 +955,65 @@ func (lmd *Daemon) finalFlagsConfig(stdoutLogging bool) *Config {
 // returns the current unix time with sub second precision.
 func currentUnixTime() float64 {
 	return float64(time.Now().UnixNano()) / float64(time.Second)
+}
+
+func (lmd *Daemon) adjustMemoryAndGCLimits() {
+	gcPercent := DefaultGCPercentage
+	// make garbage collector more aggressive
+	if os.Getenv("GOGC") == "" {
+		debug.SetGCPercent(DefaultGCPercentage)
+	} else {
+		gcPercent = interface2int(os.Getenv("GOGC"))
+	}
+
+	if os.Getenv("GOMEMLIMIT") == "" {
+		_, total, err := getMemInfo()
+		if err != nil {
+			log.Fatalf("cannot parse memory limit: %s", err)
+		}
+		memLimit := (total / 100) * DefaultMaxMemoryPercentage
+		if memLimit > math.MaxInt64 {
+			log.Fatalf("memory limit exceeds MaxInt64")
+		}
+		debug.SetMemoryLimit(int64(memLimit))
+	}
+
+	log.Debugf("limits: GOGC=%d%%, GOMEMLIMIT=%s", gcPercent, byteCountBinary(debug.SetMemoryLimit(-1)))
+}
+
+// getMemInfo returns the free/total memory by parsing /proc/meminfo.
+func getMemInfo() (free, total uint64, err error) {
+	file, err := os.Open("/proc/meminfo")
+	if err != nil {
+		return 0, 0, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	numLines := 3 // number of lines we are interested in
+	for scanner.Scan() && numLines > 0 {
+		switch {
+		// use MemFree as fallback, MemAvailable is the value we want to use
+		case bytes.HasPrefix(scanner.Bytes(), []byte(`MemFree:`)):
+			values := strings.Fields(scanner.Text())
+			if len(values) >= 1 {
+				free = uint64(interface2float64(values[1]))
+			}
+		case bytes.HasPrefix(scanner.Bytes(), []byte(`MemAvailable:`)):
+			values := strings.Fields(scanner.Text())
+			if len(values) >= 1 {
+				free = uint64(interface2float64(values[1]))
+			}
+		case bytes.HasPrefix(scanner.Bytes(), []byte(`MemTotal:`)):
+			values := strings.Fields(scanner.Text())
+			if len(values) >= 1 {
+				total = uint64(interface2float64(values[1]))
+			}
+		default:
+			continue
+		}
+		numLines--
+	}
+
+	return free * 1024, total * 1024, nil
 }
