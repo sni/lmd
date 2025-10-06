@@ -804,7 +804,7 @@ func (p *Peer) initAllTablesSerial(ctx context.Context, data *DataStoreSet) (err
 	return err
 }
 
-// fetches all objects at once.
+// initAllTablesParallel fetches all objects at once.
 func (p *Peer) initAllTablesParallel(ctx context.Context, data *DataStoreSet) (err error) {
 	time1 := time.Now()
 
@@ -858,13 +858,14 @@ func (p *Peer) initAllTablesParallel(ctx context.Context, data *DataStoreSet) (e
 	return nil
 }
 
-// resetErrors reset the error counter after the site has recovered.
+// initTable initializes a single table for this peer.
 func (p *Peer) initTable(ctx context.Context, data *DataStoreSet, table *Table) (err error) {
 	if p.HasFlag(MultiBackend) && table.name != TableStatus {
 		// just create empty data pools
 		// real data is handled by separate peers
 		return nil
 	}
+
 	var store *DataStore
 	if !table.passthroughOnly && table.virtual == nil {
 		store, err = data.CreateObjectByType(ctx, table)
