@@ -45,7 +45,10 @@ Sort: peer_name asc';
 ###########################################################
 {
     my $query = 'GET services
-Columns: host_name description';
+Columns: host_name description
+Sort: host_name asc
+Sort: description asc
+';
     my $exp  = [
           [ 'icinga2', 'disk' ],
           [ 'icinga2', 'disk /' ],
