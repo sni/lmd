@@ -11,7 +11,7 @@ package tools
 import (
 	_ "github.com/daixiang0/gci"
 	_ "github.com/davecgh/go-spew/spew"
-	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
+	_ "github.com/golangci/golangci-lint/v2/cmd/golangci-lint"
 	_ "golang.org/x/tools/cmd/goimports"
 	_ "golang.org/x/tools/cmd/stringer"
 	_ "golang.org/x/vuln/cmd/govulncheck"

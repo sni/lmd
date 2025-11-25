@@ -552,7 +552,7 @@ func TestRequestColumnsWrappedJson(t *testing.T) {
 	res, meta, err := peer.QueryString("GET hosts\nColumns: name state alias\nOutputFormat: wrapped_json\nColumnHeaders: on\nLimit: 5\n\n")
 	require.NoErrorf(t, err, "query successful")
 
-	var jsonTest interface{}
+	var jsonTest any
 	jErr := json.Unmarshal(*peer.last.Response.Load(), &jsonTest)
 	require.NoErrorf(t, jErr, "json ok")
 
@@ -742,14 +742,14 @@ func TestMembersWithState(t *testing.T) {
 	res, _, err := peer.QueryString("GET hostgroups\nColumns: members_with_state\nFilter: name = host_1\n\n")
 	require.NoError(t, err)
 	require.Len(t, res, 1)
-	value := res[0][0].([]interface{})[0].([]interface{})
+	value := res[0][0].([]any)[0].([]any)
 	assert.Equal(t, "testhost_1", value[0])
 	assert.InDelta(t, 0., value[1], 0)
 	assert.InDelta(t, 1., value[2], 0)
 
 	res, _, err = peer.QueryString("GET servicegroups\nColumns: members_with_state\nFilter: name = svc4\n\n")
 	require.NoError(t, err)
-	value = res[0][0].([]interface{})[0].([]interface{})
+	value = res[0][0].([]any)[0].([]any)
 	assert.Equal(t, "testhost_2", value[0])
 	assert.Equal(t, "testsvc_1", value[1])
 	assert.InDelta(t, 0., value[2], 0)
@@ -765,11 +765,11 @@ func TestCustomVarCol(t *testing.T) {
 
 	res, _, err := peer.QueryString("GET hosts\nColumns: custom_variables custom_variable_names custom_variable_values\n\n")
 	require.NoError(t, err)
-	val := res[0][1].([]interface{})
+	val := res[0][1].([]any)
 	assert.Equal(t, "TEST", val[0].(string))
-	val = res[0][2].([]interface{})
+	val = res[0][2].([]any)
 	assert.Equal(t, "1", val[0].(string))
-	hash := res[0][0].(map[string]interface{})
+	hash := res[0][0].(map[string]any)
 	assert.Equal(t, "1", hash["TEST"].(string))
 
 	err = cleanup()
@@ -783,14 +783,14 @@ func TestCustomVarColContacts(t *testing.T) {
 	res, _, err := peer.QueryString("GET contacts\nColumns: custom_variables custom_variable_names custom_variable_values\nFilter: name = example\n\n")
 	require.NoError(t, err)
 
-	val := res[0][1].([]interface{})
+	val := res[0][1].([]any)
 	// custom_variable_names
 	assert.Equal(t, "FOO", val[0].(string))
 	// custom_variable_values
-	val = res[0][2].([]interface{})
+	val = res[0][2].([]any)
 	assert.Equal(t, "12345", val[0].(string))
 	// custom_variables
-	hash := res[0][0].(map[string]interface{})
+	hash := res[0][0].(map[string]any)
 	assert.Equal(t, "12345", hash["FOO"].(string))
 
 	err = cleanup()
@@ -959,7 +959,7 @@ func TestComments(t *testing.T) {
 	res, _, err = peer.QueryString("GET hosts\nColumns: comments\nFilter: name = testhost_2\n\n")
 	require.NoError(t, err)
 	assert.Len(t, res, 1)
-	assert.Equal(t, []interface{}{interface{}(float64(2))}, res[0][0])
+	assert.Equal(t, []any{any(float64(2))}, res[0][0])
 
 	if err = cleanup(); err != nil {
 		panic(err.Error())
@@ -974,7 +974,7 @@ func TestServicesWithInfo(t *testing.T) {
 	require.NoErrorf(t, err, "query successful")
 	require.Lenf(t, res, 10, "result length")
 
-	value := res[0][0].([]interface{})[0].([]interface{})
+	value := res[0][0].([]any)[0].([]any)
 
 	// service description
 	assert.Equalf(t, "testsvc_1", value[0], "service matches")
@@ -1696,7 +1696,7 @@ func TestStatusJSONColumns(t *testing.T) {
 	res, _, err := peer.QueryString("GET status\nColumns: peer_key configtool thruk\n")
 	require.NoError(t, err)
 	assert.Len(t, res, 1)
-	assert.IsTypef(t, map[string]interface{}{}, res[0][2], "thruk extras type check")
+	assert.IsTypef(t, map[string]any{}, res[0][2], "thruk extras type check")
 
 	if err = cleanup(); err != nil {
 		t.Error(err)

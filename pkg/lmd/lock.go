@@ -1,5 +1,4 @@
 //go:build !lock_debug
-// +build !lock_debug
 
 package lmd
 

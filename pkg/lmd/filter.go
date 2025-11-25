@@ -803,29 +803,11 @@ func (f *Filter) MatchStringList(list []string) bool {
 		// return true if the list is not empty
 		return f.stringVal == "" && len(list) != 0
 	case GreaterThan:
-		for _, v := range list {
-			if f.stringVal == v {
-				return true
-			}
-		}
-
-		return false
+		return slices.Contains(list, f.stringVal)
 	case GroupContainsNot, LessThan:
-		for _, v := range list {
-			if f.stringVal == v {
-				return false
-			}
-		}
-
-		return true
+		return !slices.Contains(list, f.stringVal)
 	case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase:
-		for _, v := range list {
-			if f.MatchString(v) {
-				return true
-			}
-		}
-
-		return false
+		return slices.ContainsFunc(list, f.MatchString)
 	case RegexMatchNot, RegexNoCaseMatchNot, ContainsNot, ContainsNoCaseNot:
 		for _, v := range list {
 			// MatchString takes operator into account, so negate the result
@@ -850,23 +832,9 @@ func (f *Filter) MatchInt64List(list []int64) bool {
 	case Unequal:
 		return f.isEmpty && len(list) != 0
 	case GreaterThan:
-		fVal := int64(f.intValue)
-		for i := range list {
-			if fVal == list[i] {
-				return true
-			}
-		}
-
-		return false
+		return slices.Contains(list, int64(f.intValue))
 	case GroupContainsNot:
-		fVal := int64(f.intValue)
-		for i := range list {
-			if fVal == list[i] {
-				return false
-			}
-		}
-
-		return true
+		return !slices.Contains(list, int64(f.intValue))
 	default:
 		log.Warnf("not implemented Int64list op: %s", f.operator.String())
 
@@ -883,7 +851,7 @@ func (f *Filter) MatchCustomVar(value map[string]string) bool {
 	return f.MatchString(val)
 }
 
-func (f *Filter) MatchInterfaceList(list []interface{}) bool {
+func (f *Filter) MatchInterfaceList(list []any) bool {
 	if f.isEmpty {
 		if len(list) == 0 {
 			return f.MatchString("")

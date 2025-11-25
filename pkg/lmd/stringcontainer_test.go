@@ -17,7 +17,7 @@ func TestStringContainerCompression(t *testing.T) {
 	str := teststring.String()
 	cont := NewStringContainer(&str)
 
-	assert.Equal(t, "", cont.stringData)
+	assert.Empty(t, cont.stringData)
 
 	require.NotNil(t, cont.compressedData)
 	assert.Equal(t, str, cont.String())

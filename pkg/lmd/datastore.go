@@ -70,8 +70,8 @@ func NewDataStore(table *Table, peer *Peer) (d *DataStore) {
 		if col.FetchType == Dynamic {
 			d.dynamicColumnCache = append(d.dynamicColumnCache, col)
 		}
-		if strings.HasSuffix(col.Name, "_lc") {
-			refCol := table.GetColumn(strings.TrimSuffix(col.Name, "_lc"))
+		if cut, ok := strings.CutSuffix(col.Name, "_lc"); ok {
+			refCol := table.GetColumn(cut)
 			d.lowerCaseColumns[refCol.Index] = col.Index
 		}
 	}

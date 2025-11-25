@@ -27,9 +27,9 @@ const _DataType_name = "StringColStringListColStringListSortedColIntColInt64ColI
 var _DataType_index = [...]uint8{0, 9, 22, 41, 47, 55, 67, 75, 82, 94, 114, 130, 144}
 
 func (i DataType) String() string {
-	i -= 1
-	if i >= DataType(len(_DataType_index)-1) {
-		return "DataType(" + strconv.FormatInt(int64(i+1), 10) + ")"
+	idx := int(i) - 1
+	if i < 1 || idx >= len(_DataType_index)-1 {
+		return "DataType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _DataType_name[_DataType_index[i]:_DataType_index[i+1]]
+	return _DataType_name[_DataType_index[idx]:_DataType_index[idx+1]]
 }

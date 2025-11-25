@@ -6,8 +6,10 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -247,7 +249,7 @@ func (n *Nodes) checkNodeAvailability(ctx context.Context) {
 			// Skip this node unless we're initializing
 			continue
 		}
-		requestData := make(map[string]interface{})
+		requestData := make(map[string]any)
 		requestData["identifier"] = ownIdentifier
 		requestData["peers"] = strings.Join(n.nodeBackends[node.id], ";")
 		log.Tracef("pinging node %s...", node)
@@ -360,12 +362,8 @@ func (n *Nodes) updateBackends(ctx context.Context, ourBackends []string) {
 		if peer.parentID == "" {
 			continue
 		}
-		for _, id := range ourBackends {
-			if id == peer.parentID {
-				ourBackends = append(ourBackends, peer.ID)
-
-				break
-			}
+		if slices.Contains(ourBackends, peer.parentID) {
+			ourBackends = append(ourBackends, peer.ID)
 		}
 	}
 
@@ -444,25 +442,17 @@ func (n *Nodes) IsOurBackend(backend string) bool {
 	if !n.lmd.nodeAccessor.IsClustered() {
 		return true
 	}
-	ourBackends := n.assignedBackends
-	for _, ourBackend := range ourBackends {
-		if ourBackend == backend {
-			return true
-		}
-	}
 
-	return false
+	return slices.Contains(n.assignedBackends, backend)
 }
 
 // SendQuery sends a query to a node.
 // It will be sent as http request; name is the api function to be called.
 // The returned data will be passed to the callback.
-func (n *Nodes) SendQuery(ctx context.Context, node *NodeAddress, name string, parameters map[string]interface{}, callback func(interface{})) error {
+func (n *Nodes) SendQuery(ctx context.Context, node *NodeAddress, name string, parameters map[string]any, callback func(any)) error {
 	// Prepare request data
-	requestData := make(map[string]interface{})
-	for key, value := range parameters {
-		requestData[key] = value
-	}
+	requestData := make(map[string]any)
+	maps.Copy(requestData, parameters)
 	requestData["_name"] = name // requested function
 
 	// Encode request data
@@ -489,7 +479,7 @@ func (n *Nodes) SendQuery(ctx context.Context, node *NodeAddress, name string, p
 	// Read response data
 	defer res.Body.Close()
 	decoder := json.NewDecoder(res.Body)
-	var responseData interface{}
+	var responseData any
 	if err := decoder.Decode(&responseData); err != nil {
 		// Parsing response failed
 		log.Tracef("%s", err.Error())
@@ -500,7 +490,7 @@ func (n *Nodes) SendQuery(ctx context.Context, node *NodeAddress, name string, p
 	// Abort on error
 	if res.StatusCode != http.StatusOK {
 		var err error
-		m, _ := responseData.(map[string]interface{})
+		m, _ := responseData.(map[string]any)
 		if v, ok := m["error"]; ok {
 			err = fmt.Errorf("%v", v)
 		} else {
@@ -534,13 +524,13 @@ func generateUUID() (uuid string) {
 	return uuid
 }
 
-func (n *Nodes) sendPing(ctx context.Context, node *NodeAddress, initializing bool, requestData map[string]interface{}) (isOnline, forceRedistribute bool) {
+func (n *Nodes) sendPing(ctx context.Context, node *NodeAddress, initializing bool, requestData map[string]any) (isOnline, forceRedistribute bool) {
 	done := make(chan bool)
 	ownIdentifier := n.ID
-	err := n.SendQuery(ctx, node, "ping", requestData, func(responseData interface{}) {
+	err := n.SendQuery(ctx, node, "ping", requestData, func(responseData any) {
 		defer func() { done <- true }()
 		// Parse response
-		dataMap, ok := responseData.(map[string]interface{})
+		dataMap, ok := responseData.(map[string]any)
 		log.Tracef("got response from %s", node)
 		if !ok {
 			return

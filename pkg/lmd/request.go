@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math/rand"
 	"net"
 	"reflect"
@@ -304,6 +305,7 @@ func NewRequest(ctx context.Context, lmd *Daemon, buf *bufio.Reader, options Par
 
 	// Network errors will be logged in the listener
 	var netErr net.Error
+	//nolint:nilnesserr // false positive, doesn't work without nil check
 	if err != nil && errors.Is(err, netErr) {
 		return nil, 0, err
 	}
@@ -511,17 +513,17 @@ func (req *Request) getDistributedResponse(ctx context.Context) (*Response, erro
 		requestData := req.buildDistributedRequestData(subBackends)
 		waitGroup.Add(1)
 		// Send query to remote node
-		err := req.lmd.nodeAccessor.SendQuery(ctx, node, "table", requestData, func(responseData interface{}) {
+		err := req.lmd.nodeAccessor.SendQuery(ctx, node, "table", requestData, func(responseData any) {
 			defer waitGroup.Done()
 
 			// Hash containing metadata in addition to rows
-			hash, ok := responseData.(map[string]interface{})
+			hash, ok := responseData.(map[string]any)
 			if !ok {
 				return
 			}
 
 			// Hash containing error messages
-			failedHash, ok := hash["failed"].(map[string]interface{})
+			failedHash, ok := hash["failed"].(map[string]any)
 			if !ok {
 				return
 			}
@@ -531,13 +533,13 @@ func (req *Request) getDistributedResponse(ctx context.Context) (*Response, erro
 			}
 
 			// Parse data (table rows)
-			rowsVariants, ok := hash["data"].([]interface{})
+			rowsVariants, ok := hash["data"].([]any)
 			if !ok {
 				return
 			}
 			rows := make(ResultSet, len(rowsVariants))
 			for i, rowVariant := range rowsVariants {
-				rowVariants, ok := rowVariant.([]interface{})
+				rowVariants, ok := rowVariant.([]any)
 				if !ok {
 					return
 				}
@@ -602,8 +604,8 @@ func (req *Request) getSubBackends(allBackendsRequested bool, nodeBackends []str
 	return subBackends
 }
 
-func (req *Request) buildDistributedRequestData(subBackends []string) (requestData map[string]interface{}) {
-	requestData = make(map[string]interface{})
+func (req *Request) buildDistributedRequestData(subBackends []string) (requestData map[string]any) {
+	requestData = make(map[string]any)
 	if req.Table != TableNone {
 		requestData["table"] = req.Table.String()
 	}
@@ -627,23 +629,23 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 
 	// Filter
 	if len(req.Filter) != 0 || req.FilterStr != "" {
-		var str string
+		str := strings.Builder{}
 		for i := range req.Filter {
-			str += req.Filter[i].String("")
+			str.WriteString(req.Filter[i].String(""))
 		}
 		if req.FilterStr != "" {
-			str += req.FilterStr
+			str.WriteString(req.FilterStr)
 		}
-		requestData["filter"] = str
+		requestData["filter"] = str.String()
 	}
 
 	// Stats
 	if isStatsRequest {
-		var str string
+		str := strings.Builder{}
 		for i := range req.Stats {
-			str += req.Stats[i].String("Stats")
+			str.WriteString(req.Stats[i].String("Stats"))
 		}
-		requestData["stats"] = str
+		requestData["stats"] = str.String()
 	}
 
 	// Limit
@@ -722,9 +724,7 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan ResultSet, c
 			// Regular request
 			res.result = append(res.result, currentRows...)
 			currentFailedHash := <-collectedFailedHashes
-			for id, val := range currentFailedHash {
-				res.failed[id] = val
-			}
+			maps.Copy(res.failed, currentFailedHash)
 		}
 	}
 

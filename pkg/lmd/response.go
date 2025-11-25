@@ -368,7 +368,7 @@ func (res *Response) CalculateFinalStats() {
 	for key, stats := range res.request.StatsResult.Stats {
 		rowSize := len(stats)
 		rowSize += hasColumns
-		res.result[rowNum] = make([]interface{}, rowSize)
+		res.result[rowNum] = make([]any, rowSize)
 		if hasColumns > 0 {
 			parts := strings.Split(key, ListSepChar1)
 			for i := range parts {
@@ -385,7 +385,7 @@ func (res *Response) CalculateFinalStats() {
 			res.result[rowNum][colNum] = finalStatsApply(stat)
 
 			if res.request.SendStatsData {
-				res.result[rowNum][colNum] = []interface{}{stat.stats, stat.statsCount}
+				res.result[rowNum][colNum] = []any{stat.stats, stat.statsCount}
 
 				continue
 			}
@@ -838,7 +838,7 @@ func (res *Response) SetResultData() {
 	rowSize := len(res.request.RequestColumns)
 	for i := range res.rawResults.DataResult {
 		dataRow := res.rawResults.DataResult[i]
-		row := make([]interface{}, rowSize)
+		row := make([]any, rowSize)
 		for j := range res.request.RequestColumns {
 			row[j] = dataRow.GetValueByColumn(res.request.RequestColumns[j])
 		}

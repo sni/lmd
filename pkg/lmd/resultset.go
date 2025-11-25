@@ -6,7 +6,7 @@ import (
 )
 
 // ResultSet is a list of result rows.
-type ResultSet [][]interface{}
+type ResultSet [][]any
 
 // ResultSetStats contains a result from a stats query.
 type ResultSetStats struct {
@@ -53,10 +53,10 @@ func (res *ResultSet) sortByPrimaryKey(table *Table) {
 }
 
 // result2Hash converts list result into hashes.
-func (res *ResultSet) result2Hash(columns []string) []map[string]interface{} {
-	hash := make([]map[string]interface{}, 0)
+func (res *ResultSet) result2Hash(columns []string) []map[string]any {
+	hash := make([]map[string]any, 0)
 	for _, row := range *res {
-		rowHash := make(map[string]interface{})
+		rowHash := make(map[string]any)
 		for x, key := range columns {
 			rowHash[key] = row[x]
 		}
@@ -116,6 +116,6 @@ func (res *ResultSetSorted) Swap(i, j int) {
 // ResultPrepared is a list of result rows prepared to insert faster.
 type ResultPrepared struct {
 	DataRow    *DataRow
-	ResultRow  []interface{}
+	ResultRow  []any
 	FullUpdate bool
 }

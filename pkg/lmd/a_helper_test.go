@@ -204,7 +204,7 @@ func prepareTmpData(dataFolder string, nr, numHosts, numServices int) (tempFolde
 func prepareTmpDataHostService(dataFolder, tempFolder string, table *Table, numHosts, numServices int) {
 	name := table.name
 	dat, _ := os.ReadFile(fmt.Sprintf("%s/%s.json", dataFolder, name.String()))
-	raw := make([]map[string]interface{}, 0)
+	raw := make([]map[string]any, 0)
 	err := json.Unmarshal(dat, &raw)
 	if err != nil {
 		panic("failed to decode: " + err.Error())
@@ -235,7 +235,7 @@ func prepareTmpDataHostService(dataFolder, tempFolder string, table *Table, numH
 		}
 	}
 
-	newData := []map[string]interface{}{}
+	newData := []map[string]any{}
 	if name == TableHosts {
 		count := 0
 		for _, host := range hosts {
@@ -244,7 +244,7 @@ func prepareTmpDataHostService(dataFolder, tempFolder string, table *Table, numH
 			if count <= num {
 				src = raw[count-1]
 			}
-			newObj := make(map[string]interface{}, len(src))
+			newObj := make(map[string]any, len(src))
 			for key := range src {
 				newObj[key] = src[key]
 			}
@@ -263,7 +263,7 @@ func prepareTmpDataHostService(dataFolder, tempFolder string, table *Table, numH
 				if count <= num {
 					src = raw[count-1]
 				}
-				newObj := make(map[string]interface{}, len(src))
+				newObj := make(map[string]any, len(src))
 				for key := range src {
 					newObj[key] = src[key]
 				}
@@ -510,7 +510,7 @@ func convertTestDataMapToList(filename string, columns []string) []byte {
 	if err != nil {
 		panic("could not read file: " + err.Error())
 	}
-	hashedData := make([]map[string]interface{}, 0)
+	hashedData := make([]map[string]any, 0)
 	err = json.Unmarshal(dat, &hashedData)
 	if err != nil {
 		panic("could not parse file: " + err.Error())
@@ -519,7 +519,7 @@ func convertTestDataMapToList(filename string, columns []string) []byte {
 	result := make([]byte, 0)
 	result = append(result, []byte("[")...)
 	for rowNum, rowIn := range hashedData {
-		rowOut := make([]interface{}, len(columns))
+		rowOut := make([]any, len(columns))
 		for idx, col := range columns {
 			val, ok := rowIn[col]
 			if !ok {
@@ -573,7 +573,7 @@ func getTestDataColumns(dataFolder string) (columns [][]string) {
 		if err != nil {
 			panic("failed to read json file: " + err.Error())
 		}
-		dat := make([]map[string]interface{}, 0)
+		dat := make([]map[string]any, 0)
 		err = json.Unmarshal(raw, &dat)
 		if err != nil {
 			panic("failed to read json file: " + err.Error())
@@ -590,8 +590,8 @@ func getTestDataColumns(dataFolder string) (columns [][]string) {
 }
 
 func getTestLogStats(req *Request) []byte {
-	resp := [][]interface{}{}
-	row := []interface{}{}
+	resp := [][]any{}
+	row := []any{}
 	for range req.Columns {
 		row = append(row, "")
 	}
@@ -613,7 +613,7 @@ func _checkErr(err error) {
 	}
 }
 
-func _checkErr2(_ interface{}, err error) {
+func _checkErr2(_ any, err error) {
 	if err != nil {
 		panic(err)
 	}

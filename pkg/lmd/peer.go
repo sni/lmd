@@ -18,6 +18,7 @@ import (
 	"os"
 	"regexp"
 	"runtime/debug"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -89,40 +90,40 @@ type Peer struct { //nolint:govet // not fieldalignment relevant
 		maxParallelConnections chan bool     // limit max parallel connections
 	}
 	// volatile status attributes
-	data                       atomic.Pointer[DataStoreSet]           // the cached remote data tables
-	peerState                  atomicPeerStatus                       // status for this peer
-	peerAddr                   atomicString                           // Address of the peer
-	lastError                  atomicString                           // last error message
-	subPeerStatus              atomic.Pointer[map[string]interface{}] // cached /sites result for sub peer
-	configTool                 atomicString                           // raw json data of thruks config tool
-	thrukExtras                atomicString                           // raw json bytes of thruk extra data
-	programStart               atomic.Int64                           // unix time when this peer started, aka program_start
-	curPeerAddrNum             atomic.Int64                           // current pointer into Source / Fallback
-	bytesReceived              atomic.Int64                           // number of bytes received
-	bytesSend                  atomic.Int64                           // number of bytes send
-	corePid                    atomic.Int64                           // naemons core pid
-	thrukVersion               atomicFloat64                          // thruks version number as float
-	responseTime               atomicFloat64                          // response time in seconds
-	lastOnline                 atomicFloat64                          // timestamp backend was last online
-	queries                    atomic.Int64                           // number of total queries
-	errorCount                 atomic.Int64                           // count times this backend has failed
-	flags                      uint32                                 // optional flags, like LMD, Icinga2, etc...
-	lastTimeperiodUpdateMinute atomic.Int32                           // minute when timeperiods last have been updated
-	lastFullUpdate             atomicFloat64                          // timestamp of last full update
-	lastFullServiceUpdate      atomicFloat64                          // timestamp of last all services update
-	lastFullHostUpdate         atomicFloat64                          // timestamp of last all hosts update
-	lastQuery                  atomicFloat64                          // unix timestamp of last query
-	lastUpdate                 atomicFloat64                          // timestamp of last update
-	lastHTTPRequestSuccessful  atomic.Bool                            // flag wether last http request was ok
-	paused                     atomic.Bool                            // flag wether peer is paused of not
-	idling                     atomic.Bool                            // flag wether peer is in idle mode
-	errorLogged                atomic.Bool                            // flag wether last error has been logged already
-	forceFull                  atomic.Bool                            // flag to update everything on the next periodic check
-	subName                    atomicStringList                       // chain of peer names to this sub peer
-	subType                    atomicStringList                       // chain of peer types to this sub peer
-	subAddr                    atomicStringList                       // chain of peer addresses to this sub peer
-	subKey                     atomicStringList                       // chain of peer keys to this sub peer
-	subVersion                 atomicStringList                       // chain of peer versions to this sub peer
+	data                       atomic.Pointer[DataStoreSet]   // the cached remote data tables
+	peerState                  atomicPeerStatus               // status for this peer
+	peerAddr                   atomicString                   // Address of the peer
+	lastError                  atomicString                   // last error message
+	subPeerStatus              atomic.Pointer[map[string]any] // cached /sites result for sub peer
+	configTool                 atomicString                   // raw json data of thruks config tool
+	thrukExtras                atomicString                   // raw json bytes of thruk extra data
+	programStart               atomic.Int64                   // unix time when this peer started, aka program_start
+	curPeerAddrNum             atomic.Int64                   // current pointer into Source / Fallback
+	bytesReceived              atomic.Int64                   // number of bytes received
+	bytesSend                  atomic.Int64                   // number of bytes send
+	corePid                    atomic.Int64                   // naemons core pid
+	thrukVersion               atomicFloat64                  // thruks version number as float
+	responseTime               atomicFloat64                  // response time in seconds
+	lastOnline                 atomicFloat64                  // timestamp backend was last online
+	queries                    atomic.Int64                   // number of total queries
+	errorCount                 atomic.Int64                   // count times this backend has failed
+	flags                      uint32                         // optional flags, like LMD, Icinga2, etc...
+	lastTimeperiodUpdateMinute atomic.Int32                   // minute when timeperiods last have been updated
+	lastFullUpdate             atomicFloat64                  // timestamp of last full update
+	lastFullServiceUpdate      atomicFloat64                  // timestamp of last all services update
+	lastFullHostUpdate         atomicFloat64                  // timestamp of last all hosts update
+	lastQuery                  atomicFloat64                  // unix timestamp of last query
+	lastUpdate                 atomicFloat64                  // timestamp of last update
+	lastHTTPRequestSuccessful  atomic.Bool                    // flag wether last http request was ok
+	paused                     atomic.Bool                    // flag wether peer is paused of not
+	idling                     atomic.Bool                    // flag wether peer is in idle mode
+	errorLogged                atomic.Bool                    // flag wether last error has been logged already
+	forceFull                  atomic.Bool                    // flag to update everything on the next periodic check
+	subName                    atomicStringList               // chain of peer names to this sub peer
+	subType                    atomicStringList               // chain of peer types to this sub peer
+	subAddr                    atomicStringList               // chain of peer addresses to this sub peer
+	subKey                     atomicStringList               // chain of peer keys to this sub peer
+	subVersion                 atomicStringList               // chain of peer versions to this sub peer
 	last                       struct {
 		Request  atomic.Pointer[Request] // reference to last query (used in error reports)
 		Response atomic.Pointer[[]byte]  // reference to last response
@@ -196,7 +197,7 @@ type PeerError struct {
 	srcErr   error
 	req      *Request
 	msg      string
-	res      [][]interface{}
+	res      [][]any
 	resBytes []byte
 	code     int
 	kind     PeerErrorType
@@ -606,8 +607,8 @@ func (p *Peer) periodicUpdateMultiBackends(ctx context.Context, data *DataStoreS
 	logWith(p).Debugf("checking for changed remote multi backends")
 	existing := make(map[string]bool)
 	for _, siteRow := range sites {
-		var site map[string]interface{}
-		if s, ok2 := siteRow.(map[string]interface{}); ok2 {
+		var site map[string]any
+		if s, ok2 := siteRow.(map[string]any); ok2 {
 			site = s
 		} else {
 			continue
@@ -918,11 +919,11 @@ func (p *Peer) updateInitialStatus(ctx context.Context, store *DataStore) (err e
 		log.Debugf("fetchThrukExtras: %s ", cerr.Error())
 	}
 	if p.config.NoConfigTool >= 1 {
-		configtool = map[string]interface{}{
+		configtool = map[string]any{
 			"disable": "1",
 		}
 		if thrukextras == nil {
-			thrukextras = map[string]interface{}{}
+			thrukextras = map[string]any{}
 		}
 		thrukextras["configtool"] = configtool
 	}
@@ -1239,9 +1240,8 @@ func (p *Peer) socketSendQuery(query string, conn net.Conn) (int, error) {
 		return 0, fmt.Errorf("conn.SetDeadline: %w", err)
 	}
 
-	if strings.HasSuffix(query, "\n\n") {
-		query = strings.TrimSuffix(query, "\n\n")
-		written, err2 := fmt.Fprintf(conn, "%s\n", query)
+	if cut, ok := strings.CutSuffix(query, "\n\n"); ok {
+		written, err2 := fmt.Fprintf(conn, "%s\n", cut)
 		if err2 != nil {
 			return written, fmt.Errorf("socket error: %w", err2)
 		}
@@ -1571,7 +1571,7 @@ func (p *Peer) setNextAddrFromErr(err error, req *Request, source []string) {
 
 	peerState := p.peerState.Get()
 
-	logContext := []interface{}{p}
+	logContext := []any{p}
 	if req != nil {
 		logContext = append(logContext, req)
 	}
@@ -1723,7 +1723,7 @@ func (p *Peer) checkAvailableTables(ctx context.Context) (err error) {
 	return nil
 }
 
-func (p *Peer) fetchThrukExtras(ctx context.Context) (conf, thrukextras map[string]interface{}, err error) {
+func (p *Peer) fetchThrukExtras(ctx context.Context) (conf, thrukextras map[string]any, err error) {
 	// no http client is a sure sign for no http connection
 	if p.cache.HTTPClient == nil {
 		return conf, thrukextras, err
@@ -1747,11 +1747,11 @@ func (p *Peer) fetchThrukExtras(ctx context.Context) (conf, thrukextras map[stri
 	return conf, thrukextras, err
 }
 
-func (p *Peer) fetchThrukExtrasFromAddr(ctx context.Context, peerAddr string) (conf, thrukextras map[string]interface{}, err error) {
+func (p *Peer) fetchThrukExtrasFromAddr(ctx context.Context, peerAddr string) (conf, thrukextras map[string]any, err error) {
 	if !strings.HasPrefix(peerAddr, "http") {
 		return conf, thrukextras, err
 	}
-	options := make(map[string]interface{})
+	options := make(map[string]any)
 	options["action"] = "raw"
 	options["sub"] = "get_processinfo"
 	if p.config.RemoteName != "" {
@@ -1776,16 +1776,16 @@ func (p *Peer) fetchThrukExtrasFromAddr(ctx context.Context, peerAddr string) (c
 	return conf, thrukextras, err
 }
 
-func (p *Peer) extractThrukExtrasFromResult(output []interface{}) (configtool, thrukextras map[string]interface{}, err error) {
+func (p *Peer) extractThrukExtrasFromResult(output []any) (configtool, thrukextras map[string]any, err error) {
 	if len(output) < 3 {
 		return nil, nil, nil
 	}
-	data, ok := output[2].(map[string]interface{})
+	data, ok := output[2].(map[string]any)
 	if !ok {
 		return nil, nil, nil
 	}
 	for k := range data {
-		processinfo, ok := data[k].(map[string]interface{})
+		processinfo, ok := data[k].(map[string]any)
 		if !ok {
 			continue
 		}
@@ -1798,12 +1798,12 @@ func (p *Peer) extractThrukExtrasFromResult(output []interface{}) (configtool, t
 			}
 		}
 		if c, ok2 := processinfo["thruk"]; ok2 {
-			if v, ok3 := c.(map[string]interface{}); ok3 {
+			if v, ok3 := c.(map[string]any); ok3 {
 				thrukextras = v
 			}
 		}
 		if c, ok2 := processinfo["configtool"]; ok2 {
-			if v, ok3 := c.(map[string]interface{}); ok3 {
+			if v, ok3 := c.(map[string]any); ok3 {
 				return v, thrukextras, nil
 			}
 		}
@@ -1827,7 +1827,7 @@ func (p *Peer) buildCombinedAddressList() (list []string) {
 	return list
 }
 
-func (p *Peer) fetchRemotePeers(ctx context.Context, store *DataStoreSet) (sites []interface{}, err error) {
+func (p *Peer) fetchRemotePeers(ctx context.Context, store *DataStoreSet) (sites []any, err error) {
 	// no http client is a sure sign for no http connection
 	if p.cache.HTTPClient == nil {
 		return nil, nil
@@ -1872,7 +1872,7 @@ func (p *Peer) fetchRemotePeers(ctx context.Context, store *DataStoreSet) (sites
 	return nil, err
 }
 
-func (p *Peer) fetchRemotePeersFromAddr(ctx context.Context, peerAddr string) (sites []interface{}, err error) {
+func (p *Peer) fetchRemotePeersFromAddr(ctx context.Context, peerAddr string) (sites []any, err error) {
 	if !strings.HasPrefix(peerAddr, "http") {
 		return sites, err
 	}
@@ -1882,7 +1882,7 @@ func (p *Peer) fetchRemotePeersFromAddr(ctx context.Context, peerAddr string) (s
 
 		return sites, err
 	}
-	if s, ok := data.([]interface{}); ok {
+	if s, ok := data.([]any); ok {
 		sites = s
 	} else {
 		err = &PeerError{msg: fmt.Sprintf("unknown site error, got: %v", res), kind: ResponseError, srcErr: err}
@@ -2062,7 +2062,7 @@ func (p *Peer) HTTPQueryWithRetries(ctx context.Context, req *Request, peerAddr,
 // HTTPQuery sends a query over http to a Thruk backend.
 // It returns the livestatus answers and any encountered error.
 func (p *Peer) HTTPQuery(ctx context.Context, req *Request, peerAddr, query string) (res []byte, err error) {
-	options := make(map[string]interface{})
+	options := make(map[string]any)
 	if p.config.RemoteName != "" {
 		options["backends"] = []string{p.config.RemoteName}
 	}
@@ -2180,7 +2180,7 @@ func (p *Peer) HTTPPostQueryResult(ctx context.Context, query *Request, peerAddr
 // HTTPPostQuery returns response array from thruk api.
 //
 //nolint:lll // it is what it is...
-func (p *Peer) HTTPPostQuery(ctx context.Context, req *Request, peerAddr string, postData url.Values, headers map[string]string) (output []interface{}, result *HTTPResult, err error) {
+func (p *Peer) HTTPPostQuery(ctx context.Context, req *Request, peerAddr string, postData url.Values, headers map[string]string) (output []any, result *HTTPResult, err error) {
 	result, err = p.HTTPPostQueryResult(ctx, req, peerAddr, postData, headers)
 	if err != nil {
 		return nil, nil, err
@@ -2224,8 +2224,8 @@ func (p *Peer) HTTPPostQuery(ctx context.Context, req *Request, peerAddr string,
 }
 
 // HTTPRestQuery returns rest response from thruk api.
-func (p *Peer) HTTPRestQuery(ctx context.Context, peerAddr, uri string) (output interface{}, result *HTTPResult, err error) {
-	options := make(map[string]interface{})
+func (p *Peer) HTTPRestQuery(ctx context.Context, peerAddr, uri string) (output any, result *HTTPResult, err error) {
+	options := make(map[string]any)
 	options["action"] = "url"
 	options["commandoptions"] = []string{uri}
 	optionStr, err := json.Marshal(options)
@@ -2386,13 +2386,8 @@ func (p *Peer) hasPeerState(states []PeerStatus) bool {
 		}
 		status = PeerStatus(interface2int8(num))
 	}
-	for _, s := range states {
-		if status == s {
-			return true
-		}
-	}
 
-	return false
+	return slices.Contains(states, status)
 }
 
 func (p *Peer) getError() string {
@@ -2487,7 +2482,7 @@ func logPanicExitPeer(peer *Peer) {
 	os.Exit(1)
 }
 
-func (p *Peer) logPeerStatus(logger func(string, ...interface{})) {
+func (p *Peer) logPeerStatus(logger func(string, ...any)) {
 	peerflags := OptionalFlags(atomic.LoadUint32(&p.flags))
 	peerState := p.peerState.Get()
 	logger("PeerAddr:              %s", p.peerAddr.Get())
@@ -2626,9 +2621,9 @@ func (p *Peer) SendCommands(ctx context.Context, commands []string) (err error) 
 }
 
 // setFederationInfo updates federation information for /site request.
-func (p *Peer) setFederationInfo(data map[string]interface{}, target *atomicStringList, datakey string) {
+func (p *Peer) setFederationInfo(data map[string]any, target *atomicStringList, datakey string) {
 	if _, ok := data["federation_"+datakey]; ok {
-		if v, ok := data["federation_"+datakey].([]interface{}); ok {
+		if v, ok := data["federation_"+datakey].([]any); ok {
 			list := []string{}
 			for _, d := range v {
 				s := interface2stringNoDedup(d)
@@ -2831,7 +2826,7 @@ func (p *Peer) CheckLocaltime(unix float64) (err error) {
 }
 
 // LogErrors i a generic error logger with peer prefix.
-func (p *Peer) LogErrors(v ...interface{}) {
+func (p *Peer) LogErrors(v ...any) {
 	if !log.IsV(LogVerbosityDebug) {
 		return
 	}
@@ -2882,7 +2877,7 @@ func (p *Peer) CheckBackendRestarted(primaryKeysLen int, res ResultSet, columns 
 }
 
 // addSubPeer adds new/existing lmd/http sub federated peer.
-func (p *Peer) addSubPeer(ctx context.Context, subFlag OptionalFlags, key, subName string, data map[string]interface{}) (subID string) {
+func (p *Peer) addSubPeer(ctx context.Context, subFlag OptionalFlags, key, subName string, data map[string]any) (subID string) {
 	subID = key
 	subPeer := p.lmd.peerMap.Get(subID)
 	duplicate := ""

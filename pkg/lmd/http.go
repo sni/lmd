@@ -16,7 +16,7 @@ type HTTPServerController struct {
 }
 
 func (c *HTTPServerController) errorOutput(err error, wrt http.ResponseWriter) {
-	j := make(map[string]interface{})
+	j := make(map[string]any)
 	j["error"] = err.Error()
 	wrt.Header().Set("Content-Type", "application/json")
 	wrt.WriteHeader(http.StatusBadRequest)
@@ -30,7 +30,7 @@ func (c *HTTPServerController) index(w http.ResponseWriter, _ *http.Request, _ h
 	fmt.Fprintf(w, "LMD %s\n", VERSION)
 }
 
-func (c *HTTPServerController) queryTable(ctx context.Context, wrt http.ResponseWriter, requestData map[string]interface{}) {
+func (c *HTTPServerController) queryTable(ctx context.Context, wrt http.ResponseWriter, requestData map[string]any) {
 	wrt.Header().Set("Content-Type", "application/json")
 
 	// Requested table (name)
@@ -86,7 +86,7 @@ func (c *HTTPServerController) queryTable(ctx context.Context, wrt http.Response
 
 func (c *HTTPServerController) table(wrt http.ResponseWriter, request *http.Request, params httprouter.Params) {
 	// Read request data
-	requestData := make(map[string]interface{})
+	requestData := make(map[string]any)
 	defer request.Body.Close()
 	decoder := json.NewDecoder(request.Body)
 	if err := decoder.Decode(&requestData); err != nil {
@@ -105,7 +105,7 @@ func (c *HTTPServerController) table(wrt http.ResponseWriter, request *http.Requ
 
 func (c *HTTPServerController) ping(wrt http.ResponseWriter, request *http.Request, _ httprouter.Params) {
 	// Read request data
-	requestData := make(map[string]interface{})
+	requestData := make(map[string]any)
 	defer request.Body.Close()
 	decoder := json.NewDecoder(request.Body)
 	if err := decoder.Decode(&requestData); err != nil {
@@ -116,11 +116,11 @@ func (c *HTTPServerController) ping(wrt http.ResponseWriter, request *http.Reque
 	c.queryPing(wrt, requestData)
 }
 
-func (c *HTTPServerController) queryPing(wrt http.ResponseWriter, _ map[string]interface{}) {
+func (c *HTTPServerController) queryPing(wrt http.ResponseWriter, _ map[string]any) {
 	// Response data
 	wrt.Header().Set("Content-Type", "application/json")
 	id := c.lmd.nodeAccessor.ID
-	jsonData := make(map[string]interface{})
+	jsonData := make(map[string]any)
 	jsonData["identifier"] = id
 	jsonData["peers"] = c.lmd.nodeAccessor.assignedBackends
 	jsonData["version"] = Version()
@@ -135,7 +135,7 @@ func (c *HTTPServerController) queryPing(wrt http.ResponseWriter, _ map[string]i
 func (c *HTTPServerController) query(wrt http.ResponseWriter, request *http.Request, _ httprouter.Params) {
 	// Read request data
 	contentType := request.Header.Get("Content-Type")
-	requestData := make(map[string]interface{})
+	requestData := make(map[string]any)
 	defer request.Body.Close()
 	if contentType == "application/json" {
 		decoder := json.NewDecoder(request.Body)
@@ -160,7 +160,7 @@ func (c *HTTPServerController) query(wrt http.ResponseWriter, request *http.Requ
 	}
 }
 
-func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request, err error) {
+func parseRequestDataToRequest(requestData map[string]any) (req *Request, err error) {
 	// New request object for specified table
 	req = &Request{}
 	table, err := NewTableName(interface2stringNoDedup(requestData["table"]))
@@ -204,9 +204,9 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 	}
 
 	// Sort
-	var requestDataSort []interface{}
+	var requestDataSort []any
 	if val, ok := requestData["sort"]; ok {
-		lines, ok := val.([]interface{})
+		lines, ok := val.([]any)
 		if ok {
 			requestDataSort = lines
 		}
@@ -250,10 +250,10 @@ func parseRequestDataToRequest(requestData map[string]interface{}) (req *Request
 	return req, nil
 }
 
-func parseHTTPFilterRequestData(req *Request, val interface{}, prefix string) (err error) {
+func parseHTTPFilterRequestData(req *Request, val any, prefix string) (err error) {
 	// Get filter lines, e.g., "Filter: col = val", "Or: 2"
 	var filterLines []string
-	if lines, ok := val.([]interface{}); ok {
+	if lines, ok := val.([]any); ok {
 		for _, line := range lines {
 			filterLine := prefix + ": " + interface2stringNoDedup(line) + "\n"
 			filterLines = append(filterLines, filterLine)

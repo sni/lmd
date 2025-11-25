@@ -248,7 +248,7 @@ func TestPeerUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	cList := peer.data.Load().Get(TableComments).table.GetColumns([]string{"id", "host_name", "service_description", "entry_time", "author", "comment", "persistent"})
-	err = peer.data.Load().Get(TableComments).AppendData(ResultSet([][]interface{}{{"666", "test", "svc", 123456, "author", "comment", 0}}), cList)
+	err = peer.data.Load().Get(TableComments).AppendData(ResultSet([][]any{{"666", "test", "svc", 123456, "author", "comment", 0}}), cList)
 	require.NoError(t, err)
 	err = peer.data.Load().UpdateDelta(t.Context(), float64(time.Now().Unix())-60, float64(time.Now().Unix()))
 	require.NoError(t, err)

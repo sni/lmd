@@ -52,7 +52,7 @@ func BuildTableColumnsStore(table *Table) *DataStore {
 			default:
 				log.Panicf("type not handled in table %s: %#v", table.name.String(), col)
 			}
-			row := []interface{}{
+			row := []any{
 				col.Name,
 				table.name.String(),
 				colTypeName,
@@ -100,7 +100,7 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 			name := row.GetString(nameCol)
 			groups := row.GetStringList(groupCol)
 			for i := range groups {
-				data = append(data, []interface{}{name, groups[i]})
+				data = append(data, []any{name, groups[i]})
 			}
 		}
 	case TableServicesbygroup:
@@ -115,7 +115,7 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 			description := row.GetString(descCol)
 			groups := row.GetStringList(groupCol)
 			for i := range groups {
-				data = append(data, []interface{}{hostName, description, groups[i]})
+				data = append(data, []any{hostName, description, groups[i]})
 			}
 		}
 	case TableServicesbyhostgroup:
@@ -130,7 +130,7 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 			description := row.GetString(descCol)
 			groups := row.GetStringList(hostGroupsCol)
 			for i := range groups {
-				data = append(data, []interface{}{hostName, description, groups[i]})
+				data = append(data, []any{hostName, description, groups[i]})
 			}
 		}
 	default:

@@ -6,7 +6,7 @@ import (
 )
 
 // VirtualColumnResolveFunc is used to define the virtual key mapping in the VirtualColumnMap.
-type VirtualColumnResolveFunc func(p *Peer, d *DataRow, col *Column) interface{}
+type VirtualColumnResolveFunc func(p *Peer, d *DataRow, col *Column) any
 
 // VirtualColumnMapEntry is used to define the virtual key mapping in the VirtualColumnMap.
 type VirtualColumnMapEntry struct {
@@ -26,28 +26,28 @@ var VirtualColumnList = []VirtualColumnMapEntry{
 	{name: "parent", statusKey: PeerParent},
 
 	// fetched on the fly
-	{name: "addr", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.peerAddr.Get() }},
-	{name: "status", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.peerState.Get() }},
-	{name: "bytes_send", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.bytesSend.Load() }},
-	{name: "bytes_received", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.bytesReceived.Load() }},
-	{name: "queries", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.queries.Load() }},
-	{name: "last_error", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.lastError.Get() }},
-	{name: "last_online", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.lastOnline.Get() }},
-	{name: "last_update", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.lastUpdate.Get() }},
-	{name: "response_time", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.responseTime.Get() }},
-	{name: "idling", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.idling.Load() }},
-	{name: "last_query", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.lastQuery.Get() }},
-	{name: "configtool", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.configTool.Get() }},
-	{name: "thruk", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.thrukExtras.Get() }},
-	{name: "federation_key", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.subKey.Get() }},
-	{name: "federation_name", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.subName.Get() }},
-	{name: "federation_addr", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.subAddr.Get() }},
-	{name: "federation_type", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.subType.Get() }},
-	{name: "federation_version", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) interface{} { return p.subVersion.Get() }},
+	{name: "addr", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.peerAddr.Get() }},
+	{name: "status", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.peerState.Get() }},
+	{name: "bytes_send", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.bytesSend.Load() }},
+	{name: "bytes_received", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.bytesReceived.Load() }},
+	{name: "queries", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.queries.Load() }},
+	{name: "last_error", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.lastError.Get() }},
+	{name: "last_online", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.lastOnline.Get() }},
+	{name: "last_update", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.lastUpdate.Get() }},
+	{name: "response_time", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.responseTime.Get() }},
+	{name: "idling", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.idling.Load() }},
+	{name: "last_query", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.lastQuery.Get() }},
+	{name: "configtool", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.configTool.Get() }},
+	{name: "thruk", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.thrukExtras.Get() }},
+	{name: "federation_key", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.subKey.Get() }},
+	{name: "federation_name", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.subName.Get() }},
+	{name: "federation_addr", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.subAddr.Get() }},
+	{name: "federation_type", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.subType.Get() }},
+	{name: "federation_version", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.subVersion.Get() }},
 
 	// calculated columns by ResolveFunc
-	{name: "lmd_last_cache_update", resolveFunc: func(_ *Peer, d *DataRow, _ *Column) interface{} { return d.lastUpdate }},
-	{name: "lmd_version", resolveFunc: func(_ *Peer, _ *DataRow, _ *Column) interface{} { return fmt.Sprintf("%s-%s", NAME, Version()) }},
+	{name: "lmd_last_cache_update", resolveFunc: func(_ *Peer, d *DataRow, _ *Column) any { return d.lastUpdate }},
+	{name: "lmd_version", resolveFunc: func(_ *Peer, _ *DataRow, _ *Column) any { return fmt.Sprintf("%s-%s", NAME, Version()) }},
 	{name: "state_order", resolveFunc: VirtualColStateOrder},
 	{name: "last_state_change_order", resolveFunc: VirtualColLastStateChangeOrder},
 	{name: "has_long_plugin_output", resolveFunc: VirtualColHasLongPluginOutput},
@@ -60,7 +60,7 @@ var VirtualColumnList = []VirtualColumnMapEntry{
 	{name: "total_services", resolveFunc: VirtualColTotalServices},
 	{name: "flags", resolveFunc: VirtualColFlags},
 	{name: "localtime", resolveFunc: VirtualColLocaltime},
-	{name: "empty", resolveFunc: func(_ *Peer, _ *DataRow, _ *Column) interface{} { return "" }}, // return empty string as placeholder for nonexisting columns
+	{name: "empty", resolveFunc: func(_ *Peer, _ *DataRow, _ *Column) any { return "" }}, // return empty string as placeholder for nonexisting columns
 }
 
 // VirtualColumnMap maps is the lookup map for the VirtualColumnList.
@@ -76,7 +76,7 @@ type FetchType uint8
 
 // placeholder to return in GetEmptyValue, no need to create empty lists over and over.
 var (
-	emptyInterfaceList = make([]interface{}, 0)
+	emptyInterfaceList = make([]any, 0)
 	emptyStringList    = []string{}
 	emptyStringMap     = make(map[string]string)
 	emptyInt64List     = []int64{}
@@ -344,7 +344,7 @@ func (c *Column) String() string {
 }
 
 // GetEmptyValue returns an empty placeholder representation for the given column type.
-func (c *Column) GetEmptyValue() interface{} {
+func (c *Column) GetEmptyValue() any {
 	switch c.DataType {
 	case StringCol, StringLargeCol:
 		return ""

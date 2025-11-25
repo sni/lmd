@@ -90,7 +90,7 @@ func InitLogging(conf *Config) {
 }
 
 // LogErrors can be used as error handler, logs error with debug log level.
-func LogErrors(v ...interface{}) {
+func LogErrors(v ...any) {
 	logWith().LogErrors(v...)
 }
 
@@ -121,42 +121,42 @@ func NewLogWriter(level string) *LogWriter {
 }
 
 type LogPrefixer struct {
-	pre []interface{}
+	pre []any
 }
 
 const LoggerCalldepth = 2
 
-func (l *LogPrefixer) Panicf(format string, v ...interface{}) {
+func (l *LogPrefixer) Panicf(format string, v ...any) {
 	log.Output(factorlog.PANIC, LoggerCalldepth, fmt.Sprintf(l.prefix()+" "+format, v...))
 }
 
-func (l *LogPrefixer) Fatalf(format string, v ...interface{}) {
+func (l *LogPrefixer) Fatalf(format string, v ...any) {
 	log.Output(factorlog.FATAL, LoggerCalldepth, fmt.Sprintf(l.prefix()+" "+format, v...))
 }
 
-func (l *LogPrefixer) Errorf(format string, v ...interface{}) {
+func (l *LogPrefixer) Errorf(format string, v ...any) {
 	log.Output(factorlog.ERROR, LoggerCalldepth, fmt.Sprintf(l.prefix()+" "+format, v...))
 }
 
-func (l *LogPrefixer) Warnf(format string, v ...interface{}) {
+func (l *LogPrefixer) Warnf(format string, v ...any) {
 	log.Output(factorlog.WARN, LoggerCalldepth, fmt.Sprintf(l.prefix()+" "+format, v...))
 }
 
-func (l *LogPrefixer) Infof(format string, v ...interface{}) {
+func (l *LogPrefixer) Infof(format string, v ...any) {
 	if !log.IsV(LogVerbosityDefault) {
 		return
 	}
 	log.Output(factorlog.INFO, LoggerCalldepth, fmt.Sprintf(l.prefix()+" "+format, v...))
 }
 
-func (l *LogPrefixer) Debugf(format string, v ...interface{}) {
+func (l *LogPrefixer) Debugf(format string, v ...any) {
 	if !log.IsV(LogVerbosityDebug) {
 		return
 	}
 	log.Output(factorlog.DEBUG, LoggerCalldepth, fmt.Sprintf(l.prefix()+" "+format, v...))
 }
 
-func (l *LogPrefixer) Tracef(format string, v ...interface{}) {
+func (l *LogPrefixer) Tracef(format string, v ...any) {
 	if !log.IsV(LogVerbosityTrace) {
 		return
 	}
@@ -164,7 +164,7 @@ func (l *LogPrefixer) Tracef(format string, v ...interface{}) {
 }
 
 // LogErrors can be used as generic logger with a prefix.
-func (l *LogPrefixer) LogErrors(v ...interface{}) {
+func (l *LogPrefixer) LogErrors(v ...any) {
 	if !log.IsV(LogVerbosityDebug) {
 		return
 	}
@@ -228,6 +228,6 @@ func (l *LogPrefixer) prefix() (prefix string) {
 }
 
 // return logger with prefixed strings from given objects.
-func logWith(pre ...interface{}) *LogPrefixer {
+func logWith(pre ...any) *LogPrefixer {
 	return &LogPrefixer{pre: pre}
 }

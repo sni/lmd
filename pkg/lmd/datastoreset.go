@@ -3,7 +3,7 @@ package lmd
 import (
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -619,7 +619,7 @@ func (ds *DataStoreSet) getMissingTimestamps(ctx context.Context, store *DataSto
 		missing[i] = lastCheck
 		i++
 	}
-	sort.Slice(missing, func(i, j int) bool { return missing[i] < missing[j] })
+	slices.Sort(missing)
 
 	return missing, nil
 }

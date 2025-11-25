@@ -21,6 +21,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"runtime/pprof"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -404,15 +405,7 @@ func (lmd *Daemon) initializeListeners() {
 	// close all listeners which are no longer defined
 	lmd.ListenersLock.Lock()
 	for con, listen := range lmd.Listeners {
-		found := false
-		for _, listen := range lmd.Config.Listen {
-			if listen == con {
-				found = true
-
-				break
-			}
-		}
-		if !found {
+		if !slices.Contains(lmd.Config.Listen, con) {
 			delete(lmd.Listeners, con)
 			listen.Stop()
 		}
@@ -609,7 +602,7 @@ func deletePidFile(f string) {
 }
 
 // wraps log.Fatalf but removes the pid file and such...
-func (lmd *Daemon) cleanFatalf(format string, args ...interface{}) {
+func (lmd *Daemon) cleanFatalf(format string, args ...any) {
 	lmd.onExit()
 	log.Errorf(format, args...)
 
@@ -894,18 +887,18 @@ func completePeerHTTPAddr(addr string) string {
 }
 
 // byteCountBinary returns human readable byte string.
-func byteCountBinary(bytes int64) string {
+func byteCountBinary(data int64) string {
 	const unit = 1024
-	if bytes < unit {
-		return fmt.Sprintf("%d B", bytes)
+	if data < unit {
+		return fmt.Sprintf("%d B", data)
 	}
 	div, exp := int64(unit), 0
-	for n := bytes / unit; n >= unit; n /= unit {
+	for n := data / unit; n >= unit; n /= unit {
 		div *= unit
 		exp++
 	}
 
-	return fmt.Sprintf("%.1f%ciB", float64(bytes)/float64(div), "KMGTPE"[exp])
+	return fmt.Sprintf("%.1f%ciB", float64(data)/float64(div), "KMGTPE"[exp])
 }
 
 func updateStatistics(qStat *QueryStats) {

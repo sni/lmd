@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -27,12 +28,12 @@ type DataRow struct {
 	dataStringList        [][]string             // stores string lists
 	dataServiceMemberList [][]ServiceMember      // stores list of service members
 	dataStringLarge       []StringContainer      // stores large strings
-	dataInterfaceList     [][]interface{}        // stores anything else
+	dataInterfaceList     [][]any                // stores anything else
 	lastUpdate            float64                // timestamp of last update
 }
 
 // NewDataRow creates a new DataRow.
-func NewDataRow(store *DataStore, raw []interface{}, columns ColumnList, timestamp float64, setReferences bool) (d *DataRow, err error) {
+func NewDataRow(store *DataStore, raw []any, columns ColumnList, timestamp float64, setReferences bool) (d *DataRow, err error) {
 	d = &DataRow{
 		lastUpdate: timestamp,
 		dataStore:  store,
@@ -104,7 +105,7 @@ func (d *DataRow) GetID2() (id1, id2 string) {
 }
 
 // SetData creates initial data.
-func (d *DataRow) SetData(raw []interface{}, columns ColumnList, timestamp float64) error {
+func (d *DataRow) SetData(raw []any, columns ColumnList, timestamp float64) error {
 	for key, size := range d.dataStore.table.dataSizes {
 		if size == 0 {
 			continue
@@ -125,7 +126,7 @@ func (d *DataRow) SetData(raw []interface{}, columns ColumnList, timestamp float
 		case ServiceMemberListCol:
 			d.dataServiceMemberList = make([][]ServiceMember, size)
 		case InterfaceListCol:
-			d.dataInterfaceList = make([][]interface{}, size)
+			d.dataInterfaceList = make([][]any, size)
 		case StringLargeCol:
 			d.dataStringLarge = make([]StringContainer, size)
 		case JSONCol, CustomVarCol, StringListSortedCol:
@@ -383,7 +384,7 @@ func (d *DataRow) GetServiceMemberListByName(name string) []ServiceMember {
 }
 
 // GetInterfaceList returns the a list of interfaces.
-func (d *DataRow) GetInterfaceList(col *Column) []interface{} {
+func (d *DataRow) GetInterfaceList(col *Column) []any {
 	switch col.StorageType {
 	case LocalStore:
 		if col.DataType == InterfaceListCol {
@@ -404,7 +405,7 @@ func (d *DataRow) GetInterfaceList(col *Column) []interface{} {
 }
 
 // GetValueByColumn returns the raw value for given column.
-func (d *DataRow) GetValueByColumn(col *Column) interface{} {
+func (d *DataRow) GetValueByColumn(col *Column) any {
 	if col.Optional != NoFlags && !d.dataStore.peer.HasFlag(col.Optional) {
 		return col.GetEmptyValue()
 	}
@@ -441,8 +442,8 @@ func (d *DataRow) GetValueByColumn(col *Column) interface{} {
 }
 
 // getVirtualRowValue returns the actual value for a virtual column.
-func (d *DataRow) getVirtualRowValue(col *Column) interface{} {
-	var value interface{}
+func (d *DataRow) getVirtualRowValue(col *Column) any {
+	var value any
 	peer := d.dataStore.peer
 	if col.VirtualMap.statusKey > 0 {
 		if peer == nil {
@@ -497,12 +498,12 @@ func (d *DataRow) GetCustomVarValue(col *Column, name string) string {
 }
 
 // VirtualColLocaltime returns current unix timestamp.
-func VirtualColLocaltime(_ *Peer, _ *DataRow, _ *Column) interface{} {
+func VirtualColLocaltime(_ *Peer, _ *DataRow, _ *Column) any {
 	return currentUnixTime()
 }
 
 // VirtualColLastStateChangeOrder returns sortable state.
-func VirtualColLastStateChangeOrder(p *Peer, d *DataRow, _ *Column) interface{} {
+func VirtualColLastStateChangeOrder(p *Peer, d *DataRow, _ *Column) any {
 	// return last_state_change or program_start
 	lastStateChange := d.GetInt64ByName("last_state_change")
 	if lastStateChange == 0 {
@@ -513,7 +514,7 @@ func VirtualColLastStateChangeOrder(p *Peer, d *DataRow, _ *Column) interface{} 
 }
 
 // VirtualColStateOrder returns sortable state.
-func VirtualColStateOrder(_ *Peer, d *DataRow, _ *Column) interface{} {
+func VirtualColStateOrder(_ *Peer, d *DataRow, _ *Column) any {
 	// return 4 instead of 2, which makes critical come first
 	// this way we can use this column to sort by state
 	state := d.GetInt8ByName("state")
@@ -525,7 +526,7 @@ func VirtualColStateOrder(_ *Peer, d *DataRow, _ *Column) interface{} {
 }
 
 // VirtualColHasLongPluginOutput returns 1 if there is long plugin output, 0 if not.
-func VirtualColHasLongPluginOutput(_ *Peer, d *DataRow, _ *Column) interface{} {
+func VirtualColHasLongPluginOutput(_ *Peer, d *DataRow, _ *Column) any {
 	val := d.GetStringByName("long_plugin_output")
 	if val != "" {
 		return 1
@@ -535,14 +536,14 @@ func VirtualColHasLongPluginOutput(_ *Peer, d *DataRow, _ *Column) interface{} {
 }
 
 // VirtualColServicesWithInfo returns list of services with additional information.
-func VirtualColServicesWithInfo(_ *Peer, d *DataRow, col *Column) interface{} {
+func VirtualColServicesWithInfo(_ *Peer, d *DataRow, col *Column) any {
 	services := d.GetStringListByName("services")
 	hostName := d.GetStringByName("name")
 	servicesStore := d.dataStore.dataSet.Get(TableServices)
 	stateCol := servicesStore.table.GetColumn("state")
 	checkedCol := servicesStore.table.GetColumn("has_been_checked")
 	outputCol := servicesStore.table.GetColumn("plugin_output")
-	res := make([]interface{}, len(services))
+	res := make([]any, len(services))
 	for idx := range services {
 		service, ok := servicesStore.index2[hostName][services[idx]]
 		if !ok {
@@ -550,7 +551,7 @@ func VirtualColServicesWithInfo(_ *Peer, d *DataRow, col *Column) interface{} {
 
 			continue
 		}
-		serviceValue := []interface{}{services[idx], service.GetInt8(stateCol), service.GetInt8(checkedCol)}
+		serviceValue := []any{services[idx], service.GetInt8(stateCol), service.GetInt8(checkedCol)}
 		if col.Name == "services_with_info" {
 			serviceValue = append(serviceValue, service.GetString(outputCol))
 		}
@@ -561,7 +562,7 @@ func VirtualColServicesWithInfo(_ *Peer, d *DataRow, col *Column) interface{} {
 }
 
 // VirtualColMembersWithState returns a list of hostgroup/servicegroup members with their states.
-func VirtualColMembersWithState(_ *Peer, dRow *DataRow, _ *Column) interface{} {
+func VirtualColMembersWithState(_ *Peer, dRow *DataRow, _ *Column) any {
 	switch dRow.dataStore.table.name {
 	case TableHostgroups:
 		members := dRow.GetStringListByName("members")
@@ -569,7 +570,7 @@ func VirtualColMembersWithState(_ *Peer, dRow *DataRow, _ *Column) interface{} {
 		stateCol := hostsStore.table.GetColumn("state")
 		checkedCol := hostsStore.table.GetColumn("has_been_checked")
 
-		res := make([]interface{}, len(members))
+		res := make([]any, len(members))
 		for idx, hostName := range members {
 			host, ok := hostsStore.index[hostName]
 			if !ok {
@@ -577,7 +578,7 @@ func VirtualColMembersWithState(_ *Peer, dRow *DataRow, _ *Column) interface{} {
 
 				continue
 			}
-			res[idx] = []interface{}{hostName, host.GetInt8(stateCol), host.GetInt8(checkedCol)}
+			res[idx] = []any{hostName, host.GetInt8(stateCol), host.GetInt8(checkedCol)}
 		}
 
 		return res
@@ -588,7 +589,7 @@ func VirtualColMembersWithState(_ *Peer, dRow *DataRow, _ *Column) interface{} {
 		stateCol := servicesStore.table.GetColumn("state")
 		checkedCol := servicesStore.table.GetColumn("has_been_checked")
 
-		res := make([]interface{}, len(members))
+		res := make([]any, len(members))
 		for idx := range members {
 			hostName := members[idx][0]
 			serviceDescription := members[idx][1]
@@ -599,7 +600,7 @@ func VirtualColMembersWithState(_ *Peer, dRow *DataRow, _ *Column) interface{} {
 
 				continue
 			}
-			res[idx] = []interface{}{hostName, serviceDescription, service.GetInt8(stateCol), service.GetInt8(checkedCol)}
+			res[idx] = []any{hostName, serviceDescription, service.GetInt8(stateCol), service.GetInt8(checkedCol)}
 		}
 
 		return res
@@ -611,7 +612,7 @@ func VirtualColMembersWithState(_ *Peer, dRow *DataRow, _ *Column) interface{} {
 }
 
 // VirtualColCommentsWithInfo returns list of comment IDs with additional information.
-func VirtualColCommentsWithInfo(_ *Peer, row *DataRow, _ *Column) interface{} {
+func VirtualColCommentsWithInfo(_ *Peer, row *DataRow, _ *Column) any {
 	comments := row.GetInt64ListByName("comments")
 	if len(comments) == 0 {
 		return emptyInterfaceList
@@ -625,7 +626,7 @@ func VirtualColCommentsWithInfo(_ *Peer, row *DataRow, _ *Column) interface{} {
 	entryTypeCol := commentsTable.GetColumn("entry_type")
 	expiresCol := commentsTable.GetColumn("expires")
 	expireTimeCol := commentsTable.GetColumn("expire_time")
-	res := make([]interface{}, 0)
+	res := make([]any, 0)
 	for idx := range comments {
 		commentID := fmt.Sprintf("%d", comments[idx])
 		comment, ok := commentsStore.index[commentID]
@@ -634,7 +635,7 @@ func VirtualColCommentsWithInfo(_ *Peer, row *DataRow, _ *Column) interface{} {
 
 			continue
 		}
-		commentWithInfo := []interface{}{
+		commentWithInfo := []any{
 			comments[idx],
 			comment.GetString(authorCol),
 			comment.GetString(commentCol),
@@ -650,7 +651,7 @@ func VirtualColCommentsWithInfo(_ *Peer, row *DataRow, _ *Column) interface{} {
 }
 
 // VirtualColDowntimesWithInfo returns list of downtimes IDs with additional information.
-func VirtualColDowntimesWithInfo(_ *Peer, row *DataRow, _ *Column) interface{} {
+func VirtualColDowntimesWithInfo(_ *Peer, row *DataRow, _ *Column) any {
 	downtimes := row.GetInt64ListByName("downtimes")
 	if len(downtimes) == 0 {
 		return emptyInterfaceList
@@ -666,7 +667,7 @@ func VirtualColDowntimesWithInfo(_ *Peer, row *DataRow, _ *Column) interface{} {
 	fixedCol := downtimesTable.GetColumn("fixed")
 	durationCol := downtimesTable.GetColumn("duration")
 	triggeredCol := downtimesTable.GetColumn("triggered_by")
-	res := make([]interface{}, 0)
+	res := make([]any, 0)
 	for idx := range downtimes {
 		downtimeID := fmt.Sprintf("%d", downtimes[idx])
 		downtime, ok := downtimesStore.index[downtimeID]
@@ -675,7 +676,7 @@ func VirtualColDowntimesWithInfo(_ *Peer, row *DataRow, _ *Column) interface{} {
 
 			continue
 		}
-		downtimeWithInfo := []interface{}{
+		downtimeWithInfo := []any{
 			downtimes[idx],
 			downtime.GetString(authorCol),
 			downtime.GetString(commentCol),
@@ -693,7 +694,7 @@ func VirtualColDowntimesWithInfo(_ *Peer, row *DataRow, _ *Column) interface{} {
 }
 
 // VirtualColCustomVariables returns a custom variables hash.
-func VirtualColCustomVariables(_ *Peer, row *DataRow, _ *Column) interface{} {
+func VirtualColCustomVariables(_ *Peer, row *DataRow, _ *Column) any {
 	namesCol := row.dataStore.GetColumn("custom_variable_names")
 	valuesCol := row.dataStore.GetColumn("custom_variable_values")
 	names := row.dataStringList[namesCol.Index]
@@ -707,19 +708,19 @@ func VirtualColCustomVariables(_ *Peer, row *DataRow, _ *Column) interface{} {
 }
 
 // VirtualColTotalServices returns number of services.
-func VirtualColTotalServices(_ *Peer, d *DataRow, _ *Column) interface{} {
+func VirtualColTotalServices(_ *Peer, d *DataRow, _ *Column) any {
 	return d.GetInt64ByName("num_services")
 }
 
 // VirtualColFlags returns flags for peer.
-func VirtualColFlags(p *Peer, _ *DataRow, _ *Column) interface{} {
+func VirtualColFlags(p *Peer, _ *DataRow, _ *Column) any {
 	peerFlags := OptionalFlags(atomic.LoadUint32(&p.flags))
 
 	return peerFlags.List()
 }
 
 // getVirtualSubLMDValue returns status values for LMDSub backends.
-func (d *DataRow) getVirtualSubLMDValue(peer *Peer, col *Column) (val interface{}, ok bool) {
+func (d *DataRow) getVirtualSubLMDValue(peer *Peer, col *Column) (val any, ok bool) {
 	peerState := peer.peerState.Get()
 	peerData := peer.subPeerStatus.Load()
 
@@ -827,7 +828,7 @@ func (d *DataRow) getStatsKey(res *Response) string {
 }
 
 // UpdateValues updates this data row with new values.
-func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns ColumnList, timestamp float64) error {
+func (d *DataRow) UpdateValues(dataOffset int, data []any, columns ColumnList, timestamp float64) error {
 	if len(columns) != len(data)-dataOffset {
 		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.dataStore.table.name.String(), len(columns), len(data))
 	}
@@ -873,7 +874,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data []interface{}, columns Colum
 }
 
 // UpdateValuesNumberOnly updates this data row with new values but skips strings.
-func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, columns ColumnList, timestamp float64) error {
+func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []any, columns ColumnList, timestamp float64) error {
 	if len(columns) != len(data)-dataOffset {
 		return fmt.Errorf("table %s update failed, data size mismatch, expected %d columns and got %d", d.dataStore.table.name.String(), len(columns), len(data))
 	}
@@ -901,7 +902,7 @@ func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, col
 }
 
 // checkChangedIntValues returns true if the given data results in an update.
-func (d *DataRow) checkChangedIntValues(dataOffset int, data []interface{}, columns ColumnList) bool {
+func (d *DataRow) checkChangedIntValues(dataOffset int, data []any, columns ColumnList) bool {
 	for colNum, col := range columns {
 		switch col.DataType {
 		case IntCol:
@@ -924,7 +925,7 @@ func (d *DataRow) checkChangedIntValues(dataOffset int, data []interface{}, colu
 	return false
 }
 
-func interface2float64(in interface{}) float64 {
+func interface2float64(in any) float64 {
 	switch num := in.(type) {
 	case float64:
 		return num
@@ -949,7 +950,7 @@ func interface2float64(in interface{}) float64 {
 	return 0
 }
 
-func interface2int(raw interface{}) int {
+func interface2int(raw any) int {
 	switch num := raw.(type) {
 	case float64:
 		return int(num)
@@ -985,7 +986,7 @@ func checkInt8Bounds(num int64) int8 {
 	return int8(num)
 }
 
-func interface2int8(raw interface{}) int8 {
+func interface2int8(raw any) int8 {
 	switch num := raw.(type) {
 	case float64:
 		return checkInt8Bounds(int64(num))
@@ -1013,7 +1014,7 @@ func interface2int8(raw interface{}) int8 {
 	return checkInt8Bounds(val)
 }
 
-func interface2int64(raw interface{}) int64 {
+func interface2int64(raw any) int64 {
 	switch num := raw.(type) {
 	case float64:
 		return int64(num)
@@ -1035,7 +1036,7 @@ func interface2int64(raw interface{}) int64 {
 	return val
 }
 
-func interface2string(raw interface{}) *string {
+func interface2string(raw any) *string {
 	switch str := raw.(type) {
 	case string:
 		dedupedstring := unique.Make(str).Value()
@@ -1062,7 +1063,7 @@ func interface2string(raw interface{}) *string {
 	return &dedupedstring
 }
 
-func interface2stringNoDedup(raw interface{}) string {
+func interface2stringNoDedup(raw any) string {
 	switch str := raw.(type) {
 	case string:
 		return str
@@ -1075,7 +1076,7 @@ func interface2stringNoDedup(raw interface{}) string {
 	return fmt.Sprintf("%v", raw)
 }
 
-func interface2stringLarge(raw interface{}) *StringContainer {
+func interface2stringLarge(raw any) *StringContainer {
 	switch str := raw.(type) {
 	case string:
 		return NewStringContainer(&str)
@@ -1093,7 +1094,7 @@ func interface2stringLarge(raw interface{}) *StringContainer {
 	return NewStringContainer(&str)
 }
 
-func interface2stringList(raw interface{}, sorted bool) []string {
+func interface2stringList(raw any, sorted bool) []string {
 	switch list := raw.(type) {
 	case *[]string:
 		return dedupStringList(*list, sorted)
@@ -1114,7 +1115,7 @@ func interface2stringList(raw interface{}, sorted bool) []string {
 		}
 
 		return dedupStringList(val, sorted)
-	case []interface{}:
+	case []any:
 		val := make([]string, 0, len(list))
 		for i := range list {
 			val = append(val, interface2stringNoDedup(list[i]))
@@ -1129,7 +1130,7 @@ func interface2stringList(raw interface{}, sorted bool) []string {
 	return val
 }
 
-func interface2stringListNoDedup(raw interface{}) []string {
+func interface2stringListNoDedup(raw any) []string {
 	switch list := raw.(type) {
 	case *[]string:
 		return *list
@@ -1147,7 +1148,7 @@ func interface2stringListNoDedup(raw interface{}) []string {
 		return []string{list}
 	case *string:
 		return []string{*list}
-	case []interface{}:
+	case []any:
 		val := make([]string, 0, len(list))
 		for i := range list {
 			val = append(val, interface2stringNoDedup(list[i]))
@@ -1162,16 +1163,16 @@ func interface2stringListNoDedup(raw interface{}) []string {
 	return val
 }
 
-func interface2serviceMemberList(raw interface{}) []ServiceMember {
+func interface2serviceMemberList(raw any) []ServiceMember {
 	switch list := raw.(type) {
 	case *[]ServiceMember:
 		return *list
 	case []ServiceMember:
 		return list
-	case []interface{}:
+	case []any:
 		val := make([]ServiceMember, len(list))
 		for i := range list {
-			if l2, ok := list[i].([]interface{}); ok {
+			if l2, ok := list[i].([]any); ok {
 				if len(l2) == 2 {
 					val[i][0] = *interface2string(l2[0])
 					val[i][1] = *interface2string(l2[1])
@@ -1188,7 +1189,7 @@ func interface2serviceMemberList(raw interface{}) []ServiceMember {
 	return val
 }
 
-func interface2int64list(raw interface{}) []int64 {
+func interface2int64list(raw any) []int64 {
 	if list, ok := raw.([]int64); ok {
 		return (list)
 	}
@@ -1203,7 +1204,7 @@ func interface2int64list(raw interface{}) []int64 {
 
 		return val
 	}
-	if list, ok := raw.([]interface{}); ok {
+	if list, ok := raw.([]any); ok {
 		val := make([]int64, 0, len(list))
 		for i := range list {
 			val = append(val, interface2int64(list[i]))
@@ -1219,7 +1220,7 @@ func interface2int64list(raw interface{}) []int64 {
 }
 
 // interface2hashmap converts an interface to a hashmap.
-func interface2hashmap(raw interface{}) map[string]string {
+func interface2hashmap(raw any) map[string]string {
 	if raw == nil {
 		val := make(map[string]string)
 
@@ -1229,10 +1230,10 @@ func interface2hashmap(raw interface{}) map[string]string {
 	switch list := raw.(type) {
 	case map[string]string:
 		return list
-	case []interface{}:
+	case []any:
 		val := make(map[string]string)
 		for _, tupleInterface := range list {
-			if tuple, ok := tupleInterface.([]interface{}); ok {
+			if tuple, ok := tupleInterface.([]any); ok {
 				if len(tuple) == 2 {
 					k := interface2string(tuple[0])
 					s := interface2string(tuple[1])
@@ -1242,7 +1243,7 @@ func interface2hashmap(raw interface{}) map[string]string {
 		}
 
 		return val
-	case map[string]interface{}:
+	case map[string]any:
 		val := make(map[string]string)
 		for k, v := range list {
 			if s, ok := v.(string); ok {
@@ -1263,18 +1264,18 @@ func interface2hashmap(raw interface{}) map[string]string {
 }
 
 // interface2interfaceList converts anything to a list of interfaces.
-func interface2interfaceList(in interface{}) []interface{} {
-	if list, ok := in.([]interface{}); ok {
+func interface2interfaceList(in any) []any {
+	if list, ok := in.([]any); ok {
 		return (list)
 	}
 
 	log.Warnf("unsupported interface list type: %#v (%T)", in, in)
-	val := make([]interface{}, 0)
+	val := make([]any, 0)
 
 	return val
 }
 
-func interface2bool(in interface{}) bool {
+func interface2bool(in any) bool {
 	switch v := in.(type) {
 	case bool:
 		return v
@@ -1303,7 +1304,7 @@ func interface2bool(in interface{}) bool {
 	return false
 }
 
-func interface2JSONString(raw interface{}) string {
+func interface2JSONString(raw any) string {
 	if raw == nil {
 		return "{}"
 	}
@@ -1335,7 +1336,7 @@ func interface2JSONString(raw interface{}) string {
 	}
 }
 
-func cast2Type(val interface{}, col *Column) interface{} {
+func cast2Type(val any, col *Column) any {
 	switch col.DataType {
 	case StringCol:
 		return (interface2string(val))
@@ -1598,10 +1599,8 @@ func (d *DataRow) isAuthorizedFor(authUser, host, service string) (canView bool)
 		if !ok {
 			return false
 		}
-		for _, contact := range hostObj.GetStringList(contactsColumn) {
-			if contact == authUser {
-				return true
-			}
+		if slices.Contains(hostObj.GetStringList(contactsColumn), authUser) {
+			return true
 		}
 	}
 
@@ -1612,10 +1611,8 @@ func (d *DataRow) isAuthorizedFor(authUser, host, service string) (canView bool)
 		if !ok {
 			return false
 		}
-		for _, contact := range serviceObj.GetStringList(contactsColumn) {
-			if contact == authUser {
-				return true
-			}
+		if slices.Contains(serviceObj.GetStringList(contactsColumn), authUser) {
+			return true
 		}
 	}
 

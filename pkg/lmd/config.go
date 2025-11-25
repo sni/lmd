@@ -274,13 +274,13 @@ func (conf *Config) LogConfig() {
 	cfg, _ := jsoniter.MarshalIndent(*conf, "", "  ")
 
 	log.Debug("command line arguments:")
-	for _, s := range strings.Split(string(arg), "\n") {
+	for s := range strings.SplitSeq(string(arg), "\n") {
 		log.Debugf("args: %s", s)
 	}
 
 	replaceAuth := regexp.MustCompile(`"Auth": ".*",`)
 	log.Debug("effective configuration:")
-	for _, s := range strings.Split(string(cfg), "\n") {
+	for s := range strings.SplitSeq(string(cfg), "\n") {
 		s = replaceAuth.ReplaceAllString(s, `"Auth": "***",`)
 		log.Debugf("conf: %s", s)
 	}

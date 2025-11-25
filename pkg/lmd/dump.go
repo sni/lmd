@@ -1,5 +1,4 @@
 //go:build ignore
-// +build ignore
 
 package lmd
 
@@ -11,7 +10,7 @@ import (
 )
 
 // Dump displays arbitrary data.
-func Dump(v interface{}) {
+func Dump(v any) {
 	spew.Config.Indent = "\t"
 	spew.Config.MaxDepth = 3
 	spew.Config.DisableMethods = true
@@ -19,7 +18,7 @@ func Dump(v interface{}) {
 }
 
 // SDump returns arbitrary data as string.
-func SDump(v interface{}) string {
+func SDump(v any) string {
 	spew.Config.Indent = "\t"
 	spew.Config.MaxDepth = 3
 	spew.Config.DisableMethods = true

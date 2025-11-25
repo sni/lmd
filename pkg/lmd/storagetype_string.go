@@ -18,9 +18,9 @@ const _StorageType_name = "LocalStoreRefStoreVirtualStore"
 var _StorageType_index = [...]uint8{0, 10, 18, 30}
 
 func (i StorageType) String() string {
-	i -= 1
-	if i >= StorageType(len(_StorageType_index)-1) {
-		return "StorageType(" + strconv.FormatInt(int64(i+1), 10) + ")"
+	idx := int(i) - 1
+	if i < 1 || idx >= len(_StorageType_index)-1 {
+		return "StorageType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _StorageType_name[_StorageType_index[i]:_StorageType_index[i+1]]
+	return _StorageType_name[_StorageType_index[idx]:_StorageType_index[idx+1]]
 }
