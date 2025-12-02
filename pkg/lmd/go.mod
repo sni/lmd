@@ -11,7 +11,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/kdar/factorlog v0.0.0-20211012144011-6ea75a169038
-	github.com/klauspost/compress v1.18.1
+	github.com/klauspost/compress v1.18.2
 	github.com/prometheus/client_golang v1.23.2
 	github.com/sasha-s/go-deadlock v0.3.6
 	github.com/stretchr/testify v1.11.1
