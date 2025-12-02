@@ -2,8 +2,10 @@
 
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
-next:
+2.7.0    Tue Dec  2 11:02:33 CET 2025
           - fix crash when accessing string list columns during connection phase
+          - update dependencies
+          - tests: update golangci to v2
 
 2.6.4    Fri Oct 17 14:47:56 CEST 2025
           - set memory limit to 70% of machine (GOMEMLIMIT)
