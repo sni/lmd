@@ -215,6 +215,7 @@ func (cl *ClientConnection) processRequest(ctx context.Context, req *Request) (s
 	defer func() {
 		cl.curRequest = nil
 	}()
+	defer cl.lmd.logPanicExitClient(cl)
 	size, err = req.BuildResponseSend(ctx, cl)
 	if err != nil {
 		var netErr net.Error

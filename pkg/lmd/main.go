@@ -865,6 +865,20 @@ func (lmd *Daemon) logPanicExit() {
 	}
 }
 
+func (lmd *Daemon) logPanicExitClient(con *ClientConnection) {
+	if r := recover(); r != nil {
+		log.Errorf("Panic: %s", r)
+		log.Errorf("Version: %s", Version())
+		log.Errorf("Connection [%s->%s]", con.remoteAddr, con.localAddr)
+		if con.curRequest != nil {
+			log.Errorf("Request: %s", strings.TrimSpace(con.curRequest.String()))
+		}
+		log.Errorf("%s", debug.Stack())
+		deletePidFile(lmd.flags.flagPidfile)
+		os.Exit(ExitCritical)
+	}
+}
+
 func timeOrNever(timestamp float64) string {
 	if timestamp > 0 {
 		sec, dec := math.Modf(timestamp)

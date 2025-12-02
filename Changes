@@ -2,6 +2,9 @@
 
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
+next:
+          - fix crash when accessing string list columns during connection phase
+
 2.6.4    Fri Oct 17 14:47:56 CEST 2025
           - set memory limit to 70% of machine (GOMEMLIMIT)
 
