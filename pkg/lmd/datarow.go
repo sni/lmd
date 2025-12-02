@@ -1475,7 +1475,7 @@ func (d *DataRow) hasJSONLocalColumn(col *Column) bool {
 	case StringLargeCol:
 		return col.Index < len(d.dataStringLarge)
 	case StringListCol:
-		return col.Index < len(d.dataString)
+		return col.Index < len(d.dataStringList)
 	case IntCol:
 		return col.Index < len(d.dataInt)
 	case Int64Col:
