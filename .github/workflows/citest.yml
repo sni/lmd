@@ -20,7 +20,7 @@ jobs:
     - run: make longtest
     - run: make
     - name: extract built binary
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: lmd
         path: lmd
