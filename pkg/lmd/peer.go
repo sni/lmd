@@ -1989,7 +1989,9 @@ func (p *Peer) waitcondition(ctx context.Context, waitChan chan struct{}, req *R
 			// trigger update for all, wait conditions are run against the last object
 			// but multiple commands may have been sent
 			lastUpdate = p.lastUpdate.Get()
-			p.ScheduleImmediateUpdate()
+			if !p.HasFlag(HasLastUpdateColumn) {
+				p.ScheduleImmediateUpdate()
+			}
 			time.Sleep(WaitTimeoutCheckInterval)
 
 			continue
@@ -2611,10 +2613,9 @@ func (p *Peer) SendCommands(ctx context.Context, commands []string) (err error) 
 	logWith(ctx).Infof("send %d commands successfully.", len(commands))
 
 	// schedule immediate update
-	p.ScheduleImmediateUpdate()
-
 	if !p.HasFlag(HasLastUpdateColumn) {
 		p.forceFull.Store(true)
+		p.ScheduleImmediateUpdate()
 	}
 
 	return err
