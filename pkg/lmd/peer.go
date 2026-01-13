@@ -2625,7 +2625,7 @@ func (p *Peer) SendCommands(ctx context.Context, commands []string) (err error) 
 func (p *Peer) setFederationInfo(data map[string]any, target *atomicStringList, datakey string) {
 	if _, ok := data["federation_"+datakey]; ok {
 		if v, ok := data["federation_"+datakey].([]any); ok {
-			list := []string{}
+			list := make([]string, 0, len(v))
 			for _, d := range v {
 				s := interface2stringNoDedup(d)
 				if datakey == "addr" {

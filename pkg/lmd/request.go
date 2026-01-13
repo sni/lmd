@@ -657,10 +657,9 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 
 	// Sort order
 	if len(req.Sort) != 0 {
-		var sort []string
+		sort := make([]string, 0, len(req.Sort))
 		for i := range req.Sort {
 			sortField := req.Sort[i]
-			var line string
 			var direction string
 			switch sortField.Direction {
 			case Desc:
@@ -668,7 +667,7 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 			case Asc:
 				direction = "asc"
 			}
-			line = sortField.Name + " " + direction
+			line := sortField.Name + " " + direction
 			sort = append(sort, line)
 		}
 		requestData["sort"] = sort
@@ -701,7 +700,7 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan ResultSet, c
 				// apply stats querys
 				key := ""
 				if hasColumns > 0 {
-					keys := []string{}
+					keys := make([]string, 0, hasColumns)
 					for x := range hasColumns {
 						keys = append(keys, interface2stringNoDedup(row[x]))
 					}
@@ -1093,13 +1092,12 @@ func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) 
 		return nil, &PeerError{msg: "json parse error: expected {", kind: ResponseError, req: req, resBytes: resBytes}
 	}
 
-	idx := bytes.Index(resBytes, []byte("\"data\":"))
-	if idx < 0 {
+	pre, resBytes, found := bytes.Cut(resBytes, []byte("\"data\":"))
+	if !found {
 		return nil, &PeerError{msg: "json parse error: expected \"data\":", kind: ResponseError, req: req, resBytes: resBytes}
 	}
-	pre := resBytes[:idx]
 
-	res, post, err := parseJSONResult(resBytes[idx+7:])
+	res, post, err := parseJSONResult(resBytes[7:])
 	if err != nil {
 		return nil, &PeerError{msg: fmt.Sprintf("json parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
 	}
@@ -1110,7 +1108,7 @@ func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) 
 	}
 
 	json := &rjson.ValueReader{}
-	remaining := []byte{}
+	remaining := make([]byte, 0, len(pre)+len(post))
 	remaining = append(remaining, pre...)
 	remaining = append(remaining, post...)
 	wrapped, _, err := json.ReadObject(remaining)

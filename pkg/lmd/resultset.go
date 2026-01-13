@@ -54,7 +54,7 @@ func (res *ResultSet) sortByPrimaryKey(table *Table) {
 
 // result2Hash converts list result into hashes.
 func (res *ResultSet) result2Hash(columns []string) []map[string]any {
-	hash := make([]map[string]any, 0)
+	hash := make([]map[string]any, 0, len(*res))
 	for _, row := range *res {
 		rowHash := make(map[string]any)
 		for x, key := range columns {

@@ -64,7 +64,7 @@ type NodeAddressList []*NodeAddress
 
 // String returns the stringified node address list.
 func (a *NodeAddressList) String() string {
-	str := []string{}
+	str := make([]string, 0, len(*a))
 	for _, l := range *a {
 		str = append(str, l.String())
 	}

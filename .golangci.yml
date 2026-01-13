@@ -73,6 +73,7 @@ linters:
           - lll
           - mnd
           - musttag
+          - prealloc
         path: _test.*\.go
       - path: (.+)\.go$
         text: data.Options.Sub.*_raw_query.*is deeply nested

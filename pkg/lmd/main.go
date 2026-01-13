@@ -457,7 +457,7 @@ func (lmd *Daemon) initializePeers(ctx context.Context) {
 	lmd.peerMap.Remove(removePeers...)
 
 	// Create/set Peer objects
-	newPeerList := []*Peer{}
+	newPeerList := make([]*Peer, 0, len(lmd.Config.Connections))
 	backends := make([]string, 0, len(lmd.Config.Connections))
 	for i := range lmd.Config.Connections {
 		conn := lmd.Config.Connections[i]
