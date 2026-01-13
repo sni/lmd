@@ -57,6 +57,7 @@ linters:
     lll:
       line-length: 175
   exclusions:
+    #warn-unused: true
     generated: lax
     presets:
       - comments
@@ -108,13 +109,9 @@ linters:
       - path: (.+)\.go$
         text: 'Magic number: 30\D '
       - path: (.+)\.go$
-        text: 'Magic number: 32\D '
-      - path: (.+)\.go$
         text: 'Magic number: 4\D '
       - path: (.+)\.go$
         text: 'Magic number: 60\D '
-      - path: (.+)\.go$
-        text: 'Magic number: 64\D '
       - path: (.+)\.go$
         text: 'Magic number: 120\D '
       - path: (.+)\.go$
@@ -127,20 +124,6 @@ linters:
         text: 'missing cases in switch of type Operator: _'
       - path: (.+)\.go$
         text: 'missing cases in switch of type SortDirection: _'
-      - path: (.+)\.go$
-        text: package should be `main_test` instead of `main`
-      - path: (.+)\.go$
-        text: Top level comment should end in a period
-      - path: (.+)\.go$
-        text: _checkErr contains underscore
-      - path: (.+)\.go$
-        text: _checkErr2 contains underscore
-      - path: (.+)\.go$
-        text: (RLIMIT_NOFILE|O_APPEND|O_WRONLY|O_CREATE) contains underscore
-      - path: (.+)\.go$
-        text: '`noCopy` is unused'
-      - path: (.+)\.go$
-        text: Build is a global variable
       - path: (.+)\.go$
         text: can be `expvar.Var`
       - path: (.+)\.go$
@@ -157,10 +140,6 @@ linters:
         text: cognitive complexity .* of func `prepareTmpDataHostService` is high
       - path: (.+)\.go$
         text: cognitive complexity .* of func `.*RawResultSet..Less` is high
-      - path: (.+)\.go$
-        text: CompressionLevel is a global variable
-      - path: (.+)\.go$
-        text: CompressionMinimumSize is a global variable
       - path: (.+)\.go$
         text: cyclomatic complexity .* of func `.*Less` is high
       - path: (.+)\.go$
@@ -182,43 +161,23 @@ linters:
       - path: (.+)\.go$
         text: cyclomatic complexity .* of func `.*statusGet` is high
       - path: (.+)\.go$
-        text: dedup is a global variable
-      - path: (.+)\.go$
-        text: defaultParseOptimizer is a global variable
-      - path: (.+)\.go$
         text: empty.* is a global variable
       - path: (.+)\.go$
         text: Error return value of `log.Output` is not checked
-      - path: (.+)\.go$
-        text: func .*noCopy.* is unused
       - path: (.+)\.go$
         text: Function 'NewHostsTable' has too many statements
       - path: (.+)\.go$
         text: Function 'NewServicesTable' has too many statements
       - path: (.+)\.go$
-        text: 'G108: Profiling endpoint is automatically exposed'
-      - path: (.+)\.go$
         text: 'G114: Use of net/http serve function that has no support for setting timeouts'
       - path: (.+)\.go$
         text: log is a global variable
-      - path: (.+)\.go$
-        text: LogFormat is a global variable
-      - path: (.+)\.go$
-        text: Objects is a global variable
-      - path: (.+)\.go$
-        text: once is a global variable
-      - path: (.+)\.go$
-        text: OptionalFlagsStrings is a global variable
-      - path: (.+)\.go$
-        text: prom.* is a global variable
       - path: (.+)\.go$
         text: 'ptrToRefParam: consider `commandsByPeer'' to be of non-pointer type'
       - path: (.+)\.go$
         text: TLS InsecureSkipVerify may be true
       - path: (.+)\.go$
         text: Use of weak random number generator
-      - path: (.+)\.go$
-        text: VirtualColumnList is a global variable
       - path: (.+)\.go$
         text: VirtualColumnMap is a global variable
       - path: (.+)\.go$
@@ -231,10 +190,6 @@ linters:
         text: 'fmtappendf:'
       - path: (.+)\.go$
         text: 'must not be called. use'
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
@@ -245,7 +200,3 @@ formatters:
     - goimports
   exclusions:
     generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
