@@ -1092,12 +1092,12 @@ func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) 
 		return nil, &PeerError{msg: "json parse error: expected {", kind: ResponseError, req: req, resBytes: resBytes}
 	}
 
-	pre, resBytes, found := bytes.Cut(resBytes, []byte("\"data\":"))
+	pre, resData, found := bytes.Cut(resBytes, []byte("\"data\":"))
 	if !found {
 		return nil, &PeerError{msg: "json parse error: expected \"data\":", kind: ResponseError, req: req, resBytes: resBytes}
 	}
 
-	res, post, err := parseJSONResult(resBytes[7:])
+	res, post, err := parseJSONResult(resData)
 	if err != nil {
 		return nil, &PeerError{msg: fmt.Sprintf("json parse error: %s", err.Error()), kind: ResponseError, req: req, resBytes: resBytes}
 	}
