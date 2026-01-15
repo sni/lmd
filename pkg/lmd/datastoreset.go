@@ -276,6 +276,7 @@ func (ds *DataStoreSet) UpdateFull(ctx context.Context, tables []TableName) (err
 	}
 	now := currentUnixTime()
 	peer.resetErrors()
+	peer.forceFull.Store(false)
 	peer.lastUpdate.Set(now)
 	peer.lastFullUpdate.Set(now)
 	peer.responseTime.Set(duration.Seconds())
@@ -339,11 +340,8 @@ func (ds *DataStoreSet) UpdateDelta(ctx context.Context, from, until float64) (e
 	if err != nil {
 		return err
 	}
-	err = ds.updateDeltaCommentsOrDowntimes(ctx, TableComments)
-	if err != nil {
-		return err
-	}
-	err = ds.updateDeltaCommentsOrDowntimes(ctx, TableDowntimes)
+
+	err = ds.updateCommentsAndDowntimes(ctx)
 	if err != nil {
 		return err
 	}
@@ -363,6 +361,10 @@ func (ds *DataStoreSet) UpdateDelta(ctx context.Context, from, until float64) (e
 
 	promPeerUpdates.WithLabelValues(peer.Name).Inc()
 	promPeerUpdateDuration.WithLabelValues(peer.Name).Set(duration.Seconds())
+
+	if from == 0 {
+		peer.forceFull.Store(false)
+	}
 
 	return nil
 }
@@ -630,6 +632,21 @@ func (ds *DataStoreSet) reloadIfNumberOfObjectsChanged(ctx context.Context) (err
 	}
 
 	return err
+}
+
+// update both comments and downtimes.
+func (ds *DataStoreSet) updateCommentsAndDowntimes(ctx context.Context) (err error) {
+	ds.peer.forceComments.Store(false)
+	err = ds.updateDeltaCommentsOrDowntimes(ctx, TableComments)
+	if err != nil {
+		return err
+	}
+	err = ds.updateDeltaCommentsOrDowntimes(ctx, TableDowntimes)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // updateDeltaCommentsOrDowntimes update the comments or downtimes table. It fetches the number and highest id of

@@ -101,7 +101,7 @@ type Peer struct { //nolint:govet // not fieldalignment relevant
 	curPeerAddrNum             atomic.Int64                   // current pointer into Source / Fallback
 	bytesReceived              atomic.Int64                   // number of bytes received
 	bytesSend                  atomic.Int64                   // number of bytes send
-	corePid                    atomic.Int64                   // naemons core pid
+	corePid                    atomic.Int64                   // naemon core pid
 	thrukVersion               atomicFloat64                  // thruks version number as float
 	responseTime               atomicFloat64                  // response time in seconds
 	lastOnline                 atomicFloat64                  // timestamp backend was last online
@@ -119,6 +119,7 @@ type Peer struct { //nolint:govet // not fieldalignment relevant
 	idling                     atomic.Bool                    // flag wether peer is in idle mode
 	errorLogged                atomic.Bool                    // flag wether last error has been logged already
 	forceFull                  atomic.Bool                    // flag to update everything on the next periodic check
+	forceComments              atomic.Bool                    // flag to force comments/downtimes update on next periodic check
 	subName                    atomicStringList               // chain of peer names to this sub peer
 	subType                    atomicStringList               // chain of peer types to this sub peer
 	subAddr                    atomicStringList               // chain of peer addresses to this sub peer
@@ -423,6 +424,15 @@ func (p *Peer) periodicUpdate(ctx context.Context) (ok bool, err error) {
 		}
 	}
 
+	// run on demand comments / downtimes update
+	if p.forceComments.Load() {
+		p.forceComments.Store(false)
+		err = data.updateCommentsAndDowntimes(ctx)
+		if err != nil {
+			return ok, err
+		}
+	}
+
 	var nextUpdate float64
 	if idling {
 		nextUpdate = lastUpdate + float64(p.lmd.Config.IdleInterval)
@@ -708,9 +718,10 @@ func (p *Peer) scheduleUpdateIfRestartRequiredError(err error) bool {
 	return false
 }
 
-// ScheduleImmediateUpdate resets all update timer so the next updateloop iteration
-// will performan an update.
+// ScheduleImmediateUpdate resets all update timer so the next update loop iteration
+// will perform an update.
 func (p *Peer) ScheduleImmediateUpdate() {
+	p.forceFull.Store(true)
 	p.lastUpdate.Set(0)
 	p.lastFullServiceUpdate.Set(0)
 	p.lastFullHostUpdate.Set(0)
@@ -1913,12 +1924,13 @@ func (p *Peer) WaitCondition(ctx context.Context, req *Request) {
 	case <-timeout.C:
 		// timed out
 	case <-ctx.Done():
-		// contxt closed
+		// context closed
 	}
 
 	safeCloseWaitChannel(waitChan)
 }
 
+//nolint:gocyclo // long but readable
 func (p *Peer) waitcondition(ctx context.Context, waitChan chan struct{}, req *Request) (err error) {
 	var lastUpdate float64
 	for {
@@ -1930,19 +1942,6 @@ func (p *Peer) waitcondition(ctx context.Context, waitChan chan struct{}, req *R
 			// canceled
 			return nil
 		default:
-		}
-
-		// waiting for final update to complete
-		if lastUpdate > 0 {
-			// wait up to WaitTimeout till the update is complete
-			if p.lastUpdate.Get() > 0 {
-				safeCloseWaitChannel(waitChan)
-
-				return nil
-			}
-			time.Sleep(WaitTimeoutCheckInterval)
-
-			continue
 		}
 
 		data, err := p.GetDataStoreSet()
@@ -1960,7 +1959,7 @@ func (p *Peer) waitcondition(ctx context.Context, waitChan chan struct{}, req *R
 		}
 
 		// get object to watch
-		found := false
+		conditionOK := false
 		if req.WaitObject != "" {
 			obj, ok := store.GetWaitObject(req)
 			if !ok {
@@ -1970,22 +1969,22 @@ func (p *Peer) waitcondition(ctx context.Context, waitChan chan struct{}, req *R
 				return nil
 			}
 
-			found = true
+			conditionOK = true
 			for i := range req.WaitCondition {
 				if !obj.MatchFilter(req.WaitCondition[i], false) {
-					found = false
+					conditionOK = false
 				}
 			}
 		} else if p.waitConditionTableMatches(store, req.WaitCondition) {
-			found = true
+			conditionOK = true
 		}
 
 		// invert wait condition logic
 		if req.WaitConditionNegate {
-			found = !found
+			conditionOK = !conditionOK
 		}
 
-		if found {
+		if conditionOK {
 			// trigger update for all, wait conditions are run against the last object
 			// but multiple commands may have been sent
 			lastUpdate = p.lastUpdate.Get()
@@ -1994,11 +1993,11 @@ func (p *Peer) waitcondition(ctx context.Context, waitChan chan struct{}, req *R
 			}
 			time.Sleep(WaitTimeoutCheckInterval)
 
-			continue
+			break
 		}
 
 		// nothing matched, update tables
-		refreshCtx := context.TODO()
+		refreshCtx := context.TODO() // need new context, peer would be marked as failed even if just the client context finishes
 		time.Sleep(WaitTimeoutCheckInterval)
 		switch req.Table {
 		case TableHosts:
@@ -2029,6 +2028,33 @@ func (p *Peer) waitcondition(ctx context.Context, waitChan chan struct{}, req *R
 			}
 		}
 	}
+
+	// waiting for final update to complete
+	if lastUpdate > 0 {
+		for {
+			select {
+			case <-waitChan:
+				// canceled
+				return nil
+			case <-ctx.Done():
+				// canceled
+				return nil
+			default:
+			}
+
+			// wait up to WaitTimeout till the update is complete
+			if p.lastUpdate.Get() > 0 {
+				safeCloseWaitChannel(waitChan)
+
+				return nil
+			}
+			time.Sleep(WaitTimeoutCheckInterval)
+
+			continue
+		}
+	}
+
+	return nil
 }
 
 // close channel and catch errors of already close channels.
@@ -2593,13 +2619,13 @@ func (p *Peer) SendCommandsWithRetry(ctx context.Context, commands []string) (er
 }
 
 // SendCommands sends list of commands.
-func (p *Peer) SendCommands(ctx context.Context, commands []string) (err error) {
+func (p *Peer) SendCommands(ctx context.Context, commands []string) error {
 	commandRequest := &Request{
 		Command: strings.Join(commands, "\n\n"),
 	}
 	ctx = context.WithValue(ctx, CtxRequest, commandRequest.ID())
 	p.setQueryOptions(commandRequest)
-	_, _, err = p.Query(ctx, commandRequest)
+	_, _, err := p.Query(ctx, commandRequest)
 	if err != nil {
 		var peerCmdErr *PeerCommandError
 		if errors.As(err, &peerCmdErr) {
@@ -2613,12 +2639,35 @@ func (p *Peer) SendCommands(ctx context.Context, commands []string) (err error) 
 	logWith(ctx).Infof("send %d commands successfully.", len(commands))
 
 	// schedule immediate update
-	if !p.HasFlag(HasLastUpdateColumn) {
-		p.forceFull.Store(true)
+	if p.HasFlag(HasLastUpdateColumn) {
+		// check if comments or downtimes need to be refreshed
+		if commandsAffectCommentsOrDowntimes(commands) {
+			p.forceComments.Store(true)
+		}
+	} else {
 		p.ScheduleImmediateUpdate()
 	}
 
-	return err
+	return nil
+}
+
+func commandsAffectCommentsOrDowntimes(commands []string) bool {
+	for _, cmd := range commands {
+		cmdName, _, found := strings.Cut(cmd, ";")
+		if !found {
+			continue
+		}
+		switch {
+		case strings.Contains(cmdName, "DOWNTIME"):
+			return true
+		case strings.Contains(cmdName, "COMMENT"):
+			return true
+		case strings.Contains(cmdName, "ACKNOWLEDGE"):
+			return true
+		}
+	}
+
+	return false
 }
 
 // setFederationInfo updates federation information for /site request.
