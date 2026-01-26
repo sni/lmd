@@ -176,7 +176,7 @@ func NewStatusTable() (t *Table) {
 	t.AddPeerInfoColumn("peer_bytes_received", Int64Col, "Bytes received to this peer")
 	t.AddPeerInfoColumn("peer_queries", Int64Col, "Number of queries sent to this peer")
 	t.AddPeerInfoColumn("peer_last_error", StringCol, "Last error message or empty if up")
-	t.AddPeerInfoColumn("peer_last_update", Int64Col, "Timestamp of last update")
+	t.AddPeerInfoColumn("peer_last_update", FloatCol, "Timestamp of last update")
 	t.AddPeerInfoColumn("peer_last_online", Int64Col, "Timestamp when peer was last online")
 	t.AddPeerInfoColumn("peer_response_time", FloatCol, "Duration of last update in seconds")
 	t.AddPeerInfoColumn("configtool", JSONCol, "Thruks config tool configuration if available")
@@ -391,7 +391,7 @@ func NewHostsTable() (t *Table) {
 	t.AddExtraColumn("hourly_value", LocalStore, Static, Int64Col, Naemon, "Hourly Value")
 	t.AddExtraColumn("event_handler", LocalStore, Static, StringCol, HasEventHandlerColumn, "Naemon command used as event handler")
 	t.AddExtraColumn("staleness", LocalStore, Dynamic, FloatCol, HasStalenessColumn, "Staleness indicator for this host")
-	t.AddExtraColumn("last_update", LocalStore, Dynamic, Int64Col, HasLastUpdateColumn, "Timestamp of the last change of any attribute of this host.")
+	t.AddExtraColumn("last_update", LocalStore, Dynamic, FloatCol, HasLastUpdateColumn, "Timestamp of the last change of any attribute of this host.")
 
 	// shinken specific
 	t.AddExtraColumn("is_impact", LocalStore, Dynamic, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
@@ -559,7 +559,7 @@ func NewServicesTable() (t *Table) {
 	t.AddExtraColumn("hourly_value", LocalStore, Static, Int64Col, Naemon, "Hourly Value")
 	t.AddExtraColumn("check_freshness", LocalStore, Dynamic, IntCol, HasCheckFreshnessColumn, "Whether freshness checks are activated (0/1)")
 	t.AddExtraColumn("staleness", LocalStore, Dynamic, FloatCol, HasStalenessColumn, "Staleness indicator for this host")
-	t.AddExtraColumn("last_update", LocalStore, Dynamic, Int64Col, HasLastUpdateColumn, "Timestamp of the last change of any attribute of this service.")
+	t.AddExtraColumn("last_update", LocalStore, Dynamic, FloatCol, HasLastUpdateColumn, "Timestamp of the last change of any attribute of this service.")
 
 	// shinken specific
 	t.AddExtraColumn("is_impact", LocalStore, Dynamic, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")

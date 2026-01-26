@@ -420,7 +420,7 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 		switch {
 		case lastUpdateResIdx >= 0 && lastCheckResIdx >= 0:
 			switch {
-			case interface2int64(resRow[lastUpdateResIdx]) != prep.DataRow.dataInt64[lastUpdateDataIdx]:
+			case interface2float64(resRow[lastUpdateResIdx]) != prep.DataRow.dataFloat[lastUpdateDataIdx]:
 				// last_update has changed -> always do a full update
 				prep.FullUpdate = true
 			case interface2int64(resRow[lastCheckResIdx]) != prep.DataRow.dataInt64[lastCheckDataIdx]:
@@ -431,7 +431,7 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 				continue
 			}
 		case lastUpdateResIdx >= 0:
-			if interface2int64(resRow[lastUpdateResIdx]) == prep.DataRow.dataInt64[lastUpdateDataIdx] {
+			if interface2float64(resRow[lastUpdateResIdx]) <= prep.DataRow.dataFloat[lastUpdateDataIdx] {
 				// if there is only a last_update column, we simply trust the core if an update is required
 				// skip update completely
 				continue
@@ -467,16 +467,26 @@ func (d *DataStore) getUpdateColumn(columnName string, dataOffset int) (dataInde
 	if checkCol == nil {
 		return dataIndex, resIndex
 	}
-	// double  check last_update column
+	// double check last_update column
 	if columnName == "last_update" && !d.peer.HasFlag(HasLastUpdateColumn) {
 		return dataIndex, resIndex
 	}
 
 	dataIndex = checkCol.Index
 	resIndex = d.dynamicColumnCache.GetColumnIndex(columnName) + dataOffset
-	if checkCol.DataType != Int64Col {
-		log.Panicf("%s: assumption about column type for %s is wrong, expected %s and got %s",
-			d.table.name.String(), checkCol.Name, Int64Col.String(), checkCol.DataType.String())
+	switch columnName {
+	case "last_check":
+		if checkCol.DataType != Int64Col {
+			log.Panicf("%s: assumption about column type for %s is wrong, expected %s and got %s",
+				d.table.name.String(), checkCol.Name, Int64Col.String(), checkCol.DataType.String())
+		}
+	case "last_update":
+		if checkCol.DataType != FloatCol {
+			log.Panicf("%s: assumption about column type for %s is wrong, expected %s and got %s",
+				d.table.name.String(), checkCol.Name, FloatCol.String(), checkCol.DataType.String())
+		}
+	default:
+		log.Panicf("%s: unsupported column name %s in getUpdateColumn", d.table.name.String(), columnName)
 	}
 
 	return dataIndex, resIndex
