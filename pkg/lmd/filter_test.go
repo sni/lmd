@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStringFilter(t *testing.T) {
@@ -72,5 +73,45 @@ func TestRegexpDetection(t *testing.T) {
 	for str, exp := range tests {
 		res := hasRegexpCharacters(str)
 		assert.Equalf(t, exp, res, "regex detection failed for test string '%s'", str)
+	}
+}
+
+func TestServiceMemberListFilter(t *testing.T) {
+	value := []ServiceMember{
+		{"host1", "svcA"},
+		{"host2", "svcB"},
+		{"host3", "svcC"},
+	}
+
+	assertions := []struct {
+		filter string
+		expect bool
+	}{
+		{"parents =", false},
+		{"parents !=", true},
+		{"parents >= host1;svcA", true},
+		{"parents <= host1;svcA", false},
+		{"parents >= hostXY;svcA", false},
+		{"parents <= hostXY;svcA", true},
+		{"parents >= host", false},
+		{"parents <= host", true},
+		{"parents ~ ^h.*;^s.*A$", true},
+		{"parents ~ ^H.*;^s.*A$", false},
+		{"parents ~~ ^H.*;^s.*a$", true},
+		{"parents !~ ^H.*;^s.*a$", true},
+		{"parents !~~ ^H.*;^s.*a$", false},
+	}
+
+	for _, asrt := range assertions {
+		stack := &[]*Filter{}
+		err := ParseFilter([]byte(asrt.filter), TableServices, stack, ParseOptimize)
+		require.NoError(t, err)
+		require.Len(t, *stack, 1)
+
+		if asrt.expect {
+			assert.Truef(t, (*stack)[0].MatchServiceMemberList(value), "expected filter '%s' to match", asrt.filter)
+		} else {
+			assert.Falsef(t, (*stack)[0].MatchServiceMemberList(value), "expected filter '%s' to not match", asrt.filter)
+		}
 	}
 }

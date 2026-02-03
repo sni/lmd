@@ -3,6 +3,7 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
 next:
+          - implement filter for servicemember columns
           - update dependencies
 
 2.7.0    Tue Dec  2 11:02:33 CET 2025

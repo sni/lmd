@@ -52,11 +52,15 @@ func (op *StatsType) String() string {
 // or a group of filters (GroupOperator).
 type Filter struct {
 	noCopy         noCopy
-	regexp         *regexp.Regexp
 	column         *Column // filter can either be a single filter
+	regexp         *regexp.Regexp
+	hstRegexp      *regexp.Regexp // used for service member filters
+	svcRegexp      *regexp.Regexp // same
 	stringVal      string
 	customTag      string
-	filter         []*Filter // or a group of filters
+	hstVal         string    // used for service member filters
+	svcVal         string    // same
+	filter         []*Filter // filter can be a group of filters
 	int64Value     int64
 	floatValue     float64
 	stats          float64 // stats query
@@ -335,6 +339,11 @@ func ParseFilter(value []byte, table TableName, stack *[]*Filter, options ParseO
 		filter.columnIndex = col.Index
 	}
 
+	err = filter.setFilterValueServiceMembers()
+	if err != nil {
+		return err
+	}
+
 	*stack = append(*stack, filter)
 
 	return nil
@@ -437,6 +446,7 @@ func (f *Filter) setFilterValue(strVal string) (err error) {
 	case StringListCol:
 		return nil
 	case ServiceMemberListCol:
+		// handled later in setFilterValueServiceMembers()
 		return nil
 	case JSONCol:
 		return nil
@@ -482,6 +492,46 @@ func (f *Filter) setLowerCaseColumn() {
 	f.column = col
 	f.operator = operator
 	f.stringVal = strings.ToLower(f.stringVal)
+}
+
+func (f *Filter) setFilterValueServiceMembers() error {
+	if f.column.DataType != ServiceMemberListCol {
+		return nil
+	}
+
+	vars := strings.SplitN(f.stringVal, ";", 2)
+
+	f.hstVal = vars[0]
+	if len(vars) == 2 {
+		f.svcVal = vars[1]
+	}
+
+	if f.regexp != nil {
+		hstVal := strings.TrimPrefix(f.hstVal, ".*")
+		hstVal = strings.TrimSuffix(hstVal, ".*")
+
+		svcVal := strings.TrimPrefix(f.svcVal, ".*")
+		svcVal = strings.TrimSuffix(svcVal, ".*")
+
+		if f.operator == RegexNoCaseMatchNot || f.operator == RegexNoCaseMatch {
+			hstVal = "(?i)" + hstVal
+			svcVal = "(?i)" + svcVal
+		}
+
+		hstRegex, err := regexp.Compile(hstVal)
+		if err != nil {
+			return errors.New("invalid regular expression: " + err.Error())
+		}
+		f.hstRegexp = hstRegex
+
+		svcRegex, err := regexp.Compile(svcVal)
+		if err != nil {
+			return errors.New("invalid regular expression: " + err.Error())
+		}
+		f.svcRegexp = svcRegex
+	}
+
+	return nil
 }
 
 func parseFilterOp(raw []byte) (op Operator, isRegex bool, err error) {
@@ -660,9 +710,9 @@ func (f *Filter) Match(row *DataRow) bool {
 	case InterfaceListCol:
 		return f.MatchInterfaceList(row.GetInterfaceList(f.column))
 	case ServiceMemberListCol:
-		// not implemented
-		return false
+		return f.MatchServiceMemberList(row.GetServiceMemberList(f.column))
 	case StringListSortedCol:
+		// columns are StringListCol internally after the first sort
 		log.Panicf("sorted string list is a virtual column type and not directly used")
 	}
 
@@ -756,37 +806,42 @@ func matchEmptyFilter(operator Operator) bool {
 }
 
 func (f *Filter) MatchString(value string) bool {
-	switch f.operator {
+	return (matchStringVal(value, f.operator, f.stringVal, f.regexp))
+}
+
+// regex should be from substr.
+func matchStringVal(value string, operator Operator, substr string, regex *regexp.Regexp) bool {
+	switch operator {
 	case Equal:
-		return value == f.stringVal
+		return value == substr
 	case Unequal:
-		return value != f.stringVal
+		return value != substr
 	case EqualNocase:
-		return strings.EqualFold(value, f.stringVal)
+		return strings.EqualFold(value, substr)
 	case UnequalNocase:
-		return !strings.EqualFold(value, f.stringVal)
+		return !strings.EqualFold(value, substr)
 	case RegexMatch, RegexNoCaseMatch:
-		return f.regexp.MatchString(value)
+		return regex.MatchString(value)
 	case RegexMatchNot, RegexNoCaseMatchNot:
-		return !f.regexp.MatchString(value)
+		return !regex.MatchString(value)
 	case Less:
-		return value < f.stringVal
+		return value < substr
 	case LessThan:
-		return value <= f.stringVal
+		return value <= substr
 	case Greater:
-		return value > f.stringVal
+		return value > substr
 	case GreaterThan:
-		return value >= f.stringVal
+		return value >= substr
 	case Contains:
-		return strings.Contains(value, f.stringVal)
+		return strings.Contains(value, substr)
 	case ContainsNot:
-		return !strings.Contains(value, f.stringVal)
+		return !strings.Contains(value, substr)
 	case ContainsNoCase:
-		return strings.Contains(strings.ToLower(value), f.stringVal)
+		return strings.Contains(strings.ToLower(value), substr)
 	case ContainsNoCaseNot:
-		return !strings.Contains(strings.ToLower(value), f.stringVal)
+		return !strings.Contains(strings.ToLower(value), substr)
 	default:
-		log.Warnf("not implemented string op: %s", f.operator.String())
+		log.Warnf("not implemented string op: %s", operator.String())
 
 		return false
 	}
@@ -886,7 +941,58 @@ func (f *Filter) MatchInterfaceList(list []any) bool {
 
 		return true
 	default:
-		log.Warnf("not implemented Interfacelist op: %s (%v)", f.operator.String(), f.operator)
+		log.Warnf("not implemented interfaceList op: %s (%v)", f.operator.String(), f.operator)
+
+		return false
+	}
+}
+
+func (f *Filter) MatchServiceMemberList(list []ServiceMember) bool {
+	switch f.operator {
+	case Equal:
+		// used to match for empty lists, like: depends_exec = ""
+		// return true if the list is empty
+		return f.isEmpty && len(list) == 0
+	case Unequal:
+		// used to match for any entry in lists, like: depends_exec != ""
+		// return true if the list is not empty
+		return f.isEmpty && len(list) != 0
+	case GreaterThan:
+		for _, v := range list {
+			if v[0] == f.hstVal && v[1] == f.svcVal {
+				return true
+			}
+		}
+
+		return false
+	case GroupContainsNot, LessThan:
+		for _, v := range list {
+			if v[0] == f.hstVal && v[1] == f.svcVal {
+				return false
+			}
+		}
+
+		return true
+	case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase:
+		for _, v := range list {
+			if matchStringVal(v[0], f.operator, f.hstVal, f.hstRegexp) && matchStringVal(v[1], f.operator, f.svcVal, f.svcRegexp) {
+				return true
+			}
+		}
+
+		return false
+	case RegexMatchNot, RegexNoCaseMatchNot, ContainsNot, ContainsNoCaseNot:
+		for _, v := range list {
+			// matchStringVal takes operator into account, so negate the result
+			// so if it returns false it means the value has been found
+			if !matchStringVal(v[0], f.operator, f.hstVal, f.hstRegexp) && !matchStringVal(v[1], f.operator, f.svcVal, f.svcRegexp) {
+				return false
+			}
+		}
+
+		return true
+	default:
+		log.Warnf("not implemented serviceMemberList op: %s", f.operator.String())
 
 		return false
 	}
