@@ -3,6 +3,9 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
 next:
+          - minimal supported golang 1.25.7
+
+2.7.0    Fri Feb  6 14:40:30 CET 2026
           - implement filter for servicemember columns
           - add support for float64 last_update columns
           - improve ondemand synchronisation after sending commands

@@ -1,8 +1,6 @@
 module github.com/sni/lmd/v2
 
-go 1.24.0
-
-toolchain go1.24.7
+go 1.25.7
 
 replace pkg/lmd => ./pkg/lmd
 
