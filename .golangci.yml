@@ -190,6 +190,8 @@ linters:
         text: 'fmtappendf:'
       - path: (.+)\.go$
         text: 'must not be called. use'
+      - path: (.+)\.go$
+        text: 'Goroutine creation can be simplified using WaitGroup.Go'
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
