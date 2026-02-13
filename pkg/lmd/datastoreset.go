@@ -319,11 +319,9 @@ func (ds *DataStoreSet) UpdateDelta(ctx context.Context, from, until float64) (e
 	if from > 0 {
 		switch {
 		case ds.peer.HasFlag(HasLMDLastCacheUpdateColumn):
-			filterStr = fmt.Sprintf("Filter: lmd_last_cache_update >= %v\nFilter: lmd_last_cache_update < %v\nAnd: 2\n",
-				int64(from-updateOffset), int64(until-updateOffset))
+			filterStr = fmt.Sprintf("Filter: lmd_last_cache_update >= %v\n", int64(from-updateOffset))
 		case ds.peer.HasFlag(HasLastUpdateColumn):
-			filterStr = fmt.Sprintf("Filter: last_update >= %v\nFilter: last_update < %v\nAnd: 2\n",
-				int64(from-updateOffset), int64(until-updateOffset))
+			filterStr = fmt.Sprintf("Filter: last_update >= %v\n", int64(from-updateOffset))
 		default:
 			filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: last_check < %v\nAnd: 2\n",
 				int64(from-updateOffset), int64(until-updateOffset))

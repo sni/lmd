@@ -119,6 +119,7 @@ type Peer struct { //nolint:govet // not fieldalignment relevant
 	idling                     atomic.Bool                    // flag wether peer is in idle mode
 	errorLogged                atomic.Bool                    // flag wether last error has been logged already
 	forceFull                  atomic.Bool                    // flag to update everything on the next periodic check
+	forceDelta                 atomic.Bool                    // flag to force next delta update
 	forceComments              atomic.Bool                    // flag to force comments/downtimes update on next periodic check
 	subName                    atomicStringList               // chain of peer names to this sub peer
 	subType                    atomicStringList               // chain of peer types to this sub peer
@@ -432,6 +433,7 @@ func (p *Peer) periodicUpdate(ctx context.Context) (ok bool, err error) {
 			return ok, err
 		}
 	}
+	forceDelta := p.forceDelta.Load()
 
 	var nextUpdate float64
 	if idling {
@@ -439,7 +441,7 @@ func (p *Peer) periodicUpdate(ctx context.Context) (ok bool, err error) {
 	} else {
 		nextUpdate = lastUpdate + float64(p.lmd.Config.UpdateInterval)
 	}
-	if now < nextUpdate {
+	if now < nextUpdate && !forceDelta {
 		return ok, nil
 	}
 	ok = true
@@ -447,6 +449,7 @@ func (p *Peer) periodicUpdate(ctx context.Context) (ok bool, err error) {
 	// set last update timestamp, otherwise we would retry the connection every 500ms instead
 	// of the update interval
 	p.lastUpdate.Set(now)
+	p.forceDelta.Store(false)
 
 	switch lastStatus {
 	case PeerStatusBroken:
@@ -721,10 +724,15 @@ func (p *Peer) scheduleUpdateIfRestartRequiredError(err error) bool {
 // ScheduleImmediateUpdate resets all update timer so the next update loop iteration
 // will perform an update.
 func (p *Peer) ScheduleImmediateUpdate() {
-	p.forceFull.Store(true)
-	p.lastUpdate.Set(0)
-	p.lastFullServiceUpdate.Set(0)
-	p.lastFullHostUpdate.Set(0)
+	if p.HasFlag(HasLastUpdateColumn) {
+		p.forceDelta.Store(true)
+		p.forceComments.Store(true)
+	} else {
+		p.lastUpdate.Set(0)
+		p.forceFull.Store(true)
+		p.lastFullServiceUpdate.Set(0)
+		p.lastFullHostUpdate.Set(0)
+	}
 }
 
 // InitAllTables creates all tables for this peer.
@@ -1988,9 +1996,7 @@ func (p *Peer) waitcondition(ctx context.Context, waitChan chan struct{}, req *R
 			// trigger update for all, wait conditions are run against the last object
 			// but multiple commands may have been sent
 			lastUpdate = p.lastUpdate.Get()
-			if !p.HasFlag(HasLastUpdateColumn) {
-				p.ScheduleImmediateUpdate()
-			}
+			p.ScheduleImmediateUpdate()
 			time.Sleep(WaitTimeoutCheckInterval)
 
 			break
@@ -2043,7 +2049,7 @@ func (p *Peer) waitcondition(ctx context.Context, waitChan chan struct{}, req *R
 			}
 
 			// wait up to WaitTimeout till the update is complete
-			if p.lastUpdate.Get() > 0 {
+			if p.lastUpdate.Get() > lastUpdate {
 				safeCloseWaitChannel(waitChan)
 
 				return nil
@@ -2639,13 +2645,12 @@ func (p *Peer) SendCommands(ctx context.Context, commands []string) error {
 	logWith(ctx).Infof("send %d commands successfully.", len(commands))
 
 	// schedule immediate update
+	p.ScheduleImmediateUpdate()
 	if p.HasFlag(HasLastUpdateColumn) {
 		// check if comments or downtimes need to be refreshed
 		if commandsAffectCommentsOrDowntimes(commands) {
 			p.forceComments.Store(true)
 		}
-	} else {
-		p.ScheduleImmediateUpdate()
 	}
 
 	return nil
