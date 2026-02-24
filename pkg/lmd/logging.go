@@ -18,9 +18,12 @@ var LogFormat string
 // DateTimeLogFormat sets the log format for the date/time portion.
 var DateTimeLogFormat string
 
+var LogMaxOutput int
+
 func init() {
 	DateTimeLogFormat = `[%{Date} %{Time "15:04:05.000"}]`
-	LogFormat = `[%{Severity}][pid:` + fmt.Sprintf("%d", os.Getpid()) + `][%{ShortFile}:%{Line}] %{Message}`
+	LogFormat = `[%{Severity}][pid:%{Pid}][%{ShortFile}:%{Line}] %{Message}`
+	LogMaxOutput = DefaultMaxLogOutput
 }
 
 const (
@@ -44,7 +47,7 @@ const (
 )
 
 // initialize standard logger which will be configured later from the configuration file options.
-var log = factorlog.New(os.Stdout, factorlog.NewStdFormatter(LogFormat))
+var log = factorlog.New(os.Stdout, buildFormatter(LogFormat))
 
 // InitLogging initializes the logging system.
 func InitLogging(conf *Config) {
@@ -53,16 +56,16 @@ func InitLogging(conf *Config) {
 	var err error
 	switch {
 	case conf.LogFile == "" || conf.LogFile == "stdout":
-		logFormatter = factorlog.NewStdFormatter(LogColors + DateTimeLogFormat + LogFormat + LogColorReset)
+		logFormatter = buildFormatter(LogColors + DateTimeLogFormat + LogFormat + LogColorReset)
 		targetWriter = os.Stdout
 	case strings.EqualFold(conf.LogFile, "stderr"):
-		logFormatter = factorlog.NewStdFormatter(LogColors + DateTimeLogFormat + LogFormat + LogColorReset)
+		logFormatter = buildFormatter(LogColors + DateTimeLogFormat + LogFormat + LogColorReset)
 		targetWriter = os.Stderr
 	case conf.LogFile == "stdout-journal":
-		logFormatter = factorlog.NewStdFormatter(LogFormat)
+		logFormatter = buildFormatter(LogFormat)
 		targetWriter = os.Stdout
 	default:
-		logFormatter = factorlog.NewStdFormatter(DateTimeLogFormat + LogFormat)
+		logFormatter = buildFormatter(DateTimeLogFormat + LogFormat)
 		targetWriter, err = os.OpenFile(conf.LogFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644)
 	}
 	if err != nil {
@@ -72,6 +75,13 @@ func InitLogging(conf *Config) {
 	if conf.LogLevel != "" {
 		LogLevel = conf.LogLevel
 	}
+
+	LogMaxOutput = conf.LogMaxOutput
+	if strings.EqualFold(LogLevel, "trace2") {
+		LogLevel = "trace"
+		LogMaxOutput = 0
+	}
+
 	log.SetFormatter(logFormatter)
 	log.SetOutput(targetWriter)
 	log.SetVerbosity(LogVerbosityDefault)
@@ -94,13 +104,28 @@ func LogErrors(v ...any) {
 	logWith().LogErrors(v...)
 }
 
+func buildFormatter(format string) *factorlog.StdFormatter {
+	format = strings.ReplaceAll(format, "%{Pid}", fmt.Sprintf("%d", os.Getpid()))
+
+	return (factorlog.NewStdFormatter(format))
+}
+
 // LogWriter implements the io.Writer interface and simply logs everything with given level.
 type LogWriter struct {
 	level string
 }
 
+func adjustMaxLogOutput(data string) string {
+	length := len(data)
+	if LogMaxOutput > 0 && length > LogMaxOutput {
+		data = data[:LogMaxOutput]
+		return data + fmt.Sprintf("...[skipped logging %d bytes]", length-LogMaxOutput)
+	}
+	return data
+}
+
 func (l *LogWriter) Write(p []byte) (n int, err error) {
-	msg := strings.TrimSpace(string(p))
+	msg := adjustMaxLogOutput(strings.TrimSpace(string(p)))
 	switch strings.ToLower(l.level) {
 	case "error":
 		log.Error(msg)
@@ -146,21 +171,21 @@ func (l *LogPrefixer) Infof(format string, v ...any) {
 	if !log.IsV(LogVerbosityDefault) {
 		return
 	}
-	log.Output(factorlog.INFO, LoggerCalldepth, fmt.Sprintf(l.prefix()+" "+format, v...))
+	log.Output(factorlog.INFO, LoggerCalldepth, adjustMaxLogOutput(fmt.Sprintf(l.prefix()+" "+format, v...)))
 }
 
 func (l *LogPrefixer) Debugf(format string, v ...any) {
 	if !log.IsV(LogVerbosityDebug) {
 		return
 	}
-	log.Output(factorlog.DEBUG, LoggerCalldepth, fmt.Sprintf(l.prefix()+" "+format, v...))
+	log.Output(factorlog.DEBUG, LoggerCalldepth, adjustMaxLogOutput(fmt.Sprintf(l.prefix()+" "+format, v...)))
 }
 
 func (l *LogPrefixer) Tracef(format string, v ...any) {
 	if !log.IsV(LogVerbosityTrace) {
 		return
 	}
-	log.Output(factorlog.TRACE, LoggerCalldepth, fmt.Sprintf(l.prefix()+" "+format, v...))
+	log.Output(factorlog.TRACE, LoggerCalldepth, adjustMaxLogOutput(fmt.Sprintf(l.prefix()+" "+format, v...)))
 }
 
 // LogErrors can be used as generic logger with a prefix.

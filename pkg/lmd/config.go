@@ -13,7 +13,10 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
-const DefaultInitialSyncBlockSize = 500000
+const (
+	DefaultInitialSyncBlockSize = 500000
+	DefaultMaxLogOutput         = 1500
+)
 
 // Connection defines a single connection configuration.
 type Connection struct {
@@ -75,6 +78,7 @@ type Config struct {
 	ServiceAuthorization       string       `toml:"ServiceAuthorization"`
 	TLSKey                     string       `toml:"TLSKey"`
 	LogLevel                   string       `toml:"LogLevel"`
+	LogMaxOutput               int          `toml:"LogMaxOutput"`
 	ListenPrometheus           string       `toml:"ListenPrometheus"`
 	Connections                []Connection `toml:"Connections"`
 	Nodes                      []string     `toml:"Nodes"`
@@ -112,6 +116,7 @@ func NewConfig(files []string) *Config {
 		FullUpdateInterval:         0,
 		InitialSyncBlockSize:       DefaultInitialSyncBlockSize,
 		LogLevel:                   "Info",
+		LogMaxOutput:               DefaultMaxLogOutput,
 		LogSlowQueryThreshold:      5,
 		LogHugeQueryThreshold:      100,
 		ConnectTimeout:             30,
