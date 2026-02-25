@@ -45,7 +45,7 @@ func initializePeersWithImport(lmd *Daemon, importFile string) (err error) {
 
 		// finish peer import
 		data := peer.data.Load()
-		err = data.SetReferences()
+		err = data.setReferences()
 		if err != nil {
 			return fmt.Errorf("failed to set references: %s", err.Error())
 		}
@@ -223,7 +223,7 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, l
 			return peers, fmt.Errorf("wrong number of site rows, expected 1 but got: %d", len(rows))
 		}
 
-		// new peer export starting
+		// new peer import starting
 		con := &Connection{
 			Name:    interface2stringNoDedup(rows[0][colIndex["peer_name"]]),
 			ID:      interface2stringNoDedup(rows[0][colIndex["peer_key"]]),
@@ -236,7 +236,8 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, l
 		logWith(peer).Infof("restoring peer id %s", peer.ID)
 
 		peer.peerState.Set(PeerStatus(interface2int8(rows[0][colIndex["status"]])))
-		peer.lastUpdate.Set(interface2float64(rows[0][colIndex["last_update"]]))
+		store := peer.data.Load()
+		store.lastUpdate.Set(interface2float64(rows[0][colIndex["last_update"]]))
 		peer.lastError.Set(interface2stringNoDedup(rows[0][colIndex["last_error"]]))
 		peer.lastOnline.Set(interface2float64(rows[0][colIndex["last_online"]]))
 		peer.queries.Store(interface2int64(rows[0][colIndex["queries"]]))
@@ -271,7 +272,7 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, l
 			return peers, fmt.Errorf("failed to insert data: %s", err.Error())
 		}
 		data := peer.data.Load()
-		data.Set(table.name, store)
+		data.setTable(table.name, store)
 	}
 
 	return peers, nil

@@ -84,7 +84,7 @@ func (ex *Exporter) exportPeers() (err error) {
 		return err
 	}
 	for _, peer := range ex.lmd.peerMap.Peers() {
-		if peer.HasFlag(MultiBackend) {
+		if peer.hasFlag(MultiBackend) {
 			continue
 		}
 		log.Debugf("exporting %s (%s)", peer.Name, peer.ID)
@@ -204,7 +204,7 @@ func (ex *Exporter) initPeers(ctx context.Context) {
 		go func() {
 			// make sure we log panics properly
 			defer logPanicExitPeer(peer)
-			err := peer.InitAllTables(ctx)
+			err := peer.initAllTables(ctx)
 			if err != nil {
 				logWith(peer).Warnf("failed to initialize peer: %s", err)
 			}
@@ -226,7 +226,7 @@ func (ex *Exporter) initPeers(ctx context.Context) {
 		go func() {
 			// make sure we log panics properly
 			defer logPanicExitPeer(peer)
-			err := peer.InitAllTables(ctx)
+			err := peer.initAllTables(ctx)
 			if err != nil {
 				logWith(peer).Warnf("failed to initialize peer: %s", err)
 			}
@@ -255,7 +255,7 @@ func (ex *Exporter) exportableColumns(p *Peer, t *Table) (columns []string) {
 
 // isExportColumn returns true if column should be exported.
 func (ex *Exporter) isExportColumn(p *Peer, col *Column) bool {
-	if col.Optional != NoFlags && !p.HasFlag(col.Optional) {
+	if col.Optional != NoFlags && !p.hasFlag(col.Optional) {
 		return false
 	}
 	if col.Table.name == TableSites {

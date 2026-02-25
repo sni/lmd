@@ -86,8 +86,8 @@ const (
 	// Generic Operators.
 	Equal         // =
 	Unequal       // !=
-	EqualNocase   // =~
-	UnequalNocase // !=~
+	EqualNoCase   // =~
+	UnequalNoCase // !=~
 
 	// Text Regexp Operators.
 	RegexMatch          // ~
@@ -118,9 +118,9 @@ func (op *Operator) String() string {
 		return ("=")
 	case Unequal:
 		return ("!=")
-	case EqualNocase:
+	case EqualNoCase:
 		return ("=~")
-	case UnequalNocase:
+	case UnequalNoCase:
 		return ("!=~")
 	case RegexMatch:
 		return ("~")
@@ -364,7 +364,7 @@ func (f *Filter) setRegexFilter(options ParseOptions) error {
 				f.operator = Equal
 				f.stringVal = val2
 			case RegexNoCaseMatch:
-				f.operator = EqualNocase
+				f.operator = EqualNoCase
 				f.stringVal = val2
 			default:
 				// other columns not supported
@@ -539,7 +539,7 @@ func parseFilterOp(raw []byte) (op Operator, isRegex bool, err error) {
 	case "=":
 		return Equal, false, nil
 	case "=~":
-		return EqualNocase, false, nil
+		return EqualNoCase, false, nil
 	case "~":
 		return RegexMatch, true, nil
 	case "!~":
@@ -551,7 +551,7 @@ func parseFilterOp(raw []byte) (op Operator, isRegex bool, err error) {
 	case "!=":
 		return Unequal, false, nil
 	case "!=~":
-		return UnequalNocase, false, nil
+		return UnequalNoCase, false, nil
 	case "<":
 		return Less, false, nil
 	case "<=":
@@ -816,9 +816,9 @@ func matchStringVal(value string, operator Operator, substr string, regex *regex
 		return value == substr
 	case Unequal:
 		return value != substr
-	case EqualNocase:
+	case EqualNoCase:
 		return strings.EqualFold(value, substr)
-	case UnequalNocase:
+	case UnequalNoCase:
 		return !strings.EqualFold(value, substr)
 	case RegexMatch, RegexNoCaseMatch:
 		return regex.MatchString(value)
@@ -916,7 +916,7 @@ func (f *Filter) MatchInterfaceList(list []any) bool {
 	}
 
 	switch f.operator {
-	case Equal, EqualNocase, Contains, ContainsNoCase, RegexMatch, RegexNoCaseMatch:
+	case Equal, EqualNoCase, Contains, ContainsNoCase, RegexMatch, RegexNoCaseMatch:
 		for _, irow := range list {
 			subrow := interface2interfaceList(irow)
 			for _, entry := range subrow {
@@ -928,7 +928,7 @@ func (f *Filter) MatchInterfaceList(list []any) bool {
 		}
 
 		return false
-	case Unequal, UnequalNocase, ContainsNot, ContainsNoCaseNot, RegexMatchNot, RegexNoCaseMatchNot:
+	case Unequal, UnequalNoCase, ContainsNot, ContainsNoCaseNot, RegexMatchNot, RegexNoCaseMatchNot:
 		for _, irow := range list {
 			subrow := interface2interfaceList(irow)
 			for _, entry := range subrow {
@@ -1110,4 +1110,17 @@ func hasRegexpCharacters(val string) bool {
 	}
 
 	return false
+}
+
+func createLocalStatsCopy(stats []*Filter) []*Filter {
+	localStats := make([]*Filter, len(stats))
+	for i, s := range stats {
+		localStats[i] = &Filter{}
+		localStats[i].statsType = s.statsType
+		if s.statsType == Min {
+			localStats[i].stats = -1
+		}
+	}
+
+	return localStats
 }

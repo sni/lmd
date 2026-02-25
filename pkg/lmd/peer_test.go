@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -212,63 +211,12 @@ func TestParseResultJSONBrokenError(t *testing.T) {
 	assert.ErrorContainsf(t, err, "json parse error at row 2 pos 10 (byte offset 31): invalid json array", "got error %v", err)
 }
 
-func TestPeerUpdate(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(1, 10, 10)
-	PauseTestPeers(peer)
-
-	store := peer.data.Load()
-	err := store.UpdateFull(t.Context(), Objects.UpdateTables)
-	require.NoError(t, err)
-
-	// fake some last_update entries
-	data, _ := peer.GetDataStoreSet()
-	svcTbl, _ := peer.GetDataStore(TableServices)
-	lastCheckCol := svcTbl.GetColumn("last_check")
-	for _, row := range svcTbl.data {
-		row.dataInt64[lastCheckCol.Index] = 2
-	}
-	err = data.UpdateDelta(t.Context(), float64(5), float64(time.Now().Unix()+5))
-	require.NoError(t, err)
-
-	peer.lastUpdate.Set(0)
-	_, err = peer.periodicUpdate(t.Context())
-	require.NoError(t, err)
-
-	peer.lastUpdate.Set(0)
-	peer.peerState.Set(PeerStatusWarning)
-	_, err = peer.periodicUpdate(t.Context())
-	require.NoError(t, err)
-
-	peer.lastUpdate.Set(0)
-	peer.peerState.Set(PeerStatusDown)
-	_, err = peer.periodicUpdate(t.Context())
-	require.NoError(t, err)
-
-	err = peer.periodicTimeperiodsUpdate(t.Context(), store)
-	require.NoError(t, err)
-
-	cList := peer.data.Load().Get(TableComments).table.GetColumns([]string{"id", "host_name", "service_description", "entry_time", "author", "comment", "persistent"})
-	err = peer.data.Load().Get(TableComments).AppendData(ResultSet([][]any{{"666", "test", "svc", 123456, "author", "comment", 0}}), cList)
-	require.NoError(t, err)
-	err = peer.data.Load().UpdateDelta(t.Context(), float64(time.Now().Unix())-60, float64(time.Now().Unix()))
-	require.NoError(t, err)
-
-	peer.lastUpdate.Set(0)
-	peer.peerState.Set(PeerStatusBroken)
-	_, err = peer.periodicUpdate(t.Context())
-	require.Errorf(t, err, "got no error but expected broken peer")
-	assert.Contains(t, err.Error(), "waiting for peer to recover")
-
-	err = cleanup()
-	require.NoError(t, err)
-}
-
 func TestPeerDeltaUpdate(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
 	store := peer.data.Load()
-	err := store.UpdateDelta(t.Context(), 0, 0)
+	err := store.updateDelta(t.Context(), 0, 0)
 	require.NoError(t, err)
 
 	err = cleanup()
@@ -279,7 +227,7 @@ func TestPeerUpdateResume(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	err := peer.ResumeFromIdle(t.Context())
+	err := peer.resumeFromIdle(t.Context())
 	require.NoError(t, err)
 
 	err = cleanup()
@@ -291,7 +239,7 @@ func TestPeerInitSerial(t *testing.T) {
 	PauseTestPeers(peer)
 
 	store := peer.data.Load()
-	err := peer.initAllTablesSerial(t.Context(), store)
+	err := store.initAllTablesSerial(t.Context())
 	require.NoError(t, err)
 
 	err = cleanup()
@@ -302,16 +250,22 @@ func TestLMDPeerUpdate(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(3, 10, 10)
 	PauseTestPeers(peer)
 
-	peer.lastUpdate.Set(0)
-	peer.SetFlag(LMD)
-	peer.SetFlag(MultiBackend)
-	_, err := peer.periodicUpdateLMD(t.Context(), nil, true)
+	store := peer.data.Load()
+	store.lastUpdate.Set(0)
+	peer.setFlag(LMD)
+	peer.setFlag(MultiBackend)
+	store.setSyncStrategy()
+	assert.IsTypef(t, &SyncStrategyLMD{}, store.sync, "expected sync strategy to be LMD")
+
+	_, err := peer.tryUpdate(t.Context())
 	require.NoError(t, err)
 
-	peer.lastUpdate.Set(0)
-	peer.ResetFlags()
-	peer.SetFlag(MultiBackend)
-	_, err = peer.periodicUpdateMultiBackends(t.Context(), nil, true)
+	store.lastUpdate.Set(0)
+	peer.resetFlags()
+	peer.setFlag(MultiBackend)
+	store.setSyncStrategy()
+	assert.IsTypef(t, &SyncStrategyMultiBackend{}, store.sync, "expected sync strategy to be MultiBackend")
+	_, err = peer.tryUpdate(t.Context())
 	require.NoError(t, err)
 
 	err = cleanup()

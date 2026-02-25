@@ -135,20 +135,21 @@ type Daemon struct {
 	mainSignalChannel chan os.Signal // used for internal signals for testing
 	qStat             *QueryStats
 	flags             struct {
-		flagLogFile      string
-		flagPidfile      string
-		flagProfile      string
-		flagCPUProfile   string
-		flagMemProfile   string
-		flagExport       string
-		flagImport       string
-		flagConfigFile   configFiles
-		flagCfgOption    ArrayFlags
-		flagDeadlock     int
-		flagVerbose      bool
-		flagVeryVerbose  bool
-		flagTraceVerbose bool
-		flagVersion      bool
+		flagLogFile          string
+		flagPidfile          string
+		flagProfile          string
+		flagCPUProfile       string
+		flagMemProfile       string
+		flagExport           string
+		flagImport           string
+		flagConfigFile       configFiles
+		flagCfgOption        ArrayFlags
+		flagDeadlock         int
+		flagVerbose          bool
+		flagVeryVerbose      bool
+		flagTraceVerbose     bool
+		flagTraceVerboseFull bool
+		flagVersion          bool
 	}
 	lastMainRestart           float64
 	defaultRequestParseOption ParseOptions
@@ -212,6 +213,7 @@ func (lmd *Daemon) setFlags() {
 	flag.BoolVar(&lmd.flags.flagVerbose, "verbose", false, "enable verbose output")
 	flag.BoolVar(&lmd.flags.flagVeryVerbose, "vv", false, "enable very verbose output")
 	flag.BoolVar(&lmd.flags.flagTraceVerbose, "vvv", false, "enable trace output")
+	flag.BoolVar(&lmd.flags.flagTraceVerboseFull, "vvvv", false, "enable trace output with full query response")
 	flag.BoolVar(&lmd.flags.flagVersion, "version", false, "print version and exit")
 	flag.BoolVar(&lmd.flags.flagVersion, "V", false, "print version and exit")
 	flag.StringVar(&lmd.flags.flagProfile, "debug-profiler", "", "start pprof profiler on this port, ex. :6060")
@@ -389,7 +391,7 @@ func (lmd *Daemon) ApplyFlags(conf *Config) {
 	if lmd.flags.flagVeryVerbose {
 		conf.LogLevel = "Debug"
 	}
-	if lmd.flags.flagTraceVerbose {
+	if lmd.flags.flagTraceVerbose || lmd.flags.flagTraceVerboseFull {
 		conf.LogLevel = "Trace"
 	}
 }
@@ -468,7 +470,7 @@ func (lmd *Daemon) initializePeers(ctx context.Context) {
 			if conn.Equals(peer.config) {
 				peer.waitGroup = lmd.waitGroupPeers
 				peer.shutdownChannel = lmd.shutdownChannel
-				peer.SetHTTPClient()
+				peer.setHTTPClient()
 			} else {
 				peer.Stop()
 				peer.data.Store(nil)

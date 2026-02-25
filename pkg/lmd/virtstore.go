@@ -91,7 +91,7 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 	dataSet := store.dataSet
 	switch store.table.name {
 	case TableHostsbygroup:
-		table := dataSet.Get(TableHosts)
+		table := dataSet.get(TableHosts)
 		table.lock.RLock()
 		defer table.lock.RUnlock()
 		nameCol := table.GetColumn("name")
@@ -104,7 +104,7 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 			}
 		}
 	case TableServicesbygroup:
-		table := dataSet.Get(TableServices)
+		table := dataSet.get(TableServices)
 		table.lock.RLock()
 		defer table.lock.RUnlock()
 		hostNameCol := table.GetColumn("host_name")
@@ -119,7 +119,7 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 			}
 		}
 	case TableServicesbyhostgroup:
-		table := dataSet.Get(TableServices)
+		table := dataSet.get(TableServices)
 		table.lock.RLock()
 		defer table.lock.RUnlock()
 		hostNameCol := table.GetColumn("host_name")

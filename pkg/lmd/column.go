@@ -33,7 +33,7 @@ var VirtualColumnList = []VirtualColumnMapEntry{
 	{name: "queries", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.queries.Load() }},
 	{name: "last_error", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.lastError.Get() }},
 	{name: "last_online", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.lastOnline.Get() }},
-	{name: "last_update", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.lastUpdate.Get() }},
+	{name: "last_update", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.lastUpdate() }},
 	{name: "response_time", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.responseTime.Get() }},
 	{name: "idling", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.idling.Load() }},
 	{name: "last_query", resolveFunc: func(p *Peer, _ *DataRow, _ *Column) any { return p.lastQuery.Get() }},

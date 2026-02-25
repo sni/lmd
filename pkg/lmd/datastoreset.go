@@ -3,8 +3,7 @@ package lmd
 import (
 	"context"
 	"fmt"
-	"slices"
-	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -12,8 +11,16 @@ import (
 const missedTimestampMaxFilter = 150
 
 // DataStoreSet is a collection of data stores.
-type DataStoreSet struct {
+type DataStoreSet struct { //nolint:govet // not fieldalignment relevant
 	peer *Peer
+	sync SyncStrategy
+
+	lastUpdate                 atomicFloat64 // timestamp of last update
+	lastFullUpdate             atomicFloat64 // timestamp of last full update
+	lastTimeperiodUpdateMinute atomic.Int32  // minute when timeperiods last have been updated
+
+	forceDelta    atomic.Bool // flag to force next delta update
+	forceComments atomic.Bool // flag to force comments/downtimes update on next periodic check
 
 	tableCommands      atomic.Pointer[DataStore]
 	tableComments      atomic.Pointer[DataStore]
@@ -31,12 +38,190 @@ type DataStoreSet struct {
 func NewDataStoreSet(peer *Peer) *DataStoreSet {
 	dataset := DataStoreSet{
 		peer: peer,
+		sync: &SyncStrategyLastCheck{},
 	}
 
 	return &dataset
 }
 
-func (ds *DataStoreSet) Set(name TableName, store *DataStore) {
+func (ds *DataStoreSet) setSyncStrategy() {
+	peer := ds.peer
+	switch {
+	case peer.hasFlag(LMD):
+		logWith(peer).Debugf("using sync strategy: LMD")
+		ds.sync = &SyncStrategyLMD{}
+	case peer.hasFlag(MultiBackend):
+		logWith(peer).Debugf("using sync strategy: MultiBackend")
+		ds.sync = &SyncStrategyMultiBackend{}
+	case peer.hasFlag(HasLastUpdateColumn):
+		logWith(peer).Debugf("using sync strategy: LastUpdate")
+		ds.sync = &SyncStrategyLastUpdate{}
+	default:
+		logWith(peer).Debugf("using sync strategy: LastCheck")
+		ds.sync = &SyncStrategyLastCheck{}
+	}
+
+	ds.sync.Init(ds)
+}
+
+// initAllTables creates all tables for this store.
+// It returns nil if the import was successful or an error otherwise.
+func (ds *DataStoreSet) initAllTables(ctx context.Context) (err error) {
+	now := currentUnixTime()
+	ds.lastUpdate.Set(now)
+	ds.lastFullUpdate.Set(now)
+
+	if ds.peer.lmd.Config.MaxParallelPeerConnections <= 1 {
+		err = ds.initAllTablesSerial(ctx)
+	} else {
+		err = ds.initAllTablesParallel(ctx)
+	}
+	if err != nil {
+		return err
+	}
+
+	if ds.peer.hasFlag(MultiBackend) {
+		return nil
+	}
+
+	err = ds.setReferences()
+	if err != nil {
+		return err
+	}
+
+	err = ds.rebuildCommentsList()
+	if err != nil {
+		return err
+	}
+
+	err = ds.rebuildDowntimesList()
+	if err != nil {
+		return err
+	}
+
+	err = ds.rebuildContactsGroups()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// fetches all objects one at a time.
+func (ds *DataStoreSet) initAllTablesSerial(ctx context.Context) (err error) {
+	time1 := time.Now()
+
+	// fetch one at a time
+	for _, n := range Objects.UpdateTables {
+		t := Objects.Tables[n]
+		err = ds.initTable(ctx, t)
+		if err != nil {
+			logWith(ds.peer).Debugf("fetching %s objects failed: %s", t.name.String(), err.Error())
+
+			return err
+		}
+	}
+
+	logWith(ds.peer).Debugf("objects fetched serially in %s", time.Since(time1).String())
+
+	return err
+}
+
+// initAllTablesParallel fetches all objects at once.
+func (ds *DataStoreSet) initAllTablesParallel(ctx context.Context) (err error) {
+	time1 := time.Now()
+
+	// go with status table first
+	err = ds.initTable(ctx, Objects.Tables[TableStatus])
+	if err != nil {
+		return err
+	}
+
+	// then fetch all others in parallel
+	results := make(chan error, len(Objects.UpdateTables)-1)
+	wait := &sync.WaitGroup{}
+	for _, n := range Objects.UpdateTables {
+		if n == TableStatus {
+			continue
+		}
+		table := Objects.Tables[n]
+		wait.Add(1)
+		go func(table *Table) {
+			// make sure we log panics properly
+			defer logPanicExitPeer(ds.peer)
+			defer func() {
+				wait.Done()
+			}()
+
+			err2 := ds.initTable(ctx, table)
+			results <- err2
+			if err2 != nil {
+				logWith(ds.peer).Debugf("fetching %s objects failed: %s", table.name.String(), err2.Error())
+
+				return
+			}
+		}(table)
+	}
+
+	// wait till fetching all tables finished
+	go func() {
+		wait.Wait()
+		close(results)
+	}()
+
+	// read results till channel is closed
+	for e := range results {
+		if e != nil {
+			return e
+		}
+	}
+
+	logWith(ds.peer).Debugf("objects fetched parallel in %s", time.Since(time1).String())
+
+	return nil
+}
+
+// initTable initializes a single table for this peer.
+func (ds *DataStoreSet) initTable(ctx context.Context, table *Table) (err error) {
+	if ds.peer.hasFlag(MultiBackend) && table.name != TableStatus {
+		// just create empty data pools
+		// real data is handled by separate peers
+		return nil
+	}
+
+	var store *DataStore
+	if !table.passthroughOnly && table.virtual == nil {
+		store, err = ds.createObjectByType(ctx, table)
+		if err != nil {
+			logWith(ds.peer).Debugf("creating initial objects failed in table %s: %s", table.name.String(), err.Error())
+
+			return err
+		}
+		ds.setTable(table.name, store)
+	}
+	switch table.name {
+	case TableStatus:
+		err = ds.peer.updateInitialStatus(ctx, store)
+		if err != nil {
+			return err
+		}
+		// got an answer, remove last error and let clients know we are reconnecting
+		state := ds.peer.peerState.Get()
+		if state != PeerStatusPending && state != PeerStatusSyncing {
+			ds.peer.peerState.Set(PeerStatusSyncing)
+			ds.peer.lastError.Set("reconnecting...")
+		}
+	case TableTimeperiods:
+		lastTimeperiodUpdateMinute := int32(interface2int8(time.Now().Format("4")))
+		ds.lastTimeperiodUpdateMinute.Store(lastTimeperiodUpdateMinute)
+	default:
+		// nothing special happens for the other tables
+	}
+
+	return nil
+}
+
+func (ds *DataStoreSet) setTable(name TableName, store *DataStore) {
 	switch name {
 	case TableCommands:
 		ds.tableCommands.Store(store)
@@ -61,11 +246,11 @@ func (ds *DataStoreSet) Set(name TableName, store *DataStore) {
 	case TableTimeperiods:
 		ds.tableTimeperiods.Store(store)
 	default:
-		log.Panicf("unsupported tablename: %s", name.String())
+		log.Panicf("unsupported table name: %s", name.String())
 	}
 }
 
-func (ds *DataStoreSet) Get(name TableName) *DataStore {
+func (ds *DataStoreSet) get(name TableName) *DataStore {
 	switch name {
 	case TableCommands:
 		return (ds.tableCommands.Load())
@@ -90,15 +275,15 @@ func (ds *DataStoreSet) Get(name TableName) *DataStore {
 	case TableTimeperiods:
 		return (ds.tableTimeperiods.Load())
 	default:
-		log.Panicf("unsupported tablename: %s", name.String())
+		log.Panicf("unsupported table name: %s", name.String())
 	}
 
 	return nil
 }
 
-// CreateObjectByType fetches all static and dynamic data from the remote site and creates the initial table.
+// createObjectByType fetches all static and dynamic data from the remote site and creates the initial table.
 // It returns any error encountered.
-func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (*DataStore, error) {
+func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*DataStore, error) {
 	peer := ds.peer
 
 	store := NewDataStore(table, peer)
@@ -114,7 +299,7 @@ func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (*
 	var lastReq *Request
 	offset := 0
 	results := []*ResultSet{}
-	metas := []*ResultMetaData{}
+	metaData := []*ResultMetaData{}
 	totalPrepTime := time.Duration(0)
 	totalRowNum := 0
 	tableName := table.name.String()
@@ -151,7 +336,7 @@ func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (*
 			}
 		}
 
-		metas = append(metas, resMeta)
+		metaData = append(metaData, resMeta)
 		results = append(results, &res)
 
 		totalPrepTime += time.Since(time1).Truncate(time.Millisecond)
@@ -165,7 +350,7 @@ func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (*
 		offset += limit
 	}
 
-	resMeta := mergeResultMetas(metas)
+	resMeta := ds.mergeResultMetas(metaData)
 
 	time2 := time.Now()
 	now := currentUnixTime()
@@ -178,19 +363,80 @@ func (ds *DataStoreSet) CreateObjectByType(ctx context.Context, table *Table) (*
 
 	time3 := time.Now()
 
-	peer.lastUpdate.Set(now)
-	peer.lastFullUpdate.Set(now)
+	ds.lastUpdate.Set(now)
+	ds.lastFullUpdate.Set(now)
 	durationLock := time.Since(time3).Truncate(time.Millisecond)
 
 	promObjectCount.WithLabelValues(peer.Name, tableName).Set(float64(totalRowNum))
 
-	logWith(peer, lastReq).Debugf("initial table: %15s - fetch: %9s - prepare: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
+	logWith(peer, lastReq).Debugf("initial table: %15s - fetch: %9s - prep: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
 		tableName, resMeta.Duration.Truncate(time.Millisecond), totalPrepTime, durationLock, durationInsert, totalRowNum, resMeta.Size/1024)
 
 	return store, nil
 }
 
-func mergeResultMetas(metas []*ResultMetaData) (resMeta *ResultMetaData) {
+// tryTimeperiodsUpdate updates timeperiods every full minute except when idling.
+func (ds *DataStoreSet) tryTimeperiodsUpdate(ctx context.Context) (ok bool, err error) {
+	lastTimeperiodUpdateMinute := ds.lastTimeperiodUpdateMinute.Load()
+	currentMinute := int32(interface2int8(time.Now().Format("4")))
+	if lastTimeperiodUpdateMinute == currentMinute {
+		return false, nil
+	}
+
+	peer := ds.peer
+	idling := peer.idling.Load()
+	if idling {
+		return false, nil
+	}
+
+	ds.lastTimeperiodUpdateMinute.Store(currentMinute)
+	err = ds.timeperiodsUpdate(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (ds *DataStoreSet) timeperiodsUpdate(ctx context.Context) (err error) {
+	peer := ds.peer
+	t1 := time.Now()
+	err = ds.updateFullTablesList(ctx, []TableName{TableTimeperiods, TableHostgroups, TableServicegroups})
+	duration := time.Since(t1).Truncate(time.Millisecond)
+	logWith(peer).Debugf("updating timeperiods and host/servicegroup statistics completed (%s)", duration)
+	if err != nil {
+		return err
+	}
+	if err2 := peer.requestLocaltime(ctx); err2 != nil {
+		return err2
+	}
+	// this also sets the thruk version and checks the clock, so it should be called first
+	if _, _, err = peer.fetchThrukExtras(ctx); err != nil {
+		// log error, but this should not prevent accessing the backend
+		log.Debugf("fetchThrukExtras: %s ", err.Error())
+
+		return err
+	}
+
+	return err
+}
+
+// run on demand comments / downtimes update.
+func (ds *DataStoreSet) tryOnDemandComDownUpdate(ctx context.Context) (err error) {
+	if !ds.forceComments.Load() {
+		return nil
+	}
+
+	ds.forceComments.Store(false)
+	err = ds.updateCommentsAndDowntimes(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (ds *DataStoreSet) mergeResultMetas(metas []*ResultMetaData) (resMeta *ResultMetaData) {
 	if len(metas) == 0 {
 		return nil
 	}
@@ -213,8 +459,8 @@ func mergeResultMetas(metas []*ResultMetaData) (resMeta *ResultMetaData) {
 	return resMeta
 }
 
-// SetReferences creates reference entries for all tables.
-func (ds *DataStoreSet) SetReferences() (err error) {
+// setReferences creates reference entries for all tables.
+func (ds *DataStoreSet) setReferences() (err error) {
 	for tableName, table := range Objects.Tables {
 		if table.virtual != nil {
 			continue
@@ -222,7 +468,7 @@ func (ds *DataStoreSet) SetReferences() (err error) {
 		if len(table.refTables) == 0 {
 			continue
 		}
-		store := ds.Get(tableName)
+		store := ds.get(tableName)
 		err = store.SetReferences()
 		if err != nil {
 			logWith(ds).Debugf("setting references on table %s failed: %s", tableName.String(), err.Error())
@@ -234,35 +480,11 @@ func (ds *DataStoreSet) SetReferences() (err error) {
 	return err
 }
 
-func (ds *DataStoreSet) hasChanged(ctx context.Context) (changed bool) {
-	changed = false
-	tablenames := []TableName{TableCommands, TableContactgroups, TableContacts, TableHostgroups, TableHosts, TableServicegroups, TableTimeperiods}
-	for _, name := range tablenames {
-		counter := ds.peer.countFromServer(ctx, name.String(), "name !=")
-		table := ds.Get(name)
-		table.lock.RLock()
-		if counter >= 0 {
-			changed = changed || (counter != len(table.data))
-		}
-		table.lock.RUnlock()
-	}
-	counter := ds.peer.countFromServer(ctx, "services", "host_name !=")
-	table := ds.Get(TableServices)
-	table.lock.RLock()
-	if counter >= 0 {
-		changed = changed || (counter != len(table.data))
-	}
-	table.lock.RUnlock()
-	ds.peer.clearLastRequest()
-
-	return changed
-}
-
-// UpdateFull runs a full update on all dynamic values for all tables which have dynamic updated columns.
+// updateFull runs a full update on all dynamic values for all tables which have dynamic updated columns.
 // It returns any error occurred or nil if the update was successful.
-func (ds *DataStoreSet) UpdateFull(ctx context.Context, tables []TableName) (err error) {
+func (ds *DataStoreSet) updateFull(ctx context.Context) (err error) {
 	time1 := time.Now()
-	err = ds.UpdateFullTablesList(ctx, tables)
+	err = ds.updateFullTablesList(ctx, Objects.UpdateTables)
 	if err != nil {
 		return err
 	}
@@ -276,9 +498,8 @@ func (ds *DataStoreSet) UpdateFull(ctx context.Context, tables []TableName) (err
 	}
 	now := currentUnixTime()
 	peer.resetErrors()
-	peer.forceFull.Store(false)
-	peer.lastUpdate.Set(now)
-	peer.lastFullUpdate.Set(now)
+	ds.lastUpdate.Set(now)
+	ds.lastFullUpdate.Set(now)
 	peer.responseTime.Set(duration.Seconds())
 	logWith(peer).Debugf("full update complete in: %s", duration.String())
 	promPeerUpdates.WithLabelValues(peer.Name).Inc()
@@ -287,11 +508,33 @@ func (ds *DataStoreSet) UpdateFull(ctx context.Context, tables []TableName) (err
 	return err
 }
 
-// UpdateFullTablesList updates list of tables and returns any error.
-func (ds *DataStoreSet) UpdateFullTablesList(ctx context.Context, tables []TableName) (err error) {
+func (ds *DataStoreSet) updateDelta(ctx context.Context, lastUpdate, now float64) (err error) {
+	ds.lastUpdate.Set(now)
+	ds.forceDelta.Store(false)
+
+	// update status table
+	err = ds.updateFullTablesList(ctx, Objects.StatusTables)
+	if err != nil {
+		return err
+	}
+
+	return ds.sync.UpdateDelta(ctx, lastUpdate, now)
+}
+
+func (ds *DataStoreSet) resumeFromIdle(ctx context.Context) (err error) {
+	err = ds.updateDelta(ctx, ds.lastUpdate.Get(), currentUnixTime())
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// updateFullTablesList updates list of tables and returns any error.
+func (ds *DataStoreSet) updateFullTablesList(ctx context.Context, tables []TableName) (err error) {
 	for i := range tables {
 		name := tables[i]
-		err = ds.UpdateFullTable(ctx, name)
+		err = ds.updateFullTable(ctx, name)
 		if err != nil {
 			logWith(ds).Debugf("update failed: %s", err.Error())
 
@@ -302,143 +545,138 @@ func (ds *DataStoreSet) UpdateFullTablesList(ctx context.Context, tables []Table
 	return err
 }
 
-// UpdateDelta runs a delta update on all status, hosts, services, comments and downtimes table.
-// It returns true if the update was successful or false otherwise.
-func (ds *DataStoreSet) UpdateDelta(ctx context.Context, from, until float64) (err error) {
-	time1 := time.Now()
-
-	err = ds.UpdateFullTablesList(ctx, Objects.StatusTables)
-	if err != nil {
-		return err
-	}
-
-	updateOffset := float64(ds.peer.lmd.Config.UpdateOffset)
-	updateThreshold := int64(from - updateOffset)
-
-	filterStr := ""
-	if from > 0 {
-		switch {
-		case ds.peer.HasFlag(HasLMDLastCacheUpdateColumn):
-			filterStr = fmt.Sprintf("Filter: lmd_last_cache_update >= %v\n", int64(from-updateOffset))
-		case ds.peer.HasFlag(HasLastUpdateColumn):
-			filterStr = fmt.Sprintf("Filter: last_update >= %v\n", int64(from-updateOffset))
-		default:
-			filterStr = fmt.Sprintf("Filter: last_check >= %v\nFilter: last_check < %v\nAnd: 2\n",
-				int64(from-updateOffset), int64(until-updateOffset))
-			if ds.peer.lmd.Config.SyncIsExecuting && !ds.peer.HasFlag(Shinken) {
-				filterStr += "Filter: is_executing = 1\nOr: 2\n"
-			}
-		}
-	}
-	err = ds.UpdateDeltaHosts(ctx, filterStr, true, updateThreshold)
-	if err != nil {
-		return err
-	}
-	err = ds.UpdateDeltaServices(ctx, filterStr, true, updateThreshold)
-	if err != nil {
-		return err
-	}
-
-	err = ds.updateCommentsAndDowntimes(ctx)
-	if err != nil {
-		return err
-	}
-
-	peer := ds.peer
-	duration := time.Since(time1)
-	logWith(peer).Debugf("delta update complete in: %s", duration.Truncate(time.Millisecond).String())
-
-	peer.resetErrors()
-	peer.lastUpdate.Set(until)
-	peer.responseTime.Set(duration.Seconds())
-
-	peerState := peer.peerState.Get()
-	if peerState != PeerStatusUp && peerState != PeerStatusPending {
-		logWith(peer).Infof("site soft recovered from short outage")
-	}
-
-	promPeerUpdates.WithLabelValues(peer.Name).Inc()
-	promPeerUpdateDuration.WithLabelValues(peer.Name).Set(duration.Seconds())
-
-	if from == 0 {
-		peer.forceFull.Store(false)
-	}
-
-	return nil
-}
-
-// UpdateDeltaHosts update hosts by fetching all dynamic data with a last_check filter on the timestamp since
+// updateDeltaHosts update hosts by fetching all dynamic data with a last_check filter on the timestamp since
 // the previous update with additional updateOffset seconds.
 // It returns any error encountered.
-func (ds *DataStoreSet) UpdateDeltaHosts(ctx context.Context, filterStr string, tryFullScan bool, updateThreshold int64) (err error) {
-	return ds.updateDeltaHostsServices(ctx, TableHosts, filterStr, tryFullScan, updateThreshold)
-}
-
-// UpdateDeltaServices update services by fetching all dynamic data with a last_check filter on the timestamp since
-// the previous update with additional updateOffset seconds.
-// It returns any error encountered.
-func (ds *DataStoreSet) UpdateDeltaServices(ctx context.Context, filterStr string, tryFullScan bool, updateThreshold int64) (err error) {
-	return ds.updateDeltaHostsServices(ctx, TableServices, filterStr, tryFullScan, updateThreshold)
-}
-
-// updateDeltaHostsServices update hosts / services by fetching all dynamic data with a last_check filter on the timestamp since
-// the previous update with additional updateOffset seconds.
-// It returns any error encountered.
-func (ds *DataStoreSet) updateDeltaHostsServices(ctx context.Context, tableName TableName, filterStr string, tryFullScan bool, updateThreshold int64) (err error) {
-	// update changed services
-	table := ds.Get(tableName)
+func (ds *DataStoreSet) updateDeltaHosts(ctx context.Context, filterStr string) (res ResultSet, updateSet []*ResultPrepared, err error) {
+	table := ds.get(TableHosts)
 	if table == nil {
-		return fmt.Errorf("peer not ready, either not initialized or went offline recently")
+		return nil, nil, fmt.Errorf("peer not ready, either not initialized or went offline recently")
 	}
-	peer := ds.peer
 
-	if tryFullScan {
-		// run regular delta update and lets check if all last_check dates match
-		updated, uErr := ds.updateDeltaFullScanHostsServices(ctx, table, filterStr, updateThreshold)
-		if updated || uErr != nil {
-			return uErr
-		}
-	}
 	req := &Request{
-		Table:     tableName,
+		Table:     TableHosts,
 		Columns:   table.dynamicColumnNamesCache,
 		FilterStr: filterStr,
 	}
-	peer.setQueryOptions(req)
-	res, meta, err := peer.Query(ctx, req)
+	ds.peer.setQueryOptions(req)
+	res, meta, err := ds.peer.Query(ctx, req)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
-	switch tableName {
-	case TableHosts:
-		hostDataOffset := 1
+	dataOffset := 1
+	updateSet, err = ds.insertDeltaDataResult(dataOffset, res, meta, table)
 
-		return ds.insertDeltaDataResult(hostDataOffset, res, meta, table)
-	case TableServices:
-		serviceDataOffset := 2
-
-		return ds.insertDeltaDataResult(serviceDataOffset, res, meta, table)
-	default:
-		logWith(peer, req).Panicf("not implemented for: %s", tableName.String())
-	}
-
-	return nil
+	return res, updateSet, err
 }
 
-func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, resMeta *ResultMetaData, table *DataStore) (err error) {
+// updateDeltaServices update services by fetching all dynamic data with a last_check filter on the timestamp since
+// the previous update with additional updateOffset seconds.
+// It returns any error encountered.
+func (ds *DataStoreSet) updateDeltaServices(ctx context.Context, filterStr string) (res ResultSet, updateSet []*ResultPrepared, err error) {
+	table := ds.get(TableServices)
+	if table == nil {
+		return nil, nil, fmt.Errorf("peer not ready, either not initialized or went offline recently")
+	}
+
+	req := &Request{
+		Table:     TableServices,
+		Columns:   table.dynamicColumnNamesCache,
+		FilterStr: filterStr,
+	}
+	ds.peer.setQueryOptions(req)
+	res, meta, err := ds.peer.Query(ctx, req)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	dataOffset := 2
+
+	updateSet, err = ds.insertDeltaDataResult(dataOffset, res, meta, table)
+
+	return res, updateSet, err
+}
+
+// tryUpdate runs the periodic updates from the update loop.
+func (ds *DataStoreSet) tryUpdate(ctx context.Context, force bool) (ok bool, err error) {
+	peer := ds.peer
+	lastUpdate := peer.lastUpdate()
+	lastFullUpdate := peer.lastFullUpdate()
+	data := peer.data.Load()
+	idling := peer.idling.Load()
+	forceDelta := ds.forceDelta.Load() || force
+	now := currentUnixTime()
+	lastStatus := peer.peerState.Get()
+
+	if lastStatus == PeerStatusUp {
+		err = data.sync.UpdateTick(ctx)
+		if err != nil {
+			return false, err
+		}
+	}
+
+	var nextUpdate float64
+	if idling {
+		nextUpdate = lastUpdate + float64(peer.lmd.Config.IdleInterval)
+	} else {
+		nextUpdate = lastUpdate + float64(peer.lmd.Config.UpdateInterval)
+	}
+	if now < nextUpdate && !forceDelta {
+		return false, nil
+	}
+	ok = true
+
+	// set last update timestamp, otherwise we would retry the connection every couple of ms instead
+	// of the update interval
+	ds.lastUpdate.Set(now)
+	ds.forceDelta.Store(false)
+
+	switch lastStatus {
+	case PeerStatusBroken:
+		return false, peer.handleBrokenPeer(ctx)
+	case PeerStatusDown, PeerStatusPending:
+		return ok, peer.initAllTables(ctx)
+	case PeerStatusWarning:
+		if data == nil {
+			logWith(peer).Warnf("inconsistent state, no data with state: %s", lastStatus.String())
+
+			return ok, peer.initAllTables(ctx)
+		}
+
+		return true, ds.updateDelta(ctx, lastUpdate, now)
+	case PeerStatusUp, PeerStatusSyncing:
+		if data == nil {
+			logWith(peer).Warnf("inconsistent state, no data with state: %s", lastStatus.String())
+
+			return ok, peer.initAllTables(ctx)
+		}
+		// full update interval
+		if !idling && peer.lmd.Config.FullUpdateInterval > 0 && now > lastFullUpdate+float64(peer.lmd.Config.FullUpdateInterval) {
+			return ok, ds.updateFull(ctx)
+		}
+
+		return ok, ds.updateDelta(ctx, lastUpdate, now)
+	}
+
+	logWith(peer).Panicf("unhandled status case: %s", lastStatus.String())
+
+	return ok, nil
+}
+
+func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, resMeta *ResultMetaData, table *DataStore) (updateSet []*ResultPrepared, err error) {
 	updateType := "delta"
 	time1 := time.Now()
-	updateSet, err := table.prepareDataUpdateSet(dataOffset, res, table.dynamicColumnCache)
+	updateSet, err = table.prepareDataUpdateSet(dataOffset, res, table.dynamicColumnCache)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	durationPrepare := time.Since(time1).Truncate(time.Millisecond)
 
 	now := currentUnixTime()
 	time2 := time.Now()
 
-	if len(updateSet) == len(table.data) {
+	if len(res) == len(table.data) {
 		updateType = "full"
 	}
 
@@ -455,7 +693,7 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 		if err != nil {
 			table.lock.Unlock()
 
-			return err
+			return nil, err
 		}
 	}
 	table.lock.Unlock()
@@ -465,176 +703,89 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 	p := ds.peer
 	tableName := table.table.name.String()
 	promObjectUpdate.WithLabelValues(p.Name, tableName).Add(float64(len(res)))
-	logWith(p, resMeta.Request).Debugf("up. %-5s table: %15s - fetch: %9s - prep: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
-		updateType, tableName, resMeta.Duration.Truncate(time.Millisecond), durationPrepare, durationLock, durationInsert, len(updateSet), resMeta.Size/1024)
+	logWith(p, resMeta.Request).Debugf("up. %-5s table: %15s - fetch: %9s - prep: %9s - lock: %9s - insert: %9s - fetched: %8d - changed: %8d - size: %8d kB",
+		updateType, tableName, resMeta.Duration.Truncate(time.Millisecond), durationPrepare, durationLock, durationInsert, len(res), len(updateSet), resMeta.Size/1024)
+
+	return updateSet, nil
+}
+
+// updateFullTable updates a given table by requesting all dynamic columns from the remote peer.
+// Assuming we get the objects always in the same order, we can just iterate over the index and update the fields.
+// It returns a boolean flag whether the remote site has been restarted and any error encountered.
+func (ds *DataStoreSet) updateFullTable(ctx context.Context, tableName TableName) (err error) {
+	peer := ds.peer
+	store := ds.get(tableName)
+	if store == nil {
+		return fmt.Errorf("cannot update table %s, peer is down: %s", tableName.String(), peer.getError())
+	}
+	if ds.skipTableUpdate(store) {
+		return nil
+	}
+
+	columns := store.dynamicColumnNamesCache
+	// primary keys are not required, we fetch everything anyway
+	primaryKeysLen := len(store.table.primaryKey)
+
+	req := &Request{
+		Table:   store.table.name,
+		Columns: columns,
+	}
+	peer.setQueryOptions(req)
+	res, resMeta, err := peer.Query(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	store.lock.RLock()
+	data := store.data
+	store.lock.RUnlock()
+	if len(res) != len(data) {
+		err = fmt.Errorf("site returned different number of objects, assuming backend has been restarted, table: %s, expected: %d, received: %d",
+			store.table.name.String(), len(data), len(res))
+		logWith(peer).Debugf("%s", err.Error())
+
+		return &PeerError{msg: err.Error(), kind: RestartRequiredError}
+	}
+
+	promObjectUpdate.WithLabelValues(peer.Name, tableName.String()).Add(float64(len(res)))
+
+	var durationLock, durationInsert time.Duration
+	switch tableName {
+	case TableTimeperiods:
+		// check for changed timeperiods, because we have to update the linked hosts and services as well
+		err = ds.updateTimeperiodsData(ctx, primaryKeysLen, store, res, store.dynamicColumnCache)
+		ds.lastTimeperiodUpdateMinute.Store(int32(interface2int8(time.Now().Format("4"))))
+		if err != nil {
+			return err
+		}
+		logWith(peer, req).Debugf("up. full  table: %15s - fetch: %9s - prep:       --- - lock: %9s - insert: %9s - fetched: %8d - changed: %8d - size: %8d kB",
+			tableName.String(), resMeta.Duration.Truncate(time.Millisecond), durationLock, durationInsert, len(res), len(res), resMeta.Size/1024)
+	case TableStatus:
+		// check pid and date before updating tables.
+		// Otherwise we and up with inconsistent state until the full refresh is finished
+		err = peer.checkBackendRestarted(primaryKeysLen, res, store.dynamicColumnCache)
+		if err != nil {
+			return err
+		}
+		// continue with normal update
+		fallthrough
+	default:
+		_, err = ds.insertDeltaDataResult(primaryKeysLen, res, resMeta, store)
+		if err != nil {
+			return err
+		}
+	}
+
+	if tableName == TableStatus {
+		LogErrors(peer.checkStatusFlags(ctx, ds))
+	}
 
 	return nil
 }
 
-// updateDeltaFullScanHostsServices is a table independent wrapper for UpdateDeltaFullScan
-// It returns true if an update was done and any error encountered.
-func (ds *DataStoreSet) updateDeltaFullScanHostsServices(ctx context.Context, store *DataStore, filterStr string, updateThreshold int64) (updated bool, err error) {
-	switch store.table.name {
-	case TableServices:
-		updated, err = ds.updateFullScan(ctx, store, &ds.peer.lastFullServiceUpdate, filterStr, updateThreshold, ds.UpdateDeltaServices)
-	case TableHosts:
-		updated, err = ds.updateFullScan(ctx, store, &ds.peer.lastFullHostUpdate, filterStr, updateThreshold, ds.UpdateDeltaHosts)
-	default:
-		p := ds.peer
-		logWith(p).Panicf("not implemented for: %s", store.table.name.String())
-	}
-
-	return updated, err
-}
-
-type fullUpdateCb func(context.Context, string, bool, int64) error
-
-// updateFullScan updates hosts and services tables by fetching some key indicator fields like last_check
-// downtimes or acknowledged status. If an update is required, the last_check timestamp is used as filter for a
-// delta update.
-// The full scan just returns false without any update if the last update was less then MinFullScanInterval seconds ago.
-// It returns true if an update was done and any error encountered.
-//
-//nolint:lll // it is what it is...
-func (ds *DataStoreSet) updateFullScan(ctx context.Context, store *DataStore, lastUpdateSrc *atomicFloat64, filter string, updateThr int64, updateFn fullUpdateCb) (updated bool, err error) {
-	peer := ds.peer
-	lastUpdate := lastUpdateSrc.Get()
-
-	// do not do a full scan more often than every 60 seconds
-	if lastUpdate > float64(time.Now().Unix()-MinFullScanInterval) {
-		return false, nil
-	}
-
-	scanColumns := []string{
-		"last_check",
-		"scheduled_downtime_depth",
-		"acknowledged",
-		"active_checks_enabled",
-		"notifications_enabled",
-		"modified_attributes",
-	}
-
-	// if update is based on last_check, we add next_check here which is not required when updating based on lmd_last_cache_update or last_update
-	if strings.Contains(filter, "last_check") {
-		scanColumns = append(scanColumns, "next_check")
-	}
-
-	// used to sort result later
-	scanColumns = append(scanColumns, store.table.primaryKey...)
-	req := &Request{
-		Table:   store.table.name,
-		Columns: scanColumns,
-	}
-	peer.setQueryOptions(req)
-	res, _, err := peer.Query(ctx, req)
-	if err != nil {
-		return false, err
-	}
-
-	columns := make(ColumnList, len(scanColumns))
-	for i, name := range scanColumns {
-		col := store.table.columnsIndex[name]
-		columns[i] = col
-	}
-
-	missing, err := ds.getMissingTimestamps(ctx, store, res, columns, updateThr)
-	if err != nil {
-		return false, err
-	}
-
-	if len(missing) == 0 {
-		logWith(ds, req).Tracef("%s delta scan did not find any timestamps", store.table.name.String())
-
-		return false, nil
-	}
-
-	logWith(ds, req).Debugf("%s delta scan going to update %d timestamps", store.table.name.String(), len(missing))
-	timestampFilter := composeTimestampFilter(missing, "last_check")
-	if len(timestampFilter) > missedTimestampMaxFilter {
-		msg := fmt.Sprintf("%s delta scan timestamp filter too complex: %d", store.table.name.String(), len(timestampFilter))
-		logWith(ds, req).Debugf("%s", msg)
-		// sync at least a few to get back on track
-		missing = missing[0 : missedTimestampMaxFilter-1]
-		timestampFilter = composeTimestampFilter(missing, "last_check")
-	}
-
-	filterList := []string{}
-	if filter != "" {
-		filterList = append(filterList, filter)
-		if len(timestampFilter) > 0 {
-			filterList = append(filterList, timestampFilter...)
-			filterList = append(filterList, "Or: 2\n")
-		}
-	} else {
-		filterList = append(filterList, timestampFilter...)
-	}
-
-	err = updateFn(ctx, strings.Join(filterList, ""), false, 0)
-	if err != nil {
-		return false, err
-	}
-
-	lastUpdateSrc.Set(currentUnixTime())
-
-	return true, nil
-}
-
-// getMissingTimestamps returns list of last_check dates which can be used to delta update.
-func (ds *DataStoreSet) getMissingTimestamps(ctx context.Context, store *DataStore, res ResultSet, columns ColumnList, updateThreshold int64) (missing []int64, err error) {
-	store.lock.RLock()
-	peer := ds.peer
-	data := store.data
-	if len(data) < len(res) {
-		store.lock.RUnlock()
-		if peer.HasFlag(Icinga2) || len(data) == 0 {
-			err = ds.reloadIfNumberOfObjectsChanged(ctx)
-
-			return missing, err
-		}
-
-		err = &PeerError{msg: fmt.Sprintf("%s cache not ready, got %d entries but only have %d in cache",
-			store.table.name.String(), len(res), len(data)), kind: ResponseError}
-		logWith(peer).Warnf("%s", err.Error())
-		peer.setBroken(fmt.Sprintf("got more %s than expected. Hint: check clients 'max_response_size' setting.", store.table.name.String()))
-
-		return nil, err
-	}
-
-	missedUnique := make(map[int64]bool)
-	for i, row := range res {
-		ts := interface2int64(row[0])
-		if ts >= updateThreshold {
-			continue
-		}
-		if data[i].checkChangedIntValues(0, row, columns) {
-			missedUnique[ts] = true
-		}
-	}
-	store.lock.RUnlock()
-
-	// return uniq sorted keys
-	missing = make([]int64, len(missedUnique))
-	i := 0
-	for lastCheck := range missedUnique {
-		missing[i] = lastCheck
-		i++
-	}
-	slices.Sort(missing)
-
-	return missing, nil
-}
-
-func (ds *DataStoreSet) reloadIfNumberOfObjectsChanged(ctx context.Context) (err error) {
-	if ds.hasChanged(ctx) {
-		return (ds.peer.InitAllTables(ctx))
-	}
-
-	return err
-}
-
 // update both comments and downtimes.
 func (ds *DataStoreSet) updateCommentsAndDowntimes(ctx context.Context) (err error) {
-	ds.peer.forceComments.Store(false)
+	ds.forceComments.Store(false)
 	err = ds.updateDeltaCommentsOrDowntimes(ctx, TableComments)
 	if err != nil {
 		return err
@@ -669,7 +820,7 @@ func (ds *DataStoreSet) updateDeltaCommentsOrDowntimes(ctx context.Context, name
 		return err
 	}
 
-	store := ds.Get(name)
+	store := ds.get(name)
 	if store == nil {
 		return nil
 	}
@@ -689,17 +840,20 @@ func (ds *DataStoreSet) updateDeltaCommentsOrDowntimes(ctx context.Context, name
 	}
 
 	// remove old comments / downtimes
+	changed = false
 	for id := range idIndex {
 		_, ok := resIndex[id]
 		if !ok {
 			logWith(ds, req).Debugf("removing %s with id %s", name.String(), id)
 			tmp := idIndex[id]
 			store.RemoveItem(tmp)
+			changed = true
 		}
 	}
 	store.lock.Unlock()
 
 	if len(missingIDs) > 0 {
+		changed = true
 		keys, columns := store.GetInitialColumns()
 		req2 := &Request{
 			Table:     name,
@@ -720,6 +874,12 @@ func (ds *DataStoreSet) updateDeltaCommentsOrDowntimes(ctx context.Context, name
 		if nErr != nil {
 			return nErr
 		}
+	}
+
+	if !changed {
+		logWith(peer, req).Debugf("updated %s (no changes)", name.String())
+
+		return nil
 	}
 
 	// reset cache
@@ -757,7 +917,7 @@ func (ds *DataStoreSet) maxIDOrSizeChanged(ctx context.Context, name TableName) 
 		return false, err
 	}
 
-	store := ds.Get(name)
+	store := ds.get(name)
 	var maxID int64
 	store.lock.RLock()
 	entries := len(store.data)
@@ -775,103 +935,28 @@ func (ds *DataStoreSet) maxIDOrSizeChanged(ctx context.Context, name TableName) 
 	return true, nil
 }
 
-// UpdateFullTable updates a given table by requesting all dynamic columns from the remote peer.
-// Assuming we get the objects always in the same order, we can just iterate over the index and update the fields.
-// It returns a boolean flag whether the remote site has been restarted and any error encountered.
-func (ds *DataStoreSet) UpdateFullTable(ctx context.Context, tableName TableName) (err error) {
-	peer := ds.peer
-	store := ds.Get(tableName)
-	if store == nil {
-		return fmt.Errorf("cannot update table %s, peer is down: %s", tableName.String(), peer.getError())
-	}
-	skip, err := ds.skipTableUpdate(store, tableName)
-	if skip || err != nil {
-		return err
-	}
-
-	columns := store.dynamicColumnNamesCache
-	// primary keys are not required, we fetch everything anyway
-	primaryKeysLen := len(store.table.primaryKey)
-
-	req := &Request{
-		Table:   store.table.name,
-		Columns: columns,
-	}
-	peer.setQueryOptions(req)
-	res, resMeta, err := peer.Query(ctx, req)
-	if err != nil {
-		return err
-	}
-
-	store.lock.RLock()
-	data := store.data
-	store.lock.RUnlock()
-	if len(res) != len(data) {
-		err = fmt.Errorf("site returned different number of objects, assuming backend has been restarted, table: %s, expected: %d, received: %d",
-			store.table.name.String(), len(data), len(res))
-		logWith(peer).Debugf("%s", err.Error())
-
-		return &PeerError{msg: err.Error(), kind: RestartRequiredError}
-	}
-
-	promObjectUpdate.WithLabelValues(peer.Name, tableName.String()).Add(float64(len(res)))
-
-	var durationLock, durationInsert time.Duration
-	switch tableName {
-	case TableTimeperiods:
-		// check for changed timeperiods, because we have to update the linked hosts and services as well
-		err = ds.updateTimeperiodsData(ctx, primaryKeysLen, store, res, store.dynamicColumnCache)
-		peer.lastTimeperiodUpdateMinute.Store(int32(interface2int8(time.Now().Format("4"))))
-		if err != nil {
-			return err
-		}
-		logWith(peer, req).Debugf("up. full  table: %15s - fetch: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
-			tableName.String(), resMeta.Duration.Truncate(time.Millisecond), durationLock, durationInsert, len(res), resMeta.Size/1024)
-	case TableStatus:
-		// check pid and date before updating tables.
-		// Otherwise we and up with inconsistent state until the full refresh is finished
-		err = peer.CheckBackendRestarted(primaryKeysLen, res, store.dynamicColumnCache)
-		if err != nil {
-			return err
-		}
-		// continue with normal update
-		fallthrough
-	default:
-		err = ds.insertDeltaDataResult(primaryKeysLen, res, resMeta, store)
-		if err != nil {
-			return err
-		}
-	}
-
-	if tableName == TableStatus {
-		LogErrors(peer.checkStatusFlags(ctx, ds))
-	}
-
-	return nil
-}
-
-func (ds *DataStoreSet) skipTableUpdate(store *DataStore, table TableName) (bool, error) {
-	if store == nil {
-		return true, fmt.Errorf("skipped table %s update, store not initialized", table.String())
-	}
+func (ds *DataStoreSet) skipTableUpdate(store *DataStore) bool {
 	if store.table.virtual != nil {
-		return true, nil
+		return true
 	}
 	// no updates for passthrough tables, ex.: log
 	if store.table.passthroughOnly {
-		return true, nil
+		return true
 	}
-	if ds.peer.HasFlag(MultiBackend) && store.table.name != TableStatus {
-		return true, nil
+	if ds.peer.hasFlag(MultiBackend) && store.table.name != TableStatus {
+		return true
 	}
 	if len(store.dynamicColumnNamesCache) == 0 {
-		return true, nil
+		return true
 	}
 
-	return false, nil
+	return false
 }
 
 func (ds *DataStoreSet) updateTimeperiodsData(ctx context.Context, dataOffset int, store *DataStore, res ResultSet, columns ColumnList) (err error) {
+	if ds.skipTableUpdate(store) {
+		return nil
+	}
 	changedTimeperiods := make(map[string]bool)
 
 	store.lock.Lock()
@@ -894,11 +979,11 @@ func (ds *DataStoreSet) updateTimeperiodsData(ctx context.Context, dataOffset in
 	// Update hosts and services with those changed timeperiods
 	for name, state := range changedTimeperiods {
 		logWith(ds).Debugf("timeperiod %s has changed to %v, need to update affected hosts/services", name, state)
-		err = ds.UpdateDeltaHosts(ctx, "Filter: check_period = "+name+"\nFilter: notification_period = "+name+"\nOr: 2\n", false, 0)
+		_, _, err = ds.updateDeltaHosts(ctx, "Filter: check_period = "+name+"\nFilter: notification_period = "+name+"\nOr: 2\n")
 		if err != nil {
 			return err
 		}
-		err = ds.UpdateDeltaServices(ctx, "Filter: check_period = "+name+"\nFilter: notification_period = "+name+"\nOr: 2\n", false, 0)
+		_, _, err = ds.updateDeltaServices(ctx, "Filter: check_period = "+name+"\nFilter: notification_period = "+name+"\nOr: 2\n")
 		if err != nil {
 			return err
 		}
@@ -937,18 +1022,18 @@ func (ds *DataStoreSet) rebuildDowntimesList() (err error) {
 
 // buildDowntimeCommentsList updates the downtimes/comments id list for all hosts and services.
 func (ds *DataStoreSet) buildDowntimeCommentsList(name TableName) (err error) {
-	store := ds.Get(name)
+	store := ds.get(name)
 	if store == nil {
 		return fmt.Errorf("cannot build id list, peer is down: %s", ds.peer.getError())
 	}
 
-	hostStore := ds.Get(TableHosts)
+	hostStore := ds.get(TableHosts)
 	if hostStore == nil {
 		return fmt.Errorf("cannot build id list, peer is down: %s", ds.peer.getError())
 	}
 	hostIdx := hostStore.table.GetColumn(name.String()).Index
 
-	serviceStore := ds.Get(TableServices)
+	serviceStore := ds.get(TableServices)
 	if serviceStore == nil {
 		return fmt.Errorf("cannot build id list, peer is down: %s", ds.peer.getError())
 	}
@@ -1012,7 +1097,7 @@ func (ds *DataStoreSet) buildDowntimeCommentsList(name TableName) (err error) {
 // in case the backend does not support the contacts->groups attribute, ex.: icinga2.
 func (ds *DataStoreSet) rebuildContactsGroups() (err error) {
 	// directly supported, nothing to do
-	if ds.peer.HasFlag(HasContactsGroupColumn) {
+	if ds.peer.hasFlag(HasContactsGroupColumn) {
 		return err
 	}
 
@@ -1028,16 +1113,16 @@ func (ds *DataStoreSet) rebuildContactsGroups() (err error) {
 	return err
 }
 
-// buildContactsGroupsList updates the contacts->groups attribute from contactsgroups->members.
+// buildContactsGroupsList updates the contacts->groups attribute from contactgroups->members.
 func (ds *DataStoreSet) buildContactsGroupsList() (err error) {
-	groupsStore := ds.Get(TableContactgroups)
+	groupsStore := ds.get(TableContactgroups)
 	if groupsStore == nil {
 		return fmt.Errorf("cannot build groups list, peer is down: %s", ds.peer.getError())
 	}
 	groupNameIdx := groupsStore.table.GetColumn("name").Index
 	membersIdx := groupsStore.table.GetColumn("members").Index
 
-	contactsStore := ds.Get(TableContacts)
+	contactsStore := ds.get(TableContacts)
 	if contactsStore == nil {
 		return fmt.Errorf("cannot build groups list, peer is down: %s", ds.peer.getError())
 	}
@@ -1084,46 +1169,14 @@ func (ds *DataStoreSet) buildContactsGroupsList() (err error) {
 	return nil
 }
 
-func composeTimestampFilter(timestamps []int64, attribute string) []string {
-	filter := []string{}
-	block := struct {
-		start int64
-		end   int64
-	}{-1, -1}
-	for _, timestamp := range timestamps {
-		if block.start == -1 {
-			block.start = timestamp
-			block.end = timestamp
+// scheduleImmediateUpdate resets all update timer so the next update loop iteration
+// will perform an update.
+func (ds *DataStoreSet) scheduleImmediateUpdate() {
+	ds.forceDelta.Store(true)
+}
 
-			continue
-		}
-		if block.end == timestamp-1 {
-			block.end = timestamp
-
-			continue
-		}
-
-		if block.start != -1 {
-			if block.start == block.end {
-				filter = append(filter, fmt.Sprintf("Filter: %s = %d\n", attribute, block.start))
-			} else {
-				filter = append(filter, fmt.Sprintf("Filter: %s >= %d\nFilter: %s <= %d\nAnd: 2\n", attribute, block.start, attribute, block.end))
-			}
-		}
-
-		block.start = timestamp
-		block.end = timestamp
-	}
-	if block.start != -1 {
-		if block.start == block.end {
-			filter = append(filter, fmt.Sprintf("Filter: %s = %d\n", attribute, block.start))
-		} else {
-			filter = append(filter, fmt.Sprintf("Filter: %s >= %d\nFilter: %s <= %d\nAnd: 2\n", attribute, block.start, attribute, block.end))
-		}
-	}
-	if len(filter) > 1 {
-		filter = append(filter, fmt.Sprintf("Or: %d\n", len(filter)))
-	}
-
-	return filter
+// scheduleImmediateComDownUpdate resets comment / downtimes update timer so the
+// next update loop iteration will perform an update.
+func (ds *DataStoreSet) scheduleImmediateComDownUpdate() {
+	ds.forceComments.Store(true)
 }

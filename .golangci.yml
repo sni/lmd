@@ -77,8 +77,6 @@ linters:
           - prealloc
         path: _test.*\.go
       - path: (.+)\.go$
-        text: data.Options.Sub.*_raw_query.*is deeply nested
-      - path: (.+)\.go$
         text: Expect WriteFile permissions to be 0600 or less
       - path: (.+)\.go$
         text: 'lines are duplicate of.*_test.go:'
@@ -86,8 +84,6 @@ linters:
         text: 'lines are duplicate of.*objects.go:'
       - path: (.+)\.go$
         text: 'Magic number: 0o644\D '
-      - path: (.+)\.go$
-        text: 'Magic number: 1\D '
       - path: (.+)\.go$
         text: 'Magic number: 5\D '
       - path: (.+)\.go$
@@ -119,49 +115,17 @@ linters:
       - path: (.+)\.go$
         text: 'Magic number: 65536\D '
       - path: (.+)\.go$
-        text: 'missing cases in switch of type GroupOperator: _'
-      - path: (.+)\.go$
-        text: 'missing cases in switch of type Operator: _'
-      - path: (.+)\.go$
-        text: 'missing cases in switch of type SortDirection: _'
-      - path: (.+)\.go$
-        text: can be `expvar.Var`
-      - path: (.+)\.go$
-        text: cognitive complexity .* of func `.*..optimizeStatsGroups` is high
-      - path: (.+)\.go$
-        text: cognitive complexity .* of func `.*Peer..waitcondition` is high
-      - path: (.+)\.go$
         text: cognitive complexity .* of func `.*Request..getDistributedResponse` is high
       - path: (.+)\.go$
         text: cognitive complexity .* of func `.*appendIndexHostsFromServiceColumns` is high
-      - path: (.+)\.go$
-        text: cognitive complexity .* of func `ProcessRequests` is high
       - path: (.+)\.go$
         text: cognitive complexity .* of func `prepareTmpDataHostService` is high
       - path: (.+)\.go$
         text: cognitive complexity .* of func `.*RawResultSet..Less` is high
       - path: (.+)\.go$
-        text: cyclomatic complexity .* of func `.*Less` is high
-      - path: (.+)\.go$
         text: cyclomatic complexity .* of func `.*ParseRequestHeaderLine` is high
       - path: (.+)\.go$
-        text: cyclomatic complexity .* of func `.*String` is high
-      - path: (.+)\.go$
         text: cyclomatic complexity .* of func `.*appendIndexHostsFromServiceColumns` is high
-      - path: (.+)\.go$
-        text: cyclomatic complexity .* of func `matchStringListFilter` is high
-      - path: (.+)\.go$
-        text: cyclomatic complexity .* of func `TestNegate` is high
-      - path: (.+)\.go$
-        text: cyclomatic complexity .* of func `TestNodeManager` is high
-      - path: (.+)\.go$
-        text: cyclomatic complexity .* of func `TestRequestKeepalive` is high
-      - path: (.+)\.go$
-        text: cyclomatic complexity .* of func `.*statusSet` is high
-      - path: (.+)\.go$
-        text: cyclomatic complexity .* of func `.*statusGet` is high
-      - path: (.+)\.go$
-        text: empty.* is a global variable
       - path: (.+)\.go$
         text: Error return value of `log.Output` is not checked
       - path: (.+)\.go$
@@ -171,15 +135,11 @@ linters:
       - path: (.+)\.go$
         text: 'G114: Use of net/http serve function that has no support for setting timeouts'
       - path: (.+)\.go$
-        text: log is a global variable
-      - path: (.+)\.go$
         text: 'ptrToRefParam: consider `commandsByPeer'' to be of non-pointer type'
       - path: (.+)\.go$
         text: TLS InsecureSkipVerify may be true
       - path: (.+)\.go$
         text: Use of weak random number generator
-      - path: (.+)\.go$
-        text: VirtualColumnMap is a global variable
       - path: (.+)\.go$
         text: LogPrefixer.*does not support error-wrapping
       - path: (.+)\.go$

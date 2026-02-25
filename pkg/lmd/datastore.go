@@ -48,7 +48,7 @@ func NewDataStore(table *Table, peer *Peer) (d *DataStore) {
 		if col.StorageType != LocalStore {
 			continue
 		}
-		if col.Optional != NoFlags && !d.peer.HasFlag(col.Optional) {
+		if col.Optional != NoFlags && !d.peer.hasFlag(col.Optional) {
 			// this column will be filled separately, so it has to be created empty
 			if col.Optional != HasContactsGroupColumn {
 				continue
@@ -273,7 +273,7 @@ func (d *DataStore) GetInitialColumns() ([]string, ColumnList) {
 	keys := make([]string, 0)
 	for i := range d.table.columns {
 		col := d.table.columns[i]
-		if d.peer != nil && !d.peer.HasFlag(col.Optional) {
+		if d.peer != nil && !d.peer.hasFlag(col.Optional) {
 			continue
 		}
 		if col.StorageType != LocalStore {
@@ -458,7 +458,7 @@ func (d *DataStore) prepareDataUpdateSet(dataOffset int, res ResultSet, columns 
 	return updateSet, nil
 }
 
-// getUpdateColumn returns data and result index for given column name, it panics if the column is not type int64.
+// getUpdateColumn returns data and result index for given column name, it panics if the column is not correct type.
 // the index will be -1 if the column is not available.
 func (d *DataStore) getUpdateColumn(columnName string, dataOffset int) (dataIndex, resIndex int) {
 	dataIndex = -1
@@ -468,7 +468,7 @@ func (d *DataStore) getUpdateColumn(columnName string, dataOffset int) (dataInde
 		return dataIndex, resIndex
 	}
 	// double check last_update column
-	if columnName == "last_update" && !d.peer.HasFlag(HasLastUpdateColumn) {
+	if columnName == "last_update" && !d.peer.hasFlag(HasLastUpdateColumn) {
 		return dataIndex, resIndex
 	}
 
@@ -538,7 +538,7 @@ func (d *DataStore) appendIndexHostsFromHostColumns(uniqHosts map[string]bool, f
 			return true
 
 		// name =~ <value>
-		case EqualNocase:
+		case EqualNoCase:
 			uniqHosts[fil.stringVal] = true
 			for _, key := range d.indexLowerCase[strings.ToLower(fil.stringVal)] {
 				uniqHosts[key] = true
@@ -551,7 +551,7 @@ func (d *DataStore) appendIndexHostsFromHostColumns(uniqHosts map[string]bool, f
 	case "name_lc":
 		switch fil.operator {
 		// name == <value>
-		case Equal, EqualNocase:
+		case Equal, EqualNoCase:
 			uniqHosts[fil.stringVal] = true
 			for _, key := range d.indexLowerCase[strings.ToLower(fil.stringVal)] {
 				uniqHosts[key] = true
@@ -566,7 +566,7 @@ func (d *DataStore) appendIndexHostsFromHostColumns(uniqHosts map[string]bool, f
 		switch fil.operator {
 		// groups >= <value>
 		case GreaterThan:
-			store := d.dataSet.Get(TableHostgroups)
+			store := d.dataSet.get(TableHostgroups)
 			group, ok := store.index[fil.stringVal]
 			if ok {
 				members := group.GetStringListByName("members")
@@ -577,9 +577,9 @@ func (d *DataStore) appendIndexHostsFromHostColumns(uniqHosts map[string]bool, f
 
 			return true
 		case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase:
-			store := d.dataSet.Get(TableHostgroups)
-			for groupname, group := range store.index {
-				if fil.MatchString(strings.ToLower(groupname)) {
+			store := d.dataSet.get(TableHostgroups)
+			for groupName, group := range store.index {
+				if fil.MatchString(strings.ToLower(groupName)) {
 					members := group.GetStringListByName("members")
 					for _, m := range members {
 						uniqHosts[m] = true
@@ -607,7 +607,7 @@ func (d *DataStore) appendIndexHostsFromServiceColumns(uniqHosts map[string]bool
 			return true
 		// host_name ~ <value>
 		case RegexMatch, Contains:
-			store := d.dataSet.Get(TableHosts)
+			store := d.dataSet.get(TableHosts)
 			for hostname := range store.index {
 				if fil.MatchString(hostname) {
 					uniqHosts[hostname] = true
@@ -621,8 +621,8 @@ func (d *DataStore) appendIndexHostsFromServiceColumns(uniqHosts map[string]bool
 	case "host_name_lc":
 		switch fil.operator {
 		// host_name ~~ <value>
-		case RegexMatch, Contains, RegexNoCaseMatch, ContainsNoCase, EqualNocase, Equal:
-			store := d.dataSet.Get(TableHosts)
+		case RegexMatch, Contains, RegexNoCaseMatch, ContainsNoCase, EqualNoCase, Equal:
+			store := d.dataSet.get(TableHosts)
 			for hostname := range store.index {
 				if fil.MatchString(strings.ToLower(hostname)) {
 					uniqHosts[hostname] = true
@@ -638,7 +638,7 @@ func (d *DataStore) appendIndexHostsFromServiceColumns(uniqHosts map[string]bool
 		switch fil.operator {
 		// groups >= <value>
 		case GreaterThan:
-			store := d.dataSet.Get(TableHostgroups)
+			store := d.dataSet.get(TableHostgroups)
 			group, ok := store.index[fil.stringVal]
 			if ok {
 				members := group.GetStringListByName("members")
@@ -649,9 +649,9 @@ func (d *DataStore) appendIndexHostsFromServiceColumns(uniqHosts map[string]bool
 
 			return true
 		case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase:
-			store := d.dataSet.Get(TableHostgroups)
-			for groupname, group := range store.index {
-				if fil.MatchString(strings.ToLower(groupname)) {
+			store := d.dataSet.get(TableHostgroups)
+			for groupName, group := range store.index {
+				if fil.MatchString(strings.ToLower(groupName)) {
 					members := group.GetStringListByName("members")
 					for _, m := range members {
 						uniqHosts[m] = true
@@ -668,7 +668,7 @@ func (d *DataStore) appendIndexHostsFromServiceColumns(uniqHosts map[string]bool
 		switch fil.operator {
 		// groups >= <value>
 		case GreaterThan:
-			store := d.dataSet.Get(TableServicegroups)
+			store := d.dataSet.get(TableServicegroups)
 			group, ok := store.index[fil.stringVal]
 			if ok {
 				members := group.GetServiceMemberListByName("members")
@@ -679,9 +679,9 @@ func (d *DataStore) appendIndexHostsFromServiceColumns(uniqHosts map[string]bool
 
 			return true
 		case RegexMatch, RegexNoCaseMatch, Contains, ContainsNoCase:
-			store := d.dataSet.Get(TableServicegroups)
-			for groupname, group := range store.index {
-				if fil.MatchString(groupname) {
+			store := d.dataSet.get(TableServicegroups)
+			for groupName, group := range store.index {
+				if fil.MatchString(groupName) {
 					members := group.GetServiceMemberListByName("members")
 					for i := range members {
 						uniqHosts[members[i][0]] = true
@@ -713,7 +713,7 @@ func (d *DataStore) appendIndexFromPrimaryKey(uniqRows map[string]bool, fil *Fil
 			return true
 
 		// name =~ <value>
-		case EqualNocase:
+		case EqualNoCase:
 			uniqRows[fil.stringVal] = true
 			for _, key := range d.indexLowerCase[strings.ToLower(fil.stringVal)] {
 				uniqRows[key] = true
@@ -726,7 +726,7 @@ func (d *DataStore) appendIndexFromPrimaryKey(uniqRows map[string]bool, fil *Fil
 	case key + "_lc":
 		switch fil.operator {
 		// name == <value>
-		case Equal, EqualNocase:
+		case Equal, EqualNoCase:
 			uniqRows[fil.stringVal] = true
 			for _, key := range d.indexLowerCase[strings.ToLower(fil.stringVal)] {
 				uniqRows[key] = true

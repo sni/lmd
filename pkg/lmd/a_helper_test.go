@@ -351,10 +351,10 @@ func StartTestPeerExtra(numPeers, numHosts, numServices int, extraConfig string)
 	// wait till backend is available
 	waitUntil := time.Now().Add(10 * time.Second)
 	for {
-		err := peer.InitAllTables(context.TODO())
+		err := peer.initAllTables(context.TODO())
 		if err == nil {
 			data := peer.data.Load()
-			table := data.Get(TableStatus)
+			table := data.get(TableStatus)
 			if table != nil {
 				gotPeers := len(table.data)
 				if gotPeers == numPeers {
@@ -669,7 +669,7 @@ func TestMock1(t *testing.T) {
 		Name:   "TestPeer",
 	})
 
-	err := peer.InitAllTables(t.Context())
+	err := peer.initAllTables(t.Context())
 	require.NoErrorf(t, err, "init tables failed")
 
 	// tear down

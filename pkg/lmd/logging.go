@@ -119,8 +119,10 @@ func adjustMaxLogOutput(data string) string {
 	length := len(data)
 	if LogMaxOutput > 0 && length > LogMaxOutput {
 		data = data[:LogMaxOutput]
+
 		return data + fmt.Sprintf("...[skipped logging %d bytes]", length-LogMaxOutput)
 	}
+
 	return data
 }
 

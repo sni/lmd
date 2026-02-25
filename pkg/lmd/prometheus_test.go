@@ -20,7 +20,7 @@ func TestPrometheus(t *testing.T) {
 	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://127.0.0.1:50999/metrics", http.NoBody)
 	response, err := netClient.Do(req)
 	require.NoError(t, err)
-	contents, err := ExtractHTTPResponse(response)
+	contents, err := extractHTTPResponse(response)
 	require.NoError(t, err)
 	assert.Contains(t, string(contents), "lmd_peer_update_interval")
 

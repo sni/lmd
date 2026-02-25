@@ -13,17 +13,17 @@ func TestColumnFlag(t *testing.T) {
 
 	assert.Equal(t, uint32(NoFlags), peer.flags)
 
-	peer.SetFlag(Naemon)
+	peer.setFlag(Naemon)
 	assert.Equal(t, uint32(Naemon), peer.flags)
-	assert.True(t, peer.HasFlag(Naemon))
-	assert.False(t, peer.HasFlag(HasDependencyColumn))
+	assert.True(t, peer.hasFlag(Naemon))
+	assert.False(t, peer.hasFlag(HasDependencyColumn))
 
-	peer.SetFlag(HasDependencyColumn)
-	assert.True(t, peer.HasFlag(HasDependencyColumn))
-	assert.False(t, peer.HasFlag(MultiBackend))
+	peer.setFlag(HasDependencyColumn)
+	assert.True(t, peer.hasFlag(HasDependencyColumn))
+	assert.False(t, peer.hasFlag(MultiBackend))
 
-	peer.ResetFlags()
-	assert.False(t, peer.HasFlag(Naemon))
+	peer.resetFlags()
+	assert.False(t, peer.hasFlag(Naemon))
 	assert.Equal(t, uint32(NoFlags), peer.flags)
 }
 

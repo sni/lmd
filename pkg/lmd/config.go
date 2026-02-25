@@ -78,7 +78,6 @@ type Config struct {
 	ServiceAuthorization       string       `toml:"ServiceAuthorization"`
 	TLSKey                     string       `toml:"TLSKey"`
 	LogLevel                   string       `toml:"LogLevel"`
-	LogMaxOutput               int          `toml:"LogMaxOutput"`
 	ListenPrometheus           string       `toml:"ListenPrometheus"`
 	Connections                []Connection `toml:"Connections"`
 	Nodes                      []string     `toml:"Nodes"`
@@ -88,6 +87,7 @@ type Config struct {
 	LogHugeQueryThreshold      int          `toml:"LogHugeQueryThreshold"`
 	NetTimeout                 int          `toml:"NetTimeout"`
 	ListenTimeout              int          `toml:"ListenTimeout"`
+	LogMaxOutput               int          `toml:"LogMaxOutput"`
 	UpdateInterval             int64        `toml:"Updateinterval"`
 	MaxQueryFilter             int          `toml:"MaxQueryFilter"`
 	ConnectTimeout             int          `toml:"ConnectTimeout"`

@@ -3,7 +3,6 @@ package lmd
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,7 +16,8 @@ func TestComposeTimestamp1(t *testing.T) {
 		"Filter: last_update = 5\n",
 		"Or: 3\n",
 	}
-	assert.Equal(t, expect, composeTimestampFilter(timestamps, "last_update"))
+	s := SyncStrategyLastCheck{}
+	assert.Equal(t, expect, s.composeTimestampFilter(timestamps, "last_update"))
 }
 
 func TestComposeTimestamp2(t *testing.T) {
@@ -25,7 +25,8 @@ func TestComposeTimestamp2(t *testing.T) {
 	expect := []string{
 		"Filter: last_check >= 1\nFilter: last_check <= 3\nAnd: 2\n",
 	}
-	assert.Equal(t, expect, composeTimestampFilter(ts, "last_check"))
+	s := SyncStrategyLastCheck{}
+	assert.Equal(t, expect, s.composeTimestampFilter(ts, "last_check"))
 }
 
 func TestComposeTimestamp3(t *testing.T) {
@@ -36,7 +37,8 @@ func TestComposeTimestamp3(t *testing.T) {
 		"Filter: last_check >= 7\nFilter: last_check <= 9\nAnd: 2\n",
 		"Or: 3\n",
 	}
-	assert.Equal(t, expect, composeTimestampFilter(timestamps, "last_check"))
+	s := SyncStrategyLastCheck{}
+	assert.Equal(t, expect, s.composeTimestampFilter(timestamps, "last_check"))
 }
 
 func TestDSHasChanged(t *testing.T) {
@@ -44,7 +46,8 @@ func TestDSHasChanged(t *testing.T) {
 	PauseTestPeers(peer)
 
 	data := peer.data.Load()
-	err := data.reloadIfNumberOfObjectsChanged(t.Context())
+	s := SyncStrategyLastCheck{store: data}
+	err := s.reloadIfNumberOfObjectsChanged(t.Context())
 	require.NoError(t, err)
 
 	err = cleanup()
@@ -55,15 +58,9 @@ func TestDSFullUpdate(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(1, 10, 10)
 	PauseTestPeers(peer)
 
-	peer.lastUpdate.Set(0)
-	peer.lastFullServiceUpdate.Set(0)
+	peer.scheduleImmediateUpdate()
 	data := peer.data.Load()
-	err := data.UpdateDeltaServices(t.Context(), fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), false, 0)
-	require.NoError(t, err)
-
-	peer.lastUpdate.Set(0)
-	peer.lastFullServiceUpdate.Set(0)
-	err = data.UpdateDeltaServices(t.Context(), fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"), true, time.Now().Unix())
+	_, _, err := data.updateDeltaServices(t.Context(), fmt.Sprintf("Filter: host_name = %s\nFilter: description = %s\n", "test", "test"))
 	require.NoError(t, err)
 
 	err = cleanup()

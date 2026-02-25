@@ -150,8 +150,8 @@ func (d *DataRow) SetReferences() (err error) {
 	for i := range store.table.refTables {
 		ref := &store.table.refTables[i]
 		tableName := ref.Table.name
-		refsByName := store.dataSet.Get(tableName).index
-		refsByName2 := store.dataSet.Get(tableName).index2
+		refsByName := store.dataSet.get(tableName).index
+		refsByName2 := store.dataSet.get(tableName).index2
 
 		switch len(ref.Columns) {
 		case 1:
@@ -406,7 +406,7 @@ func (d *DataRow) GetInterfaceList(col *Column) []any {
 
 // GetValueByColumn returns the raw value for given column.
 func (d *DataRow) GetValueByColumn(col *Column) any {
-	if col.Optional != NoFlags && !d.dataStore.peer.HasFlag(col.Optional) {
+	if col.Optional != NoFlags && !d.dataStore.peer.hasFlag(col.Optional) {
 		return col.GetEmptyValue()
 	}
 	switch col.StorageType {
@@ -450,7 +450,7 @@ func (d *DataRow) getVirtualRowValue(col *Column) any {
 			log.Panicf("requesting column '%s' from table '%s' with peer", col.Name, d.dataStore.table.name.String())
 		}
 		ok := false
-		if peer.HasFlag(LMDSub) {
+		if peer.hasFlag(LMDSub) {
 			value, ok = d.getVirtualSubLMDValue(peer, col)
 		}
 		if !ok {
@@ -539,7 +539,7 @@ func VirtualColHasLongPluginOutput(_ *Peer, d *DataRow, _ *Column) any {
 func VirtualColServicesWithInfo(_ *Peer, d *DataRow, col *Column) any {
 	services := d.GetStringListByName("services")
 	hostName := d.GetStringByName("name")
-	servicesStore := d.dataStore.dataSet.Get(TableServices)
+	servicesStore := d.dataStore.dataSet.get(TableServices)
 	stateCol := servicesStore.table.GetColumn("state")
 	checkedCol := servicesStore.table.GetColumn("has_been_checked")
 	outputCol := servicesStore.table.GetColumn("plugin_output")
@@ -566,7 +566,7 @@ func VirtualColMembersWithState(_ *Peer, dRow *DataRow, _ *Column) any {
 	switch dRow.dataStore.table.name {
 	case TableHostgroups:
 		members := dRow.GetStringListByName("members")
-		hostsStore := dRow.dataStore.dataSet.Get(TableHosts)
+		hostsStore := dRow.dataStore.dataSet.get(TableHosts)
 		stateCol := hostsStore.table.GetColumn("state")
 		checkedCol := hostsStore.table.GetColumn("has_been_checked")
 
@@ -585,7 +585,7 @@ func VirtualColMembersWithState(_ *Peer, dRow *DataRow, _ *Column) any {
 	case TableServicegroups:
 		membersCol := dRow.dataStore.GetColumn("members")
 		members := dRow.GetServiceMemberList(membersCol)
-		servicesStore := dRow.dataStore.dataSet.Get(TableServices)
+		servicesStore := dRow.dataStore.dataSet.get(TableServices)
 		stateCol := servicesStore.table.GetColumn("state")
 		checkedCol := servicesStore.table.GetColumn("has_been_checked")
 
@@ -618,7 +618,7 @@ func VirtualColCommentsWithInfo(_ *Peer, row *DataRow, _ *Column) any {
 		return emptyInterfaceList
 	}
 
-	commentsStore := row.dataStore.dataSet.Get(TableComments)
+	commentsStore := row.dataStore.dataSet.get(TableComments)
 	commentsTable := commentsStore.table
 	authorCol := commentsTable.GetColumn("author")
 	commentCol := commentsTable.GetColumn("comment")
@@ -657,7 +657,7 @@ func VirtualColDowntimesWithInfo(_ *Peer, row *DataRow, _ *Column) any {
 		return emptyInterfaceList
 	}
 
-	downtimesStore := row.dataStore.dataSet.Get(TableDowntimes)
+	downtimesStore := row.dataStore.dataSet.get(TableDowntimes)
 	downtimesTable := downtimesStore.table
 	authorCol := downtimesTable.GetColumn("author")
 	commentCol := downtimesTable.GetColumn("comment")
@@ -789,7 +789,7 @@ func (d *DataRow) MatchFilter(filter *Filter, negate bool) bool {
 	}
 
 	// if this is a optional column and we do not meet the requirements, match against an empty default column
-	if filter.columnOptional != NoFlags && !d.dataStore.peer.HasFlag(filter.columnOptional) {
+	if filter.columnOptional != NoFlags && !d.dataStore.peer.hasFlag(filter.columnOptional) {
 		// duplicate filter, but use the empty column
 		dupFilter := &Filter{
 			column:      d.dataStore.table.GetEmptyColumn(),
@@ -1554,7 +1554,7 @@ func (d *DataRow) WriteJSONVirtualColumn(jsonwriter *jsoniter.Stream, col *Colum
 	case CustomVarCol:
 		namesCol := d.dataStore.GetColumn("custom_variable_names")
 		valuesCol := d.dataStore.GetColumn("custom_variable_values")
-		if namesCol.Optional != NoFlags && !d.dataStore.peer.HasFlag(namesCol.Optional) {
+		if namesCol.Optional != NoFlags && !d.dataStore.peer.hasFlag(namesCol.Optional) {
 			jsonwriter.WriteObjectStart()
 			jsonwriter.WriteObjectEnd()
 
@@ -1593,8 +1593,8 @@ func (d *DataRow) isAuthorizedFor(authUser, host, service string) (canView bool)
 	// get contacts for host, if we are checking a host or
 	// if this is a service and ServiceAuthorization is loose
 	if (service != "" && peer.lmd.Config.ServiceAuthorization == AuthLoose) || service == "" {
-		hostObj, ok := dataSet.Get(TableHosts).index[host]
-		contactsColumn := dataSet.Get(TableHosts).GetColumn("contacts")
+		hostObj, ok := dataSet.get(TableHosts).index[host]
+		contactsColumn := dataSet.get(TableHosts).GetColumn("contacts")
 		// Make sure the host we found is actually valid
 		if !ok {
 			return false
@@ -1606,8 +1606,8 @@ func (d *DataRow) isAuthorizedFor(authUser, host, service string) (canView bool)
 
 	// get contacts on services
 	if service != "" {
-		serviceObj, ok := dataSet.Get(TableServices).index2[host][service]
-		contactsColumn := dataSet.Get(TableServices).GetColumn("contacts")
+		serviceObj, ok := dataSet.get(TableServices).index2[host][service]
+		contactsColumn := dataSet.get(TableServices).GetColumn("contacts")
 		if !ok {
 			return false
 		}
@@ -1624,8 +1624,8 @@ func (d *DataRow) isAuthorizedForHostGroup(authUser, hostgroup string) (canView 
 	dataSet := d.dataStore.dataSet
 	canView = false
 
-	hostgroupObj, ok := dataSet.Get(TableHostgroups).index[hostgroup]
-	membersColumn := dataSet.Get(TableHostgroups).GetColumn("members")
+	hostgroupObj, ok := dataSet.get(TableHostgroups).index[hostgroup]
+	membersColumn := dataSet.get(TableHostgroups).GetColumn("members")
 	if !ok {
 		return false
 	}
@@ -1661,8 +1661,8 @@ func (d *DataRow) isAuthorizedForServiceGroup(authUser, servicegroup string) (ca
 	ds := d.dataStore.dataSet
 	canView = false
 
-	servicegroupObj, ok := ds.Get(TableServicegroups).index[servicegroup]
-	membersColumn := ds.Get(TableServicegroups).GetColumn("members")
+	servicegroupObj, ok := ds.get(TableServicegroups).index[servicegroup]
+	membersColumn := ds.get(TableServicegroups).GetColumn("members")
 	if !ok {
 		return false
 	}

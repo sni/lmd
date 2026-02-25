@@ -274,7 +274,7 @@ func (cl *ClientConnection) SendCommands(ctx context.Context, commandsByPeer map
 		go func(peer *Peer) {
 			defer logPanicExitPeer(peer)
 			defer wgroup.Done()
-			resultChan <- peer.SendCommandsWithRetry(ctx, commandsByPeer[peer.ID])
+			resultChan <- peer.sendCommandsWithRetry(ctx, commandsByPeer[peer.ID])
 		}(peer)
 	}
 

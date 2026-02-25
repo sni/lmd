@@ -97,7 +97,7 @@ func NewResponse(ctx context.Context, req *Request, client *ClientConnection) (r
 		stores := make(map[*Peer]*DataStore)
 		for i := range res.selectedPeers {
 			peer := res.selectedPeers[i]
-			store, err2 := peer.GetDataStore(table.name)
+			store, err2 := peer.getDataStore(table.name)
 			if err2 != nil {
 				res.lock.Lock()
 				res.failed[peer.ID] = err2.Error()
@@ -136,7 +136,7 @@ func (res *Response) lockStores(data *DataStoreSet) {
 		if table.virtual != nil {
 			continue
 		}
-		store := data.Get(tableName)
+		store := data.get(tableName)
 		if store != nil {
 			store.lock.RLock()
 			res.lockedStores = append(res.lockedStores, store)
@@ -197,7 +197,7 @@ func (res *Response) prepareResponse(ctx context.Context, req *Request) {
 		if req.lmd.nodeAccessor == nil || !req.lmd.nodeAccessor.IsOurBackend(peer.ID) {
 			continue
 		}
-		if peer.HasFlag(MultiBackend) {
+		if peer.hasFlag(MultiBackend) {
 			continue
 		}
 		res.selectedPeers = append(res.selectedPeers, peer)
@@ -712,7 +712,7 @@ func (res *Response) waitTrigger(ctx context.Context, peer *Peer) {
 	peer.WaitCondition(ctx, res.request)
 
 	// peer might have gone down meanwhile, ex. after waiting for a waittrigger, so check again
-	_, err := peer.GetDataStore(res.request.Table)
+	_, err := peer.getDataStore(res.request.Table)
 	if err != nil {
 		res.lock.Lock()
 		res.failed[peer.ID] = err.Error()
@@ -812,7 +812,7 @@ func (res *Response) BuildPassThroughResult(ctx context.Context) {
 			logWith(peer, passthroughRequest).Debugf("starting passthrough request")
 			defer wg.Done()
 
-			peer.PassThroughQuery(ctx, res, passthroughRequest, virtualColumns, columnsIndex)
+			peer.passThroughQuery(ctx, res, passthroughRequest, virtualColumns, columnsIndex)
 		}(peer, waitgroup)
 	}
 	logWith(passthroughRequest).Tracef("waiting...")
@@ -856,7 +856,7 @@ func SpinUpPeers(ctx context.Context, peers []*Peer) {
 			// make sure we log panics properly
 			defer logPanicExitPeer(peer)
 			defer wg.Done()
-			LogErrors(peer.ResumeFromIdle(ctx))
+			LogErrors(peer.resumeFromIdle(ctx))
 		}(peer, waitgroup)
 	}
 	waitTimeout(ctx, waitgroup, SpinUpPeersTimeout)
