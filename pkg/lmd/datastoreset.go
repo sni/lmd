@@ -36,10 +36,8 @@ type DataStoreSet struct { //nolint:govet // not fieldalignment relevant
 }
 
 func NewDataStoreSet(peer *Peer) *DataStoreSet {
-	dataset := DataStoreSet{
-		peer: peer,
-		sync: &SyncStrategyLastCheck{},
-	}
+	dataset := DataStoreSet{peer: peer}
+	dataset.sync = NewSyncStrategy(&dataset)
 
 	return &dataset
 }

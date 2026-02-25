@@ -671,6 +671,8 @@ func (p *Peer) updateInitialStatus(ctx context.Context, store *DataStore) (err e
 		return err
 	}
 
+	store.dataSet.setSyncStrategy()
+
 	programStart := statusData[0].GetInt64ByName("program_start")
 	corePid := statusData[0].GetInt64ByName("nagios_pid")
 
@@ -690,8 +692,6 @@ func (p *Peer) updateInitialStatus(ctx context.Context, store *DataStore) (err e
 			p.thrukExtras.Set(val)
 		}
 	}
-
-	store.dataSet.setSyncStrategy()
 
 	return nil
 }

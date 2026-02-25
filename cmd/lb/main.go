@@ -71,7 +71,7 @@ func main() {
 		daemon:          daemon,
 	}
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [arguments]\n", os.Args[0])
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: lb [arguments]\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "\nDescription:\n\n  lb is a benchmark tool for lmd which sends lots of requests to lmd.\n\nArguments:\n\n")
 		flag.PrintDefaults()
 		fmt.Fprintf(flag.CommandLine.Output(), "\nExample:\n\n  lb -c localhost:6557 -d 5s -n 10\n\n")

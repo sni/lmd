@@ -35,7 +35,7 @@ type Cmd struct {
 func main() {
 	cmd := &Cmd{}
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [arguments] unix socket|tcp connection string\n", os.Args[0])
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: lq [arguments] unix socket|tcp connection string\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "\nDescription:\n\n  lq sends a livestatus query.\n\nArguments:\n\n")
 		flag.PrintDefaults()
 		fmt.Fprintf(flag.CommandLine.Output(), "\nExample:\n\n echo -e 'GET services\\n\\n' lq localhost:6557\n\n")
