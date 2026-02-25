@@ -1386,6 +1386,8 @@ func (p *Peer) setMultiBackend(ctx context.Context, store *DataStoreSet, addr st
 		logWith(p).Infof("remote connection MultiBackend flag set, got %d sites", num)
 	}
 
+	store.setSyncStrategy()
+
 	// force immediate update to fetch all sites
 	_, err = store.tryUpdate(ctx, true)
 	if err != nil {
