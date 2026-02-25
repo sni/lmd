@@ -925,7 +925,7 @@ func updateStatistics(qStat *QueryStats) {
 
 func getMinimalTLSConfig(localConfig *Config) *tls.Config {
 	config := &tls.Config{
-		InsecureSkipVerify: localConfig.SkipSSLCheck > 0,
+		InsecureSkipVerify: localConfig.SkipSSLCheck > 0, //nolint:gosec // InsecureSkipVerify can be set via config
 	}
 	if localConfig.TLSMinVersion != "" {
 		tlsMinVersion, err := parseTLSMinVersion(localConfig.TLSMinVersion)
@@ -984,7 +984,7 @@ func (lmd *Daemon) adjustMemoryAndGCLimits() {
 		if memLimit > math.MaxInt64 {
 			log.Fatalf("memory limit exceeds MaxInt64")
 		}
-		debug.SetMemoryLimit(int64(memLimit))
+		debug.SetMemoryLimit(interface2int64(memLimit))
 	}
 
 	log.Debugf("limits: GOGC=%d%%, GOMEMLIMIT=%s", gcPercent, byteCountBinary(debug.SetMemoryLimit(-1)))

@@ -71,6 +71,7 @@ linters:
           - errorlint
           - forcetypeassert
           - funlen
+          - gosec
           - lll
           - mnd
           - musttag
@@ -152,6 +153,10 @@ linters:
         text: 'must not be called. use'
       - path: (.+)\.go$
         text: 'Goroutine creation can be simplified using WaitGroup.Go'
+      - path: (.+)\.go$
+        text: 'G704: SSRF via taint analysis'
+      - path: (.+)\.go$
+        text: 'G703: Path traversal via taint analysis'
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0

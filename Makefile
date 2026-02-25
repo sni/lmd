@@ -210,6 +210,8 @@ golangci: tools
 	# golangci combines a few static code analyzer
 	# See https://github.com/golangci/golangci-lint
 	#
+	@which golangci-lint
+	@golangci-lint version
 	@set -e; for dir in $$(ls -1d pkg/* cmd); do \
 		echo $$dir; \
 		echo "  - GOOS=linux"; \

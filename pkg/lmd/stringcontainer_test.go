@@ -12,7 +12,7 @@ import (
 func TestStringContainerCompression(t *testing.T) {
 	var teststring strings.Builder
 	for i := range [2000]int{} {
-		teststring.WriteString(fmt.Sprintf("%d x", i))
+		fmt.Fprintf(&teststring, "%d x", i)
 	}
 	str := teststring.String()
 	cont := NewStringContainer(&str)
@@ -26,7 +26,7 @@ func TestStringContainerCompression(t *testing.T) {
 func TestStringContainerNoCompression(t *testing.T) {
 	var teststring strings.Builder
 	for i := range [100]int{} {
-		teststring.WriteString(fmt.Sprintf("%d x", i))
+		fmt.Fprintf(&teststring, "%d x", i)
 	}
 	str := teststring.String()
 	cont := NewStringContainer(&str)

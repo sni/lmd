@@ -9,7 +9,7 @@ type SyncStrategy interface {
 	UpdateDelta(ctx context.Context, from, until float64) (err error) // UpdateDelta runs delta updates from the periodic update loop and returns whether an update was performed
 }
 
-func NewSyncStrategy(store *DataStoreSet) SyncStrategy {
+func NewSyncStrategy(store *DataStoreSet) *SyncStrategyLastCheck {
 	s := &SyncStrategyLastCheck{}
 	s.Init(store)
 
