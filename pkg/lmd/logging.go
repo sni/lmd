@@ -203,7 +203,7 @@ func (l *LogPrefixer) LogErrors(v ...any) {
 		if err == nil {
 			continue
 		}
-		l.Debugf("got error: %e", err)
+		l.Debugf("got error: %e: %s", err, err.Error())
 		l.Debugf("Stacktrace:\n%s", debug.Stack())
 	}
 }

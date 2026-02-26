@@ -31,24 +31,24 @@ func TestPeerUpdateLastCheck(t *testing.T) {
 	err = data.updateDelta(t.Context(), float64(5), float64(time.Now().Unix()+5))
 	require.NoError(t, err)
 
-	store.lastUpdate.Set(0)
+	peer.lastUpdate.Set(0)
 	updated, err := peer.tryUpdate(t.Context())
 	require.NoError(t, err)
 	assert.True(t, updated, "expected update to be successful")
 
-	store.lastUpdate.Set(0)
-	store.lastTimeperiodUpdateMinute.Store(0)
+	peer.lastUpdate.Set(0)
+	peer.lastTimeperiodUpdateMinute.Store(0)
 	updated, err = store.tryTimeperiodsUpdate(t.Context())
 	require.NoError(t, err)
 	assert.True(t, updated, "expected update to be successful")
 
-	store.lastUpdate.Set(0)
+	peer.lastUpdate.Set(0)
 	peer.peerState.Set(PeerStatusWarning)
 	updated, err = peer.tryUpdate(t.Context())
 	require.NoError(t, err)
 	assert.True(t, updated, "expected update to be successful")
 
-	store.lastUpdate.Set(0)
+	peer.lastUpdate.Set(0)
 	peer.peerState.Set(PeerStatusDown)
 	updated, err = peer.tryUpdate(t.Context())
 	require.NoError(t, err)
@@ -64,7 +64,7 @@ func TestPeerUpdateLastCheck(t *testing.T) {
 	store.sync = &SyncStrategyLastCheck{}
 	store.sync.Init(store)
 
-	store.lastUpdate.Set(0)
+	peer.lastUpdate.Set(0)
 	peer.peerState.Set(PeerStatusBroken)
 	updated, err = peer.tryUpdate(t.Context())
 	require.Errorf(t, err, "got no error but expected broken peer")

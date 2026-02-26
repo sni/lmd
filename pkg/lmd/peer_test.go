@@ -251,7 +251,7 @@ func TestLMDPeerUpdate(t *testing.T) {
 	PauseTestPeers(peer)
 
 	store := peer.data.Load()
-	store.lastUpdate.Set(0)
+	peer.lastUpdate.Set(0)
 	peer.setFlag(LMD)
 	peer.setFlag(MultiBackend)
 	store.setSyncStrategy()
@@ -260,7 +260,7 @@ func TestLMDPeerUpdate(t *testing.T) {
 	_, err := peer.tryUpdate(t.Context())
 	require.NoError(t, err)
 
-	store.lastUpdate.Set(0)
+	peer.lastUpdate.Set(0)
 	peer.resetFlags()
 	peer.setFlag(MultiBackend)
 	store.setSyncStrategy()

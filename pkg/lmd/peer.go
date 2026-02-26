@@ -53,7 +53,7 @@ const (
 	WaitTimeoutCheckInterval = 200 * time.Millisecond
 
 	// ErrorContentPreviewSize sets the number of bytes from the response to include in the error message.
-	ErrorContentPreviewSize = 50
+	ErrorContentPreviewSize = 100
 
 	// TemporaryNetworkErrorRetryDelay sets the sleep time for temporary network issue retries.
 	TemporaryNetworkErrorRetryDelay = 500 * time.Millisecond
@@ -90,38 +90,49 @@ type Peer struct { //nolint:govet // not fieldalignment relevant
 		maxParallelConnections chan bool     // limit max parallel connections
 	}
 	// volatile status attributes
-	data                      atomic.Pointer[DataStoreSet]   // the cached remote data tables
-	peerState                 atomicPeerStatus               // status for this peer
-	peerAddr                  atomicString                   // Address of the peer
-	lastError                 atomicString                   // last error message
-	subPeerStatus             atomic.Pointer[map[string]any] // cached /sites result for sub peer
-	configTool                atomicString                   // raw json data of thruks config tool
-	thrukExtras               atomicString                   // raw json bytes of thruk extra data
-	programStart              atomic.Int64                   // unix time when this peer started, aka program_start
-	curPeerAddrNum            atomic.Int64                   // current pointer into Source / Fallback
-	bytesReceived             atomic.Int64                   // number of bytes received
-	bytesSend                 atomic.Int64                   // number of bytes send
-	corePid                   atomic.Int64                   // naemon core pid
-	thrukVersion              atomicFloat64                  // thruks version number as float
-	responseTime              atomicFloat64                  // response time in seconds
-	lastOnline                atomicFloat64                  // timestamp backend was last online
-	queries                   atomic.Int64                   // number of total queries
-	errorCount                atomic.Int64                   // count times this backend has failed
-	flags                     uint32                         // optional flags, like LMD, Icinga2, etc...
-	lastQuery                 atomicFloat64                  // unix timestamp of last query
-	lastHTTPRequestSuccessful atomic.Bool                    // flag wether last http request was ok
-	paused                    atomic.Bool                    // flag wether peer is paused of not
-	idling                    atomic.Bool                    // flag wether peer is in idle mode
-	errorLogged               atomic.Bool                    // flag wether last error has been logged already
-	subName                   atomicStringList               // chain of peer names to this sub peer
-	subType                   atomicStringList               // chain of peer types to this sub peer
-	subAddr                   atomicStringList               // chain of peer addresses to this sub peer
-	subKey                    atomicStringList               // chain of peer keys to this sub peer
-	subVersion                atomicStringList               // chain of peer versions to this sub peer
+	data                       atomic.Pointer[DataStoreSet]   // the cached remote data tables
+	peerState                  atomicPeerStatus               // status for this peer
+	peerAddr                   atomicString                   // Address of the peer
+	lastError                  atomicString                   // last error message
+	subPeerStatus              atomic.Pointer[map[string]any] // cached /sites result for sub peer
+	configTool                 atomicString                   // raw json data of thruks config tool
+	thrukExtras                atomicString                   // raw json bytes of thruk extra data
+	programStart               atomic.Int64                   // unix time when this peer started, aka program_start
+	curPeerAddrNum             atomic.Int64                   // current pointer into Source / Fallback
+	bytesReceived              atomic.Int64                   // number of bytes received
+	bytesSend                  atomic.Int64                   // number of bytes send
+	corePid                    atomic.Int64                   // naemon core pid
+	thrukVersion               atomicFloat64                  // thruks version number as float
+	responseTime               atomicFloat64                  // response time in seconds
+	lastOnline                 atomicFloat64                  // timestamp backend was last online
+	queries                    atomic.Int64                   // number of total queries
+	errorCount                 atomic.Int64                   // count times this backend has failed
+	lastUpdate                 atomicFloat64                  // timestamp of last update
+	lastFullUpdate             atomicFloat64                  // timestamp of last full update
+	lastTimeperiodUpdateMinute atomic.Int32                   // minute when timeperiods last have been updated
+	forceDelta                 atomic.Bool                    // flag to force next delta update
+	forceComments              atomic.Bool                    // flag to force comments/downtimes update on next periodic check
+
+	flags                     uint32           // optional flags, like LMD, Icinga2, etc...
+	lastQuery                 atomicFloat64    // unix timestamp of last query
+	lastHTTPRequestSuccessful atomic.Bool      // flag wether last http request was ok
+	paused                    atomic.Bool      // flag wether peer is paused of not
+	idling                    atomic.Bool      // flag wether peer is in idle mode
+	errorLogged               atomic.Bool      // flag wether last error has been logged already
+	subName                   atomicStringList // chain of peer names to this sub peer
+	subType                   atomicStringList // chain of peer types to this sub peer
+	subAddr                   atomicStringList // chain of peer addresses to this sub peer
+	subKey                    atomicStringList // chain of peer keys to this sub peer
+	subVersion                atomicStringList // chain of peer versions to this sub peer
 	last                      struct {
 		Request  atomic.Pointer[Request] // reference to last query (used in error reports)
 		Response atomic.Pointer[[]byte]  // reference to last response
 	}
+}
+
+var connectionErrorIndicators = [][]byte{
+	[]byte("No UNIX socket /"),
+	[]byte("Couldn't connect"),
 }
 
 // PeerStatus contains the different states a peer can have.
@@ -451,8 +462,8 @@ func (p *Peer) tryUpdate(ctx context.Context) (ok bool, err error) {
 	time1 := time.Now()
 	p.updateIdleStatus(p.idling.Load(), p.lastQuery.Get())
 
-	store := p.data.Load()
-	if ok, err = store.tryUpdate(ctx, false); err != nil || !ok {
+	ok, err = p.updateTick(ctx, false)
+	if err != nil || !ok {
 		return ok, err
 	}
 
@@ -462,13 +473,74 @@ func (p *Peer) tryUpdate(ctx context.Context) (ok bool, err error) {
 	p.resetErrors()
 	p.responseTime.Set(duration.Seconds())
 
-	peerState := p.peerState.Get()
-	if peerState != PeerStatusUp && peerState != PeerStatusPending {
-		logWith(p).Infof("site soft recovered from short outage")
-	}
-
 	promPeerUpdates.WithLabelValues(p.Name).Inc()
 	promPeerUpdateDuration.WithLabelValues(p.Name).Set(duration.Seconds())
+
+	return true, nil
+}
+
+// updateTick runs the periodic updates from the update loop.
+func (p *Peer) updateTick(ctx context.Context, force bool) (ok bool, err error) {
+	lastUpdate := p.lastUpdate.Get()
+	lastFullUpdate := p.lastFullUpdate.Get()
+	idling := p.idling.Load()
+	forceDelta := p.forceDelta.Load() || force
+	now := currentUnixTime()
+	lastStatus := p.peerState.Get()
+	data := p.data.Load()
+
+	// run things unrelated to sync interval
+	if lastStatus == PeerStatusUp && data != nil {
+		err = data.sync.UpdateTick(ctx)
+		if err != nil {
+			return false, err
+		}
+	}
+
+	var nextUpdate float64
+	if idling {
+		nextUpdate = lastUpdate + float64(p.lmd.Config.IdleInterval)
+	} else {
+		nextUpdate = lastUpdate + float64(p.lmd.Config.UpdateInterval)
+	}
+	if now < nextUpdate && !forceDelta {
+		return false, nil
+	}
+	ok = true
+
+	// set last update timestamp, otherwise we would retry the connection every couple of ms instead
+	// of the update interval
+	p.lastUpdate.Set(now)
+	p.forceDelta.Store(false)
+
+	switch lastStatus {
+	case PeerStatusBroken:
+		return false, p.handleBrokenPeer(ctx)
+	case PeerStatusDown, PeerStatusPending:
+		return ok, p.initAllTables(ctx)
+	case PeerStatusWarning:
+		if data == nil {
+			logWith(p).Warnf("inconsistent state, no data with state: %s", lastStatus.String())
+
+			return ok, p.initAllTables(ctx)
+		}
+
+		return true, data.updateDelta(ctx, lastUpdate, now)
+	case PeerStatusUp, PeerStatusSyncing:
+		if data == nil {
+			logWith(p).Warnf("inconsistent state, no data with state: %s", lastStatus.String())
+
+			return ok, p.initAllTables(ctx)
+		}
+		// full update interval
+		if !idling && p.lmd.Config.FullUpdateInterval > 0 && now > lastFullUpdate+float64(p.lmd.Config.FullUpdateInterval) {
+			return ok, data.updateFull(ctx)
+		}
+
+		return ok, data.updateDelta(ctx, lastUpdate, now)
+	}
+
+	logWith(p).Panicf("unhandled status case: %s", lastStatus.String())
 
 	return ok, nil
 }
@@ -484,7 +556,7 @@ func (p *Peer) handleBrokenPeer(ctx context.Context) (err error) {
 	}
 
 	now := currentUnixTime()
-	lastFullUpdate := p.lastFullUpdate()
+	lastFullUpdate := p.lastFullUpdate.Get()
 	if lastFullUpdate < now-float64(BrokenPeerGraceTimeSeconds) {
 		logWith(p).Debugf("broken peer grace time over, trying again.")
 
@@ -583,19 +655,13 @@ func (p *Peer) countQuery(ctx context.Context, name, queryCondition string) (cou
 // scheduleImmediateUpdate resets all update timer so the next update loop iteration
 // will perform an update.
 func (p *Peer) scheduleImmediateUpdate() {
-	data := p.data.Load()
-	if data != nil {
-		data.scheduleImmediateUpdate()
-	}
+	p.forceDelta.Store(true)
 }
 
 // scheduleImmediateComDownUpdate resets comment / downtimes update timer so the
 // next update loop iteration will perform an update.
 func (p *Peer) scheduleImmediateComDownUpdate() {
-	data := p.data.Load()
-	if data != nil {
-		data.scheduleImmediateComDownUpdate()
-	}
+	p.forceComments.Store(true)
 }
 
 // initAllTables creates all tables for this peer.
@@ -620,10 +686,6 @@ func (p *Peer) initAllTables(ctx context.Context) (err error) {
 	p.responseTime.Set(duration.Seconds())
 	logWith(p).Infof("objects created in: %s", duration.String())
 	if peerStatus != PeerStatusUp {
-		// Reset errors
-		if peerStatus == PeerStatusDown {
-			logWith(p).Infof("site is back online")
-		}
 		p.resetErrors()
 	}
 
@@ -698,11 +760,16 @@ func (p *Peer) updateInitialStatus(ctx context.Context, store *DataStore) (err e
 
 // resetErrors reset the error counter after the site has recovered.
 func (p *Peer) resetErrors() {
+	prevPeerStatus := p.peerState.Get()
 	p.lastError.Set("")
 	p.lastOnline.Set(currentUnixTime())
 	p.errorCount.Store(0)
 	p.errorLogged.Store(false)
 	p.peerState.Set(PeerStatusUp)
+
+	if prevPeerStatus == PeerStatusDown {
+		logWith(p).Infof("site is back online")
+	}
 }
 
 // query sends the request to a remote livestatus.
@@ -1026,11 +1093,13 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) ([]byte,
 	if err != nil {
 		return nil, &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes, srcErr: err}
 	}
-	if bytes.Contains(resBytes, []byte("No UNIX socket /")) {
-		p.logErrors(io.CopyN(header, conn, ErrorContentPreviewSize))
-		resBytes = bytes.TrimSpace(header.Bytes())
+	for _, indicator := range connectionErrorIndicators {
+		if bytes.Contains(resBytes, indicator) {
+			p.logErrors(io.CopyN(header, conn, ErrorContentPreviewSize))
+			resBytes = bytes.TrimSpace(header.Bytes())
 
-		return nil, &PeerError{msg: string(resBytes), kind: ConnectionError}
+			return nil, &PeerError{msg: string(resBytes), kind: ConnectionError}
+		}
 	}
 	code, expSize, err := p.parseResponseHeader(&resBytes)
 	if err != nil {
@@ -1389,7 +1458,7 @@ func (p *Peer) setMultiBackend(ctx context.Context, store *DataStoreSet, addr st
 	store.setSyncStrategy()
 
 	// force immediate update to fetch all sites
-	_, err = store.tryUpdate(ctx, true)
+	_, err = p.updateTick(ctx, true)
 	if err != nil {
 		return err
 	}
@@ -1688,7 +1757,7 @@ func (p *Peer) waitCondition(ctx context.Context, waitChan chan struct{}, req *R
 		if conditionOK {
 			// trigger update for all, wait conditions are run against the last object
 			// but multiple commands may have been sent
-			lastUpdate = p.lastUpdate()
+			lastUpdate = p.lastUpdate.Get()
 			p.scheduleImmediateUpdate()
 			time.Sleep(WaitTimeoutCheckInterval)
 
@@ -1742,7 +1811,7 @@ func (p *Peer) waitCondition(ctx context.Context, waitChan chan struct{}, req *R
 			}
 
 			// wait up to WaitTimeout till the update is complete
-			if p.lastUpdate() > lastUpdate {
+			if p.lastUpdate.Get() > lastUpdate {
 				safeCloseWaitChannel(waitChan)
 
 				return nil
@@ -2181,7 +2250,7 @@ func logPanicExitPeer(peer *Peer) {
 	log.Errorf("Panic:                 %s", details)
 	log.Errorf("LMD Version:           %s", Version())
 	peer.logPeerStatus(log.Errorf)
-	log.Errorf("Stacktrace:\n%s", debug.Stack())
+	log.Errorf("Stacktrace:\n%s\n%s", details, debug.Stack())
 	if peer.last.Request.Load() != nil {
 		log.Errorf("LastQuery:")
 		log.Errorf("%s", peer.last.Request.Load().String())
@@ -2203,8 +2272,8 @@ func (p *Peer) logPeerStatus(logger func(string, ...any)) {
 	logger("Idling:                %v", p.idling.Load())
 	logger("Paused:                %v", p.paused.Load())
 	logger("ResponseTime:          %.3fs", p.responseTime.Get())
-	logger("LastUpdate:            %.3f", p.lastUpdate())
-	logger("LastFullUpdate:        %.3f", p.lastFullUpdate())
+	logger("LastUpdate:            %.3f", p.lastUpdate.Get())
+	logger("LastFullUpdate:        %.3f", p.lastFullUpdate.Get())
 	logger("LastQuery:             %.3f", p.lastQuery.Get())
 	logger("Peerstatus:            %s", peerState.String())
 	logger("Flags:                 %s", peerFlags.String())
@@ -2691,22 +2760,4 @@ func (p *Peer) logHTTPResponse(query *Request, res *http.Response, contents []by
 	}
 
 	logWith(p, query).Tracef("%s", string(responseBytes))
-}
-
-func (p *Peer) lastUpdate() float64 {
-	data := p.data.Load()
-	if data == nil {
-		return 0
-	}
-
-	return data.lastUpdate.Get()
-}
-
-func (p *Peer) lastFullUpdate() float64 {
-	data := p.data.Load()
-	if data == nil {
-		return 0
-	}
-
-	return data.lastFullUpdate.Get()
 }

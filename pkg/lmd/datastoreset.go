@@ -11,16 +11,9 @@ import (
 const missedTimestampMaxFilter = 150
 
 // DataStoreSet is a collection of data stores.
-type DataStoreSet struct { //nolint:govet // not fieldalignment relevant
+type DataStoreSet struct {
 	peer *Peer
 	sync SyncStrategy
-
-	lastUpdate                 atomicFloat64 // timestamp of last update
-	lastFullUpdate             atomicFloat64 // timestamp of last full update
-	lastTimeperiodUpdateMinute atomic.Int32  // minute when timeperiods last have been updated
-
-	forceDelta    atomic.Bool // flag to force next delta update
-	forceComments atomic.Bool // flag to force comments/downtimes update on next periodic check
 
 	tableCommands      atomic.Pointer[DataStore]
 	tableComments      atomic.Pointer[DataStore]
@@ -66,8 +59,8 @@ func (ds *DataStoreSet) setSyncStrategy() {
 // It returns nil if the import was successful or an error otherwise.
 func (ds *DataStoreSet) initAllTables(ctx context.Context) (err error) {
 	now := currentUnixTime()
-	ds.lastUpdate.Set(now)
-	ds.lastFullUpdate.Set(now)
+	ds.peer.lastUpdate.Set(now)
+	ds.peer.lastFullUpdate.Set(now)
 
 	if ds.peer.lmd.Config.MaxParallelPeerConnections <= 1 {
 		err = ds.initAllTablesSerial(ctx)
@@ -211,7 +204,7 @@ func (ds *DataStoreSet) initTable(ctx context.Context, table *Table) (err error)
 		}
 	case TableTimeperiods:
 		lastTimeperiodUpdateMinute := int32(interface2int8(time.Now().Format("4")))
-		ds.lastTimeperiodUpdateMinute.Store(lastTimeperiodUpdateMinute)
+		ds.peer.lastTimeperiodUpdateMinute.Store(lastTimeperiodUpdateMinute)
 	default:
 		// nothing special happens for the other tables
 	}
@@ -361,8 +354,8 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 
 	time3 := time.Now()
 
-	ds.lastUpdate.Set(now)
-	ds.lastFullUpdate.Set(now)
+	ds.peer.lastUpdate.Set(now)
+	ds.peer.lastFullUpdate.Set(now)
 	durationLock := time.Since(time3).Truncate(time.Millisecond)
 
 	promObjectCount.WithLabelValues(peer.Name, tableName).Set(float64(totalRowNum))
@@ -375,7 +368,7 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 
 // tryTimeperiodsUpdate updates timeperiods every full minute except when idling.
 func (ds *DataStoreSet) tryTimeperiodsUpdate(ctx context.Context) (ok bool, err error) {
-	lastTimeperiodUpdateMinute := ds.lastTimeperiodUpdateMinute.Load()
+	lastTimeperiodUpdateMinute := ds.peer.lastTimeperiodUpdateMinute.Load()
 	currentMinute := int32(interface2int8(time.Now().Format("4")))
 	if lastTimeperiodUpdateMinute == currentMinute {
 		return false, nil
@@ -387,7 +380,7 @@ func (ds *DataStoreSet) tryTimeperiodsUpdate(ctx context.Context) (ok bool, err 
 		return false, nil
 	}
 
-	ds.lastTimeperiodUpdateMinute.Store(currentMinute)
+	ds.peer.lastTimeperiodUpdateMinute.Store(currentMinute)
 	err = ds.timeperiodsUpdate(ctx)
 	if err != nil {
 		return false, err
@@ -421,11 +414,11 @@ func (ds *DataStoreSet) timeperiodsUpdate(ctx context.Context) (err error) {
 
 // run on demand comments / downtimes update.
 func (ds *DataStoreSet) tryOnDemandComDownUpdate(ctx context.Context) (err error) {
-	if !ds.forceComments.Load() {
+	if !ds.peer.forceComments.Load() {
 		return nil
 	}
 
-	ds.forceComments.Store(false)
+	ds.peer.forceComments.Store(false)
 	err = ds.updateCommentsAndDowntimes(ctx)
 	if err != nil {
 		return err
@@ -496,8 +489,8 @@ func (ds *DataStoreSet) updateFull(ctx context.Context) (err error) {
 	}
 	now := currentUnixTime()
 	peer.resetErrors()
-	ds.lastUpdate.Set(now)
-	ds.lastFullUpdate.Set(now)
+	ds.peer.lastUpdate.Set(now)
+	ds.peer.lastFullUpdate.Set(now)
 	peer.responseTime.Set(duration.Seconds())
 	logWith(peer).Debugf("full update complete in: %s", duration.String())
 	promPeerUpdates.WithLabelValues(peer.Name).Inc()
@@ -507,8 +500,8 @@ func (ds *DataStoreSet) updateFull(ctx context.Context) (err error) {
 }
 
 func (ds *DataStoreSet) updateDelta(ctx context.Context, lastUpdate, now float64) (err error) {
-	ds.lastUpdate.Set(now)
-	ds.forceDelta.Store(false)
+	ds.peer.lastUpdate.Set(now)
+	ds.peer.forceDelta.Store(false)
 
 	// update status table
 	err = ds.updateFullTablesList(ctx, Objects.StatusTables)
@@ -520,7 +513,7 @@ func (ds *DataStoreSet) updateDelta(ctx context.Context, lastUpdate, now float64
 }
 
 func (ds *DataStoreSet) resumeFromIdle(ctx context.Context) (err error) {
-	err = ds.updateDelta(ctx, ds.lastUpdate.Get(), currentUnixTime())
+	err = ds.updateDelta(ctx, ds.peer.lastUpdate.Get(), currentUnixTime())
 	if err != nil {
 		return err
 	}
@@ -594,72 +587,6 @@ func (ds *DataStoreSet) updateDeltaServices(ctx context.Context, filterStr strin
 	updateSet, err = ds.insertDeltaDataResult(dataOffset, res, meta, table)
 
 	return res, updateSet, err
-}
-
-// tryUpdate runs the periodic updates from the update loop.
-func (ds *DataStoreSet) tryUpdate(ctx context.Context, force bool) (ok bool, err error) {
-	peer := ds.peer
-	lastUpdate := peer.lastUpdate()
-	lastFullUpdate := peer.lastFullUpdate()
-	data := peer.data.Load()
-	idling := peer.idling.Load()
-	forceDelta := ds.forceDelta.Load() || force
-	now := currentUnixTime()
-	lastStatus := peer.peerState.Get()
-
-	if lastStatus == PeerStatusUp {
-		err = data.sync.UpdateTick(ctx)
-		if err != nil {
-			return false, err
-		}
-	}
-
-	var nextUpdate float64
-	if idling {
-		nextUpdate = lastUpdate + float64(peer.lmd.Config.IdleInterval)
-	} else {
-		nextUpdate = lastUpdate + float64(peer.lmd.Config.UpdateInterval)
-	}
-	if now < nextUpdate && !forceDelta {
-		return false, nil
-	}
-	ok = true
-
-	// set last update timestamp, otherwise we would retry the connection every couple of ms instead
-	// of the update interval
-	ds.lastUpdate.Set(now)
-	ds.forceDelta.Store(false)
-
-	switch lastStatus {
-	case PeerStatusBroken:
-		return false, peer.handleBrokenPeer(ctx)
-	case PeerStatusDown, PeerStatusPending:
-		return ok, peer.initAllTables(ctx)
-	case PeerStatusWarning:
-		if data == nil {
-			logWith(peer).Warnf("inconsistent state, no data with state: %s", lastStatus.String())
-
-			return ok, peer.initAllTables(ctx)
-		}
-
-		return true, ds.updateDelta(ctx, lastUpdate, now)
-	case PeerStatusUp, PeerStatusSyncing:
-		if data == nil {
-			logWith(peer).Warnf("inconsistent state, no data with state: %s", lastStatus.String())
-
-			return ok, peer.initAllTables(ctx)
-		}
-		// full update interval
-		if !idling && peer.lmd.Config.FullUpdateInterval > 0 && now > lastFullUpdate+float64(peer.lmd.Config.FullUpdateInterval) {
-			return ok, ds.updateFull(ctx)
-		}
-
-		return ok, ds.updateDelta(ctx, lastUpdate, now)
-	}
-
-	logWith(peer).Panicf("unhandled status case: %s", lastStatus.String())
-
-	return ok, nil
 }
 
 func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, resMeta *ResultMetaData, table *DataStore) (updateSet []*ResultPrepared, err error) {
@@ -752,7 +679,7 @@ func (ds *DataStoreSet) updateFullTable(ctx context.Context, tableName TableName
 	case TableTimeperiods:
 		// check for changed timeperiods, because we have to update the linked hosts and services as well
 		err = ds.updateTimeperiodsData(ctx, primaryKeysLen, store, res, store.dynamicColumnCache)
-		ds.lastTimeperiodUpdateMinute.Store(int32(interface2int8(time.Now().Format("4"))))
+		peer.lastTimeperiodUpdateMinute.Store(int32(interface2int8(time.Now().Format("4"))))
 		if err != nil {
 			return err
 		}
@@ -783,7 +710,7 @@ func (ds *DataStoreSet) updateFullTable(ctx context.Context, tableName TableName
 
 // update both comments and downtimes.
 func (ds *DataStoreSet) updateCommentsAndDowntimes(ctx context.Context) (err error) {
-	ds.forceComments.Store(false)
+	ds.peer.forceComments.Store(false)
 	err = ds.updateDeltaCommentsOrDowntimes(ctx, TableComments)
 	if err != nil {
 		return err
@@ -1165,16 +1092,4 @@ func (ds *DataStoreSet) buildContactsGroupsList() (err error) {
 	contactsStore.lock.Unlock()
 
 	return nil
-}
-
-// scheduleImmediateUpdate resets all update timer so the next update loop iteration
-// will perform an update.
-func (ds *DataStoreSet) scheduleImmediateUpdate() {
-	ds.forceDelta.Store(true)
-}
-
-// scheduleImmediateComDownUpdate resets comment / downtimes update timer so the
-// next update loop iteration will perform an update.
-func (ds *DataStoreSet) scheduleImmediateComDownUpdate() {
-	ds.forceComments.Store(true)
 }

@@ -215,7 +215,7 @@ golangci: tools
 	@set -e; for dir in $$(ls -1d pkg/* cmd); do \
 		echo $$dir; \
 		echo "  - GOOS=linux"; \
-		( cd $$dir && GOOS=linux golangci-lint run --timeout=5m ./... ); \
+		( cd $$dir && GOOS=linux golangci-lint run --show-stats=0 --uniq-by-line=0 --timeout=5m ./... ); \
 	done
 
 govulncheck: tools
