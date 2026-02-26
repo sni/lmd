@@ -76,6 +76,11 @@ func InitLogging(conf *Config) {
 		LogLevel = conf.LogLevel
 	}
 
+	// override log level with environment variable if set
+	if os.Getenv("LMD_LOG_LEVEL") != "" {
+		LogLevel = os.Getenv("LMD_LOG_LEVEL")
+	}
+
 	LogMaxOutput = conf.LogMaxOutput
 	if strings.EqualFold(LogLevel, "trace2") {
 		LogLevel = "trace"

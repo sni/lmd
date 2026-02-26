@@ -3,7 +3,9 @@ package lmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -50,12 +52,8 @@ func (c *HTTPServerController) queryTable(ctx context.Context, wrt http.Response
 	}
 
 	// Fetch backend data
-	err = req.ExpandRequestedBackends()
-	if err != nil {
-		c.errorOutput(err, wrt)
-
-		return
-	}
+	req.lmd = c.lmd
+	req.ExpandRequestedBackends()
 
 	var res *Response
 	if d, exists := requestData["distributed"]; exists && interface2bool(d) {
@@ -69,6 +67,10 @@ func (c *HTTPServerController) queryTable(ctx context.Context, wrt http.Response
 		c.errorOutput(err, wrt)
 
 		return
+	}
+
+	if res.result == nil {
+		res.SetResultData()
 	}
 
 	// Send JSON
@@ -89,7 +91,8 @@ func (c *HTTPServerController) table(wrt http.ResponseWriter, request *http.Requ
 	requestData := make(map[string]any)
 	defer request.Body.Close()
 	decoder := json.NewDecoder(request.Body)
-	if err := decoder.Decode(&requestData); err != nil {
+	if err := decoder.Decode(&requestData); err != nil && !errors.Is(err, io.EOF) {
+		log.Errorf("failed to parse request parameters: %s", err.Error())
 		c.errorOutput(fmt.Errorf("request not understood"), wrt)
 
 		return
@@ -108,7 +111,8 @@ func (c *HTTPServerController) ping(wrt http.ResponseWriter, request *http.Reque
 	requestData := make(map[string]any)
 	defer request.Body.Close()
 	decoder := json.NewDecoder(request.Body)
-	if err := decoder.Decode(&requestData); err != nil {
+	if err := decoder.Decode(&requestData); err != nil && !errors.Is(err, io.EOF) {
+		log.Errorf("failed to parse request parameters: %s", err.Error())
 		c.errorOutput(fmt.Errorf("request not understood"), wrt)
 
 		return
@@ -128,7 +132,7 @@ func (c *HTTPServerController) queryPing(wrt http.ResponseWriter, _ map[string]a
 	// Send data
 	err := json.NewEncoder(wrt).Encode(jsonData)
 	if err != nil {
-		log.Debugf("sending ping result failed: %e", err)
+		log.Errorf("sending ping result failed: %s", err.Error())
 	}
 }
 
@@ -140,7 +144,8 @@ func (c *HTTPServerController) query(wrt http.ResponseWriter, request *http.Requ
 	if contentType == "application/json" {
 		decoder := json.NewDecoder(request.Body)
 		err := decoder.Decode(&requestData)
-		if err != nil {
+		if err != nil && !errors.Is(err, io.EOF) {
+			log.Errorf("failed to parse request parameters: %s", err.Error())
 			c.errorOutput(fmt.Errorf("request not understood"), wrt)
 
 			return
@@ -229,6 +234,7 @@ func parseRequestDataToRequest(requestData map[string]any) (req *Request, err er
 		}
 	}
 	req.Columns = columns
+	req.SetRequestColumns()
 
 	// Format
 	if val, ok := requestData["outputformat"]; ok {

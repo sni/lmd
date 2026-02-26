@@ -333,17 +333,17 @@ func StartTestPeer(numPeers, numHosts, numServices int) (*Peer, func() error, *D
 //
 // It returns a peer with the "mainloop" connection configured
 // if numServices is  0, empty test data will be used.
-func StartTestPeerExtra(numPeers, numHosts, numServices int, extraConfig string) (peer *Peer, cleanup func() error, mocklmd *Daemon) {
+func StartTestPeerExtra(numPeers, numHosts, numServices int, extraConfig string) (peer *Peer, cleanup func() error, mockLMD *Daemon) {
 	if testLogTarget != "stderr" {
 		os.Remove(testLogTarget)
 	}
 	InitLogging(&Config{LogLevel: testLogLevel, LogFile: testLogTarget})
-	mocklmd = createTestLMDInstance()
+	mockLMD = createTestLMDInstance()
 	sockets := []string{}
 	for i := range numPeers {
-		sockets = append(sockets, StartMockLivestatusSource(mocklmd, i, numHosts, numServices))
+		sockets = append(sockets, StartMockLivestatusSource(mockLMD, i, numHosts, numServices))
 	}
-	StartMockMainLoop(mocklmd, sockets, extraConfig)
+	StartMockMainLoop(mockLMD, sockets, extraConfig)
 
 	lmd := createTestLMDInstance()
 	peer = NewPeer(lmd, &Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "TestPeer", ID: "testid"})
@@ -365,7 +365,7 @@ func StartTestPeerExtra(numPeers, numHosts, numServices int, extraConfig string)
 		// recheck every 50ms
 		time.Sleep(50 * time.Millisecond)
 		if time.Now().After(waitUntil) {
-			panicFailedStartup(mocklmd, peer, numPeers, err)
+			panicFailedStartup(mockLMD, peer, numPeers, err)
 		}
 	}
 
@@ -380,24 +380,24 @@ func StartTestPeerExtra(numPeers, numHosts, numServices int, extraConfig string)
 			err = nil
 		}
 		// stop the mainloop
-		mocklmd.mainSignalChannel <- syscall.SIGTERM
+		mockLMD.mainSignalChannel <- syscall.SIGTERM
 		// stop the test peer
 		peer.Stop()
 		// wait till all has stoped
 		if waitTimeout(context.TODO(), peer.lmd.waitGroupPeers, 10*time.Second) {
 			err = fmt.Errorf("timeout while waiting for peers to stop")
 		}
-		if waitTimeout(context.TODO(), mocklmd.waitGroupPeers, 10*time.Second) {
+		if waitTimeout(context.TODO(), mockLMD.waitGroupPeers, 10*time.Second) {
 			err = fmt.Errorf("timeout while waiting for mock peers to stop")
 		}
-		if waitTimeout(context.TODO(), mocklmd.waitGroupListener, 10*time.Second) {
+		if waitTimeout(context.TODO(), mockLMD.waitGroupListener, 10*time.Second) {
 			err = fmt.Errorf("timeout while waiting for mock listenern to stop")
 		}
 
 		return err
 	}
 
-	return peer, cleanup, mocklmd
+	return peer, cleanup, mockLMD
 }
 
 func PauseTestPeers(peer *Peer) {

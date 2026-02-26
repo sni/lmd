@@ -150,10 +150,7 @@ func (ex *Exporter) addTable(peer *Peer, table *Table) (written int64, err error
 		Backends:        []string{peer.ID},
 		lmd:             ex.lmd,
 	}
-	err = req.ExpandRequestedBackends()
-	if err != nil {
-		return 0, err
-	}
+	req.ExpandRequestedBackends()
 	req.SetRequestColumns()
 	res, _, err := NewResponse(context.TODO(), req, nil)
 	if err != nil {

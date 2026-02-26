@@ -283,7 +283,7 @@ func (res *Response) Swap(i, j int) {
 }
 
 // ExpandRequestedBackends fills the requests backends map.
-func (req *Request) ExpandRequestedBackends() (err error) {
+func (req *Request) ExpandRequestedBackends() {
 	req.BackendsMap = make(map[string]string)
 	req.BackendErrors = make(map[string]string)
 
@@ -293,7 +293,7 @@ func (req *Request) ExpandRequestedBackends() (err error) {
 			req.BackendsMap[peer.ID] = peer.ID
 		}
 
-		return err
+		return
 	}
 
 	peerMap := req.lmd.peerMap.Refs()
@@ -306,8 +306,6 @@ func (req *Request) ExpandRequestedBackends() (err error) {
 		}
 		req.BackendsMap[peerKey] = peerKey
 	}
-
-	return err
 }
 
 // PostProcessing does all the post processing required for a request like sorting

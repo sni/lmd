@@ -203,10 +203,7 @@ func ParseRequests(ctx context.Context, lmd *Daemon, c net.Conn) (reqs []*Reques
 		if req == nil {
 			break
 		}
-		err = req.ExpandRequestedBackends()
-		if err != nil {
-			return nil, err
-		}
+		req.ExpandRequestedBackends()
 		reqs = append(reqs, req)
 		// only multiple commands are allowed
 		if req.Command == "" {
