@@ -81,7 +81,9 @@ func InitLogging(conf *Config) {
 		LogLevel = os.Getenv("LMD_LOG_LEVEL")
 	}
 
-	LogMaxOutput = conf.LogMaxOutput
+	if LogMaxOutput != conf.LogMaxOutput {
+		LogMaxOutput = conf.LogMaxOutput
+	}
 	if strings.EqualFold(LogLevel, "trace2") {
 		LogLevel = "trace"
 		LogMaxOutput = 0
