@@ -1,6 +1,6 @@
 module github.com/sni/lmd/v2
 
-go 1.26
+go 1.26.2
 
 replace pkg/lmd => ./pkg/lmd
 
