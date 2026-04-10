@@ -115,6 +115,7 @@ func (d *DataStore) InsertDataMulti(rowSet []*ResultSet, columns ColumnList, set
 	num := 0
 	for idx := range rowSet {
 		rows := *rowSet[idx]
+		*rowSet[idx] = nil // free reference to free memory
 		for i, raw := range rows {
 			row, err := NewDataRow(d, raw, columns, now, setReferences)
 			rows[i] = nil // free memory
@@ -126,7 +127,6 @@ func (d *DataStore) InsertDataMulti(rowSet []*ResultSet, columns ColumnList, set
 			d.data[num] = row
 			num++
 		}
-		*rowSet[idx] = nil // free memory
 	}
 
 	// make sure all backends are sorted the same way
