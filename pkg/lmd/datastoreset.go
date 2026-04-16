@@ -360,8 +360,8 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 
 	promObjectCount.WithLabelValues(peer.Name, tableName).Set(float64(totalRowNum))
 
-	logWith(peer, lastReq).Debugf("initial table: %15s - fetch: %9s - prep: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
-		tableName, resMeta.Duration.Truncate(time.Millisecond), totalPrepTime, durationLock, durationInsert, totalRowNum, resMeta.Size/1024)
+	logWith(peer, lastReq).Debugf("initial table: %15s - fetch: %9s - parse: %9s - prep: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
+		tableName, resMeta.Duration.Truncate(time.Millisecond), resMeta.ParseDuration.Truncate(time.Millisecond), totalPrepTime, durationLock, durationInsert, totalRowNum, resMeta.Size/1024)
 
 	return store, nil
 }
@@ -445,6 +445,7 @@ func (ds *DataStoreSet) mergeResultMetas(metas []*ResultMetaData) (resMeta *Resu
 		resMeta.Duration += meta.Duration
 		resMeta.RowsScanned += meta.RowsScanned
 		resMeta.Total += meta.Total
+		resMeta.ParseDuration += meta.ParseDuration
 	}
 
 	return resMeta

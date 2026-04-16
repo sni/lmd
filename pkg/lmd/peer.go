@@ -864,7 +864,9 @@ func (p *Peer) query(ctx context.Context, req *Request) (ResultSet, *ResultMetaD
 	totalBytesReceived := p.bytesReceived.Add(int64(len(resBytes)))
 	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(totalBytesReceived))
 
+	t2 := time.Now()
 	data, meta, err := req.parseResult(resBytes)
+	meta.ParseDuration = time.Since(t2)
 	if err != nil {
 		logWith(p, req).Errorf("fetching table failed %20s time: %s, size: %d kB", req.Table.String(), duration, len(resBytes)/1024)
 		p.logJSONRequestParseErrorDetails(req, resBytes, err)
