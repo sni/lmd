@@ -296,7 +296,7 @@ func importReadFile(tableName string, tarReader io.Reader, size int64) (table *T
 	if read != size {
 		return nil, nil, nil, fmt.Errorf("expected size %d but got %d", size, read)
 	}
-	rows, err = NewResultSet(buf.Bytes())
+	rows, err = NewResultSetRjson(buf.Bytes())
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("parse error: %s", err.Error())
 	}

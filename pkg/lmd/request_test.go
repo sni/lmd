@@ -5,7 +5,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +16,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	simdjson "github.com/minio/simdjson-go"
 )
 
 func TestRequestHeader(t *testing.T) {
@@ -1717,4 +1722,212 @@ func TestReplaceInvalidUTF8(t *testing.T) {
 			assert.Truef(t, utf8.Valid(data), "string is valid utf8: %#v", data)
 		}
 	}
+}
+
+func TestSimdjson(t *testing.T) {
+
+	// These are responses to livestatus queries like this:
+	// GET status
+	// ResponseHeader: fixed16
+	// OutputFormat: json
+	// Columns: program_start accept_passive_host_checks accept_passive_service_checks cached_log_messages check_external_commands check_host_freshness check_service_freshness connections connections_rate enable_event_handlers enable_flap_detection enable_notifications execute_host_checks execute_service_checks forks forks_rate host_checks host_checks_rate interval_length last_command_check last_log_rotation livestatus_version log_messages log_messages_rate nagios_pid neb_callbacks neb_callbacks_rate obsess_over_hosts obsess_over_services process_performance_data program_version requests requests_rate service_checks service_checks_rate
+	// KeepAlive: on
+
+	// the livestatus_all script to gather resources
+	livestatus_reponses_path := "/home/ahmet/repositories/naemon-dev-box/src/test/"
+
+	err := filepath.Walk(livestatus_reponses_path, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			t.Errorf("Walk error for %s: %v", path, err)
+			return nil // continue walking
+		}
+
+		if info.IsDir() {
+			t.Logf("Skipping directory: %s", info.Name())
+			return nil // continue
+		}
+		if !strings.HasSuffix(info.Name(), "livestatus.response") {
+			t.Logf("Skipping non-matching file: %s", info.Name())
+			return nil
+		}
+
+		file, err := os.Open(path)
+		if err != nil {
+			t.Errorf("Failed to open %s: %v", path, err)
+			return nil
+		}
+		defer file.Close()
+
+		t.Logf("Reading file: %s", path)
+		data, err := os.ReadFile(path)
+		// The first line of the results contains a response code, followed by content length
+		// Like this:
+		// 200        7429
+		// [["check-host-alive","$USER1$/check_icmp -H $HOSTADDRESS$ -w 3000.0,80% -c 5000.0,100% -p 5"],
+
+		firstNL := bytes.IndexByte(data, '\n')
+
+		pj, err := simdjson.Parse(data[firstNL+1:], nil, simdjson.WithCopyStrings(false))
+		if err != nil {
+			t.Errorf("Parse failed for %s: %v", path, err)
+			return nil
+		}
+
+		err = pj.ForEach(func(i1 simdjson.Iter) error {
+			t.Logf("i1 iterator type: %s", i1.Type().String())
+			assert.Equal(t, simdjson.TypeArray, i1.Type(), "First level parsing should return an iterator to arrays")
+			if i1.Type() == simdjson.TypeArray {
+				arrayObject1, err := i1.Array(nil)
+				assert.NotNil(t, arrayObject1)
+				assert.Nil(t, err)
+
+				arrayObject1.ForEach(func(i2 simdjson.Iter) {
+					t.Logf("i2 iterator type: %s", i2.Type().String())
+					assert.Equal(t, simdjson.TypeArray, i2.Type(), "Second level parsing should return an iterator to arrays")
+					if i2.Type() == simdjson.TypeArray {
+						arrayObject2, err := i2.Array(nil)
+						assert.NotNil(t, arrayObject2)
+						assert.Nil(t, err)
+
+						arrayObject2.ForEach(func(i3 simdjson.Iter) {
+							t.Logf("i3 iterator type: %s", i3.Type().String())
+						})
+					}
+				})
+			}
+
+			return nil
+		})
+
+		return nil
+	})
+
+	if err != nil {
+		t.Errorf("filepath.Walk error: %v", err)
+	}
+
+}
+
+func TestSimdjson2(t *testing.T) {
+
+	// These are responses to livestatus queries like this:
+	// GET status
+	// ResponseHeader: fixed16
+	// OutputFormat: json
+	// Columns: program_start accept_passive_host_checks accept_passive_service_checks cached_log_messages check_external_commands check_host_freshness check_service_freshness connections connections_rate enable_event_handlers enable_flap_detection enable_notifications execute_host_checks execute_service_checks forks forks_rate host_checks host_checks_rate interval_length last_command_check last_log_rotation livestatus_version log_messages log_messages_rate nagios_pid neb_callbacks neb_callbacks_rate obsess_over_hosts obsess_over_services process_performance_data program_version requests requests_rate service_checks service_checks_rate
+	// KeepAlive: on
+
+	// the livestatus_all script to gather resources
+	livestatus_reponses_path := "/home/ahmet/repositories/naemon-dev-box/src/test/"
+
+	err := filepath.Walk(livestatus_reponses_path, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			t.Errorf("Walk error for %s: %v", path, err)
+			return nil // continue walking
+		}
+
+		if info.IsDir() {
+			t.Logf("Skipping directory: %s", info.Name())
+			return nil // continue
+		}
+		if !strings.HasSuffix(info.Name(), "livestatus.response") {
+			t.Logf("Skipping non-matching file: %s", info.Name())
+			return nil
+		}
+
+		file, err := os.Open(path)
+		if err != nil {
+			t.Errorf("Failed to open %s: %v", path, err)
+			return nil
+		}
+		defer file.Close()
+
+		t.Logf("Reading file: %s", path)
+		data, err := os.ReadFile(path)
+		// The first line of the results contains a response code, followed by content length
+		// Like this:
+		// 200        7429
+		// [["check-host-alive","$USER1$/check_icmp -H $HOSTADDRESS$ -w 3000.0,80% -c 5000.0,100% -p 5"],
+
+		firstNL := bytes.IndexByte(data, '\n')
+
+		data = data[firstNL+1:]
+
+		res, rem, err := parseJSONResultSimdjson8(data)
+
+		assert.Nil(t, err)
+
+		t.Logf("Got results set with length: %d", len(res))
+		t.Logf("Got remaining bytes with length: %d", len(rem))
+
+		return nil
+	})
+
+	if err != nil {
+		t.Errorf("filepath.Walk error: %v", err)
+	}
+
+	// t.Logf("%s", getMemoryDetails())
+}
+
+func TestRjson(t *testing.T) {
+
+	// These are responses to livestatus queries like this:
+	// GET status
+	// ResponseHeader: fixed16
+	// OutputFormat: json
+	// Columns: program_start accept_passive_host_checks accept_passive_service_checks cached_log_messages check_external_commands check_host_freshness check_service_freshness connections connections_rate enable_event_handlers enable_flap_detection enable_notifications execute_host_checks execute_service_checks forks forks_rate host_checks host_checks_rate interval_length last_command_check last_log_rotation livestatus_version log_messages log_messages_rate nagios_pid neb_callbacks neb_callbacks_rate obsess_over_hosts obsess_over_services process_performance_data program_version requests requests_rate service_checks service_checks_rate
+	// KeepAlive: on
+
+	// the livestatus_all script to gather resources
+	livestatus_reponses_path := "/home/ahmet/repositories/naemon-dev-box/src/test/"
+
+	err := filepath.Walk(livestatus_reponses_path, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			t.Errorf("Walk error for %s: %v", path, err)
+			return nil // continue walking
+		}
+
+		if info.IsDir() {
+			t.Logf("Skipping directory: %s", info.Name())
+			return nil // continue
+		}
+		if !strings.HasSuffix(info.Name(), "livestatus.response") {
+			t.Logf("Skipping non-matching file: %s", info.Name())
+			return nil
+		}
+
+		file, err := os.Open(path)
+		if err != nil {
+			t.Errorf("Failed to open %s: %v", path, err)
+			return nil
+		}
+		defer file.Close()
+
+		t.Logf("Reading file: %s", path)
+		data, err := os.ReadFile(path)
+		// The first line of the results contains a response code, followed by content length
+		// Like this:
+		// 200        7429
+		// [["check-host-alive","$USER1$/check_icmp -H $HOSTADDRESS$ -w 3000.0,80% -c 5000.0,100% -p 5"],
+
+		firstNL := bytes.IndexByte(data, '\n')
+
+		data = data[firstNL+1:]
+
+		res, rem, err := parseJSONResultRjson(data)
+
+		assert.Nil(t, err)
+
+		t.Logf("Got results set with length: %d", len(res))
+		t.Logf("Got remaining bytes with length: %d", len(rem))
+
+		return nil
+	})
+
+	if err != nil {
+		t.Errorf("filepath.Walk error: %v", err)
+	}
+
+	t.Logf("%s", getMemoryDetails())
 }

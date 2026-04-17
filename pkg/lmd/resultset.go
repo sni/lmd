@@ -3,6 +3,8 @@ package lmd
 import (
 	"fmt"
 	"sort"
+
+	"github.com/minio/simdjson-go"
 )
 
 // ResultSet is a list of result rows.
@@ -22,15 +24,33 @@ func NewResultSetStats() *ResultSetStats {
 	return &res
 }
 
-// NewResultSet parses resultset from given bytes.
-func NewResultSet(data []byte) (res ResultSet, err error) {
-	res, remaining, err := parseJSONResult(data)
+// NewResultSetRjson parses resultset from given bytes.
+func NewResultSetRjson(data []byte) (res ResultSet, err error) {
+	res, remaining, err := parseJSONResultRjson(data)
 
 	if len(remaining) > 0 {
 		return nil, fmt.Errorf("json parse error, stray data: %s", data)
 	}
 
 	return res, err
+}
+
+// NewResultSet parses resultset from given bytes.
+func NewResultSetSimdjson(data []byte, previouslyParsedJson *simdjson.ParsedJson) (res ResultSet, parsedJson *simdjson.ParsedJson, err error) {
+
+	res, remaining, pj, err := parseJSONResultSimdjson9(data, previouslyParsedJson)
+
+	// res, remaining, pj, err := parseJSONResultSimdjson10(data, previouslyParsedJson)
+
+	// res, remaining, pj, err := parseJSONResultSimdjson12(data, previouslyParsedJson)
+
+	// res, remaining, pj, err := parseJSONResultSimdjson13(data, previouslyParsedJson)
+
+	if len(remaining) > 0 {
+		return nil, pj, fmt.Errorf("json parse error, stray data: %s", data)
+	}
+
+	return res, pj, err
 }
 
 // sortByPrimaryKey sorts the resultset by their primary columns.

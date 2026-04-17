@@ -26,6 +26,8 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
+
+	"github.com/minio/simdjson-go"
 )
 
 var (
@@ -128,6 +130,7 @@ type Peer struct { //nolint:govet // not fieldalignment relevant
 		Request  atomic.Pointer[Request] // reference to last query (used in error reports)
 		Response atomic.Pointer[[]byte]  // reference to last response
 	}
+	simdjsonLastParsedJson *simdjson.ParsedJson // for reusing the buffers and string cache on a peer level
 }
 
 var connectionErrorIndicators = [][]byte{
@@ -312,6 +315,7 @@ func (p *Peer) Stop() {
 // It calls query and logs all errors except connection errors which are logged in GetConnection.
 // It returns the livestatus result and any error encountered.
 func (p *Peer) Query(ctx context.Context, req *Request) (result ResultSet, meta *ResultMetaData, err error) {
+	req.peer = p
 	result, meta, err = p.query(ctx, req)
 	if err != nil {
 		p.setNextAddrFromErr(err, req, p.source)
@@ -350,6 +354,7 @@ func (p *Peer) QueryContext(ctx context.Context, str string) (ResultSet, *Result
 func (p *Peer) SendCommands(ctx context.Context, commands []string) error {
 	commandRequest := &Request{
 		Command: strings.Join(commands, "\n\n"),
+		peer:    p,
 	}
 	ctx = context.WithValue(ctx, CtxRequest, commandRequest.ID())
 	p.setQueryOptions(commandRequest)
@@ -2486,6 +2491,7 @@ func (p *Peer) getSupportedColumns(ctx context.Context) (tables map[TableName]ma
 	req := &Request{
 		Table:   TableColumns,
 		Columns: []string{"table", "name"},
+		peer:    p,
 	}
 	p.setQueryOptions(req)
 	res, _, err := p.query(ctx, req) // skip default error handling here

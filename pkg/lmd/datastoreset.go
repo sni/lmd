@@ -70,6 +70,8 @@ func (ds *DataStoreSet) initAllTables(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+	// set the peer pointer to nil after table initialization , so that its memory can be freed
+	ds.peer.simdjsonLastParsedJson = nil
 
 	if ds.peer.hasFlag(MultiBackend) {
 		return nil
