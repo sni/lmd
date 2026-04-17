@@ -412,7 +412,12 @@ func (p *Peer) setHTTPClient() {
 // updateLoop is the main loop updating this peer.
 // It does not return till triggered by the shutdownChannel or by the internal stopChannel.
 func (p *Peer) updateLoop(ctx context.Context) {
+
+	// semaphore for peer table initialization step
+	p.lmd.peerInitializationPool <- struct{}{}
 	err := p.initAllTables(ctx)
+	<-p.lmd.peerInitializationPool
+
 	if err != nil {
 		logWith(p).Warnf("initializing objects failed: %s", err.Error())
 		p.errorLogged.Store(true)
