@@ -169,6 +169,8 @@ func (ds *DataStoreSet) initAllTablesParallel(ctx context.Context) (err error) {
 
 	logWith(ds.peer).Debugf("objects fetched parallel in %s", time.Since(time1).String())
 
+	logWith(ds.peer).Debugf("memory stats after initializing tables:\n%s", getMemoryDetails())
+
 	return nil
 }
 
