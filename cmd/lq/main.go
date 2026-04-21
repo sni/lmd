@@ -9,11 +9,10 @@ import (
 	"io"
 	"net"
 	"os"
+	"pkg/lmd"
 	"strconv"
 	"strings"
 	"time"
-
-	"pkg/lmd"
 )
 
 // Build contains the current git commit id
@@ -38,7 +37,7 @@ func main() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: lq [arguments] unix socket|tcp connection string\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "\nDescription:\n\n  lq sends a livestatus query.\n\nArguments:\n\n")
 		flag.PrintDefaults()
-		fmt.Fprintf(flag.CommandLine.Output(), "\nExample:\n\n echo -e 'GET services\\n\\n' lq localhost:6557\n\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "\nExample:\n\n echo -e 'GET services\\n\\n' | lq localhost:6557\n\n")
 	}
 	flag.StringVar(&cmd.flags.flagRateLimit, "r", "", "enable rate limit (input/output), ex.: 1K")
 	flag.StringVar(&cmd.flags.flagRateInput, "rate-input", "", "enable rate limit for input only, ex.: 1K")
