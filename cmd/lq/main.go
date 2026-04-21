@@ -49,12 +49,18 @@ func main() {
 	flag.BoolVar(&cmd.flags.flagVersion, "version", false, "print version and exit")
 	flag.Parse()
 
-	if len(flag.Args()) == 0 {
-		fmt.Fprintf(os.Stderr, "ERROR: must specify at least one connection. See -h/--help for all options.\n")
-		os.Exit(1)
-	}
+	connectionStr := ""
 
-	connectionStr := flag.Args()[0]
+	if len(flag.Args()) == 0 {
+		if os.Getenv("OMD_ROOT") != "" {
+			connectionStr = os.Getenv("OMD_ROOT") + "/tmp/run/live"
+		} else {
+			fmt.Fprintf(os.Stderr, "ERROR: must specify at least one connection. See -h/--help for all options.\n")
+			os.Exit(1)
+		}
+	} else {
+		connectionStr = flag.Args()[0]
+	}
 
 	// parse remaining flags
 	if len(flag.Args()) > 1 {
