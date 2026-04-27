@@ -110,12 +110,14 @@ func MainLQ(build string) {
 	// read query from stdin
 	scanner := bufio.NewScanner(os.Stdin)
 	query := ""
+	numQueries := 0
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		log.Tracef("stdin: %s", line)
 		if line == "" {
 			processQuery(query, conn, readSize, inputDelay, outputDelay, false)
 			query = ""
+			numQueries++
 
 			continue
 		}
@@ -123,12 +125,15 @@ func MainLQ(build string) {
 		query += line + "\n"
 	}
 
-	if query == "" {
+	if query != "" {
+		processQuery(query, conn, readSize, inputDelay, outputDelay, true)
+		numQueries++
+	}
+
+	if numQueries == 0 {
 		fmt.Fprintf(os.Stderr, "ERROR: empty query\n")
 		os.Exit(1)
 	}
-
-	processQuery(query, conn, readSize, inputDelay, outputDelay, true)
 }
 
 func applyVerboseFlags(flags *cmdFlags) {
