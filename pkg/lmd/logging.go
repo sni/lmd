@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"runtime/debug"
 	"strings"
+	"sync/atomic"
 
 	"github.com/kdar/factorlog"
 )
@@ -18,7 +19,7 @@ var LogFormat string
 // DateTimeLogFormat sets the log format for the date/time portion.
 var DateTimeLogFormat string
 
-var LogMaxOutput int
+var LogMaxOutput atomic.Int32
 
 // LogToolsOutput is the default log output for tools.
 var LogToolsOutput string
@@ -26,7 +27,7 @@ var LogToolsOutput string
 func init() {
 	DateTimeLogFormat = `[%{Date} %{Time "15:04:05.000"}]`
 	LogFormat = `[%{Severity}][pid:%{Pid}][%{ShortFile}:%{Line}] %{Message}`
-	LogMaxOutput = DefaultMaxLogOutput
+	LogMaxOutput.Store(DefaultMaxLogOutput)
 	LogToolsOutput = LogColors + DateTimeLogFormat + LogFormat + LogColorReset
 }
 
@@ -85,12 +86,13 @@ func InitLogging(conf *Config) {
 		logLevel = os.Getenv("LMD_LOG_LEVEL")
 	}
 
-	if LogMaxOutput != conf.LogMaxOutput {
-		LogMaxOutput = conf.LogMaxOutput
+	logMaxOutput := LogMaxOutput.Load()
+	if logMaxOutput != interface2int32(conf.LogMaxOutput) {
+		LogMaxOutput.Store(interface2int32(conf.LogMaxOutput))
 	}
 	if strings.EqualFold(logLevel, "trace2") {
 		logLevel = "trace"
-		LogMaxOutput = 0
+		LogMaxOutput.Store(0)
 	}
 
 	log.SetFormatter(logFormatter)
@@ -132,10 +134,11 @@ type LogWriter struct {
 
 func adjustMaxLogOutput(data string) string {
 	length := len(data)
-	if LogMaxOutput > 0 && length > LogMaxOutput {
-		data = data[:LogMaxOutput]
+	logMaxOutput := int(LogMaxOutput.Load())
+	if logMaxOutput > 0 && length > logMaxOutput {
+		data = data[:logMaxOutput]
 
-		return data + fmt.Sprintf("...[skipped logging %d bytes]", length-LogMaxOutput)
+		return data + fmt.Sprintf("...[skipped logging %d bytes]", length-logMaxOutput)
 	}
 
 	return data

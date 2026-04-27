@@ -978,6 +978,42 @@ func interface2int(raw any) int {
 	return int(val)
 }
 
+func checkInt32Bounds(num int64) int32 {
+	if num > int64(math.MaxInt32) || num < int64(math.MinInt32) {
+		return 0
+	}
+
+	return int32(num)
+}
+
+func interface2int32(raw any) int32 {
+	switch num := raw.(type) {
+	case float64:
+		return checkInt32Bounds(int64(num))
+	case int64:
+		return checkInt32Bounds(num)
+	case int:
+		return checkInt32Bounds(int64(num))
+	case int32:
+		return num
+	case int8:
+		return checkInt32Bounds(int64(num))
+	case bool:
+		if num {
+			return 1
+		}
+
+		return 0
+	case string:
+		val, _ := strconv.ParseInt(num, 10, 64)
+
+		return checkInt32Bounds(val)
+	}
+	val, _ := strconv.ParseInt(fmt.Sprintf("%v", raw), 10, 64)
+
+	return checkInt32Bounds(val)
+}
+
 func checkInt8Bounds(num int64) int8 {
 	if num > int64(math.MaxInt8) || num < int64(math.MinInt8) {
 		return 0
