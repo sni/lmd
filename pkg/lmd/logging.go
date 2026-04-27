@@ -20,10 +20,14 @@ var DateTimeLogFormat string
 
 var LogMaxOutput int
 
+// LogToolsOutput is the default log output for tools
+var LogToolsOutput string
+
 func init() {
 	DateTimeLogFormat = `[%{Date} %{Time "15:04:05.000"}]`
 	LogFormat = `[%{Severity}][pid:%{Pid}][%{ShortFile}:%{Line}] %{Message}`
 	LogMaxOutput = DefaultMaxLogOutput
+	LogToolsOutput = LogColors + DateTimeLogFormat + LogFormat + LogColorReset
 }
 
 const (
@@ -56,10 +60,10 @@ func InitLogging(conf *Config) {
 	var err error
 	switch {
 	case conf.LogFile == "" || conf.LogFile == "stdout":
-		logFormatter = buildFormatter(LogColors + DateTimeLogFormat + LogFormat + LogColorReset)
+		logFormatter = buildFormatter(LogToolsOutput)
 		targetWriter = os.Stdout
 	case strings.EqualFold(conf.LogFile, "stderr"):
-		logFormatter = buildFormatter(LogColors + DateTimeLogFormat + LogFormat + LogColorReset)
+		logFormatter = buildFormatter(LogToolsOutput)
 		targetWriter = os.Stderr
 	case conf.LogFile == "stdout-journal":
 		logFormatter = buildFormatter(LogFormat)
@@ -71,39 +75,43 @@ func InitLogging(conf *Config) {
 	if err != nil {
 		panic(fmt.Sprintf("failed to initialize logger: %s", err.Error()))
 	}
-	LogLevel := "Warn"
+	logLevel := "Warn"
 	if conf.LogLevel != "" {
-		LogLevel = conf.LogLevel
+		logLevel = conf.LogLevel
 	}
 
 	// override log level with environment variable if set
 	if os.Getenv("LMD_LOG_LEVEL") != "" {
-		LogLevel = os.Getenv("LMD_LOG_LEVEL")
+		logLevel = os.Getenv("LMD_LOG_LEVEL")
 	}
 
 	if LogMaxOutput != conf.LogMaxOutput {
 		LogMaxOutput = conf.LogMaxOutput
 	}
-	if strings.EqualFold(LogLevel, "trace2") {
-		LogLevel = "trace"
+	if strings.EqualFold(logLevel, "trace2") {
+		logLevel = "trace"
 		LogMaxOutput = 0
 	}
 
 	log.SetFormatter(logFormatter)
 	log.SetOutput(targetWriter)
 	log.SetVerbosity(LogVerbosityDefault)
-	if strings.EqualFold(LogLevel, "off") {
+	if strings.EqualFold(logLevel, "off") {
 		log.SetMinMaxSeverity(factorlog.StringToSeverity("PANIC"), factorlog.StringToSeverity("PANIC"))
 		log.SetVerbosity(LogVerbosityNone)
 	} else {
-		log.SetMinMaxSeverity(factorlog.StringToSeverity(strings.ToUpper(LogLevel)), factorlog.StringToSeverity("PANIC"))
-		if strings.EqualFold(LogLevel, "trace") {
+		log.SetMinMaxSeverity(factorlog.StringToSeverity(strings.ToUpper(logLevel)), factorlog.StringToSeverity("PANIC"))
+		if strings.EqualFold(logLevel, "trace") {
 			log.SetVerbosity(LogVerbosityTrace)
 		}
-		if strings.EqualFold(LogLevel, "debug") {
+		if strings.EqualFold(logLevel, "debug") {
 			log.SetVerbosity(LogVerbosityDebug)
 		}
 	}
+}
+
+func GetLogger() *factorlog.FactorLog {
+	return log
 }
 
 // LogErrors can be used as error handler, logs error with debug log level.

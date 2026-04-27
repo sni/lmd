@@ -14,18 +14,25 @@ import (
 	"time"
 
 	"pkg/lmd"
+
+	"github.com/kdar/factorlog"
 )
 
 // Build contains the current git commit id
 // compile passing -ldflags "-X main.Build <build sha1>" to set the id.
 var Build string
 
+var log = lmd.GetLogger()
+
 type cmdFlags struct {
-	flagRateLimit  string
-	flagRateInput  string
-	flagRateOutput string
-	flagVersion    bool
-	flagVerbose    bool
+	flagRateLimit        string
+	flagRateInput        string
+	flagRateOutput       string
+	flagVersion          bool
+	flagVerbose          bool
+	flagVeryVerbose      bool
+	flagTraceVerbose     bool
+	flagTraceVerboseFull bool
 }
 
 type Cmd struct {
@@ -45,9 +52,13 @@ func main() {
 	flag.StringVar(&cmd.flags.flagRateOutput, "rate-output", "", "enable rate limit for output only, ex.: 1K")
 	flag.BoolVar(&cmd.flags.flagVerbose, "v", false, "enable verbose output")
 	flag.BoolVar(&cmd.flags.flagVerbose, "verbose", false, "enable verbose output")
+	flag.BoolVar(&cmd.flags.flagVeryVerbose, "vv", false, "enable very verbose output")
+	flag.BoolVar(&cmd.flags.flagTraceVerbose, "vvv", false, "enable trace output")
+	flag.BoolVar(&cmd.flags.flagTraceVerboseFull, "vvvv", false, "enable trace output with full query response")
 	flag.BoolVar(&cmd.flags.flagVersion, "V", false, "print version and exit")
 	flag.BoolVar(&cmd.flags.flagVersion, "version", false, "print version and exit")
 	flag.Parse()
+	applyVerboseFlags(&cmd.flags)
 
 	connectionStr := ""
 
@@ -89,6 +100,7 @@ func main() {
 	daemon := lmd.NewLMDInstance()
 	daemon.Config = lmd.NewConfig([]string{})
 	daemon.Config.ValidateConfig()
+	log.Debugf("connecting to %s", connectionStr)
 	peer := lmd.NewPeer(daemon, &lmd.Connection{Source: []string{connectionStr}, Name: "lq", ID: "lq"})
 	conn, connType, err := peer.GetConnection(&lmd.Request{})
 	if err != nil {
@@ -108,8 +120,9 @@ func main() {
 	query := ""
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
+		log.Tracef("stdin: %s", line)
 		if line == "" {
-			processQuery(query, conn, readSize, inputDelay, outputDelay)
+			processQuery(query, conn, readSize, inputDelay, outputDelay, false)
 			query = ""
 
 			continue
@@ -118,12 +131,40 @@ func main() {
 		query += line + "\n"
 	}
 
-	if query != "" {
-		processQuery(query, conn, readSize, inputDelay, outputDelay)
+	if query == "" {
+		fmt.Fprintf(os.Stderr, "ERROR: empty query\n")
+		os.Exit(1)
+	}
+
+	processQuery(query, conn, readSize, inputDelay, outputDelay, true)
+}
+
+func applyVerboseFlags(flags *cmdFlags) {
+	log.SetFormatter(factorlog.NewStdFormatter(lmd.LogToolsOutput))
+	log.SetOutput(os.Stderr)
+	log.SetVerbosity(lmd.LogVerbosityDefault)
+	log.SetMinMaxSeverity(factorlog.StringToSeverity("ERROR"), factorlog.StringToSeverity("PANIC"))
+
+	if flags.flagVerbose {
+		log.SetVerbosity(lmd.LogVerbosityDefault)
+		log.SetMinMaxSeverity(factorlog.StringToSeverity("INFO"), factorlog.StringToSeverity("PANIC"))
+	}
+
+	if flags.flagVeryVerbose {
+		log.SetVerbosity(lmd.LogVerbosityDebug)
+		log.SetMinMaxSeverity(factorlog.StringToSeverity("VERBOSE"), factorlog.StringToSeverity("PANIC"))
+		log.Debugf("log level debug initialized")
+	}
+
+	if flags.flagTraceVerbose || flags.flagTraceVerboseFull {
+		log.SetMinMaxSeverity(factorlog.StringToSeverity("TRACE"), factorlog.StringToSeverity("PANIC"))
+		log.SetVerbosity(lmd.LogVerbosityTrace)
+		log.Debugf("log level trace initialized")
 	}
 }
 
-func processQuery(query string, conn net.Conn, readSize int64, inputDelay, outputDelay time.Duration) {
+func processQuery(query string, conn net.Conn, readSize int64, inputDelay, outputDelay time.Duration, finalQuery bool) {
+	log.Tracef("sending query: %s", strings.ReplaceAll(query, "\n", "\\n")+"\\n")
 	for _, c := range query {
 		_, err := fmt.Fprintf(conn, "%c", c)
 		if err != nil {
@@ -136,16 +177,24 @@ func processQuery(query string, conn net.Conn, readSize int64, inputDelay, outpu
 	}
 	fmt.Fprintf(conn, "\n")
 
+	if finalQuery {
+		_ = closeWrite(conn)
+	}
+
 	// read response with configured delay
 	for {
 		body := new(bytes.Buffer)
-		_, err := io.CopyN(body, conn, readSize)
+		log.Tracef("going to read %d bytes of response", readSize)
+		numRes, err := io.CopyN(body, conn, readSize)
+		log.Tracef("read %d bytes of response", numRes)
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
 				fmt.Fprintf(os.Stderr, "ERROR: failed to read response: %s\n", err.Error())
 				os.Exit(1)
 			}
+			log.Tracef("read finished: %s", err.Error())
 		}
+
 		fmt.Fprintf(os.Stdout, "%s", body.String())
 		if outputDelay > 0 {
 			time.Sleep(outputDelay)
@@ -197,4 +246,20 @@ func parseDelays(flags cmdFlags) (inputDelay, outputDelay time.Duration) {
 	}
 
 	return inputDelay, outputDelay
+}
+
+func closeWrite(conn net.Conn) (err error) {
+	switch c := conn.(type) {
+	case *net.TCPConn:
+		err = c.CloseWrite()
+	case *net.UnixConn:
+		err = c.CloseWrite()
+	}
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: close write failed: %s\n", err.Error())
+		os.Exit(1)
+	}
+
+	return err
 }
