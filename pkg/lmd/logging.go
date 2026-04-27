@@ -20,7 +20,7 @@ var DateTimeLogFormat string
 
 var LogMaxOutput int
 
-// LogToolsOutput is the default log output for tools
+// LogToolsOutput is the default log output for tools.
 var LogToolsOutput string
 
 func init() {
