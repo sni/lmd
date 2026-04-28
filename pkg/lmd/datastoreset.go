@@ -288,14 +288,33 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 	if limit <= 0 {
 		limit = DefaultInitialSyncBlockSize
 	}
+	store.data = make([]*DataRow, 0, limit)
 
 	var lastReq *Request
 	offset := 0
-	results := []*ResultSet{}
-	metaData := []*ResultMetaData{}
 	totalPrepTime := time.Duration(0)
 	totalRowNum := 0
 	tableName := table.name.String()
+	rowTimestamp := currentUnixTime()
+	parser := func(req *Request, resBytes []byte, _ *ResultMetaData, target *DataStore) (int, error) {
+		remaining, rowCount, err := streamJSONResult(resBytes, func(row []any) error {
+			if len(row) != len(keys) {
+				return fmt.Errorf("%s result set verification failed: expected %d columns and got %d", target.table.name.String(), len(keys), len(row))
+			}
+
+			return target.appendInitialDataRow(row, columns, rowTimestamp)
+		})
+		if err != nil {
+			return 0, err
+		}
+		if len(remaining) > 0 {
+			return 0, fmt.Errorf("json parse error, stray data: %s", resBytes)
+		}
+
+		return rowCount, nil
+	}
+	totalFetchDuration := time.Duration(0)
+	totalSize := 0
 
 	for {
 		req := &Request{
@@ -306,64 +325,43 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 		}
 		lastReq = req
 		peer.setQueryOptions(req)
-		res, resMeta, err := peer.Query(ctx, req)
+		time1 := time.Now()
+		rowCount, resMeta, err := peer.QueryCB(ctx, req, parser, store)
 		if err != nil {
 			return nil, err
 		}
 
-		time1 := time.Now()
-
-		// verify result set
-		keyLen := len(keys)
-		for i, row := range res {
-			if len(row) != keyLen {
-				err := fmt.Errorf("%s result set verification failed: len mismatch in row %d, expected %d columns and got %d", store.table.name.String(), i, keyLen, len(row))
-				if peer.errorCount.Load() > 0 {
-					// silently cancel, backend broke during initialization, should have been logged already
-					log.Debugf("error during %s initialization, but backend is already failed: %s", &table.name, err.Error())
-				} else {
-					log.Errorf("error during %s initialization: %s", &table.name, err.Error())
-				}
-
-				return nil, err
-			}
+		elapsed := time.Since(time1)
+		prepDuration := elapsed - resMeta.Duration
+		if prepDuration < 0 {
+			prepDuration = 0
 		}
+		totalPrepTime += prepDuration.Truncate(time.Millisecond)
+		totalRowNum += rowCount
+		totalFetchDuration += resMeta.Duration
+		totalSize += resMeta.Size
 
-		metaData = append(metaData, resMeta)
-		results = append(results, &res)
-
-		totalPrepTime += time.Since(time1).Truncate(time.Millisecond)
-		totalRowNum += len(res)
-
-		if len(res) < limit {
+		if rowCount < limit {
 			break
 		}
 		logWith(peer, lastReq).Debugf("initial table: %15s - fetching bulk: %d", tableName, offset)
 
 		offset += limit
 	}
-
-	resMeta := ds.mergeResultMetas(metaData)
-
 	time2 := time.Now()
-	now := currentUnixTime()
-	err := store.insertDataMulti(ctx, results, columns, false)
-	if err != nil {
-		return nil, err
-	}
-
+	store.sortByPrimaryKey()
 	durationInsert := time.Since(time2).Truncate(time.Millisecond)
 
 	time3 := time.Now()
 
-	ds.peer.lastUpdate.Set(now)
-	ds.peer.lastFullUpdate.Set(now)
+	ds.peer.lastUpdate.Set(rowTimestamp)
+	ds.peer.lastFullUpdate.Set(rowTimestamp)
 	durationLock := time.Since(time3).Truncate(time.Millisecond)
 
 	promObjectCount.WithLabelValues(peer.Name, tableName).Set(float64(totalRowNum))
 
 	logWith(peer, lastReq).Debugf("initial table: %15s - fetch: %9s - prep: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
-		tableName, resMeta.Duration.Truncate(time.Millisecond), totalPrepTime, durationLock, durationInsert, totalRowNum, resMeta.Size/1024)
+		tableName, totalFetchDuration.Truncate(time.Millisecond), totalPrepTime, durationLock, durationInsert, totalRowNum, totalSize/1024)
 
 	return store, nil
 }

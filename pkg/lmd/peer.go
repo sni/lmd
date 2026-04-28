@@ -235,6 +235,9 @@ type PeerCommandError struct {
 	code int
 }
 
+// QueryResultParser parses a query response and optionally writes rows into a datastore.
+type QueryResultParser func(req *Request, resBytes []byte, meta *ResultMetaData, store *DataStore) (rowCount int, err error)
+
 // Error returns the error message as string.
 func (e *PeerCommandError) Error() string {
 	return e.err.Error()
@@ -319,6 +322,16 @@ func (p *Peer) Query(ctx context.Context, req *Request) (result ResultSet, meta 
 	}
 
 	return result, meta, err
+}
+
+// QueryCB sends a livestatus request and passes the raw json response to a parser callback.
+func (p *Peer) QueryCB(ctx context.Context, req *Request, parser QueryResultParser, store *DataStore) (rowCount int, meta *ResultMetaData, err error) {
+	rowCount, meta, err = p.queryCB(ctx, req, parser, store)
+	if err != nil {
+		p.setNextAddrFromErr(err, req, p.source)
+	}
+
+	return rowCount, meta, err
 }
 
 // QueryString sends a livestatus request from a given string.
@@ -893,6 +906,122 @@ func (p *Peer) query(ctx context.Context, req *Request) (ResultSet, *ResultMetaD
 	}
 
 	return data, meta, nil
+}
+
+func (p *Peer) queryCB(ctx context.Context, req *Request, parser QueryResultParser, store *DataStore) (int, *ResultMetaData, error) {
+	p.cache.maxParallelConnections <- true // wait/reserve one connection slot, channel will block if full
+	name := "COMMAND"
+	if req.Command == "" {
+		name = req.Table.String()
+	}
+	defer trace.StartRegion(ctx, "query "+name).End()
+	var conn net.Conn
+	var connType ConnectionType
+	var err error
+	defer func() {
+		switch {
+		case conn == nil:
+		case req.KeepAlive:
+			// give back connection
+			if err == nil {
+				logWith(p, req).Tracef("put connection back into pool")
+				p.cache.connectionPool <- conn
+			} else {
+				p.cache.connectionPool <- nil
+			}
+		default:
+			conn.Close()
+		}
+		<-p.cache.maxParallelConnections // free one connection slot
+	}()
+
+	// add backends filter for lmd sub peers
+	if p.hasFlag(LMDSub) {
+		req.Backends = []string{p.ID}
+	}
+
+	logWith(p, req).Tracef("connection #%02d of max. %02d", len(p.cache.maxParallelConnections), p.lmd.Config.MaxParallelPeerConnections)
+
+	conn, connType, err = p.GetConnection(req)
+	if err != nil {
+		logWith(p, req).Tracef("query: %s", req.String())
+		logWith(p, req).Debugf("connection failed: %s", err)
+
+		return 0, nil, err
+	}
+	if connType == ConnTypeHTTP {
+		req.KeepAlive = false
+	}
+	query := req.String()
+	if log.IsV(LogVerbosityTrace) {
+		logWith(p, req).Tracef("query: %s", query)
+	}
+
+	if p.lmd.Config.SaveTempRequests {
+		p.last.Request.Store(req)
+		p.last.Response.Store(nil)
+	}
+	p.queries.Add(1)
+	totalBytesSend := p.bytesSend.Add(int64(len(query)))
+	peerAddr := p.peerAddr.Get()
+	promPeerBytesSend.WithLabelValues(p.Name).Set(float64(totalBytesSend))
+	promPeerQueries.WithLabelValues(p.Name).Inc()
+
+	t1 := time.Now()
+	resBytes, newConn, err := p.getQueryResponse(ctx, req, query, peerAddr, conn, connType)
+	duration := time.Since(t1)
+	if err != nil {
+		logWith(p, req).Debugf("backend query failed: %w", err)
+
+		return 0, nil, err
+	}
+	if newConn != nil {
+		conn = newConn
+	}
+	if req.Command != "" {
+		resBytes = bytes.TrimSpace(resBytes)
+		if len(resBytes) > 0 {
+			tmp := strings.SplitN(strings.TrimSpace(string(resBytes)), ":", 2)
+			if len(tmp) == 2 {
+				code, _ := strconv.Atoi(tmp[0])
+
+				return 0, nil, &PeerCommandError{err: fmt.Errorf("%s", strings.TrimSpace(tmp[1])), code: code, peer: p}
+			}
+
+			return 0, nil, fmt.Errorf("%s", tmp[0])
+		}
+
+		return 0, nil, nil
+	}
+
+	if log.IsV(LogVerbosityTrace) {
+		logWith(p, req).Tracef("result: %s", string(resBytes))
+	}
+	if p.lmd.Config.SaveTempRequests {
+		p.last.Response.Store(&resBytes)
+	}
+	totalBytesReceived := p.bytesReceived.Add(int64(len(resBytes)))
+	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(totalBytesReceived))
+
+	meta := &ResultMetaData{Request: req}
+	rowCount, err := parser(req, resBytes, meta, store)
+	if err != nil {
+		logWith(p, req).Errorf("fetching table failed %20s time: %s, size: %d kB", req.Table.String(), duration, len(resBytes)/1024)
+		p.logJSONRequestParseErrorDetails(req, resBytes, err)
+
+		return 0, nil, &PeerError{msg: err.Error(), kind: ResponseError, srcErr: err}
+	}
+
+	meta.Duration = duration
+	meta.Size = len(resBytes)
+
+	logWith(p, req).Tracef("fetched table: %15s - time: %8s - count: %8d - size: %8d kB", req.Table.String(), duration, rowCount, len(resBytes)/1024)
+
+	if duration > time.Duration(p.lmd.Config.LogSlowQueryThreshold)*time.Second {
+		logWith(p, req).Warnf("slow backend query finished after %s, response size: %s\n%s", duration, byteCountBinary(int64(len(resBytes))), strings.TrimSpace(req.String()))
+	}
+
+	return rowCount, meta, nil
 }
 
 func (p *Peer) logJSONRequestParseErrorDetails(req *Request, resBytes []byte, err error) {

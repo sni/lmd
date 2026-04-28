@@ -163,6 +163,17 @@ func (d *DataStore) AppendData(data ResultSet, columns ColumnList) error {
 	return nil
 }
 
+// appendInitialDataRow appends a single row to a not-yet-published datastore.
+func (d *DataStore) appendInitialDataRow(raw []any, columns ColumnList, timestamp float64) error {
+	row, err := NewDataRow(d, raw, columns, timestamp, false)
+	if err != nil {
+		return err
+	}
+	d.AddItem(row)
+
+	return nil
+}
+
 // rebuildIndex refreshes the index for all data rows.
 func (d *DataStore) rebuildIndex() {
 	switch len(d.table.primaryKey) {

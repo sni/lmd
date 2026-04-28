@@ -1003,19 +1003,16 @@ func (req *Request) parseResult(ctx context.Context, resBytes []byte) (ResultSet
 	return res, meta, err
 }
 
-func parseJSONResult(data []byte) (res ResultSet, remaining []byte, err error) {
-	res = make(ResultSet, 0)
-	rowNum := 0
-
+func streamJSONResult(data []byte, cb func([]any) error) (remaining []byte, rowCount int, err error) {
 	finalPos := 0
 	data, trim := trimLeftTracking(data)
 	finalPos += trim
 
 	if len(data) < 1 {
-		return nil, nil, fmt.Errorf("empty json data")
+		return nil, 0, fmt.Errorf("empty json data")
 	}
 	if data[0] != '[' {
-		return nil, nil, fmt.Errorf("json data should start with '['")
+		return nil, 0, fmt.Errorf("json data should start with '['")
 	}
 
 	// remove leading '['
@@ -1033,7 +1030,7 @@ func parseJSONResult(data []byte) (res ResultSet, remaining []byte, err error) {
 			break
 		}
 
-		rowNum++
+		rowCount++
 		row, pos, jErr := json.ReadArray(data)
 		linePos = pos
 		if jErr != nil {
@@ -1061,7 +1058,9 @@ func parseJSONResult(data []byte) (res ResultSet, remaining []byte, err error) {
 			}
 		}
 		finalPos += pos
-		res = append(res, row)
+		if err = cb(row); err != nil {
+			return nil, rowCount, err
+		}
 
 		data, trim = trimLeftTracking(data[pos:])
 		finalPos += trim
@@ -1074,16 +1073,30 @@ func parseJSONResult(data []byte) (res ResultSet, remaining []byte, err error) {
 
 	if err != nil {
 		return nil,
-			nil,
+			0,
 			fmt.Errorf("json parse error at row %d pos %d (byte offset %d): %s",
-				rowNum,
+				rowCount,
 				linePos,
 				finalPos+1,
 				err.Error(),
 			)
 	}
 
-	return res, data, nil
+	return data, rowCount, nil
+}
+
+func parseJSONResult(data []byte) (res ResultSet, remaining []byte, err error) {
+	res = make(ResultSet, 0)
+	remaining, _, err = streamJSONResult(data, func(row []any) error {
+		res = append(res, row)
+
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return res, remaining, err
 }
 
 func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) (res ResultSet, err error) {
