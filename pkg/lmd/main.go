@@ -21,6 +21,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"runtime/pprof"
+	"runtime/trace"
 	"slices"
 	"strconv"
 	"strings"
@@ -121,23 +122,25 @@ func (c ConnectionType) String() string {
 }
 
 type Daemon struct {
-	waitGroupListener *sync.WaitGroup
-	Listeners         map[string]*Listener // Listeners stores if we started a listener
-	Config            *Config              // reference to global config object
-	waitGroupPeers    *sync.WaitGroup
-	ListenersLock     *RWMutex // ListenersLock is the lock for the Listeners map
-	nodeAccessor      *Nodes   // nodeAccessor manages cluster nodes and starts/stops peers.
-	shutdownChannel   chan bool
-	cpuProfileHandler *os.File
-	peerMap           *PeerMap
-	waitGroupInit     *sync.WaitGroup
-	initChannel       chan bool
-	mainSignalChannel chan os.Signal // used for internal signals for testing
-	qStat             *QueryStats
-	flags             struct {
+	waitGroupListener   *sync.WaitGroup
+	Listeners           map[string]*Listener // Listeners stores if we started a listener
+	Config              *Config              // reference to global config object
+	waitGroupPeers      *sync.WaitGroup
+	ListenersLock       *RWMutex // ListenersLock is the lock for the Listeners map
+	nodeAccessor        *Nodes   // nodeAccessor manages cluster nodes and starts/stops peers.
+	shutdownChannel     chan bool
+	cpuProfileHandler   *os.File
+	traceProfileHandler *os.File
+	peerMap             *PeerMap
+	waitGroupInit       *sync.WaitGroup
+	initChannel         chan bool
+	mainSignalChannel   chan os.Signal // used for internal signals for testing
+	qStat               *QueryStats
+	flags               struct {
 		flagLogFile          string
 		flagPidfile          string
 		flagProfile          string
+		flagTraceProfile     string
 		flagCPUProfile       string
 		flagMemProfile       string
 		flagExport           string
@@ -217,8 +220,9 @@ func (lmd *Daemon) setFlags() {
 	flag.BoolVar(&lmd.flags.flagVersion, "version", false, "print version and exit")
 	flag.BoolVar(&lmd.flags.flagVersion, "V", false, "print version and exit")
 	flag.StringVar(&lmd.flags.flagProfile, "debug-profiler", "", "start pprof profiler on this port, ex. :6060")
+	flag.StringVar(&lmd.flags.flagTraceProfile, "traceprofile", "", "write trace profile to `file`")
 	flag.StringVar(&lmd.flags.flagCPUProfile, "cpuprofile", "", "write cpu profile to `file`")
-	flag.StringVar(&lmd.flags.flagMemProfile, "memprofile", "", "write memory profile to `file`")
+	flag.StringVar(&lmd.flags.flagMemProfile, "memprofile", "", "write memory profile to `file` on SIGUSR2 signal")
 	flag.IntVar(&lmd.flags.flagDeadlock, "debug-deadlock", 0, "enable deadlock detection with given timeout")
 	flag.Var(&lmd.flags.flagCfgOption, "o", "override settings, ex.: -o Listen=:3333 -o Connections=name,address")
 	flag.StringVar(&lmd.flags.flagExport, "export", "", "export/snapshot data to file.")
@@ -528,8 +532,8 @@ func (lmd *Daemon) checkFlags() {
 
 func (lmd *Daemon) initDebugOptions() {
 	if lmd.flags.flagProfile != "" {
-		if lmd.flags.flagCPUProfile != "" || lmd.flags.flagMemProfile != "" {
-			log.Errorf("ERROR: either use --debug-profile or --cpu/memprofile, not both")
+		if lmd.flags.flagCPUProfile != "" || lmd.flags.flagMemProfile != "" || lmd.flags.flagTraceProfile != "" {
+			log.Errorf("ERROR: either use --debug-profile or --cpu/memprofile/traceprofile, not both")
 			os.Exit(ExitCritical)
 		}
 		runtime.SetBlockProfileRate(BlockProfileRateInterval)
@@ -559,6 +563,20 @@ func (lmd *Daemon) initDebugOptions() {
 			os.Exit(ExitCritical)
 		}
 		lmd.cpuProfileHandler = cpuProfileHandler
+	}
+
+	if lmd.flags.flagTraceProfile != "" {
+		runtime.SetBlockProfileRate(BlockProfileRateInterval)
+		traceProfileHandler, err := os.Create(lmd.flags.flagTraceProfile)
+		if err != nil {
+			log.Errorf("ERROR: could not create trace profile: %s", err.Error())
+			os.Exit(ExitCritical)
+		}
+		if err := trace.Start(traceProfileHandler); err != nil {
+			log.Errorf("ERROR: could not start trace profile: %s", err.Error())
+			os.Exit(ExitCritical)
+		}
+		lmd.traceProfileHandler = traceProfileHandler
 	}
 }
 
@@ -621,6 +639,11 @@ func (lmd *Daemon) onExit() {
 		pprof.StopCPUProfile()
 		lmd.cpuProfileHandler.Close()
 		log.Warnf("cpu profile written to: %s", lmd.flags.flagCPUProfile)
+	}
+	if lmd.flags.flagTraceProfile != "" {
+		trace.Stop()
+		lmd.traceProfileHandler.Close()
+		log.Warnf("trace profile written to: %s", lmd.flags.flagTraceProfile)
 	}
 }
 
@@ -797,26 +820,29 @@ func (lmd *Daemon) usrSignalHandler(sig os.Signal) {
 		log.Errorf("requested thread dump via signal %s", sig)
 		logThreaddump()
 	case syscall.SIGUSR2:
-		if lmd.flags.flagMemProfile == "" {
-			log.Errorf("requested memory profile, but flag -memprofile missing")
-
-			return
-		}
-		file, err := os.Create(lmd.flags.flagMemProfile)
-		if err != nil {
-			log.Errorf("could not create memory profile: %s", err.Error())
-		}
-		defer file.Close()
-		runtime.GC()
-		if err := pprof.WriteHeapProfile(file); err != nil {
-			log.Errorf("could not write memory profile: %s", err.Error())
-		}
-		log.Warnf("memory profile written to: %s", lmd.flags.flagMemProfile)
-
-		return
+		log.Errorf("requested heap dump via signal %s", sig)
+		logHeapTrace(lmd)
 	default:
 		log.Warnf("Signal not handled: %v", sig)
 	}
+}
+
+func logHeapTrace(lmd *Daemon) {
+	if lmd.flags.flagMemProfile == "" {
+		log.Errorf("requested memory profile, but flag -memprofile missing")
+
+		return
+	}
+	file, err := os.Create(lmd.flags.flagMemProfile)
+	if err != nil {
+		log.Errorf("could not create memory profile: %s", err.Error())
+	}
+	defer file.Close()
+	runtime.GC()
+	if err := pprof.WriteHeapProfile(file); err != nil {
+		log.Errorf("could not write memory profile: %s", err.Error())
+	}
+	log.Warnf("memory profile written to: %s", lmd.flags.flagMemProfile)
 }
 
 func logThreaddump() {

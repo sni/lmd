@@ -3,6 +3,7 @@ package lmd
 import (
 	"context"
 	"fmt"
+	"runtime/trace"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -179,6 +180,7 @@ func (ds *DataStoreSet) initTable(ctx context.Context, table *Table) (err error)
 		// real data is handled by separate peers
 		return nil
 	}
+	defer trace.StartRegion(ctx, "initAllTable "+table.name.String()).End()
 
 	var store *DataStore
 	if !table.passthroughOnly && table.virtual == nil {
@@ -345,7 +347,7 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 
 	time2 := time.Now()
 	now := currentUnixTime()
-	err := store.InsertDataMulti(results, columns, false)
+	err := store.insertDataMulti(ctx, results, columns, false)
 	if err != nil {
 		return nil, err
 	}

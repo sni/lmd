@@ -35,7 +35,7 @@ func BenchmarkParseResultJSON(b *testing.B) {
 
 	b.StartTimer()
 	for b.Loop() {
-		res, _, err2 := req.parseResult(resBytes)
+		res, _, err2 := req.parseResult(b.Context(), resBytes)
 		if err2 != nil {
 			panic(err2.Error())
 		}
@@ -77,7 +77,7 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 
 	b.StartTimer()
 	for b.Loop() {
-		res, _, err2 := req.parseResult(resBytes)
+		res, _, err2 := req.parseResult(b.Context(), resBytes)
 		if err2 != nil {
 			panic(err2.Error())
 		}

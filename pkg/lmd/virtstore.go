@@ -1,5 +1,7 @@
 package lmd
 
+import "context"
+
 var columnsStore *DataStore
 
 type VirtualStoreResolveFunc func(table *Table, peer *Peer) *DataStore
@@ -10,12 +12,12 @@ func GetTableBackendsStore(_ *Table, peer *Peer) *DataStore {
 }
 
 // BuildTableBackendsStore returns the virtual data used for the backends livestatus table.
-func BuildTableBackendsStore(table *Table, peer *Peer) *DataStore {
+func BuildTableBackendsStore(ctx context.Context, table *Table, peer *Peer) *DataStore {
 	// simply return a new DataStore with a single row, since all columns are virtual anyway
 	store := NewDataStore(table, peer)
 	rows := make(ResultSet, 1)
 	_, columns := store.GetInitialColumns()
-	err := store.InsertData(rows, columns, true)
+	err := store.insertData(context.TODO(), rows, columns, true)
 	if err != nil {
 		log.Errorf("store error: %s", err.Error())
 	}
@@ -72,7 +74,7 @@ func BuildTableColumnsStore(table *Table) *DataStore {
 		}
 		columns = append(columns, col)
 	}
-	err := store.InsertData(data, columns, true)
+	err := store.insertData(context.TODO(), data, columns, true)
 	if err != nil {
 		log.Errorf("store error: %s", err.Error())
 	}
@@ -137,7 +139,7 @@ func GetGroupByData(table *Table, peer *Peer) *DataStore {
 		log.Panicf("GetGroupByData not implemented for table: %s", store.table.name.String())
 	}
 	_, columns := store.GetInitialColumns()
-	err := store.InsertData(data, columns, true)
+	err := store.insertData(context.TODO(), data, columns, true)
 	if err != nil {
 		log.Errorf("store error: %s", err.Error())
 	}
