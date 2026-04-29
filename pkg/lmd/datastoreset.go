@@ -483,6 +483,7 @@ func (ds *DataStoreSet) mergeResultMetas(metas []*ResultMetaData) (resMeta *Resu
 		if i == 0 {
 			continue
 		}
+		resMeta.Request = nil
 		resMeta.Size += meta.Size
 		resMeta.Duration += meta.Duration
 		resMeta.RowsScanned += meta.RowsScanned
