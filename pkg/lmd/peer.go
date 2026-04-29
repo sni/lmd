@@ -875,6 +875,7 @@ func (p *Peer) query(ctx context.Context, req *Request) (ResultSet, *ResultMetaD
 	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(totalBytesReceived))
 
 	t2 := time.Now()
+	req.lmd = p.lmd
 	data, meta, err := req.parseResult(resBytes)
 	meta.ParseDuration = time.Since(t2)
 	if err != nil {

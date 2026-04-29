@@ -1001,12 +1001,20 @@ func (req *Request) parseResult(resBytes []byte) (ResultSet, *ResultMetaData, er
 		return res, meta, err
 	}
 
-	// res, err := NewResultSetRjson(resBytes)
+	var res ResultSet
+	var pj *simdjson.ParsedJson
 
-	res, pj, err := NewResultSetSimdjson(resBytes, req.peer.simdjsonLastParsedJson)
-	if pj != nil {
-		// only save the pj if its not nill
-		req.peer.simdjsonLastParsedJson = pj
+	switch req.lmd.Config.JsonParsingLibrary {
+	case "rjson":
+		res, err = NewResultSetRjson(resBytes)
+	case "simdjson":
+		res, pj, err = NewResultSetSimdjson(resBytes, req.peer.simdjsonLastParsedJson)
+		if pj != nil {
+			// only save the pj if its not nill
+			req.peer.simdjsonLastParsedJson = pj
+		}
+	default:
+		log.Panic("No supported jsonParsingLibrary is chosen: %s", req.lmd.Config.JsonParsingLibrary)
 	}
 
 	return res, meta, err

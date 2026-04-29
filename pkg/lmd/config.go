@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -107,6 +108,7 @@ type Config struct {
 	SaveTempRequests               bool         `toml:"SaveTempRequests"`
 	BackendKeepAlive               bool         `toml:"BackendKeepAlive"`
 	LogQueryStats                  bool         `toml:"LogQueryStats"`
+	JsonParsingLibrary             string       `toml:"JsonParsingLibrary"`
 }
 
 // NewConfig reads all config files.
@@ -139,6 +141,7 @@ func NewConfig(files []string) *Config {
 		MaxParallelPeerConnections:     3,
 		MaxParallelPeerInitializations: 50,
 		MaxQueryFilter:                 DefaultMaxQueryFilter,
+		JsonParsingLibrary:             "rjson",
 	}
 
 	// combine listeners from all files
@@ -250,6 +253,11 @@ func (conf *Config) ValidateConfig() {
 	if conf.MaxParallelPeerInitializations <= 0 {
 		log.Warnf("config: MaxParallelPeerInitializations invalid, value must be greater than 0")
 		conf.MaxParallelPeerInitializations = DefaultConfig.MaxParallelPeerInitializations
+	}
+	validJsonParsingLibraries := []string{"rjson", "simdjson"}
+	if slices.Contains(validJsonParsingLibraries, conf.JsonParsingLibrary) {
+		log.Warnf("config: JsonParsingLibrary specified is not supported, pick one of the available: %v", validJsonParsingLibraries)
+		conf.JsonParsingLibrary = DefaultConfig.JsonParsingLibrary
 	}
 }
 
