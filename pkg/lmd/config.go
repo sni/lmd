@@ -247,6 +247,10 @@ func (conf *Config) ValidateConfig() {
 	if err != nil {
 		log.Warnf("%s", err)
 	}
+	if conf.MaxParallelPeerInitializations <= 0 {
+		log.Warnf("config: MaxParallelPeerInitializations invalid, value must be greater than 0")
+		conf.MaxParallelPeerInitializations = DefaultConfig.MaxParallelPeerInitializations
+	}
 }
 
 func (conf *Config) SetServiceAuthorization() {
