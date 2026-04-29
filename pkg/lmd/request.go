@@ -164,7 +164,6 @@ func (op *GroupOperator) String() string {
 // ResultMetaData contains meta from the response data.
 type ResultMetaData struct {
 	Request       *Request      // the request itself
-	Res           ResultSet     `json:"data"`         // result data temp store
 	Columns       []string      `json:"columns"`      // list of requested columns
 	Total         int64         `json:"total_count"`  // total number of result rows
 	RowsScanned   int64         `json:"rows_scanned"` // total number of scanned rows for this result
