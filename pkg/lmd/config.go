@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -71,72 +72,76 @@ func (c *configFiles) Set(value string) (err error) {
 
 // Config defines the available configuration options from supplied config files.
 type Config struct {
-	GroupAuthorization         string       `toml:"GroupAuthorization"`
-	LogFile                    string       `toml:"LogFile"`
-	TLSCertificate             string       `toml:"TLSCertificate"`
-	TLSMinVersion              string       `toml:"TLSMinVersion"`
-	ServiceAuthorization       string       `toml:"ServiceAuthorization"`
-	TLSKey                     string       `toml:"TLSKey"`
-	LogLevel                   string       `toml:"LogLevel"`
-	ListenPrometheus           string       `toml:"ListenPrometheus"`
-	Connections                []Connection `toml:"Connections"`
-	Nodes                      []string     `toml:"Nodes"`
-	Listen                     []string     `toml:"Listen"`
-	TLSClientPems              []string     `toml:"TLSClientPems"`
-	StaleBackendTimeout        int          `toml:"StaleBackendTimeout"`
-	LogHugeQueryThreshold      int          `toml:"LogHugeQueryThreshold"`
-	NetTimeout                 int          `toml:"NetTimeout"`
-	ListenTimeout              int          `toml:"ListenTimeout"`
-	LogMaxOutput               int          `toml:"LogMaxOutput"`
-	UpdateInterval             int64        `toml:"Updateinterval"`
-	MaxQueryFilter             int          `toml:"MaxQueryFilter"`
-	ConnectTimeout             int          `toml:"ConnectTimeout"`
-	IdleTimeout                int64        `toml:"IdleTimeout"`
-	IdleInterval               int64        `toml:"IdleInterval"`
-	FullUpdateInterval         int64        `toml:"FullUpdateInterval"`
-	InitialSyncBlockSize       int          `toml:"InitialSyncBlockSize"`
-	MaxParallelPeerConnections int          `toml:"MaxParallelPeerConnections"`
-	SkipSSLCheck               int          `toml:"SkipSSLCheck"`
-	LogSlowQueryThreshold      int          `toml:"LogSlowQueryThreshold"`
-	UpdateOffset               int64        `toml:"UpdateOffset"`
-	CompressionMinimumSize     int          `toml:"CompressionMinimumSize"`
-	CompressionLevel           int          `toml:"CompressionLevel"`
-	MaxClockDelta              float64      `toml:"MaxClockDelta"`
-	SyncIsExecuting            bool         `toml:"SyncIsExecuting"`
-	SaveTempRequests           bool         `toml:"SaveTempRequests"`
-	BackendKeepAlive           bool         `toml:"BackendKeepAlive"`
-	LogQueryStats              bool         `toml:"LogQueryStats"`
+	GroupAuthorization             string       `toml:"GroupAuthorization"`
+	LogFile                        string       `toml:"LogFile"`
+	TLSCertificate                 string       `toml:"TLSCertificate"`
+	TLSMinVersion                  string       `toml:"TLSMinVersion"`
+	ServiceAuthorization           string       `toml:"ServiceAuthorization"`
+	TLSKey                         string       `toml:"TLSKey"`
+	LogLevel                       string       `toml:"LogLevel"`
+	ListenPrometheus               string       `toml:"ListenPrometheus"`
+	Connections                    []Connection `toml:"Connections"`
+	Nodes                          []string     `toml:"Nodes"`
+	Listen                         []string     `toml:"Listen"`
+	TLSClientPems                  []string     `toml:"TLSClientPems"`
+	StaleBackendTimeout            int          `toml:"StaleBackendTimeout"`
+	LogHugeQueryThreshold          int          `toml:"LogHugeQueryThreshold"`
+	NetTimeout                     int          `toml:"NetTimeout"`
+	ListenTimeout                  int          `toml:"ListenTimeout"`
+	LogMaxOutput                   int          `toml:"LogMaxOutput"`
+	UpdateInterval                 int64        `toml:"Updateinterval"`
+	MaxQueryFilter                 int          `toml:"MaxQueryFilter"`
+	ConnectTimeout                 int          `toml:"ConnectTimeout"`
+	IdleTimeout                    int64        `toml:"IdleTimeout"`
+	IdleInterval                   int64        `toml:"IdleInterval"`
+	FullUpdateInterval             int64        `toml:"FullUpdateInterval"`
+	InitialSyncBlockSize           int          `toml:"InitialSyncBlockSize"`
+	MaxParallelPeerConnections     int          `toml:"MaxParallelPeerConnections"`
+	MaxParallelPeerInitializations int          `toml:"MaxParallelPeerInitializations"`
+	SkipSSLCheck                   int          `toml:"SkipSSLCheck"`
+	LogSlowQueryThreshold          int          `toml:"LogSlowQueryThreshold"`
+	UpdateOffset                   int64        `toml:"UpdateOffset"`
+	CompressionMinimumSize         int          `toml:"CompressionMinimumSize"`
+	CompressionLevel               int          `toml:"CompressionLevel"`
+	MaxClockDelta                  float64      `toml:"MaxClockDelta"`
+	SyncIsExecuting                bool         `toml:"SyncIsExecuting"`
+	SaveTempRequests               bool         `toml:"SaveTempRequests"`
+	BackendKeepAlive               bool         `toml:"BackendKeepAlive"`
+	LogQueryStats                  bool         `toml:"LogQueryStats"`
+	JsonParsingLibrary             string       `toml:"JsonParsingLibrary"`
 }
 
 // NewConfig reads all config files.
 // It returns a Config object.
 func NewConfig(files []string) *Config {
 	conf := Config{
-		UpdateInterval:             7,
-		FullUpdateInterval:         0,
-		InitialSyncBlockSize:       DefaultInitialSyncBlockSize,
-		LogLevel:                   "Info",
-		LogMaxOutput:               DefaultMaxLogOutput,
-		LogSlowQueryThreshold:      5,
-		LogHugeQueryThreshold:      100,
-		ConnectTimeout:             30,
-		NetTimeout:                 120,
-		ListenTimeout:              60,
-		SaveTempRequests:           false,
-		IdleTimeout:                120,
-		IdleInterval:               1800,
-		StaleBackendTimeout:        30,
-		BackendKeepAlive:           true,
-		ServiceAuthorization:       AuthLoose,
-		GroupAuthorization:         AuthStrict,
-		SyncIsExecuting:            true,
-		CompressionMinimumSize:     DefaultCompressionMinimumSize,
-		CompressionLevel:           5,
-		MaxClockDelta:              10,
-		UpdateOffset:               3,
-		TLSMinVersion:              "tls1.1",
-		MaxParallelPeerConnections: 3,
-		MaxQueryFilter:             DefaultMaxQueryFilter,
+		UpdateInterval:                 7,
+		FullUpdateInterval:             0,
+		InitialSyncBlockSize:           DefaultInitialSyncBlockSize,
+		LogLevel:                       "Info",
+		LogMaxOutput:                   DefaultMaxLogOutput,
+		LogSlowQueryThreshold:          5,
+		LogHugeQueryThreshold:          100,
+		ConnectTimeout:                 30,
+		NetTimeout:                     120,
+		ListenTimeout:                  60,
+		SaveTempRequests:               false,
+		IdleTimeout:                    120,
+		IdleInterval:                   1800,
+		StaleBackendTimeout:            30,
+		BackendKeepAlive:               true,
+		ServiceAuthorization:           AuthLoose,
+		GroupAuthorization:             AuthStrict,
+		SyncIsExecuting:                true,
+		CompressionMinimumSize:         DefaultCompressionMinimumSize,
+		CompressionLevel:               5,
+		MaxClockDelta:                  10,
+		UpdateOffset:                   3,
+		TLSMinVersion:                  "tls1.1",
+		MaxParallelPeerConnections:     3,
+		MaxParallelPeerInitializations: 50,
+		MaxQueryFilter:                 DefaultMaxQueryFilter,
+		JsonParsingLibrary:             "rjson",
 	}
 
 	// combine listeners from all files
@@ -244,6 +249,15 @@ func (conf *Config) ValidateConfig() {
 	_, err := parseTLSMinVersion(conf.TLSMinVersion)
 	if err != nil {
 		log.Warnf("%s", err)
+	}
+	if conf.MaxParallelPeerInitializations <= 0 {
+		log.Warnf("config: MaxParallelPeerInitializations invalid, value must be greater than 0")
+		conf.MaxParallelPeerInitializations = DefaultConfig.MaxParallelPeerInitializations
+	}
+	validJsonParsingLibraries := []string{"rjson", "simdjson"}
+	if slices.Contains(validJsonParsingLibraries, conf.JsonParsingLibrary) {
+		log.Warnf("config: JsonParsingLibrary specified is not supported, pick one of the available: %v", validJsonParsingLibraries)
+		conf.JsonParsingLibrary = DefaultConfig.JsonParsingLibrary
 	}
 }
 

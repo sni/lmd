@@ -26,6 +26,8 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
+
+	"github.com/minio/simdjson-go"
 )
 
 var (
@@ -128,6 +130,7 @@ type Peer struct { //nolint:govet // not fieldalignment relevant
 		Request  atomic.Pointer[Request] // reference to last query (used in error reports)
 		Response atomic.Pointer[[]byte]  // reference to last response
 	}
+	simdjsonLastParsedJson *simdjson.ParsedJson // for reusing the buffers and string cache on a peer level
 }
 
 var connectionErrorIndicators = [][]byte{
@@ -312,6 +315,7 @@ func (p *Peer) Stop() {
 // It calls query and logs all errors except connection errors which are logged in GetConnection.
 // It returns the livestatus result and any error encountered.
 func (p *Peer) Query(ctx context.Context, req *Request) (result ResultSet, meta *ResultMetaData, err error) {
+	req.peer = p
 	result, meta, err = p.query(ctx, req)
 	if err != nil {
 		p.setNextAddrFromErr(err, req, p.source)
@@ -350,6 +354,7 @@ func (p *Peer) QueryContext(ctx context.Context, str string) (ResultSet, *Result
 func (p *Peer) SendCommands(ctx context.Context, commands []string) error {
 	commandRequest := &Request{
 		Command: strings.Join(commands, "\n\n"),
+		peer:    p,
 	}
 	ctx = context.WithValue(ctx, CtxRequest, commandRequest.ID())
 	p.setQueryOptions(commandRequest)
@@ -412,7 +417,12 @@ func (p *Peer) setHTTPClient() {
 // updateLoop is the main loop updating this peer.
 // It does not return till triggered by the shutdownChannel or by the internal stopChannel.
 func (p *Peer) updateLoop(ctx context.Context) {
+
+	// semaphore for peer table initialization step
+	p.lmd.peerInitializationPool <- struct{}{}
 	err := p.initAllTables(ctx)
+	<-p.lmd.peerInitializationPool
+
 	if err != nil {
 		logWith(p).Warnf("initializing objects failed: %s", err.Error())
 		p.errorLogged.Store(true)
@@ -864,7 +874,10 @@ func (p *Peer) query(ctx context.Context, req *Request) (ResultSet, *ResultMetaD
 	totalBytesReceived := p.bytesReceived.Add(int64(len(resBytes)))
 	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(totalBytesReceived))
 
+	t2 := time.Now()
+	req.lmd = p.lmd
 	data, meta, err := req.parseResult(resBytes)
+	meta.ParseDuration = time.Since(t2)
 	if err != nil {
 		logWith(p, req).Errorf("fetching table failed %20s time: %s, size: %d kB", req.Table.String(), duration, len(resBytes)/1024)
 		p.logJSONRequestParseErrorDetails(req, resBytes, err)
@@ -2479,6 +2492,7 @@ func (p *Peer) getSupportedColumns(ctx context.Context) (tables map[TableName]ma
 	req := &Request{
 		Table:   TableColumns,
 		Columns: []string{"table", "name"},
+		peer:    p,
 	}
 	p.setQueryOptions(req)
 	res, _, err := p.query(ctx, req) // skip default error handling here

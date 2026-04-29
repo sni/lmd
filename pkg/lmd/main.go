@@ -153,6 +153,7 @@ type Daemon struct {
 	}
 	lastMainRestart           float64
 	defaultRequestParseOption ParseOptions
+	peerInitializationPool    chan struct{}
 }
 
 type ArrayFlags struct {
@@ -429,6 +430,8 @@ func (lmd *Daemon) initializeListeners() {
 }
 
 func (lmd *Daemon) initializePeers(ctx context.Context) {
+	lmd.peerInitializationPool = make(chan struct{}, lmd.Config.MaxParallelPeerInitializations)
+
 	// This node's http address (http://*:1234), to be used as address pattern
 	var nodeListenAddress string
 	for _, listen := range lmd.Config.Listen {

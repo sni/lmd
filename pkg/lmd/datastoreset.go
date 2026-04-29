@@ -28,6 +28,12 @@ type DataStoreSet struct {
 	tableTimeperiods   atomic.Pointer[DataStore]
 }
 
+type ObjectInitializationMetadata struct {
+	mergedQueryMetadata *ResultMetaData
+	prepTime            time.Duration
+	lockTime            time.Duration
+}
+
 func NewDataStoreSet(peer *Peer) *DataStoreSet {
 	dataset := DataStoreSet{peer: peer}
 	dataset.sync = NewSyncStrategy(&dataset)
@@ -58,18 +64,30 @@ func (ds *DataStoreSet) setSyncStrategy() {
 // initAllTables creates all tables for this store.
 // It returns nil if the import was successful or an error otherwise.
 func (ds *DataStoreSet) initAllTables(ctx context.Context) (err error) {
+	var meta *ObjectInitializationMetadata
 	now := currentUnixTime()
 	ds.peer.lastUpdate.Set(now)
 	ds.peer.lastFullUpdate.Set(now)
 
 	if ds.peer.lmd.Config.MaxParallelPeerConnections <= 1 {
-		err = ds.initAllTablesSerial(ctx)
+		meta, err = ds.initAllTablesSerial(ctx)
 	} else {
-		err = ds.initAllTablesParallel(ctx)
+		meta, err = ds.initAllTablesParallel(ctx)
 	}
 	if err != nil {
 		return err
 	}
+
+	logWith(ds.peer).Debugf("memory stats after initializing tables:\n%s", getMemoryDetails())
+
+	if meta != nil {
+		logWith(ds).Debugf("merged metadata for datastoreset initializations | fetchTime: %9s , parseTime: %9s , prepTime: %9s , lockTime: %9s", meta.mergedQueryMetadata.Duration.Truncate(time.Millisecond), meta.mergedQueryMetadata.ParseDuration.Truncate(time.Millisecond), meta.prepTime, meta.lockTime)
+	}
+
+	meta = nil
+	// set the simdjson parser pointer to nil after table initialization
+	// it contains buffers and parsing tape, a good target to clear immediately
+	ds.peer.simdjsonLastParsedJson = nil
 
 	if ds.peer.hasFlag(MultiBackend) {
 		return nil
@@ -99,37 +117,44 @@ func (ds *DataStoreSet) initAllTables(ctx context.Context) (err error) {
 }
 
 // fetches all objects one at a time.
-func (ds *DataStoreSet) initAllTablesSerial(ctx context.Context) (err error) {
+func (ds *DataStoreSet) initAllTablesSerial(ctx context.Context) (metadata *ObjectInitializationMetadata, err error) {
 	time1 := time.Now()
+	objMetas := []*ObjectInitializationMetadata{}
 
 	// fetch one at a time
 	for _, n := range Objects.UpdateTables {
 		t := Objects.Tables[n]
-		err = ds.initTable(ctx, t)
+		meta, err := ds.initTable(ctx, t)
 		if err != nil {
 			logWith(ds.peer).Debugf("fetching %s objects failed: %s", t.name.String(), err.Error())
 
-			return err
+			return nil, err
 		}
+		objMetas = append(objMetas, meta)
 	}
+
+	metadata = ds.mergeObjectMetas(objMetas)
 
 	logWith(ds.peer).Debugf("objects fetched serially in %s", time.Since(time1).String())
 
-	return err
+	return metadata, err
 }
 
 // initAllTablesParallel fetches all objects at once.
-func (ds *DataStoreSet) initAllTablesParallel(ctx context.Context) (err error) {
+func (ds *DataStoreSet) initAllTablesParallel(ctx context.Context) (metadata *ObjectInitializationMetadata, err error) {
 	time1 := time.Now()
+	objMetas := []*ObjectInitializationMetadata{}
 
 	// go with status table first
-	err = ds.initTable(ctx, Objects.Tables[TableStatus])
+	statusMeta, err := ds.initTable(ctx, Objects.Tables[TableStatus])
 	if err != nil {
-		return err
+		return nil, err
 	}
+	objMetas = append(objMetas, statusMeta)
 
 	// then fetch all others in parallel
 	results := make(chan error, len(Objects.UpdateTables)-1)
+	objectInitMetas := make(chan *ObjectInitializationMetadata, len(Objects.UpdateTables)-1)
 	wait := &sync.WaitGroup{}
 	for _, n := range Objects.UpdateTables {
 		if n == TableStatus {
@@ -144,49 +169,58 @@ func (ds *DataStoreSet) initAllTablesParallel(ctx context.Context) (err error) {
 				wait.Done()
 			}()
 
-			err2 := ds.initTable(ctx, table)
-			results <- err2
+			meta, err2 := ds.initTable(ctx, table)
+
 			if err2 != nil {
 				logWith(ds.peer).Debugf("fetching %s objects failed: %s", table.name.String(), err2.Error())
-
+				results <- err2
 				return
 			}
+			objectInitMetas <- meta
+			results <- nil
 		}(table)
 	}
 
 	// wait till fetching all tables finished
 	go func() {
 		wait.Wait()
+		close(objectInitMetas)
 		close(results)
 	}()
 
-	// read results till channel is closed
+	// read metas until channel is closed
+	for m := range objectInitMetas {
+		objMetas = append(objMetas, m)
+	}
+	metadata = ds.mergeObjectMetas(objMetas)
+
+	// read errors till channel is closed
 	for e := range results {
 		if e != nil {
-			return e
+			return nil, e
 		}
 	}
 
 	logWith(ds.peer).Debugf("objects fetched parallel in %s", time.Since(time1).String())
 
-	return nil
+	return metadata, nil
 }
 
 // initTable initializes a single table for this peer.
-func (ds *DataStoreSet) initTable(ctx context.Context, table *Table) (err error) {
+func (ds *DataStoreSet) initTable(ctx context.Context, table *Table) (metadata *ObjectInitializationMetadata, err error) {
 	if ds.peer.hasFlag(MultiBackend) && table.name != TableStatus {
 		// just create empty data pools
 		// real data is handled by separate peers
-		return nil
+		return &ObjectInitializationMetadata{&ResultMetaData{}, 0, 0}, nil
 	}
 
 	var store *DataStore
 	if !table.passthroughOnly && table.virtual == nil {
-		store, err = ds.createObjectByType(ctx, table)
+		store, metadata, err = ds.createObjectByType(ctx, table)
 		if err != nil {
 			logWith(ds.peer).Debugf("creating initial objects failed in table %s: %s", table.name.String(), err.Error())
 
-			return err
+			return nil, err
 		}
 		ds.setTable(table.name, store)
 	}
@@ -194,7 +228,7 @@ func (ds *DataStoreSet) initTable(ctx context.Context, table *Table) (err error)
 	case TableStatus:
 		err = ds.peer.updateInitialStatus(ctx, store)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		// got an answer, remove last error and let clients know we are reconnecting
 		state := ds.peer.peerState.Get()
@@ -209,7 +243,7 @@ func (ds *DataStoreSet) initTable(ctx context.Context, table *Table) (err error)
 		// nothing special happens for the other tables
 	}
 
-	return nil
+	return metadata, nil
 }
 
 func (ds *DataStoreSet) setTable(name TableName, store *DataStore) {
@@ -274,7 +308,7 @@ func (ds *DataStoreSet) get(name TableName) *DataStore {
 
 // createObjectByType fetches all static and dynamic data from the remote site and creates the initial table.
 // It returns any error encountered.
-func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*DataStore, error) {
+func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*DataStore, *ObjectInitializationMetadata, error) {
 	peer := ds.peer
 
 	store := NewDataStore(table, peer)
@@ -291,6 +325,7 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 	offset := 0
 	results := []*ResultSet{}
 	metaData := []*ResultMetaData{}
+	objectInitializationMetadata := &ObjectInitializationMetadata{}
 	totalPrepTime := time.Duration(0)
 	totalRowNum := 0
 	tableName := table.name.String()
@@ -306,7 +341,7 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 		peer.setQueryOptions(req)
 		res, resMeta, err := peer.Query(ctx, req)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		time1 := time.Now()
@@ -323,7 +358,7 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 					log.Errorf("error during %s initialization: %s", &table.name, err.Error())
 				}
 
-				return nil, err
+				return nil, nil, err
 			}
 		}
 
@@ -341,13 +376,13 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 		offset += limit
 	}
 
-	resMeta := ds.mergeResultMetas(metaData)
+	mergedQueryMetadata := ds.mergeResultMetas(metaData)
 
 	time2 := time.Now()
 	now := currentUnixTime()
 	err := store.InsertDataMulti(results, columns, false)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	durationInsert := time.Since(time2).Truncate(time.Millisecond)
@@ -358,12 +393,19 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 	ds.peer.lastFullUpdate.Set(now)
 	durationLock := time.Since(time3).Truncate(time.Millisecond)
 
+	objectInitializationMetadata.mergedQueryMetadata = mergedQueryMetadata
+	objectInitializationMetadata.prepTime = totalPrepTime
+	objectInitializationMetadata.lockTime = durationLock
+
 	promObjectCount.WithLabelValues(peer.Name, tableName).Set(float64(totalRowNum))
 
-	logWith(peer, lastReq).Debugf("initial table: %15s - fetch: %9s - prep: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
-		tableName, resMeta.Duration.Truncate(time.Millisecond), totalPrepTime, durationLock, durationInsert, totalRowNum, resMeta.Size/1024)
+	if mergedQueryMetadata != nil {
+		logWith(peer, lastReq).Debugf("initial table: %15s - fetch: %9s - parse: %9s - prep: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB - speed: %5f Mbps",
+			tableName, mergedQueryMetadata.Duration.Truncate(time.Millisecond), mergedQueryMetadata.ParseDuration.Truncate(time.Millisecond), totalPrepTime, durationLock, durationInsert, totalRowNum, mergedQueryMetadata.Size/1024, (float64)(mergedQueryMetadata.Size)*8.0/1024.0/1024.0/mergedQueryMetadata.Duration.Seconds())
 
-	return store, nil
+	}
+
+	return store, objectInitializationMetadata, nil
 }
 
 // tryTimeperiodsUpdate updates timeperiods every full minute except when idling.
@@ -441,10 +483,34 @@ func (ds *DataStoreSet) mergeResultMetas(metas []*ResultMetaData) (resMeta *Resu
 		if i == 0 {
 			continue
 		}
+		resMeta.Request = nil
 		resMeta.Size += meta.Size
 		resMeta.Duration += meta.Duration
 		resMeta.RowsScanned += meta.RowsScanned
 		resMeta.Total += meta.Total
+		resMeta.ParseDuration += meta.ParseDuration
+	}
+
+	return resMeta
+}
+
+func (ds *DataStoreSet) mergeObjectMetas(objectMetas []*ObjectInitializationMetadata) (resMeta *ObjectInitializationMetadata) {
+	if len(objectMetas) == 0 {
+		return nil
+	}
+
+	if len(objectMetas) == 1 {
+		return objectMetas[0]
+	}
+
+	resMeta = objectMetas[0]
+	for i, meta := range objectMetas {
+		if i == 0 {
+			continue
+		}
+		resMeta.mergedQueryMetadata = ds.mergeResultMetas([]*ResultMetaData{resMeta.mergedQueryMetadata, meta.mergedQueryMetadata})
+		resMeta.lockTime += meta.lockTime
+		resMeta.prepTime += meta.prepTime
 	}
 
 	return resMeta
