@@ -85,6 +85,8 @@ func (ds *DataStoreSet) initAllTables(ctx context.Context) (err error) {
 	}
 
 	meta = nil
+	// set the simdjson parser pointer to nil after table initialization
+	// it contains buffers and parsing tape, a good target to clear immediately
 	ds.peer.simdjsonLastParsedJson = nil
 
 	if ds.peer.hasFlag(MultiBackend) {
