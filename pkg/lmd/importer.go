@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -266,7 +267,7 @@ func importData(peers []*Peer, table *Table, rows ResultSet, columns []string, l
 			columnsList = append(columnsList, col)
 		}
 
-		err := store.InsertData(rows, columnsList, false)
+		err := store.insertData(context.TODO(), rows, columnsList, false)
 		if err != nil {
 			return peers, fmt.Errorf("failed to insert data: %s", err.Error())
 		}

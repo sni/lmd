@@ -381,9 +381,11 @@ func StartTestPeerExtra(numPeers, numHosts, numServices int, extraConfig string)
 		}
 		// stop the mainloop
 		mockLMD.mainSignalChannel <- syscall.SIGTERM
+
 		// stop the test peer
 		peer.Stop()
-		// wait till all has stoped
+
+		// wait till all has stopped
 		if waitTimeout(context.TODO(), peer.lmd.waitGroupPeers, 10*time.Second) {
 			err = fmt.Errorf("timeout while waiting for peers to stop")
 		}
@@ -393,6 +395,11 @@ func StartTestPeerExtra(numPeers, numHosts, numServices int, extraConfig string)
 		if waitTimeout(context.TODO(), mockLMD.waitGroupListener, 10*time.Second) {
 			err = fmt.Errorf("timeout while waiting for mock listenern to stop")
 		}
+
+		// clear existing data from memory
+		peer.peerState.Set(PeerStatusDown)
+		peer.data.Store(nil)
+		mockLMD = nil
 
 		return err
 	}

@@ -18,6 +18,7 @@ import (
 	"os"
 	"regexp"
 	"runtime/debug"
+	"runtime/trace"
 	"slices"
 	"strconv"
 	"strings"
@@ -241,6 +242,8 @@ func (e *PeerCommandError) Error() string {
 
 // NewPeer creates a new peer object.
 // It returns the created peer.
+//
+//nolint:contextcheck,nolintlint // need new context, peer is a independent object
 func NewPeer(lmd *Daemon, config *Connection) *Peer {
 	peer := &Peer{
 		Name:            config.Name,
@@ -276,7 +279,7 @@ func NewPeer(lmd *Daemon, config *Connection) *Peer {
 	/* initialize http client if there are any http(s) connections */
 	peer.setHTTPClient()
 
-	peer.statusStore = BuildTableBackendsStore(Objects.Tables[TableStatus], peer)
+	peer.statusStore = BuildTableBackendsStore(context.Background(), Objects.Tables[TableStatus], peer)
 
 	peer.resetFlags()
 
@@ -667,6 +670,7 @@ func (p *Peer) scheduleImmediateComDownUpdate() {
 // initAllTables creates all tables for this peer.
 // It returns true if the import was successful or false otherwise.
 func (p *Peer) initAllTables(ctx context.Context) (err error) {
+	defer trace.StartRegion(ctx, "initAllTables").End()
 	time1 := time.Now()
 
 	data := NewDataStoreSet(p)
@@ -776,6 +780,11 @@ func (p *Peer) resetErrors() {
 // It returns the unmarshaled result and any error encountered.
 func (p *Peer) query(ctx context.Context, req *Request) (ResultSet, *ResultMetaData, error) {
 	p.cache.maxParallelConnections <- true // wait/reserve one connection slot, channel will block if full
+	name := "COMMAND"
+	if req.Command == "" {
+		name = req.Table.String()
+	}
+	defer trace.StartRegion(ctx, "query "+name).End()
 	var conn net.Conn
 	var connType ConnectionType
 	var err error
@@ -864,7 +873,7 @@ func (p *Peer) query(ctx context.Context, req *Request) (ResultSet, *ResultMetaD
 	totalBytesReceived := p.bytesReceived.Add(int64(len(resBytes)))
 	promPeerBytesReceived.WithLabelValues(p.Name).Set(float64(totalBytesReceived))
 
-	data, meta, err := req.parseResult(resBytes)
+	data, meta, err := req.parseResult(ctx, resBytes)
 	if err != nil {
 		logWith(p, req).Errorf("fetching table failed %20s time: %s, size: %d kB", req.Table.String(), duration, len(resBytes)/1024)
 		p.logJSONRequestParseErrorDetails(req, resBytes, err)

@@ -1,7 +1,9 @@
 package lmd
 
 import (
+	"context"
 	"fmt"
+	"runtime/trace"
 	"sort"
 	"strings"
 	"unique"
@@ -93,13 +95,14 @@ func NewDataStore(table *Table, peer *Peer) (d *DataStore) {
 	return d
 }
 
-// InsertData adds a resultSet and initializes the store table.
-func (d *DataStore) InsertData(row ResultSet, columns ColumnList, setReferences bool) error {
-	return d.InsertDataMulti([]*ResultSet{&row}, columns, setReferences)
+// insertData adds a resultSet and initializes the store table.
+func (d *DataStore) insertData(ctx context.Context, row ResultSet, columns ColumnList, setReferences bool) error {
+	return d.insertDataMulti(ctx, []*ResultSet{&row}, columns, setReferences)
 }
 
-// InsertDataMulti adds a list of resultSets and initializes the store table.
-func (d *DataStore) InsertDataMulti(rowSet []*ResultSet, columns ColumnList, setReferences bool) error {
+// insertDataMulti adds a list of resultSets and initializes the store table.
+func (d *DataStore) insertDataMulti(ctx context.Context, rowSet []*ResultSet, columns ColumnList, setReferences bool) error {
+	defer trace.StartRegion(ctx, "InsertDataMulti "+d.table.name.String()).End()
 	totalNum := 0
 	for _, rows := range rowSet {
 		totalNum += len(*rows)

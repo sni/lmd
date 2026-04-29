@@ -13,6 +13,7 @@ import (
 	"net"
 	"reflect"
 	"regexp"
+	"runtime/trace"
 	"slices"
 	"strconv"
 	"strings"
@@ -980,7 +981,8 @@ func (req *Request) SetSortColumns() (err error) {
 }
 
 // parseResult parses the result bytes and returns the data table and optional meta data for wrapped_json requests.
-func (req *Request) parseResult(resBytes []byte) (ResultSet, *ResultMetaData, error) {
+func (req *Request) parseResult(ctx context.Context, resBytes []byte) (ResultSet, *ResultMetaData, error) {
+	defer trace.StartRegion(ctx, "parseResult "+req.Table.String()).End()
 	var err error
 	meta := &ResultMetaData{Request: req}
 	if len(resBytes) == 0 || (string(resBytes[0]) != "{" && string(resBytes[0]) != "[") {
@@ -1023,6 +1025,7 @@ func parseJSONResult(data []byte) (res ResultSet, remaining []byte, err error) {
 
 	json := &rjson.ValueReader{}
 	for {
+		// final ] marks end of the outer array
 		if len(data) >= 1 && data[0] == ']' {
 			data, trim = trimLeftTracking(data[1:])
 			finalPos += trim + 1

@@ -40,7 +40,7 @@ func TestParseResultJSON(t *testing.T) {
 	 "host2", "desc2", 1, [1,2], {"a": 1}] , ]
 	`)
 
-	res, _, err := req.parseResult(data)
+	res, _, err := req.parseResult(t.Context(), data)
 	require.NoError(t, err)
 
 	assert.Len(t, res, 2)
@@ -59,7 +59,7 @@ func TestParseResultJSON2(t *testing.T) {
 ]
 	`)
 
-	res, _, err := req.parseResult(data)
+	res, _, err := req.parseResult(t.Context(), data)
 	require.NoError(t, err)
 
 	assert.Len(t, res, 2)
@@ -75,7 +75,7 @@ func TestParseResultJSONEmpty(t *testing.T) {
 
 	data := []byte(`[]`)
 
-	res, _, err := req.parseResult(data)
+	res, _, err := req.parseResult(t.Context(), data)
 	require.NoError(t, err)
 
 	assert.Empty(t, res)
@@ -93,7 +93,7 @@ func TestParseResultWrappedJSON(t *testing.T) {
 	],
 	"total_count": 2}`)
 
-	res, meta, err := req.parseResult(data)
+	res, meta, err := req.parseResult(t.Context(), data)
 	require.NoError(t, err)
 	assert.Len(t, res, 2)
 	assert.Len(t, res[0], 5)
@@ -114,7 +114,7 @@ func TestParseResultJSONBroken(t *testing.T) {
 	]`)
 
 	InitLogging(&Config{LogLevel: "off", LogFile: "stderr"})
-	res, _, err := req.parseResult(data)
+	res, _, err := req.parseResult(t.Context(), data)
 	InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
 
 	if err == nil {
@@ -138,7 +138,7 @@ func TestParseResultJSONBroken2(t *testing.T) {
 	]`)
 
 	InitLogging(&Config{LogLevel: "off", LogFile: "stderr"})
-	res, _, err := req.parseResult(data)
+	res, _, err := req.parseResult(t.Context(), data)
 	InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
 
 	if err == nil {
@@ -163,7 +163,7 @@ func TestParseResultJSONEscapeSequences(t *testing.T) {
 		]`, s, 0))
 
 		InitLogging(&Config{LogLevel: "off", LogFile: "stderr"})
-		res, _, err := req.parseResult(data)
+		res, _, err := req.parseResult(t.Context(), data)
 		InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
 
 		require.NoError(t, err)
@@ -184,7 +184,7 @@ func TestParseResultJSONBrokenNaN(t *testing.T) {
 	]`)
 
 	InitLogging(&Config{LogLevel: "off", LogFile: "stderr"})
-	res, _, err := req.parseResult(data)
+	res, _, err := req.parseResult(t.Context(), data)
 	InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
 
 	require.NoError(t, err)
@@ -203,7 +203,7 @@ func TestParseResultJSONBrokenError(t *testing.T) {
 	]`)
 
 	InitLogging(&Config{LogLevel: "off", LogFile: "stderr"})
-	res, _, err := req.parseResult(data)
+	res, _, err := req.parseResult(t.Context(), data)
 	InitLogging(&Config{LogLevel: testLogLevel, LogFile: "stderr"})
 
 	require.Errorf(t, err, "got no error but expected broken peer")
