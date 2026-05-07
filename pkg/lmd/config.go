@@ -80,6 +80,7 @@ type Config struct {
 	TLSKey                         string       `toml:"TLSKey"`
 	LogLevel                       string       `toml:"LogLevel"`
 	ListenPrometheus               string       `toml:"ListenPrometheus"`
+	JSONParsingLibrary             string       `toml:"JsonParsingLibrary"`
 	Connections                    []Connection `toml:"Connections"`
 	Nodes                          []string     `toml:"Nodes"`
 	Listen                         []string     `toml:"Listen"`
@@ -108,7 +109,6 @@ type Config struct {
 	SaveTempRequests               bool         `toml:"SaveTempRequests"`
 	BackendKeepAlive               bool         `toml:"BackendKeepAlive"`
 	LogQueryStats                  bool         `toml:"LogQueryStats"`
-	JsonParsingLibrary             string       `toml:"JsonParsingLibrary"`
 }
 
 // NewConfig reads all config files.
@@ -141,7 +141,7 @@ func NewConfig(files []string) *Config {
 		MaxParallelPeerConnections:     3,
 		MaxParallelPeerInitializations: 50,
 		MaxQueryFilter:                 DefaultMaxQueryFilter,
-		JsonParsingLibrary:             "rjson",
+		JSONParsingLibrary:             "rjson",
 	}
 
 	// combine listeners from all files
@@ -254,10 +254,10 @@ func (conf *Config) ValidateConfig() {
 		log.Warnf("config: MaxParallelPeerInitializations invalid, value must be greater than 0")
 		conf.MaxParallelPeerInitializations = DefaultConfig.MaxParallelPeerInitializations
 	}
-	validJsonParsingLibraries := []string{"rjson", "simdjson"}
-	if slices.Contains(validJsonParsingLibraries, conf.JsonParsingLibrary) {
-		log.Warnf("config: JsonParsingLibrary specified is not supported, pick one of the available: %v", validJsonParsingLibraries)
-		conf.JsonParsingLibrary = DefaultConfig.JsonParsingLibrary
+	validJSONParsingLibraries := []string{"rjson", "simdjson"}
+	if slices.Contains(validJSONParsingLibraries, conf.JSONParsingLibrary) {
+		log.Warnf("config: JsonParsingLibrary specified is not supported, pick one of the available: %v", validJSONParsingLibraries)
+		conf.JSONParsingLibrary = DefaultConfig.JSONParsingLibrary
 	}
 }
 

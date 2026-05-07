@@ -130,7 +130,7 @@ type Peer struct { //nolint:govet // not fieldalignment relevant
 		Request  atomic.Pointer[Request] // reference to last query (used in error reports)
 		Response atomic.Pointer[[]byte]  // reference to last response
 	}
-	simdjsonLastParsedJson *simdjson.ParsedJson // for reusing the buffers and string cache on a peer level
+	simdjsonLastParsedJSON *simdjson.ParsedJson // for reusing the buffers and string cache on a peer level
 }
 
 var connectionErrorIndicators = [][]byte{
@@ -417,7 +417,6 @@ func (p *Peer) setHTTPClient() {
 // updateLoop is the main loop updating this peer.
 // It does not return till triggered by the shutdownChannel or by the internal stopChannel.
 func (p *Peer) updateLoop(ctx context.Context) {
-
 	// semaphore for peer table initialization step
 	p.lmd.peerInitializationPool <- struct{}{}
 	err := p.initAllTables(ctx)

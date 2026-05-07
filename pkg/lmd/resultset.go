@@ -36,15 +36,14 @@ func NewResultSetRjson(data []byte) (res ResultSet, err error) {
 }
 
 // NewResultSet parses resultset from given bytes.
-func NewResultSetSimdjson(data []byte, previouslyParsedJson *simdjson.ParsedJson) (res ResultSet, parsedJson *simdjson.ParsedJson, err error) {
+func NewResultSetSimdjson(data []byte, previouslyParsedJSON *simdjson.ParsedJson) (res ResultSet, parsedJSON *simdjson.ParsedJson, err error) {
+	res, parsedJSON, err = parseJSONResultSimdjsonNoCopyStrings(data, previouslyParsedJSON)
 
-	res, remaining, pj, err := parseJSONResultSimdjsonNoCopyStrings(data, previouslyParsedJson)
-
-	if len(remaining) > 0 {
-		return nil, pj, fmt.Errorf("json parse error, stray data: %s", data)
+	if err != nil {
+		return nil, parsedJSON, fmt.Errorf("json parse error: %s", err.Error())
 	}
 
-	return res, pj, err
+	return res, parsedJSON, err
 }
 
 // sortByPrimaryKey sorts the resultset by their primary columns.

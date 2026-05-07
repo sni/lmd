@@ -121,20 +121,21 @@ func (c ConnectionType) String() string {
 }
 
 type Daemon struct {
-	waitGroupListener *sync.WaitGroup
-	Listeners         map[string]*Listener // Listeners stores if we started a listener
-	Config            *Config              // reference to global config object
-	waitGroupPeers    *sync.WaitGroup
-	ListenersLock     *RWMutex // ListenersLock is the lock for the Listeners map
-	nodeAccessor      *Nodes   // nodeAccessor manages cluster nodes and starts/stops peers.
-	shutdownChannel   chan bool
-	cpuProfileHandler *os.File
-	peerMap           *PeerMap
-	waitGroupInit     *sync.WaitGroup
-	initChannel       chan bool
-	mainSignalChannel chan os.Signal // used for internal signals for testing
-	qStat             *QueryStats
-	flags             struct {
+	waitGroupListener      *sync.WaitGroup
+	Listeners              map[string]*Listener // Listeners stores if we started a listener
+	Config                 *Config              // reference to global config object
+	waitGroupPeers         *sync.WaitGroup
+	ListenersLock          *RWMutex // ListenersLock is the lock for the Listeners map
+	nodeAccessor           *Nodes   // nodeAccessor manages cluster nodes and starts/stops peers.
+	shutdownChannel        chan bool
+	cpuProfileHandler      *os.File
+	peerMap                *PeerMap
+	waitGroupInit          *sync.WaitGroup
+	initChannel            chan bool
+	mainSignalChannel      chan os.Signal // used for internal signals for testing
+	peerInitializationPool chan struct{}
+	qStat                  *QueryStats
+	flags                  struct {
 		flagLogFile          string
 		flagPidfile          string
 		flagProfile          string
@@ -153,7 +154,6 @@ type Daemon struct {
 	}
 	lastMainRestart           float64
 	defaultRequestParseOption ParseOptions
-	peerInitializationPool    chan struct{}
 }
 
 type ArrayFlags struct {

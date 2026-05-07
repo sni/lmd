@@ -116,6 +116,10 @@ linters:
       - path: (.+)\.go$
         text: 'Magic number: 65536\D '
       - path: (.+)\.go$
+        text: 'Magic number: 50\D '
+      - path: (.+)\.go$
+        text: 'Magic number: 256\D '
+      - path: (.+)\.go$
         text: cognitive complexity .* of func `.*Request..getDistributedResponse` is high
       - path: (.+)\.go$
         text: cognitive complexity .* of func `.*appendIndexHostsFromServiceColumns` is high
@@ -157,6 +161,8 @@ linters:
         text: 'G704: SSRF via taint analysis'
       - path: (.+)\.go$
         text: 'G703: Path traversal via taint analysis'
+      - path: (.+)\.go$
+        text: string `host_name` has .* occurrences, make it a constant
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0

@@ -21,9 +21,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/willabides/rjson"
-
 	simdjson "github.com/minio/simdjson-go"
+	"github.com/willabides/rjson"
 )
 
 // Request defines a livestatus request object.
@@ -1002,25 +1001,27 @@ func (req *Request) parseResult(resBytes []byte) (ResultSet, *ResultMetaData, er
 	}
 
 	var res ResultSet
-	var pj *simdjson.ParsedJson
+	var parsedJSON *simdjson.ParsedJson
 
-	switch req.lmd.Config.JsonParsingLibrary {
+	switch req.lmd.Config.JSONParsingLibrary {
 	case "rjson":
 		res, err = NewResultSetRjson(resBytes)
 	case "simdjson":
-		res, pj, err = NewResultSetSimdjson(resBytes, req.peer.simdjsonLastParsedJson)
-		if pj != nil {
+		res, parsedJSON, err = NewResultSetSimdjson(resBytes, req.peer.simdjsonLastParsedJSON)
+		if parsedJSON != nil {
 			// only save the pj if its not nill
-			req.peer.simdjsonLastParsedJson = pj
+			req.peer.simdjsonLastParsedJSON = parsedJSON
 		}
 	default:
-		log.Panicf("No supported jsonParsingLibrary is chosen: %s", req.lmd.Config.JsonParsingLibrary)
+		log.Panicf("No supported jsonParsingLibrary is chosen: %s", req.lmd.Config.JSONParsingLibrary)
 	}
 
 	return res, meta, err
 }
 
-// data is an array of arrays
+// data is an array of arrays.
+//
+//nolint:wastedassign // json is set as nil to force gc
 func parseJSONResultRjson(data []byte) (res ResultSet, remaining []byte, err error) {
 	datalen := len(data)
 
@@ -1102,45 +1103,38 @@ func parseJSONResultRjson(data []byte) (res ResultSet, remaining []byte, err err
 			)
 	}
 
-	// garbage collect early on
 	json = nil
 
-	if datalen > 100_000_000 {
+	forceGCBytes := 100_000_000 // 100 Mb
+
+	if datalen > forceGCBytes {
 		debug.FreeOSMemory()
 	}
 
 	return res, data, nil
 }
 
-func parseJSONResultSimdjsonNoCopyStrings(data []byte, previouslyParsedJson *simdjson.ParsedJson) (res ResultSet, remaining []byte, parsedJson *simdjson.ParsedJson, err error) {
-	var pj *simdjson.ParsedJson
-	pj, err = simdjson.Parse(data, previouslyParsedJson, simdjson.WithCopyStrings(false))
-	if previouslyParsedJson == nil {
-		// pj, err = simdjson.Parse(data, previouslyParsedJson, simdjson.WithCopyStrings(false))
-	} else {
-		//
-	}
+func parseJSONResultSimdjsonNoCopyStrings(data []byte, previouslyParsedJSON *simdjson.ParsedJson) (res ResultSet, parsedJSON *simdjson.ParsedJson, err error) {
+	parsedJSON, err = simdjson.Parse(data, previouslyParsedJSON, simdjson.WithCopyStrings(false))
 
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("Parse failed: %s", err.Error())
+		return nil, nil, fmt.Errorf("parse failed: %s", err.Error())
 	}
 
-	iter1 := pj.Iter()
+	iter1 := parsedJSON.Iter()
 
 	typ1, err := iter1.AdvanceIter(&iter1)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	if typ1 != simdjson.TypeRoot {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	iter1.AdvanceInto()
 
-	// fmt.Fprintf(os.Stderr, "iter1 type: %s\n", iter1.Type().String())
-
 	arrayObject1, err := iter1.Array(nil)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	arrayObject1Iter := arrayObject1.Iter()
@@ -1148,24 +1142,24 @@ func parseJSONResultSimdjsonNoCopyStrings(data []byte, previouslyParsedJson *sim
 	typ2 := arrayObject1Iter.Advance()
 
 	if typ2 == simdjson.TypeNone {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	lines, err := arrayObject1.Interface()
 
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	res = make(ResultSet, len(lines))
 
 	for i, line := range lines {
-		if lineArr, ok := line.([]interface{}); ok {
+		if lineArr, ok := line.([]any); ok {
 			res[i] = lineArr
 		}
 	}
 
-	return res, nil, pj, nil
+	return res, parsedJSON, nil
 }
 
 func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) (res ResultSet, err error) {

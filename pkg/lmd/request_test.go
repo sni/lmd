@@ -14,10 +14,9 @@ import (
 	"time"
 	"unicode/utf8"
 
+	simdjson "github.com/minio/simdjson-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	simdjson "github.com/minio/simdjson-go"
 )
 
 func TestRequestHeader(t *testing.T) {
@@ -1725,7 +1724,6 @@ func TestReplaceInvalidUTF8(t *testing.T) {
 }
 
 func TestSimdjson(t *testing.T) {
-
 	// These are responses to livestatus queries like this:
 	// GET status
 	// ResponseHeader: fixed16
@@ -1734,32 +1732,38 @@ func TestSimdjson(t *testing.T) {
 	// KeepAlive: on
 
 	// the livestatus_all script to gather resources
-	livestatus_reponses_path := "./t/livestatus_responses"
+	livestatusResponsesPath := "./t/livestatus_responses"
 
-	err := filepath.Walk(livestatus_reponses_path, func(path string, info fs.FileInfo, err error) error {
+	err := filepath.Walk(livestatusResponsesPath, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			t.Errorf("Walk error for %s: %v", path, err)
-			return nil // continue walking
+
+			return nil
 		}
 
 		if info.IsDir() {
 			t.Logf("Skipping directory: %s", info.Name())
-			return nil // continue
+
+			return nil
 		}
 		if !strings.HasSuffix(info.Name(), "livestatus.response") {
 			t.Logf("Skipping non-matching file: %s", info.Name())
+
 			return nil
 		}
 
 		file, err := os.Open(path)
 		if err != nil {
 			t.Errorf("Failed to open %s: %v", path, err)
+
 			return nil
 		}
 		defer file.Close()
 
 		t.Logf("Reading file: %s", path)
-		data, err := os.ReadFile(path)
+		data, readFileErr := os.ReadFile(path)
+		require.NoError(t, readFileErr)
+
 		// The first line of the results contains a response code, followed by content length
 		// Like this:
 		// 200        7429
@@ -1767,29 +1771,30 @@ func TestSimdjson(t *testing.T) {
 
 		firstNL := bytes.IndexByte(data, '\n')
 
-		pj, err := simdjson.Parse(data[firstNL+1:], nil, simdjson.WithCopyStrings(false))
+		parsedJSON, err := simdjson.Parse(data[firstNL+1:], nil, simdjson.WithCopyStrings(false))
 		if err != nil {
 			t.Errorf("Parse failed for %s: %v", path, err)
+
 			return nil
 		}
 
-		err = pj.ForEach(func(i1 simdjson.Iter) error {
-			// t.Logf("i1 iterator type: %s", i1.Type().String())
+		err = parsedJSON.ForEach(func(i1 simdjson.Iter) error {
+			require.NoError(t, err)
 			assert.Equal(t, simdjson.TypeArray, i1.Type(), "First level parsing should return an iterator to arrays")
 			if i1.Type() == simdjson.TypeArray {
 				arrayObject1, err := i1.Array(nil)
 				assert.NotNil(t, arrayObject1)
-				assert.Nil(t, err)
+				require.NoError(t, err)
 
 				arrayObject1.ForEach(func(i2 simdjson.Iter) {
-					// t.Logf("i2 iterator type: %s", i2.Type().String())
 					assert.Equal(t, simdjson.TypeArray, i2.Type(), "Second level parsing should return an iterator to arrays")
 					if i2.Type() == simdjson.TypeArray {
 						arrayObject2, err := i2.Array(nil)
 						assert.NotNil(t, arrayObject2)
-						assert.Nil(t, err)
+						require.NoError(t, err)
 
-						arrayObject2.ForEach(func(i3 simdjson.Iter) {
+						arrayObject2.ForEach(func(_ simdjson.Iter) {
+							// should differ depending on field value
 							// t.Logf("i3 iterator type: %s", i3.Type().String())
 						})
 					}
@@ -1805,11 +1810,9 @@ func TestSimdjson(t *testing.T) {
 	if err != nil {
 		t.Errorf("filepath.Walk error: %v", err)
 	}
-
 }
 
 func TestSimdjson2(t *testing.T) {
-
 	// These are responses to livestatus queries like this:
 	// GET status
 	// ResponseHeader: fixed16
@@ -1818,32 +1821,38 @@ func TestSimdjson2(t *testing.T) {
 	// KeepAlive: on
 
 	// the livestatus_all script to gather resources
-	livestatus_reponses_path := "./t/livestatus_responses"
+	livestatusResponsesPath := "./t/livestatus_responses"
 
-	err := filepath.Walk(livestatus_reponses_path, func(path string, info fs.FileInfo, err error) error {
+	err := filepath.Walk(livestatusResponsesPath, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			t.Errorf("Walk error for %s: %v", path, err)
-			return nil // continue walking
+
+			return nil
 		}
 
 		if info.IsDir() {
 			t.Logf("Skipping directory: %s", info.Name())
-			return nil // continue
+
+			return nil
 		}
 		if !strings.HasSuffix(info.Name(), "livestatus.response") {
 			t.Logf("Skipping non-matching file: %s", info.Name())
+
 			return nil
 		}
 
 		file, err := os.Open(path)
 		if err != nil {
 			t.Errorf("Failed to open %s: %v", path, err)
+
 			return nil
 		}
 		defer file.Close()
 
 		t.Logf("Reading file: %s", path)
-		data, err := os.ReadFile(path)
+		data, readFileErr := os.ReadFile(path)
+		require.NoError(t, readFileErr)
+
 		// The first line of the results contains a response code, followed by content length
 		// Like this:
 		// 200        7429
@@ -1853,12 +1862,11 @@ func TestSimdjson2(t *testing.T) {
 
 		data = data[firstNL+1:]
 
-		res, rem, _, err := parseJSONResultSimdjsonNoCopyStrings(data, nil)
+		res, _, err := parseJSONResultSimdjsonNoCopyStrings(data, nil)
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		t.Logf("Got results set with length: %d", len(res))
-		t.Logf("Got remaining bytes with length: %d", len(rem))
 
 		return nil
 	})
@@ -1867,11 +1875,10 @@ func TestSimdjson2(t *testing.T) {
 		t.Errorf("filepath.Walk error: %v", err)
 	}
 
-	// t.Logf("%s", getMemoryDetails())
+	t.Logf("%s", getMemoryDetails())
 }
 
 func TestRjson(t *testing.T) {
-
 	// These are responses to livestatus queries like this:
 	// GET status
 	// ResponseHeader: fixed16
@@ -1880,32 +1887,39 @@ func TestRjson(t *testing.T) {
 	// KeepAlive: on
 
 	// the livestatus_all script to gather resources
-	livestatus_reponses_path := "./t/livestatus_responses/"
+	livestatusResponsesPath := "./t/livestatus_responses/"
 
-	err := filepath.Walk(livestatus_reponses_path, func(path string, info fs.FileInfo, err error) error {
+	err := filepath.Walk(livestatusResponsesPath, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			t.Errorf("Walk error for %s: %v", path, err)
-			return nil // continue walking
+
+			return nil
 		}
 
 		if info.IsDir() {
 			t.Logf("Skipping directory: %s", info.Name())
-			return nil // continue
+
+			return nil
 		}
 		if !strings.HasSuffix(info.Name(), "livestatus.response") {
 			t.Logf("Skipping non-matching file: %s", info.Name())
+
 			return nil
 		}
 
 		file, err := os.Open(path)
 		if err != nil {
 			t.Errorf("Failed to open %s: %v", path, err)
+
 			return nil
 		}
 		defer file.Close()
 
 		t.Logf("Reading file: %s", path)
-		data, err := os.ReadFile(path)
+		data, readFileErr := os.ReadFile(path)
+
+		require.NoError(t, readFileErr)
+
 		// The first line of the results contains a response code, followed by content length
 		// Like this:
 		// 200        7429
@@ -1917,7 +1931,7 @@ func TestRjson(t *testing.T) {
 
 		res, rem, err := parseJSONResultRjson(data)
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		t.Logf("Got results set with length: %d", len(res))
 		t.Logf("Got remaining bytes with length: %d", len(rem))

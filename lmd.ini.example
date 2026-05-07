@@ -51,7 +51,8 @@ SyncIsExecuting = true
 # Number of maximum parallel connections per backend. Used ex. to initially synchronize objects. Set to <= 1 to disable parallel fetching.
 MaxParallelPeerConnections = 3
 
-# Controls how many backends can be initialized at once. Has no effect after backend are initialized i.e objects are synchronized.
+# Controls how many backends can be initialized at once.
+# Has no effect after backends are initialized i.e objects are synchronized for the first time.
 MaxParallelPeerInitializations = 10
 
 # CompressionMinimumSize sets the minimum number of characters to use compression
@@ -133,7 +134,7 @@ MaxClockDelta = 10.0
 # LMD an use either the Rjson library or Simdjson-go library for parsing JSON data
 # Simdjson might be faster if a AVX2/AVX512 capable CPU is used
 # Options: rjson , simdjson
-JsonParsingLibrary = "rjson"
+JSONParsingLibrary = "rjson"
 
 # use tcp connections
 [[Connections]]

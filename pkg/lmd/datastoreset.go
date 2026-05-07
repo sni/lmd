@@ -81,13 +81,13 @@ func (ds *DataStoreSet) initAllTables(ctx context.Context) (err error) {
 	logWith(ds.peer).Debugf("memory stats after initializing tables:\n%s", getMemoryDetails())
 
 	if meta != nil {
-		logWith(ds).Debugf("merged metadata for datastoreset initializations | fetchTime: %9s , parseTime: %9s , prepTime: %9s , lockTime: %9s", meta.mergedQueryMetadata.Duration.Truncate(time.Millisecond), meta.mergedQueryMetadata.ParseDuration.Truncate(time.Millisecond), meta.prepTime, meta.lockTime)
+		logWith(ds).Debugf("merged metadata for datastoreset initializations | fetchTime: %9s , parseTime: %9s , prepTime: %9s , lockTime: %9s",
+			meta.mergedQueryMetadata.Duration.Truncate(time.Millisecond), meta.mergedQueryMetadata.ParseDuration.Truncate(time.Millisecond), meta.prepTime, meta.lockTime)
 	}
 
-	meta = nil
 	// set the simdjson parser pointer to nil after table initialization
 	// it contains buffers and parsing tape, a good target to clear immediately
-	ds.peer.simdjsonLastParsedJson = nil
+	ds.peer.simdjsonLastParsedJSON = nil
 
 	if ds.peer.hasFlag(MultiBackend) {
 		return nil
@@ -124,11 +124,11 @@ func (ds *DataStoreSet) initAllTablesSerial(ctx context.Context) (metadata *Obje
 	// fetch one at a time
 	for _, n := range Objects.UpdateTables {
 		t := Objects.Tables[n]
-		meta, err := ds.initTable(ctx, t)
-		if err != nil {
-			logWith(ds.peer).Debugf("fetching %s objects failed: %s", t.name.String(), err.Error())
+		meta, initTableErr := ds.initTable(ctx, t)
+		if initTableErr != nil {
+			logWith(ds.peer).Debugf("fetching %s objects failed: %s", t.name.String(), initTableErr.Error())
 
-			return nil, err
+			return nil, initTableErr
 		}
 		objMetas = append(objMetas, meta)
 	}
@@ -174,6 +174,7 @@ func (ds *DataStoreSet) initAllTablesParallel(ctx context.Context) (metadata *Ob
 			if err2 != nil {
 				logWith(ds.peer).Debugf("fetching %s objects failed: %s", table.name.String(), err2.Error())
 				results <- err2
+
 				return
 			}
 			objectInitMetas <- meta
@@ -401,8 +402,9 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 
 	if mergedQueryMetadata != nil {
 		logWith(peer, lastReq).Debugf("initial table: %15s - fetch: %9s - parse: %9s - prep: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB - speed: %5f Mbps",
-			tableName, mergedQueryMetadata.Duration.Truncate(time.Millisecond), mergedQueryMetadata.ParseDuration.Truncate(time.Millisecond), totalPrepTime, durationLock, durationInsert, totalRowNum, mergedQueryMetadata.Size/1024, (float64)(mergedQueryMetadata.Size)*8.0/1024.0/1024.0/mergedQueryMetadata.Duration.Seconds())
-
+			tableName, mergedQueryMetadata.Duration.Truncate(time.Millisecond), mergedQueryMetadata.ParseDuration.Truncate(time.Millisecond),
+			totalPrepTime, durationLock, durationInsert, totalRowNum, mergedQueryMetadata.Size/1024,
+			float64(mergedQueryMetadata.Size)*8.0/1024.0/1024.0/mergedQueryMetadata.Duration.Seconds())
 	}
 
 	return store, objectInitializationMetadata, nil

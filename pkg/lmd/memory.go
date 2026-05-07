@@ -5,6 +5,11 @@ import (
 	"runtime"
 )
 
+const (
+	byteNextLevel          = 1024
+	nanosecondToMilisecond = 1_000_000
+)
+
 func getMemoryDetails() (details string) {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
@@ -31,22 +36,22 @@ func getMemoryDetails() (details string) {
 			"GCCPUFraction: %.4f\n"+
 			"PauseNs (last 5): %v\n"+
 			"PauseEnd (last 5): %v",
-		memStats.Alloc, float64(memStats.Alloc)/1024/1024,
-		memStats.TotalAlloc, float64(memStats.TotalAlloc)/1024/1024,
-		memStats.Sys, float64(memStats.Sys)/1024/1024,
-		memStats.HeapAlloc, float64(memStats.HeapAlloc)/1024/1024,
-		memStats.HeapSys, float64(memStats.HeapSys)/1024/1024,
-		memStats.HeapIdle, float64(memStats.HeapIdle)/1024/1024,
-		memStats.HeapInuse, float64(memStats.HeapInuse)/1024/1024,
-		memStats.HeapReleased, float64(memStats.HeapReleased)/1024/1024,
+		memStats.Alloc, float64(memStats.Alloc)/byteNextLevel/byteNextLevel,
+		memStats.TotalAlloc, float64(memStats.TotalAlloc)/byteNextLevel/byteNextLevel,
+		memStats.Sys, float64(memStats.Sys)/byteNextLevel/byteNextLevel,
+		memStats.HeapAlloc, float64(memStats.HeapAlloc)/byteNextLevel/byteNextLevel,
+		memStats.HeapSys, float64(memStats.HeapSys)/byteNextLevel/byteNextLevel,
+		memStats.HeapIdle, float64(memStats.HeapIdle)/byteNextLevel/byteNextLevel,
+		memStats.HeapInuse, float64(memStats.HeapInuse)/byteNextLevel/byteNextLevel,
+		memStats.HeapReleased, float64(memStats.HeapReleased)/byteNextLevel/byteNextLevel,
 		memStats.HeapObjects,
-		memStats.StackInuse, float64(memStats.StackInuse)/1024/1024,
-		memStats.StackSys, float64(memStats.StackSys)/1024/1024,
+		memStats.StackInuse, float64(memStats.StackInuse)/byteNextLevel/byteNextLevel,
+		memStats.StackSys, float64(memStats.StackSys)/byteNextLevel/byteNextLevel,
 		memStats.Mallocs,
 		memStats.Frees,
-		memStats.NextGC, float64(memStats.NextGC)/1024/1024,
+		memStats.NextGC, float64(memStats.NextGC)/byteNextLevel/byteNextLevel,
 		memStats.LastGC,
-		memStats.PauseTotalNs, float64(memStats.PauseTotalNs)/1000000,
+		memStats.PauseTotalNs, float64(memStats.PauseTotalNs)/nanosecondToMilisecond,
 		memStats.NumGC,
 		memStats.NumForcedGC,
 		memStats.GCCPUFraction,
@@ -57,6 +62,7 @@ func getMemoryDetails() (details string) {
 				idx := (memStats.NumGC - uint32(i)) % 256
 				pauses = append(pauses, memStats.PauseNs[idx])
 			}
+
 			return pauses
 		}(),
 		// Show last few pause end times
@@ -66,6 +72,7 @@ func getMemoryDetails() (details string) {
 				idx := (memStats.NumGC - uint32(i)) % 256
 				pauseEnds = append(pauseEnds, memStats.PauseEnd[idx])
 			}
+
 			return pauseEnds
 		}(),
 	)
