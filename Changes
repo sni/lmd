@@ -5,9 +5,11 @@ This file documents the revision history for the Livestatus Multitool Daemon (LM
 next
           - minimal supported golang 1.26.2
           - add MaxParallelPeerInitializations option
+          - added simdjson-go library, can be used instead of rjson library
+          - add livestatus query responses and tests for parsing them
+          - add JsonParsingLibrary option to switch between rjson and simdjson-go
+          - collect and merge table initialization stats for tracing
           - update dependencies
-          - improve logs during peer table initialization
-          - wip: adding simdjson library for parsing
 
 2.8.0    Fri Apr 10 16:19:01 CEST 2026
           - improve ondemand synchronisation after sending commands
