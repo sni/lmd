@@ -14,6 +14,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -1014,7 +1015,7 @@ func (req *Request) parseResult(resBytes []byte) (ResultSet, *ResultMetaData, er
 			req.peer.simdjsonLastParsedJson = pj
 		}
 	default:
-		log.Panic("No supported jsonParsingLibrary is chosen: %s", req.lmd.Config.JsonParsingLibrary)
+		log.Panicf("No supported jsonParsingLibrary is chosen: %s", req.lmd.Config.JsonParsingLibrary)
 	}
 
 	return res, meta, err
@@ -1022,6 +1023,8 @@ func (req *Request) parseResult(resBytes []byte) (ResultSet, *ResultMetaData, er
 
 // data is an array of arrays
 func parseJSONResultRjson(data []byte) (res ResultSet, remaining []byte, err error) {
+	datalen := len(data)
+
 	res = make(ResultSet, 0)
 	rowNum := 0
 
@@ -1098,6 +1101,13 @@ func parseJSONResultRjson(data []byte) (res ResultSet, remaining []byte, err err
 				finalPos+1,
 				err.Error(),
 			)
+	}
+
+	// garbage collect early on
+	json = nil
+
+	if datalen > 100_000_000 {
+		debug.FreeOSMemory()
 	}
 
 	return res, data, nil
@@ -1334,237 +1344,9 @@ func parseJSONResultSimdjson8(data []byte) (res ResultSet, remaining []byte, err
 	return res, nil, nil
 }
 
-func parseJSONResultSimdjson9(data []byte, previouslyParsedJson *simdjson.ParsedJson) (res ResultSet, remaining []byte, parsedJson *simdjson.ParsedJson, err error) {
+func parseJSONResultSimdjsonNoCopyStrings(data []byte, previouslyParsedJson *simdjson.ParsedJson) (res ResultSet, remaining []byte, parsedJson *simdjson.ParsedJson, err error) {
 	var pj *simdjson.ParsedJson
 	pj, err = simdjson.Parse(data, previouslyParsedJson, simdjson.WithCopyStrings(false))
-	if previouslyParsedJson == nil {
-		// pj, err = simdjson.Parse(data, previouslyParsedJson, simdjson.WithCopyStrings(false))
-	} else {
-		//
-	}
-
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("Parse failed: %s", err.Error())
-	}
-
-	iter1 := pj.Iter()
-
-	typ1, err := iter1.AdvanceIter(&iter1)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	if typ1 != simdjson.TypeRoot {
-		return nil, nil, nil, err
-	}
-	iter1.AdvanceInto()
-
-	// fmt.Fprintf(os.Stderr, "iter1 type: %s\n", iter1.Type().String())
-
-	arrayObject1, err := iter1.Array(nil)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	arrayObject1Iter := arrayObject1.Iter()
-
-	typ2 := arrayObject1Iter.Advance()
-
-	if typ2 == simdjson.TypeNone {
-		return nil, nil, nil, err
-	}
-
-	lines, err := arrayObject1.Interface()
-
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	res = make(ResultSet, len(lines))
-
-	for i, line := range lines {
-		if lineArr, ok := line.([]interface{}); ok {
-			res[i] = lineArr
-		}
-	}
-
-	return res, nil, pj, nil
-}
-
-func parseJSONResultSimdjson10(data []byte, previouslyParsedJson *simdjson.ParsedJson) (res ResultSet, remaining []byte, parsedJson *simdjson.ParsedJson, err error) {
-	var pj *simdjson.ParsedJson
-	pj, err = simdjson.Parse(data, previouslyParsedJson, simdjson.WithCopyStrings(true))
-	if previouslyParsedJson == nil {
-		// pj, err = simdjson.Parse(data, previouslyParsedJson, simdjson.WithCopyStrings(false))
-	} else {
-		//
-	}
-
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("Parse failed: %s", err.Error())
-	}
-
-	iter1 := pj.Iter()
-
-	typ1, err := iter1.AdvanceIter(&iter1)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	if typ1 != simdjson.TypeRoot {
-		return nil, nil, nil, err
-	}
-	iter1.AdvanceInto()
-
-	// fmt.Fprintf(os.Stderr, "iter1 type: %s\n", iter1.Type().String())
-
-	arrayObject1, err := iter1.Array(nil)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	arrayObject1Iter := arrayObject1.Iter()
-
-	typ2 := arrayObject1Iter.Advance()
-
-	if typ2 == simdjson.TypeNone {
-		return nil, nil, nil, err
-	}
-
-	lines, err := arrayObject1.Interface()
-
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	res = make(ResultSet, len(lines))
-
-	for i, line := range lines {
-		if lineArr, ok := line.([]interface{}); ok {
-			res[i] = lineArr
-		}
-	}
-
-	return res, nil, pj, nil
-}
-
-func parseJSONResultSimdjson11(data []byte, previouslyParsedJson *simdjson.ParsedJson) (res ResultSet, remaining []byte, parsedJson *simdjson.ParsedJson, err error) {
-	var pj *simdjson.ParsedJson
-	pj, err = simdjson.Parse(data, previouslyParsedJson, simdjson.WithMaxCapacity(1_000_000_000))
-	if previouslyParsedJson == nil {
-		// pj, err = simdjson.Parse(data, previouslyParsedJson, simdjson.WithCopyStrings(false))
-	} else {
-		//
-	}
-
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("Parse failed: %s", err.Error())
-	}
-
-	iter1 := pj.Iter()
-
-	typ1, err := iter1.AdvanceIter(&iter1)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	if typ1 != simdjson.TypeRoot {
-		return nil, nil, nil, err
-	}
-	iter1.AdvanceInto()
-
-	// fmt.Fprintf(os.Stderr, "iter1 type: %s\n", iter1.Type().String())
-
-	arrayObject1, err := iter1.Array(nil)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	arrayObject1Iter := arrayObject1.Iter()
-
-	typ2 := arrayObject1Iter.Advance()
-
-	if typ2 == simdjson.TypeNone {
-		return nil, nil, nil, err
-	}
-
-	lines, err := arrayObject1.Interface()
-
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	res = make(ResultSet, len(lines))
-
-	for i, line := range lines {
-		if lineArr, ok := line.([]interface{}); ok {
-			res[i] = lineArr
-		}
-	}
-
-	return res, nil, pj, nil
-}
-
-func parseJSONResultSimdjson12(data []byte, previouslyParsedJson *simdjson.ParsedJson) (res ResultSet, remaining []byte, parsedJson *simdjson.ParsedJson, err error) {
-	var pj *simdjson.ParsedJson
-	pj, err = simdjson.Parse(data, previouslyParsedJson, simdjson.WithMaxCapacity(512_000_000))
-	if previouslyParsedJson == nil {
-		// pj, err = simdjson.Parse(data, previouslyParsedJson, simdjson.WithCopyStrings(false))
-	} else {
-		//
-	}
-
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("Parse failed: %s", err.Error())
-	}
-
-	iter1 := pj.Iter()
-
-	typ1, err := iter1.AdvanceIter(&iter1)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	if typ1 != simdjson.TypeRoot {
-		return nil, nil, nil, err
-	}
-	iter1.AdvanceInto()
-
-	// fmt.Fprintf(os.Stderr, "iter1 type: %s\n", iter1.Type().String())
-
-	arrayObject1, err := iter1.Array(nil)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	arrayObject1Iter := arrayObject1.Iter()
-
-	typ2 := arrayObject1Iter.Advance()
-
-	if typ2 == simdjson.TypeNone {
-		return nil, nil, nil, err
-	}
-
-	lines, err := arrayObject1.Interface()
-
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	res = make(ResultSet, len(lines))
-
-	for i, line := range lines {
-		if lineArr, ok := line.([]interface{}); ok {
-			res[i] = lineArr
-		}
-	}
-
-	return res, nil, pj, nil
-}
-
-func parseJSONResultSimdjson13(data []byte, previouslyParsedJson *simdjson.ParsedJson) (res ResultSet, remaining []byte, parsedJson *simdjson.ParsedJson, err error) {
-	var pj *simdjson.ParsedJson
-	parserOptions := simdjson.WithCopyStrings(true)
-	maxCapacity := max(1_000_000_000, int(float64(len(data))*float64(1.2)))
-	log.Debugf("maxCapacity : %d", maxCapacity)
-	parserOptions = parserOptions.WithFixedCapacity(uint64(maxCapacity))
-	pj, err = simdjson.Parse(data, previouslyParsedJson, parserOptions)
 	if previouslyParsedJson == nil {
 		// pj, err = simdjson.Parse(data, previouslyParsedJson, simdjson.WithCopyStrings(false))
 	} else {

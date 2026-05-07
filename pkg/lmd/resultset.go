@@ -38,13 +38,7 @@ func NewResultSetRjson(data []byte) (res ResultSet, err error) {
 // NewResultSet parses resultset from given bytes.
 func NewResultSetSimdjson(data []byte, previouslyParsedJson *simdjson.ParsedJson) (res ResultSet, parsedJson *simdjson.ParsedJson, err error) {
 
-	res, remaining, pj, err := parseJSONResultSimdjson9(data, previouslyParsedJson)
-
-	// res, remaining, pj, err := parseJSONResultSimdjson10(data, previouslyParsedJson)
-
-	// res, remaining, pj, err := parseJSONResultSimdjson12(data, previouslyParsedJson)
-
-	// res, remaining, pj, err := parseJSONResultSimdjson13(data, previouslyParsedJson)
+	res, remaining, pj, err := parseJSONResultSimdjsonNoCopyStrings(data, previouslyParsedJson)
 
 	if len(remaining) > 0 {
 		return nil, pj, fmt.Errorf("json parse error, stray data: %s", data)
