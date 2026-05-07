@@ -239,7 +239,7 @@ func TestPeerInitSerial(t *testing.T) {
 	PauseTestPeers(peer)
 
 	store := peer.data.Load()
-	err := store.initAllTablesSerial(t.Context())
+	_, err := store.initAllTablesSerial(t.Context())
 	require.NoError(t, err)
 
 	err = cleanup()

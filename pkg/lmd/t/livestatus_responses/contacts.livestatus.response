@@ -1,0 +1,4 @@
+200         536
+[["contact_with_notifications","contact_with_notifications",1,"nobody@localhost","","24x7",1,"24x7",1,0,0,[],1,1,"","","","","","",[],[],[],["dummy_hst_notification"],["dummy_svc_notification"]],
+["dev_contactalias_0","dev_contact_0",1,"nobody@localhost","","24x7",1,"24x7",1,1,0,[],1,1,"","","","","","",[],[],["dev_contactgroup_0"],["notify-host"],["notify-service"]],
+["example","example",1,"nobody@localhost","","24x7",0,"24x7",0,2,0,[],1,1,"","","","","","",[],[],["example"],["host-notify-by-email"],["service-notify-by-email"]]]

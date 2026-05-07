@@ -1734,7 +1734,7 @@ func TestSimdjson(t *testing.T) {
 	// KeepAlive: on
 
 	// the livestatus_all script to gather resources
-	livestatus_reponses_path := "/home/ahmet/repositories/naemon-dev-box/src/test/"
+	livestatus_reponses_path := "./t/livestatus_responses"
 
 	err := filepath.Walk(livestatus_reponses_path, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
@@ -1774,7 +1774,7 @@ func TestSimdjson(t *testing.T) {
 		}
 
 		err = pj.ForEach(func(i1 simdjson.Iter) error {
-			t.Logf("i1 iterator type: %s", i1.Type().String())
+			// t.Logf("i1 iterator type: %s", i1.Type().String())
 			assert.Equal(t, simdjson.TypeArray, i1.Type(), "First level parsing should return an iterator to arrays")
 			if i1.Type() == simdjson.TypeArray {
 				arrayObject1, err := i1.Array(nil)
@@ -1782,7 +1782,7 @@ func TestSimdjson(t *testing.T) {
 				assert.Nil(t, err)
 
 				arrayObject1.ForEach(func(i2 simdjson.Iter) {
-					t.Logf("i2 iterator type: %s", i2.Type().String())
+					// t.Logf("i2 iterator type: %s", i2.Type().String())
 					assert.Equal(t, simdjson.TypeArray, i2.Type(), "Second level parsing should return an iterator to arrays")
 					if i2.Type() == simdjson.TypeArray {
 						arrayObject2, err := i2.Array(nil)
@@ -1790,7 +1790,7 @@ func TestSimdjson(t *testing.T) {
 						assert.Nil(t, err)
 
 						arrayObject2.ForEach(func(i3 simdjson.Iter) {
-							t.Logf("i3 iterator type: %s", i3.Type().String())
+							// t.Logf("i3 iterator type: %s", i3.Type().String())
 						})
 					}
 				})
@@ -1818,7 +1818,7 @@ func TestSimdjson2(t *testing.T) {
 	// KeepAlive: on
 
 	// the livestatus_all script to gather resources
-	livestatus_reponses_path := "/home/ahmet/repositories/naemon-dev-box/src/test/"
+	livestatus_reponses_path := "./t/livestatus_responses"
 
 	err := filepath.Walk(livestatus_reponses_path, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
@@ -1880,7 +1880,7 @@ func TestRjson(t *testing.T) {
 	// KeepAlive: on
 
 	// the livestatus_all script to gather resources
-	livestatus_reponses_path := "/home/ahmet/repositories/naemon-dev-box/src/test/"
+	livestatus_reponses_path := "./t/livestatus_responses/"
 
 	err := filepath.Walk(livestatus_reponses_path, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
