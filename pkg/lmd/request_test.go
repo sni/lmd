@@ -1853,7 +1853,7 @@ func TestSimdjson2(t *testing.T) {
 
 		data = data[firstNL+1:]
 
-		res, rem, err := parseJSONResultSimdjson8(data)
+		res, rem, _, err := parseJSONResultSimdjsonNoCopyStrings(data, nil)
 
 		assert.Nil(t, err)
 
