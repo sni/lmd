@@ -10,6 +10,8 @@ linters:
     - gochecknoglobals
     - gochecknoinits
     - godoclint
+    - gomodguard
+    - goconst
     - nonamedreturns
     - noinlineerr
     - paralleltest

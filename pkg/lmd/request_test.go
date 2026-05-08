@@ -461,10 +461,10 @@ func TestRequestSort2(t *testing.T) {
 	require.NoErrorf(t, err, "query successful")
 	require.Lenf(t, res, 20, "result length")
 
-	assert.Equalf(t, "UPPER_3", (res)[0][0], "hostname matches")
-	assert.Equalf(t, "testhost_1", (res)[1][0], "hostname matches")
-	assert.Equalf(t, "testhost_10", (res)[2][0], "hostname matches")
-	assert.Equalf(t, "testhost_11", (res)[3][0], "hostname matches")
+	assert.Equalf(t, "UPPER_3", res[0][0], "hostname matches")
+	assert.Equalf(t, "testhost_1", res[1][0], "hostname matches")
+	assert.Equalf(t, "testhost_10", res[2][0], "hostname matches")
+	assert.Equalf(t, "testhost_11", res[3][0], "hostname matches")
 
 	err = cleanup()
 	require.NoError(t, err)
@@ -508,8 +508,8 @@ func TestRequestUnknownOptionalColumns(t *testing.T) {
 	require.NoErrorf(t, err, "query successful")
 	require.Lenf(t, res, 1, "result length")
 
-	assert.Equalf(t, "UPPER_3", (res)[0][0], "hostname matches")
-	assert.InDeltaf(t, -1, (res)[0][1], 0.00001, "is_impact matches")
+	assert.Equalf(t, "UPPER_3", res[0][0], "hostname matches")
+	assert.InDeltaf(t, -1, res[0][1], 0.00001, "is_impact matches")
 
 	err = cleanup()
 	require.NoError(t, err)
@@ -523,8 +523,8 @@ func TestRequestUnknownOptionalRefsColumns(t *testing.T) {
 	require.NoErrorf(t, err, "query successful")
 	require.Lenf(t, res, 1, "result length")
 
-	assert.Equalf(t, "UPPER_3", (res)[0][0], "hostname matches")
-	assert.InDeltaf(t, -1, (res)[0][1], 0.00001, "is_impact matches")
+	assert.Equalf(t, "UPPER_3", res[0][0], "hostname matches")
+	assert.InDeltaf(t, -1, res[0][1], 0.00001, "is_impact matches")
 
 	res, _, err = peer.QueryString("GET services\nColumns: host_name\nFilter: host_is_impact != -1\n\n")
 	require.NoErrorf(t, err, "query successful")
@@ -546,7 +546,7 @@ func TestRequestColumnsWrappedJson(t *testing.T) {
 	require.NoErrorf(t, err, "query successful")
 
 	require.Lenf(t, res, 10, "result length")
-	assert.Equalf(t, "UPPER_3", (res)[0][0], "hostname matches")
+	assert.Equalf(t, "UPPER_3", res[0][0], "hostname matches")
 
 	peer.lmd.Config.SaveTempRequests = true
 	res, meta, err := peer.QueryString("GET hosts\nColumns: name state alias\nOutputFormat: wrapped_json\nColumnHeaders: on\nLimit: 5\n\n")
@@ -557,7 +557,7 @@ func TestRequestColumnsWrappedJson(t *testing.T) {
 	require.NoErrorf(t, jErr, "json ok")
 
 	require.Lenf(t, res, 5, "result length")
-	assert.Equalf(t, "UPPER_3", (res)[0][0], "hostname matches")
+	assert.Equalf(t, "UPPER_3", res[0][0], "hostname matches")
 	assert.Equalf(t, int64(10), meta.Total, "meta.total matches")
 	assert.Equalf(t, "name", meta.Columns[0], "meta columns matches")
 
@@ -568,7 +568,7 @@ func TestRequestColumnsWrappedJson(t *testing.T) {
 	require.NoErrorf(t, jErr, "json ok")
 
 	require.Lenf(t, res, 10, "result length")
-	assert.Equalf(t, "UPPER_3", (res)[0][0], "hostname matches")
+	assert.Equalf(t, "UPPER_3", res[0][0], "hostname matches")
 
 	err = cleanup()
 	require.NoError(t, err)

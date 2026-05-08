@@ -124,7 +124,7 @@ func LogErrors(v ...any) {
 func buildFormatter(format string) *factorlog.StdFormatter {
 	format = strings.ReplaceAll(format, "%{Pid}", fmt.Sprintf("%d", os.Getpid()))
 
-	return (factorlog.NewStdFormatter(format))
+	return factorlog.NewStdFormatter(format)
 }
 
 // LogWriter implements the io.Writer interface and simply logs everything with given level.

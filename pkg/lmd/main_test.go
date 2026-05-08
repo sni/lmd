@@ -142,7 +142,8 @@ func TestAllOps(t *testing.T) {
 func testqueryCol(t *testing.T, peer *Peer, table TableName, column string) {
 	t.Helper()
 	lmd := createTestLMDInstance()
-	query := fmt.Sprintf("GET %s\nColumns: %s\nSort: %s asc\n\n",
+	query := fmt.Sprintf(
+		"GET %s\nColumns: %s\nSort: %s asc\n\n",
 		table.String(),
 		column,
 		column,
@@ -165,7 +166,8 @@ func testqueryCol(t *testing.T, peer *Peer, table TableName, column string) {
 func testqueryFilter(t *testing.T, peer *Peer, table TableName, column, operator, value string) {
 	t.Helper()
 	lmd := createTestLMDInstance()
-	query := fmt.Sprintf("GET %s\nColumns: %s\nFilter: %s %s%s\n\n",
+	query := fmt.Sprintf(
+		"GET %s\nColumns: %s\nFilter: %s %s%s\n\n",
 		table.String(),
 		column,
 		column,
@@ -192,7 +194,8 @@ func testqueryFilter(t *testing.T, peer *Peer, table TableName, column, operator
 func testqueryGroup(t *testing.T, peer *Peer, table TableName, column, operator, value string) {
 	t.Helper()
 	lmd := createTestLMDInstance()
-	query := fmt.Sprintf("GET %s\nColumns: %s\nStats: %s %s%s\n\n",
+	query := fmt.Sprintf(
+		"GET %s\nColumns: %s\nStats: %s %s%s\n\n",
 		table.String(),
 		column,
 		column,

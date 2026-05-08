@@ -8,7 +8,7 @@ type VirtualStoreResolveFunc func(table *Table, peer *Peer) *DataStore
 
 // GetTableBackendsStore returns the virtual data used for the backends livestatus table.
 func GetTableBackendsStore(_ *Table, peer *Peer) *DataStore {
-	return (peer.statusStore)
+	return peer.statusStore
 }
 
 // BuildTableBackendsStore returns the virtual data used for the backends livestatus table.

@@ -18,7 +18,8 @@ var (
 			Name:      "info",
 			Help:      "information about LMD",
 		},
-		[]string{"version"})
+		[]string{"version"},
+	)
 
 	promCompressionLevel = prometheus.NewGauge(
 		prometheus.GaugeOpts{

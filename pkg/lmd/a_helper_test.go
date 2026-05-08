@@ -324,7 +324,7 @@ LogFile        = "` + testLogTarget + `"
 // StartTestPeer just call StartTestPeerExtra
 // if numServices is  0, empty test data will be used.
 func StartTestPeer(numPeers, numHosts, numServices int) (*Peer, func() error, *Daemon) {
-	return (StartTestPeerExtra(numPeers, numHosts, numServices, ""))
+	return StartTestPeerExtra(numPeers, numHosts, numServices, "")
 }
 
 // StartTestPeerExtra starts:

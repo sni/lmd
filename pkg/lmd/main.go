@@ -753,12 +753,12 @@ func (lmd *Daemon) mainSignalHandler(sig os.Signal, prometheusListener io.Closer
 		log.Infof("got sigterm, quitting gracefully")
 		lmd.sigQuit(0, prometheusListener)
 
-		return (0)
+		return 0
 	case syscall.SIGINT, os.Interrupt:
 		log.Infof("got sigint, quitting")
 		lmd.sigQuit(time.Second, prometheusListener)
 
-		return (1)
+		return 1
 	case syscall.SIGHUP:
 		log.Infof("got sighup, reloading configuration...")
 		if prometheusListener != nil {
@@ -770,7 +770,7 @@ func (lmd *Daemon) mainSignalHandler(sig os.Signal, prometheusListener io.Closer
 		log.Warnf("Signal not handled: %v", sig)
 	}
 
-	return (1)
+	return 1
 }
 
 // sigQuit is called when we want to quit the daemon from term/int signal.
@@ -916,7 +916,7 @@ func timeOrNever(timestamp float64) string {
 	if timestamp > 0 {
 		sec, dec := math.Modf(timestamp)
 
-		return (time.Unix(int64(sec), int64(dec*float64(time.Second))).String())
+		return time.Unix(int64(sec), int64(dec*float64(time.Second))).String()
 	}
 
 	return "never"
@@ -965,12 +965,12 @@ func getMinimalTLSConfig(localConfig *Config) *tls.Config {
 		}
 	}
 
-	return (config)
+	return config
 }
 
 func fmtHTTPerr(req *http.Request, err error) string {
 	if req != nil {
-		return (fmt.Sprintf("%s: %v", req.URL.String(), err))
+		return fmt.Sprintf("%s: %v", req.URL.String(), err)
 	}
 
 	return err.Error()

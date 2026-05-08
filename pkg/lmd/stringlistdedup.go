@@ -43,7 +43,7 @@ func dedupStringList(input []string, sorted bool) []string {
 
 	list := dedupStrListCache.Get(sum)
 	if list != nil {
-		return (list.Value())
+		return list.Value()
 	}
 
 	dedupedList := make([]string, len(input))

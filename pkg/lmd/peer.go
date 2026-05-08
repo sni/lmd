@@ -70,6 +70,9 @@ const (
 
 	// Max size of a JSON response in bytes.
 	MaxJSONResponseSize = 5e9 // 5GB
+
+	// Max size of a JSON meta response in bytes.
+	MaxJSONMetaResponseSize = 1e6 // 1MB
 )
 
 // Peer is the object which handles collecting and updating data and connections.
@@ -1029,7 +1032,7 @@ func isTemporary(err error) bool {
 	var peerErr *PeerError
 	if errors.As(err, &peerErr) {
 		if peerErr.srcErr != nil {
-			return isTemporary((peerErr.srcErr))
+			return isTemporary(peerErr.srcErr)
 		}
 	}
 
@@ -2132,7 +2135,7 @@ func (p *Peer) passThroughQuery(ctx context.Context, res *Response, passthroughR
 		store := NewDataStore(table, p)
 		tmpRow, _ := NewDataRow(store, nil, nil, 0, true)
 		for rowNum := range result {
-			row := &(result[rowNum])
+			row := &result[rowNum]
 			for j := range virtualColumns {
 				col := virtualColumns[j]
 				i := columnsIndex[col]
@@ -2181,7 +2184,7 @@ func (p *Peer) passThroughQuery(ctx context.Context, res *Response, passthroughR
 
 // isOnline returns true if this peer is online.
 func (p *Peer) isOnline() bool {
-	return (p.hasPeerState([]PeerStatus{PeerStatusUp, PeerStatusWarning}))
+	return p.hasPeerState([]PeerStatus{PeerStatusUp, PeerStatusWarning})
 }
 
 // hasPeerState returns true if this peer has given state.

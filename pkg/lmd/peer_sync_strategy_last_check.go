@@ -242,7 +242,7 @@ func (s *SyncStrategyLastCheck) getMissingTimestamps(ctx context.Context, store 
 
 func (s *SyncStrategyLastCheck) reloadIfNumberOfObjectsChanged(ctx context.Context) (err error) {
 	if s.hasChanged(ctx) {
-		return (s.store.peer.initAllTables(ctx))
+		return s.store.peer.initAllTables(ctx)
 	}
 
 	return err

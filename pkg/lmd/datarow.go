@@ -456,13 +456,13 @@ func (d *DataRow) getVirtualRowValue(col *Column) any {
 		if !ok {
 			switch col.VirtualMap.statusKey {
 			case PeerName:
-				return &(peer.Name)
+				return &peer.Name
 			case PeerKey:
-				return &(peer.ID)
+				return &peer.ID
 			case Section:
-				return &(peer.section)
+				return &peer.section
 			case PeerParent:
-				return &(peer.parentID)
+				return &peer.parentID
 			}
 		}
 	} else {
@@ -844,7 +844,7 @@ func (d *DataRow) UpdateValues(dataOffset int, data []any, columns ColumnList, t
 		resIndex := idx + dataOffset
 		switch col.DataType {
 		case StringCol:
-			d.dataString[localIndex] = *(interface2string(data[resIndex]))
+			d.dataString[localIndex] = *interface2string(data[resIndex])
 		case StringListCol:
 			d.dataStringList[localIndex] = interface2stringList(data[resIndex], col.SortedList)
 		case StringLargeCol:
@@ -953,9 +953,9 @@ func interface2float64(in any) float64 {
 func interface2int(raw any) int {
 	switch num := raw.(type) {
 	case float64:
-		return int(num)
+		return checkIntBounds(int64(num))
 	case int64:
-		return int(num)
+		return checkIntBounds(num)
 	case int:
 		return num
 	case int8:
@@ -971,11 +971,19 @@ func interface2int(raw any) int {
 	case string:
 		val, _ := strconv.ParseInt(num, 10, 64)
 
-		return int(val)
+		return checkIntBounds(val)
 	}
 	val, _ := strconv.ParseInt(fmt.Sprintf("%v", raw), 10, 64)
 
-	return int(val)
+	return checkIntBounds(val)
+}
+
+func checkIntBounds(num int64) int {
+	if num > int64(math.MaxInt) || num < int64(math.MinInt) {
+		return 0
+	}
+
+	return int(num)
 }
 
 func checkInt32Bounds(num int64) int32 {
@@ -1227,7 +1235,7 @@ func interface2serviceMemberList(raw any) []ServiceMember {
 
 func interface2int64list(raw any) []int64 {
 	if list, ok := raw.([]int64); ok {
-		return (list)
+		return list
 	}
 	if raw == nil {
 		return emptyInt64List
@@ -1302,7 +1310,7 @@ func interface2hashmap(raw any) map[string]string {
 // interface2interfaceList converts anything to a list of interfaces.
 func interface2interfaceList(in any) []any {
 	if list, ok := in.([]any); ok {
-		return (list)
+		return list
 	}
 
 	log.Warnf("unsupported interface list type: %#v (%T)", in, in)
@@ -1368,34 +1376,34 @@ func interface2JSONString(raw any) string {
 			return ""
 		}
 
-		return (string(str))
+		return string(str)
 	}
 }
 
 func cast2Type(val any, col *Column) any {
 	switch col.DataType {
 	case StringCol:
-		return (interface2string(val))
+		return interface2string(val)
 	case StringListCol:
-		return (interface2stringList(val, col.SortedList))
+		return interface2stringList(val, col.SortedList)
 	case StringLargeCol:
-		return (interface2stringLarge(val))
+		return interface2stringLarge(val)
 	case IntCol:
-		return (interface2int8(val))
+		return interface2int8(val)
 	case Int64Col:
-		return (interface2int64(val))
+		return interface2int64(val)
 	case Int64ListCol:
-		return (interface2int64list(val))
+		return interface2int64list(val)
 	case FloatCol:
-		return (interface2float64(val))
+		return interface2float64(val)
 	case CustomVarCol:
-		return (interface2hashmap(val))
+		return interface2hashmap(val)
 	case ServiceMemberListCol:
-		return (interface2serviceMemberList(val))
+		return interface2serviceMemberList(val)
 	case InterfaceListCol:
 		return val
 	case JSONCol:
-		return (interface2JSONString(val))
+		return interface2JSONString(val)
 	case StringListSortedCol:
 		log.Panicf("unsupported type: %s", col.DataType)
 	}

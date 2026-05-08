@@ -149,9 +149,9 @@ const (
 func (op *GroupOperator) String() string {
 	switch *op {
 	case And:
-		return ("And")
+		return "And"
 	case Or:
-		return ("Or")
+		return "Or"
 	}
 	log.Panicf("not implemented: %#v", op)
 
@@ -365,7 +365,7 @@ func NewRequest(ctx context.Context, lmd *Daemon, buf *bufio.Reader, options Par
 func NewRequestFromString(ctx context.Context, lmd *Daemon, query *string, options ParseOptions) (req *Request, size int, err error) {
 	buf := bufio.NewReader(bytes.NewBufferString(*query))
 
-	return (NewRequest(ctx, lmd, buf, options))
+	return NewRequest(ctx, lmd, buf, options)
 }
 
 // ID returns the uniq request id.
@@ -1075,7 +1075,8 @@ func parseJSONResult(data []byte) (res ResultSet, remaining []byte, err error) {
 	if err != nil {
 		return nil,
 			nil,
-			fmt.Errorf("json parse error at row %d pos %d (byte offset %d): %s",
+			fmt.Errorf(
+				"json parse error at row %d pos %d (byte offset %d): %s",
 				rowNum,
 				linePos,
 				finalPos+1,
@@ -1108,7 +1109,16 @@ func (req *Request) parseWrappedJSONMeta(resBytes []byte, meta *ResultMetaData) 
 	}
 
 	json := &rjson.ValueReader{}
-	remaining := make([]byte, 0, len(pre)+len(post))
+	totalRemainingLen := len(pre) + len(post)
+	if totalRemainingLen > MaxJSONMetaResponseSize { // should not be very large
+		return nil, &PeerError{
+			msg:      fmt.Sprintf("json parse error: meta response size exceeds maximum allowed size: %d", totalRemainingLen),
+			kind:     ResponseError,
+			req:      req,
+			resBytes: resBytes,
+		}
+	}
+	remaining := make([]byte, 0, totalRemainingLen)
 	remaining = append(remaining, pre...)
 	remaining = append(remaining, post...)
 	wrapped, _, err := json.ReadObject(remaining)

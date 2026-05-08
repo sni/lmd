@@ -115,39 +115,39 @@ const (
 func (op *Operator) String() string {
 	switch *op {
 	case Equal:
-		return ("=")
+		return "="
 	case Unequal:
-		return ("!=")
+		return "!="
 	case EqualNoCase:
-		return ("=~")
+		return "=~"
 	case UnequalNoCase:
-		return ("!=~")
+		return "!=~"
 	case RegexMatch:
-		return ("~")
+		return "~"
 	case RegexMatchNot:
-		return ("!~")
+		return "!~"
 	case RegexNoCaseMatch:
-		return ("~~")
+		return "~~"
 	case RegexNoCaseMatchNot:
-		return ("!~~")
+		return "!~~"
 	case Contains:
-		return ("~")
+		return "~"
 	case ContainsNot:
-		return ("!~")
+		return "!~"
 	case ContainsNoCase:
-		return ("~~")
+		return "~~"
 	case ContainsNoCaseNot:
-		return ("!~~")
+		return "!~~"
 	case Less:
-		return ("<")
+		return "<"
 	case LessThan:
-		return ("<=")
+		return "<="
 	case Greater:
-		return (">")
+		return ">"
 	case GreaterThan:
-		return (">=")
+		return ">="
 	case GroupContainsNot:
-		return ("!>=")
+		return "!>="
 	}
 	log.Panicf("not implemented")
 
@@ -806,7 +806,7 @@ func matchEmptyFilter(operator Operator) bool {
 }
 
 func (f *Filter) MatchString(value string) bool {
-	return (matchStringVal(value, f.operator, f.stringVal, f.regexp))
+	return matchStringVal(value, f.operator, f.stringVal, f.regexp)
 }
 
 // regex should be from substr.

@@ -19,7 +19,7 @@ func InitObjects() {
 
 	// generate virtual keys with peer and host_peer prefix
 	for i := range VirtualColumnList {
-		dat := &(VirtualColumnList[i])
+		dat := &VirtualColumnList[i]
 		VirtualColumnMap[dat.name] = dat
 		VirtualColumnMap["peer_"+dat.name] = dat
 		VirtualColumnMap["host_peer_"+dat.name] = dat

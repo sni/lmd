@@ -246,27 +246,27 @@ func (ds *DataStoreSet) setTable(name TableName, store *DataStore) {
 func (ds *DataStoreSet) get(name TableName) *DataStore {
 	switch name {
 	case TableCommands:
-		return (ds.tableCommands.Load())
+		return ds.tableCommands.Load()
 	case TableComments:
-		return (ds.tableComments.Load())
+		return ds.tableComments.Load()
 	case TableContactgroups:
-		return (ds.tableContactgroups.Load())
+		return ds.tableContactgroups.Load()
 	case TableContacts:
-		return (ds.tableContacts.Load())
+		return ds.tableContacts.Load()
 	case TableDowntimes:
-		return (ds.tableDowntimes.Load())
+		return ds.tableDowntimes.Load()
 	case TableHostgroups:
-		return (ds.tableHostgroups.Load())
+		return ds.tableHostgroups.Load()
 	case TableHosts:
-		return (ds.tableHosts.Load())
+		return ds.tableHosts.Load()
 	case TableServicegroups:
-		return (ds.tableServicegroups.Load())
+		return ds.tableServicegroups.Load()
 	case TableServices:
-		return (ds.tableServices.Load())
+		return ds.tableServices.Load()
 	case TableStatus:
-		return (ds.tableStatus.Load())
+		return ds.tableStatus.Load()
 	case TableTimeperiods:
-		return (ds.tableTimeperiods.Load())
+		return ds.tableTimeperiods.Load()
 	default:
 		log.Panicf("unsupported table name: %s", name.String())
 	}

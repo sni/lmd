@@ -315,11 +315,11 @@ func (d *DataStore) GetPreFilteredData(filter []*Filter) []*DataRow {
 
 	switch {
 	case d.table.name == TableHosts:
-		return (d.tryFilterIndexData(filter, d.appendIndexHostsFromHostColumns))
+		return d.tryFilterIndexData(filter, d.appendIndexHostsFromHostColumns)
 	case d.table.name == TableServices:
-		return (d.tryFilterIndexData(filter, d.appendIndexHostsFromServiceColumns))
+		return d.tryFilterIndexData(filter, d.appendIndexHostsFromServiceColumns)
 	case len(d.table.primaryKey) == 1:
-		return (d.tryFilterIndexData(filter, d.appendIndexFromPrimaryKey))
+		return d.tryFilterIndexData(filter, d.appendIndexFromPrimaryKey)
 	default:
 		// only hosts and services are supported
 	}
