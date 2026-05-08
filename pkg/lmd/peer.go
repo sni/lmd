@@ -67,6 +67,9 @@ const (
 
 	// Max size when logging the response of a query in errors.
 	LogResponseErrorMaxSize = 10240 // 10kB
+
+	// Max size of a JSON response in bytes.
+	MaxJSONResponseSize = 5e9 // 5GB
 )
 
 // Peer is the object which handles collecting and updating data and connections.
@@ -1165,6 +1168,10 @@ func (p *Peer) parseResponseHeader(resBytes *[]byte) (code int, expSize int64, e
 	expSize, err = strconv.ParseInt(matched[2], 10, 64)
 	if err != nil {
 		return 0, 0, fmt.Errorf("header parse error - %s: %s", err.Error(), string(*resBytes))
+	}
+
+	if expSize > MaxJSONResponseSize {
+		return 0, 0, fmt.Errorf("response size exceeds maximum allowed size: %d", expSize)
 	}
 
 	return code, expSize, nil
