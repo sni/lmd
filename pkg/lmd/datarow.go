@@ -980,6 +980,8 @@ func interface2int(raw any) int {
 
 func checkIntBounds(num int64) int {
 	if num > int64(math.MaxInt) || num < int64(math.MinInt) {
+		log.Stackf("int over/underflow detected: %d", num)
+
 		return 0
 	}
 
@@ -988,6 +990,8 @@ func checkIntBounds(num int64) int {
 
 func checkInt32Bounds(num int64) int32 {
 	if num > int64(math.MaxInt32) || num < int64(math.MinInt32) {
+		log.Stackf("int32 over/underflow detected: %d", num)
+
 		return 0
 	}
 
