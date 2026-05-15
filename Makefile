@@ -101,7 +101,7 @@ test: dump vendor
 # test with filter
 testf: vendor
 	rm -f pkg/lmd/mock*.sock
-	$(GO) test -v $(TEST_FLAGS) pkg/* -run "$(filter-out $@,$(MAKECMDGOALS))" 2>&1 | grep -v "no test files" | grep -v "no tests to run" | grep -v "^PASS"
+	$(GO) test -count 1 -v $(TEST_FLAGS) pkg/* -run "$(filter-out $@,$(MAKECMDGOALS))" 2>&1 | grep -v "no test files" | grep -v "no tests to run" | grep -v "^PASS"
 
 longtest: vendor
 	$(GO) test -v $(TEST_FLAGS) pkg/*
