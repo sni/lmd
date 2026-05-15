@@ -656,7 +656,7 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 
 	// Sort order
 	if len(req.Sort) != 0 {
-		sort := make([]string, 0, len(req.Sort))
+		sorted := make([]string, 0, len(req.Sort))
 		for i := range req.Sort {
 			sortField := req.Sort[i]
 			var direction string
@@ -667,9 +667,9 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 				direction = "asc"
 			}
 			line := sortField.Name + " " + direction
-			sort = append(sort, line)
+			sorted = append(sorted, line)
 		}
-		requestData["sort"] = sort
+		requestData["sort"] = sorted
 	}
 
 	// Get hash with metadata in addition to table rows
