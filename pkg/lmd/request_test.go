@@ -493,8 +493,9 @@ func TestRequestNoColumns(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, res, 2)
 	assert.Len(t, res[0], 51)
-	assert.Equal(t, "program_start", res[0][0])
-	assert.Equal(t, "mockid0", res[1][36])
+	assert.Equal(t, "accept_passive_host_checks", res[0][0])
+	assert.Equal(t, "peer_key", res[0][34])
+	assert.Equal(t, "mockid0", res[1][34])
 
 	err = cleanup()
 	require.NoError(t, err)

@@ -23,8 +23,9 @@ func TestMainFunc(t *testing.T) {
 	require.NoError(t, err)
 
 	require.GreaterOrEqual(t, len(res), 2, "expected at least 2 rows: %#v", res)
-	require.Equal(t, "peer_key", res[0][0])
-	require.Equal(t, "mockid0", res[1][0])
+	require.Equal(t, "addr", res[0][0])
+	require.Equal(t, "peer_key", res[0][20])
+	require.Equal(t, "mockid0", res[1][20])
 
 	testRequestStrings := []string{
 		"GET backends\n\n",
@@ -44,8 +45,9 @@ func TestMainFunc(t *testing.T) {
 	for _, str := range testRequestStrings {
 		res, _, err = peer.QueryString(str)
 		require.NoError(t, err)
-		require.Equal(t, "peer_key", res[0][0])
-		require.Equal(t, "mockid0", res[1][0])
+		require.Equal(t, "addr", res[0][0])
+		require.Equal(t, "peer_key", res[0][20])
+		require.Equal(t, "mockid0", res[1][20])
 	}
 
 	// sort queries

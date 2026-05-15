@@ -190,8 +190,10 @@ func NewStatusTable() (t *Table) {
 // NewTimeperiodsTable returns a new timeperiods table.
 func NewTimeperiodsTable() (t *Table) {
 	t = &Table{name: TableTimeperiods, primaryKey: []string{"name"}, defaultSort: []string{"name"}}
-	t.AddColumn("alias", Static, StringCol, "The alias of the timeperiod")
+
 	t.AddColumn("name", Static, StringCol, "The name of the timeperiod")
+
+	t.AddColumn("alias", Static, StringCol, "The alias of the timeperiod")
 	t.AddColumn("in", Dynamic, IntCol, "Wether we are currently in this period (0/1)")
 
 	// naemon specific
@@ -214,8 +216,10 @@ func NewTimeperiodsTable() (t *Table) {
 // NewContactsTable returns a new contacts table.
 func NewContactsTable() (t *Table) {
 	t = &Table{name: TableContacts, primaryKey: []string{"name"}, defaultSort: []string{"name"}}
-	t.AddColumn("alias", Static, StringCol, "The full name of the contact")
+
 	t.AddColumn("name", Static, StringCol, "The login name of the contact person")
+
+	t.AddColumn("alias", Static, StringCol, "The full name of the contact")
 	t.AddColumn("can_submit_commands", Static, IntCol, "Wether the contact is allowed to submit commands (0/1)")
 	t.AddColumn("email", Static, StringCol, "The email address of the contact")
 	t.AddColumn("pager", Static, StringCol, "The pager address of the contact")
@@ -257,9 +261,11 @@ func NewContactsTable() (t *Table) {
 // NewContactgroupsTable returns a new contactgroups table.
 func NewContactgroupsTable() (t *Table) {
 	t = &Table{name: TableContactgroups, primaryKey: []string{"name"}, defaultSort: []string{"name"}}
+
+	t.AddColumn("name", Static, StringCol, "The name of the contactgroup")
+
 	t.AddColumn("alias", Static, StringCol, "The alias of the contactgroup")
 	t.AddColumn("members", Static, StringListSortedCol, "A list of all members of this contactgroup")
-	t.AddColumn("name", Static, StringCol, "The name of the contactgroup")
 
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
@@ -270,7 +276,9 @@ func NewContactgroupsTable() (t *Table) {
 // NewCommandsTable returns a new commands table.
 func NewCommandsTable() (t *Table) {
 	t = &Table{name: TableCommands, primaryKey: []string{"name"}, defaultSort: []string{"name"}}
+
 	t.AddColumn("name", Static, StringCol, "The name of the command")
+
 	t.AddColumn("line", Static, StringCol, "The shell command line")
 
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
@@ -282,6 +290,9 @@ func NewCommandsTable() (t *Table) {
 // NewHostsTable returns a new hosts table.
 func NewHostsTable() (t *Table) {
 	t = &Table{name: TableHosts, primaryKey: []string{"name"}, defaultSort: []string{"name"}}
+
+	t.AddColumn("name", Static, StringCol, "Host name")
+
 	t.AddColumn("accept_passive_checks", Dynamic, IntCol, "Whether passive host checks are accepted (0/1)")
 	t.AddColumn("acknowledged", Dynamic, IntCol, "Whether the current host problem has been acknowledged (0/1)")
 	t.AddColumn("action_url", Static, StringCol, "An optional URL to custom actions or information about this host")
@@ -335,7 +346,6 @@ func NewHostsTable() (t *Table) {
 	t.AddColumn("max_check_attempts", Static, Int64Col, "Max check attempts for active host checks")
 	t.AddColumn("modified_attributes", Dynamic, Int64Col, "A bitmask specifying which attributes have been modified")
 	t.AddColumn("modified_attributes_list", Dynamic, StringListSortedCol, "A bitmask specifying which attributes have been modified")
-	t.AddColumn("name", Static, StringCol, "Host name")
 	t.AddColumn("next_check", Dynamic, Int64Col, "Scheduled time for the next check (Unix timestamp)")
 	t.AddColumn("next_notification", Dynamic, Int64Col, "Time of the next notification (Unix timestamp)")
 	t.AddColumn("num_services", Static, Int64Col, "The total number of services of the host")
@@ -427,10 +437,12 @@ func NewHostsTable() (t *Table) {
 // NewHostgroupsTable returns a new hostgroups table.
 func NewHostgroupsTable() (t *Table) {
 	t = &Table{name: TableHostgroups, primaryKey: []string{"name"}, defaultSort: []string{"name"}}
+
+	t.AddColumn("name", Static, StringCol, "Name of the hostgroup")
+
 	t.AddColumn("action_url", Static, StringCol, "An optional URL to custom actions or information about the hostgroup")
 	t.AddColumn("alias", Static, StringCol, "An alias of the hostgroup")
 	t.AddColumn("members", Static, StringListSortedCol, "A list of all host names that are members of the hostgroup")
-	t.AddColumn("name", Static, StringCol, "Name of the hostgroup")
 	t.AddColumn("notes", Static, StringCol, "Optional notes to the hostgroup")
 	t.AddColumn("notes_url", Static, StringCol, "An optional URL with further information about the hostgroup")
 	t.AddColumn("num_hosts", Static, Int64Col, "The total number of hosts of the hostgroup")
@@ -465,6 +477,10 @@ func NewHostgroupsTable() (t *Table) {
 // NewServicesTable returns a new services table.
 func NewServicesTable() (t *Table) {
 	t = &Table{name: TableServices, primaryKey: []string{"host_name", "description"}, defaultSort: []string{"host_name", "description"}}
+
+	t.AddColumn("host_name", Static, StringCol, "Host name")
+	t.AddColumn("description", Static, StringCol, "Description of the service (also used as key)")
+
 	t.AddColumn("accept_passive_checks", Dynamic, IntCol, "Whether the service accepts passive checks (0/1)")
 	t.AddColumn("acknowledged", Dynamic, IntCol, "Whether the current service problem has been acknowledged (0/1)")
 	t.AddColumn("acknowledgement_type", Dynamic, IntCol, "The type of the acknowledgement (0: none, 1: normal, 2: sticky)")
@@ -483,7 +499,6 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("current_notification_number", Dynamic, Int64Col, "The number of the current notification")
 	t.AddColumn("custom_variable_names", Static, StringListCol, "A list of the names of all custom variables of the service")
 	t.AddColumn("custom_variable_values", Dynamic, StringListCol, "A list of the values of all custom variable of the service")
-	t.AddColumn("description", Static, StringCol, "Description of the service (also used as key)")
 	t.AddColumn("display_name", Static, StringCol, "An optional display name")
 	t.AddColumn("event_handler", Static, StringCol, "Naemon command used as event handler")
 	t.AddColumn("event_handler_enabled", Dynamic, IntCol, "Naemon command used as event handler")
@@ -535,7 +550,6 @@ func NewServicesTable() (t *Table) {
 	t.AddColumn("scheduled_downtime_depth", Dynamic, IntCol, "The number of scheduled downtimes the service is currently in")
 	t.AddColumn("state", Dynamic, IntCol, "The current state of the service (0: OK, 1: WARN, 2: CRITICAL, 3: UNKNOWN)")
 	t.AddColumn("state_type", Dynamic, IntCol, "The current state of the service (0: OK, 1: WARN, 2: CRITICAL, 3: UNKNOWN)")
-	t.AddColumn("host_name", Static, StringCol, "Host name")
 	t.AddColumn("pnpgraph_present", Dynamic, IntCol, "The pnp graph presence (0/1)")
 
 	// will be updated from the comments/downtimes update, no need to fetch twice
@@ -592,10 +606,12 @@ func NewServicesTable() (t *Table) {
 // NewServicegroupsTable returns a new hostgroups table.
 func NewServicegroupsTable() (t *Table) {
 	t = &Table{name: TableServicegroups, primaryKey: []string{"name"}, defaultSort: []string{"name"}}
+
+	t.AddColumn("name", Static, StringCol, "The name of the service group")
+
 	t.AddColumn("action_url", Static, StringCol, "An optional URL to custom notes or actions on the service group")
 	t.AddColumn("alias", Static, StringCol, "An alias of the service group")
 	t.AddColumn("members", Static, ServiceMemberListCol, "A list of all members of the service group as host/service pairs")
-	t.AddColumn("name", Static, StringCol, "The name of the service group")
 	t.AddColumn("notes", Static, StringCol, "Optional additional notes about the service group")
 	t.AddColumn("notes_url", Static, StringCol, "An optional URL to further notes on the service group")
 	t.AddColumn("num_services", Static, Int64Col, "The total number of services of the service group")
@@ -622,13 +638,15 @@ func NewServicegroupsTable() (t *Table) {
 // NewCommentsTable returns a new comments table.
 func NewCommentsTable() (t *Table) {
 	t = &Table{name: TableComments, primaryKey: []string{"id"}, defaultSort: []string{"id"}}
+
+	t.AddColumn("id", Static, Int64Col, "The id of the comment")
+
 	t.AddColumn("author", Static, StringCol, "The contact that entered the comment")
 	t.AddColumn("comment", Static, StringCol, "A comment text")
 	t.AddColumn("entry_time", Static, Int64Col, "The time the entry was made as UNIX timestamp")
 	t.AddColumn("entry_type", Static, IntCol, "The type of the comment: 1 is user, 2 is downtime, 3 is flap and 4 is acknowledgement")
 	t.AddColumn("expires", Static, IntCol, "Whether this comment expires")
 	t.AddColumn("expire_time", Static, Int64Col, "The time of expiry of this comment as a UNIX timestamp")
-	t.AddColumn("id", Static, Int64Col, "The id of the comment")
 	t.AddColumn("is_service", Static, IntCol, "0, if this entry is for a host, 1 if it is for a service")
 	t.AddColumn("persistent", Static, IntCol, "Whether this comment is persistent (0/1)")
 	t.AddColumn("source", Static, IntCol, "The source of the comment (0 is internal and 1 is external)")
@@ -648,13 +666,15 @@ func NewCommentsTable() (t *Table) {
 // NewDowntimesTable returns a new downtimes table.
 func NewDowntimesTable() (t *Table) {
 	t = &Table{name: TableDowntimes, primaryKey: []string{"id"}, defaultSort: []string{"id"}}
+
+	t.AddColumn("id", Static, Int64Col, "The id of the downtime")
+
 	t.AddColumn("author", Static, StringCol, "The contact that scheduled the downtime")
 	t.AddColumn("comment", Static, StringCol, "A comment text")
 	t.AddColumn("duration", Static, Int64Col, "The duration of the downtime in seconds")
 	t.AddColumn("end_time", Static, Int64Col, "The end time of the downtime as UNIX timestamp")
 	t.AddColumn("entry_time", Static, Int64Col, "The time the entry was made as UNIX timestamp")
 	t.AddColumn("fixed", Static, IntCol, "1 if the downtime is fixed, a 0 if it is flexible")
-	t.AddColumn("id", Static, Int64Col, "The id of the downtime")
 	t.AddColumn("is_service", Static, IntCol, "0, if this entry is for a host, 1 if it is for a service")
 	t.AddColumn("start_time", Static, Int64Col, "The start time of the downtime as UNIX timestamp")
 	t.AddColumn("triggered_by", Static, Int64Col, "The id of the downtime this downtime was triggered by or 0 if it was not triggered by another downtime")

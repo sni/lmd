@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"runtime/trace"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -950,6 +951,10 @@ func (req *Request) SetRequestColumns() {
 			col := table.columns[j]
 			columns = append(columns, col)
 		}
+		// sort columns by name
+		sort.Slice(columns, func(i, j int) bool {
+			return columns[i].Name < columns[j].Name
+		})
 	}
 
 	// build array of requested columns as ResultColumn objects list
