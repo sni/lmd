@@ -9,7 +9,7 @@ import (
 )
 
 func TestPeerUpdateLastUpdate(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(t, 1, 10, 10)
 	PauseTestPeers(peer)
 
 	store := peer.data.Load()

@@ -12,7 +12,7 @@ import (
 
 func BenchmarkParseResultJSON(b *testing.B) {
 	b.StopTimer()
-	peer, cleanup, _ := StartTestPeer(1, 100, 1000)
+	peer, cleanup, _ := StartTestPeer(b, 1, 100, 1000)
 	PauseTestPeers(peer)
 
 	columns := make([]string, 0)
@@ -54,7 +54,7 @@ func BenchmarkParseResultJSON(b *testing.B) {
 
 func BenchmarkParseResultWrappedJSON(b *testing.B) {
 	b.StopTimer()
-	peer, cleanup, _ := StartTestPeer(1, 100, 1000)
+	peer, cleanup, _ := StartTestPeer(b, 1, 100, 1000)
 	PauseTestPeers(peer)
 
 	columns := make([]string, 0)
@@ -96,7 +96,7 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 
 func BenchmarkPeerUpdate(b *testing.B) {
 	b.StopTimer()
-	peer, cleanup, _ := StartTestPeer(1, 1000, 10000)
+	peer, cleanup, _ := StartTestPeer(b, 1, 1000, 10000)
 	PauseTestPeers(peer)
 
 	b.StartTimer()
@@ -115,7 +115,7 @@ func BenchmarkPeerUpdate(b *testing.B) {
 
 func BenchmarkPeerUpdateServiceInsert(b *testing.B) {
 	b.StopTimer()
-	peer, cleanup, _ := StartTestPeer(1, 1000, 10000)
+	peer, cleanup, _ := StartTestPeer(b, 1, 1000, 10000)
 	PauseTestPeers(peer)
 
 	data := peer.data.Load()
@@ -149,7 +149,7 @@ func BenchmarkPeerUpdateServiceInsert(b *testing.B) {
 
 func BenchmarkSingleFilter_1k_svc__1Peer(b *testing.B) {
 	b.StopTimer()
-	peer, cleanup, _ := StartTestPeer(1, 100, 1000)
+	peer, cleanup, _ := StartTestPeer(b, 1, 100, 1000)
 	PauseTestPeers(peer)
 
 	b.StartTimer()
@@ -167,7 +167,7 @@ func BenchmarkSingleFilter_1k_svc__1Peer(b *testing.B) {
 
 func BenchmarkSingleFilter_1k_svc_10Peer(b *testing.B) {
 	b.StopTimer()
-	peer, cleanup, _ := StartTestPeer(10, 10, 100)
+	peer, cleanup, _ := StartTestPeer(b, 10, 10, 100)
 	PauseTestPeers(peer)
 
 	b.StartTimer()
@@ -185,7 +185,7 @@ func BenchmarkSingleFilter_1k_svc_10Peer(b *testing.B) {
 
 func BenchmarkMultiFilter_1k_svc__1Peer(b *testing.B) {
 	b.StopTimer()
-	peer, cleanup, _ := StartTestPeer(1, 100, 1000)
+	peer, cleanup, _ := StartTestPeer(b, 1, 100, 1000)
 	PauseTestPeers(peer)
 
 	b.StartTimer()
@@ -203,7 +203,7 @@ func BenchmarkMultiFilter_1k_svc__1Peer(b *testing.B) {
 
 func BenchmarkSimpleStats_1k_svc__1Peer(b *testing.B) {
 	b.StopTimer()
-	peer, cleanup, _ := StartTestPeer(1, 100, 1000)
+	peer, cleanup, _ := StartTestPeer(b, 1, 100, 1000)
 	PauseTestPeers(peer)
 
 	b.StartTimer()
@@ -221,7 +221,7 @@ func BenchmarkSimpleStats_1k_svc__1Peer(b *testing.B) {
 
 func BenchmarkTacStats_1k_svc__1Peer(b *testing.B) {
 	b.StopTimer()
-	peer, cleanup, _ := StartTestPeer(1, 100, 1000)
+	peer, cleanup, _ := StartTestPeer(b, 1, 100, 1000)
 	PauseTestPeers(peer)
 
 	b.StartTimer()
@@ -239,7 +239,7 @@ func BenchmarkTacStats_1k_svc__1Peer(b *testing.B) {
 
 func BenchmarkTacStats_1k_svc_10Peer(b *testing.B) {
 	b.StopTimer()
-	peer, cleanup, _ := StartTestPeer(10, 10, 100)
+	peer, cleanup, _ := StartTestPeer(b, 10, 10, 100)
 	PauseTestPeers(peer)
 
 	b.StartTimer()
@@ -259,7 +259,7 @@ func BenchmarkTacStats_1k_svc_100Peer(b *testing.B) {
 	CheckOpenFilesLimit(b, 2000)
 
 	b.StopTimer()
-	peer, cleanup, _ := StartTestPeer(100, 10, 10)
+	peer, cleanup, _ := StartTestPeer(b, 100, 10, 10)
 	PauseTestPeers(peer)
 
 	b.StartTimer()
@@ -279,7 +279,7 @@ func BenchmarkTacStats_5k_svc_500Peer(b *testing.B) {
 	CheckOpenFilesLimit(b, 2000)
 
 	b.StopTimer()
-	peer, cleanup, _ := StartTestPeer(500, 10, 10)
+	peer, cleanup, _ := StartTestPeer(b, 500, 10, 10)
 	PauseTestPeers(peer)
 
 	b.StartTimer()
@@ -297,7 +297,7 @@ func BenchmarkTacStats_5k_svc_500Peer(b *testing.B) {
 
 func BenchmarkServicelistLimit_1k_svc__1Peer(b *testing.B) {
 	b.StopTimer()
-	peer, cleanup, _ := StartTestPeer(1, 100, 1000)
+	peer, cleanup, _ := StartTestPeer(b, 1, 100, 1000)
 	PauseTestPeers(peer)
 
 	b.StartTimer()
@@ -315,7 +315,7 @@ func BenchmarkServicelistLimit_1k_svc__1Peer(b *testing.B) {
 
 func BenchmarkServicelistLimit_1k_svc_10Peer(b *testing.B) {
 	b.StopTimer()
-	peer, cleanup, _ := StartTestPeer(10, 10, 100)
+	peer, cleanup, _ := StartTestPeer(b, 10, 10, 100)
 	PauseTestPeers(peer)
 
 	b.StartTimer()
@@ -361,7 +361,7 @@ func BenchmarkRequestParser2(b *testing.B) {
 
 func BenchmarkServicesearchLimit_1k_svc_10Peer(b *testing.B) {
 	b.StopTimer()
-	peer, cleanup, _ := StartTestPeer(10, 10, 100)
+	peer, cleanup, _ := StartTestPeer(b, 10, 10, 100)
 	PauseTestPeers(peer)
 
 	b.StartTimer()

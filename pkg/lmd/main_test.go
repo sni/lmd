@@ -16,7 +16,7 @@ import (
 )
 
 func TestMainFunc(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(t, 1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET backends\n\n")
@@ -108,7 +108,7 @@ func TestAllOps(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping all ops test in short mode")
 	}
-	peer, cleanup, _ := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(t, 1, 10, 10)
 	PauseTestPeers(peer)
 
 	ops := []string{"=", "!=", "=~", "!=~", "~", "!~", "~~", "!~~", "<", "<=", ">", ">=", "!>="}
@@ -225,7 +225,7 @@ func TestAllTables(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping all ops test in short mode")
 	}
-	peer, cleanup, _ := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(t, 1, 10, 10)
 	PauseTestPeers(peer)
 
 	query := ""

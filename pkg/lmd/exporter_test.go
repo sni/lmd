@@ -9,7 +9,7 @@ import (
 )
 
 func TestExporter(t *testing.T) {
-	peer, cleanup, lmd := StartTestPeer(3, 10, 10)
+	peer, cleanup, lmd := StartTestPeer(t, 3, 10, 10)
 	PauseTestPeers(peer)
 
 	tempDir := t.TempDir()

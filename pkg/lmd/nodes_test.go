@@ -12,7 +12,7 @@ func TestNodeManager(t *testing.T) {
 		Listen = ['test.sock', 'http://127.0.0.1:8901']
 		Nodes = ['http://127.0.0.1:8901', 'http://127.0.0.2:8902']
 	`
-	peer, cleanup, mocklmd := StartTestPeerExtra(4, 10, 10, extraConfig)
+	peer, cleanup, mocklmd := StartTestPeerExtra(t, 4, 10, 10, extraConfig)
 	PauseTestPeers(peer)
 
 	require.NotNilf(t, mocklmd.nodeAccessor, "nodeAccessor must not be nil")

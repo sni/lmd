@@ -10,7 +10,7 @@ import (
 )
 
 func TestHTTPRouter(t *testing.T) {
-	peer, cleanup, lmd := StartTestPeer(3, 10, 10)
+	peer, cleanup, lmd := StartTestPeer(t, 3, 10, 10)
 	PauseTestPeers(peer)
 
 	baseURL := "http://localhost:9999"

@@ -12,7 +12,7 @@ func TestPrometheus(t *testing.T) {
 	extraConfig := `
         ListenPrometheus = "127.0.0.1:50999"
 	`
-	peer, cleanup, _ := StartTestPeerExtra(2, 10, 10, extraConfig)
+	peer, cleanup, _ := StartTestPeerExtra(t, 2, 10, 10, extraConfig)
 	PauseTestPeers(peer)
 
 	tlsconfig := getMinimalTLSConfig(peer.lmd.Config)

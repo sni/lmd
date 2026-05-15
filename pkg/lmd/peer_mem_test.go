@@ -16,30 +16,31 @@ func TestLMDPeerInitPeakMemoryUsage(t *testing.T) {
 	peak1, alloc1 := getGoMemStats(t, false)
 	assert.LessOrEqualf(t, peak1, uint64(100), "peak allocated memory should be less than 100MB before the test: %dMB", peak1)
 
-	peer, cleanup, _ := StartTestPeer(1, 1000, 15000)
-	PauseTestPeers(peer)
+	InitLogging(&Config{LogLevel: testLogLevel, LogFile: testLogTarget})
 
-	store := peer.data.Load()
-	peer.lastUpdate.Set(0)
-	peer.setFlag(LMD)
-	store.setSyncStrategy()
-	assert.IsTypef(t, &SyncStrategyLMD{}, store.sync, "expected sync strategy to be LMD")
+	mockLMD := createTestLMDInstance()
+	sockets := StartMockLivestatusSource(mockLMD, 0, 1000, 15000)
 
-	updated, err := peer.tryUpdate(t.Context())
-	assert.True(t, updated, "expected update to be successful")
+	lmd := createTestLMDInstance()
+	peer := NewPeer(lmd, &Connection{Source: []string{sockets}, Name: "TestPeer", ID: "testid"})
+
+	err := peer.initAllTables(t.Context())
 	require.NoError(t, err)
+	getGoMemStats(t, true)
 
-	err = cleanup()
-	peak2, alloc2 := getGoMemStats(t, true)
+	// clean up again
+	_, _, err = peer.QueryString("COMMAND [0] MOCK_EXIT")
+	require.NoError(t, err)
+	peer = nil
+
+	peak2, alloc2 := getGoMemStats(t, false)
 
 	assert.LessOrEqualf(t, alloc2-alloc1, uint64(5), "allocated memory should be more or less free again (5mb tolerance): before: %dMB / after: %dMB", alloc1, alloc2)
 	assert.LessOrEqualf(t, peak2, uint64(250), "peak allocated memory should be less than 250MB after the test: %dMB", peak2)
-
-	require.NoError(t, err)
 }
 
 // returns current heap allocation and peak rss in MB.
-func getGoMemStats(t *testing.T, doLog bool) (peakRSS, heapAlloc uint64) {
+func getGoMemStats(t testing.TB, doLog bool) (peakRSS, heapAlloc uint64) {
 	t.Helper()
 
 	debug.SetGCPercent(10)

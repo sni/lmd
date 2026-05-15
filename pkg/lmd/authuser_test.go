@@ -11,7 +11,7 @@ import (
  * Tests that only one host entry is returned when setting the AuthUser.
  */
 func TestAuthuserHost(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(1, 2, 2)
+	peer, cleanup, _ := StartTestPeer(t, 1, 2, 2)
 	PauseTestPeers(peer)
 
 	// Authuser should only see it's own hosts
@@ -27,7 +27,7 @@ func TestAuthuserHost(t *testing.T) {
  * Tests that only two host stats are returned with AuthUser is set.
  */
 func TestAuthuserHostStats(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(1, 2, 2)
+	peer, cleanup, _ := StartTestPeer(t, 1, 2, 2)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hosts\nStats: state = 0\nAuthUser: authuser\n\n")
@@ -42,7 +42,7 @@ func TestAuthuserHostStats(t *testing.T) {
  * Tests that only one service entries is returned when setting the AuthUser.
  */
 func TestAuthuserService(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(1, 2, 2)
+	peer, cleanup, _ := StartTestPeer(t, 1, 2, 2)
 	PauseTestPeers(peer)
 
 	// Authuser should only see it's own services
@@ -58,7 +58,7 @@ func TestAuthuserService(t *testing.T) {
  * Tests that only two services stats are returned with AuthUser is set.
  */
 func TestAuthuserServiceStats(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(t, 1, 10, 10)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET services\nStats: state = 0\nAuthUser: authuser\n\n")
@@ -76,7 +76,7 @@ func TestAuthuserHostgroupsLoose(t *testing.T) {
 	extraConfig := `
 		GroupAuthorization = "loose"
 	`
-	peer, cleanup, _ := StartTestPeerExtra(1, 2, 2, extraConfig)
+	peer, cleanup, _ := StartTestPeerExtra(t, 1, 2, 2, extraConfig)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hostgroups\nColumns: name\nAuthUser: authuser\n\n")
@@ -94,7 +94,7 @@ func TestAuthuserHostgroupsStrict(t *testing.T) {
 	extraConfig := `
 		GroupAuthorization = "strict"
 	`
-	peer, cleanup, _ := StartTestPeerExtra(1, 2, 2, extraConfig)
+	peer, cleanup, _ := StartTestPeerExtra(t, 1, 2, 2, extraConfig)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET hostgroups\nColumns: name\nAuthUser: authuser\n\n")
@@ -110,7 +110,7 @@ func TestAuthuserHostgroupsStrict(t *testing.T) {
  * test that when setting the AuthUser header, no servicegroups are returned.
  */
 func TestAuthuserServicegroups(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(1, 2, 2)
+	peer, cleanup, _ := StartTestPeer(t, 1, 2, 2)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET servicegroups\nColumns: name members\nAuthUser: authuser\n\n")
@@ -125,7 +125,7 @@ func TestAuthuserServicegroups(t *testing.T) {
  * Tests that only one comment entry is returned when setting the AuthUser.
  */
 func TestAuthuserComments(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(1, 2, 2)
+	peer, cleanup, _ := StartTestPeer(t, 1, 2, 2)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET comments\nColumns: author comment\nAuthUser: authuser\n\n")
@@ -143,7 +143,7 @@ func TestAuthuserServiceAuth(t *testing.T) {
 	extraConfig := `
 		ServiceAuthorization = "strict"
 	`
-	peer, cleanup, _ := StartTestPeerExtra(1, 2, 10, extraConfig)
+	peer, cleanup, _ := StartTestPeerExtra(t, 1, 2, 10, extraConfig)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET services\nColumns: host_name description state contacts\nAuthUser: authuser\n\n")
@@ -158,7 +158,7 @@ func TestAuthuserServiceAuth(t *testing.T) {
  * Tests that only one host entry is returned when setting the AuthUser.
  */
 func TestAuthuserHostsbygroup(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(1, 2, 2)
+	peer, cleanup, _ := StartTestPeer(t, 1, 2, 2)
 	PauseTestPeers(peer)
 
 	// Authuser should only see it's own hosts
@@ -175,7 +175,7 @@ func TestAuthuserHostsbygroup(t *testing.T) {
  * test that when setting the AuthUser header, no servicegroups are returned.
  */
 func TestAuthuserServicesbygroup(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(1, 2, 10)
+	peer, cleanup, _ := StartTestPeer(t, 1, 2, 10)
 	PauseTestPeers(peer)
 
 	// Authuser should only see it's own services
@@ -191,7 +191,7 @@ func TestAuthuserServicesbygroup(t *testing.T) {
  * Tests that only one service entries is returned when setting the AuthUser.
  */
 func TestAuthuserServicesbyhostgroup(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(1, 2, 2)
+	peer, cleanup, _ := StartTestPeer(t, 1, 2, 2)
 	PauseTestPeers(peer)
 
 	// Authuser should only see it's own services

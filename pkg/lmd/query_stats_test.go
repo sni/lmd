@@ -11,7 +11,7 @@ func TestQueryStats(t *testing.T) {
 	extraConfig := `
 LogQueryStats = true
 `
-	peer, cleanup, mockLMD := StartTestPeerExtra(1, 10, 10, extraConfig)
+	peer, cleanup, mockLMD := StartTestPeerExtra(t, 1, 10, 10, extraConfig)
 
 	res, _, err := peer.QueryString("GET services\n")
 	require.NoError(t, err)

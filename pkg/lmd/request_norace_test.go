@@ -11,7 +11,7 @@ import (
 )
 
 func TestRequestStatsTac(t *testing.T) {
-	peer, cleanup, lmd := StartTestPeer(4, 10, 10)
+	peer, cleanup, lmd := StartTestPeer(t, 4, 10, 10)
 	PauseTestPeers(peer)
 
 	assert.Len(t, lmd.peerMap.Peers(), 4)

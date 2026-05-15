@@ -2,7 +2,6 @@ package lmd
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -235,9 +234,26 @@ func prepareTmpDataHostService(dataFolder, tempFolder string, table *Table, numH
 		}
 	}
 
-	newData := []map[string]any{}
-	if name == TableHosts {
-		count := 0
+	fp, err := os.Create(fmt.Sprintf("%s/%s.map", tempFolder, name.String()))
+	if err != nil {
+		panic("failed to open tmp file: " + err.Error())
+	}
+	_checkErr2(fp.WriteString("["))
+
+	count := 0
+	writeObj := func(row map[string]any) {
+		enc, err := json.Marshal(row)
+		if err != nil {
+			panic(err)
+		}
+		if count > 1 {
+			_checkErr2(fp.WriteString(",\n"))
+		}
+		_checkErr2(fp.Write(enc))
+	}
+
+	switch name {
+	case TableHosts:
 		for _, host := range hosts {
 			count++
 			src := last
@@ -251,11 +267,9 @@ func prepareTmpDataHostService(dataFolder, tempFolder string, table *Table, numH
 			newObj["name"] = host.hostname
 			newObj["alias"] = host.hostname + "_ALIAS"
 			newObj["services"] = host.services
-			newData = append(newData, newObj)
+			writeObj(newObj)
 		}
-	}
-	if name == TableServices {
-		count := 0
+	case TableServices:
 		for _, host := range hosts {
 			for _, service := range host.services {
 				count++
@@ -269,25 +283,13 @@ func prepareTmpDataHostService(dataFolder, tempFolder string, table *Table, numH
 				}
 				newObj["host_name"] = host.hostname
 				newObj["description"] = service
-				newData = append(newData, newObj)
+				writeObj(newObj)
 			}
 		}
 	}
 
-	buf := new(bytes.Buffer)
-	_checkErr2(buf.WriteString("["))
-	for num, row := range newData {
-		enc, err := json.Marshal(row)
-		if err != nil {
-			panic(err)
-		}
-		_checkErr2(buf.Write(enc))
-		if num < len(newData)-1 {
-			_checkErr2(buf.WriteString(",\n"))
-		}
-	}
-	_checkErr2(buf.WriteString("]\n"))
-	_checkErr(os.WriteFile(fmt.Sprintf("%s/%s.map", tempFolder, name.String()), buf.Bytes(), 0o644))
+	_checkErr2(fp.WriteString("]\n"))
+	_checkErr(fp.Close())
 }
 
 func StartMockMainLoop(lmd *Daemon, sockets []string, extraConfig string) {
@@ -323,8 +325,8 @@ LogFile        = "` + testLogTarget + `"
 
 // StartTestPeer just call StartTestPeerExtra
 // if numServices is  0, empty test data will be used.
-func StartTestPeer(numPeers, numHosts, numServices int) (*Peer, func() error, *Daemon) {
-	return StartTestPeerExtra(numPeers, numHosts, numServices, "")
+func StartTestPeer(t testing.TB, numPeers, numHosts, numServices int) (*Peer, func() error, *Daemon) {
+	return StartTestPeerExtra(t, numPeers, numHosts, numServices, "")
 }
 
 // StartTestPeerExtra starts:
@@ -333,7 +335,7 @@ func StartTestPeer(numPeers, numHosts, numServices int) (*Peer, func() error, *D
 //
 // It returns a peer with the "mainloop" connection configured
 // if numServices is  0, empty test data will be used.
-func StartTestPeerExtra(numPeers, numHosts, numServices int, extraConfig string) (peer *Peer, cleanup func() error, mockLMD *Daemon) {
+func StartTestPeerExtra(t testing.TB, numPeers, numHosts, numServices int, extraConfig string) (peer *Peer, cleanup func() error, mockLMD *Daemon) {
 	if testLogTarget != "stderr" {
 		os.Remove(testLogTarget)
 	}
@@ -685,7 +687,7 @@ func TestMock1(t *testing.T) {
 }
 
 func TestMock2(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(1, 1, 1)
+	peer, cleanup, _ := StartTestPeer(t, 1, 1, 1)
 	PauseTestPeers(peer)
 
 	res, _, err := peer.QueryString("GET status\nColumns: program_start\n\n")

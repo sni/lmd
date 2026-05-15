@@ -42,7 +42,7 @@ func TestComposeTimestamp3(t *testing.T) {
 }
 
 func TestDSHasChanged(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(t, 1, 10, 10)
 	PauseTestPeers(peer)
 
 	data := peer.data.Load()
@@ -55,7 +55,7 @@ func TestDSHasChanged(t *testing.T) {
 }
 
 func TestDSFullUpdate(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(t, 1, 10, 10)
 	PauseTestPeers(peer)
 
 	peer.scheduleImmediateUpdate()
@@ -68,7 +68,7 @@ func TestDSFullUpdate(t *testing.T) {
 }
 
 func TestDSDowntimesComments(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(t, 1, 10, 10)
 	PauseTestPeers(peer)
 
 	data := peer.data.Load()

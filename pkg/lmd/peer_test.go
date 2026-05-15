@@ -212,7 +212,7 @@ func TestParseResultJSONBrokenError(t *testing.T) {
 }
 
 func TestPeerDeltaUpdate(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(t, 1, 10, 10)
 	PauseTestPeers(peer)
 
 	store := peer.data.Load()
@@ -224,7 +224,7 @@ func TestPeerDeltaUpdate(t *testing.T) {
 }
 
 func TestPeerUpdateResume(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(t, 1, 10, 10)
 	PauseTestPeers(peer)
 
 	err := peer.resumeFromIdle(t.Context())
@@ -235,7 +235,7 @@ func TestPeerUpdateResume(t *testing.T) {
 }
 
 func TestPeerInitSerial(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(t, 1, 10, 10)
 	PauseTestPeers(peer)
 
 	store := peer.data.Load()
@@ -247,7 +247,7 @@ func TestPeerInitSerial(t *testing.T) {
 }
 
 func TestLMDPeerUpdate(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(3, 10, 10)
+	peer, cleanup, _ := StartTestPeer(t, 3, 10, 10)
 	PauseTestPeers(peer)
 
 	store := peer.data.Load()
@@ -273,7 +273,7 @@ func TestLMDPeerUpdate(t *testing.T) {
 }
 
 func TestPeerLog(t *testing.T) {
-	peer, cleanup, _ := StartTestPeer(1, 10, 10)
+	peer, cleanup, _ := StartTestPeer(t, 1, 10, 10)
 	PauseTestPeers(peer)
 
 	peer.setBroken("test")
