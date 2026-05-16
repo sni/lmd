@@ -75,6 +75,9 @@ const (
 	MaxJSONMetaResponseSize = 1e6 // 1MB
 )
 
+// RowResultCB is a callback called for each result row.
+type RowResultCB func(row []any, numBytes int) error
+
 // Peer is the object which handles collecting and updating data and connections.
 type Peer struct { //nolint:govet // not fieldalignment relevant
 	noCopy          noCopy
@@ -327,6 +330,29 @@ func (p *Peer) Query(ctx context.Context, req *Request) (result ResultSet, meta 
 	}
 
 	return result, meta, err
+}
+
+// QueryCB sends a livestatus request from a request object.
+// It returns the meta data and any error encountered.
+// Callback is called for each data row.
+// Only works for queries which return arrays of arrays.
+func (p *Peer) QueryCB(ctx context.Context, req *Request, clb RowResultCB) (meta *ResultMetaData, err error) {
+	if clb == nil {
+		return nil, fmt.Errorf("callback is required")
+	}
+	if req.Command != "" {
+		return nil, fmt.Errorf("callback queries are not supported for commands")
+	}
+	if req.OutputFormat != OutputFormatJSON {
+		return nil, fmt.Errorf("callback queries are only supported for normal json output format")
+	}
+
+	_, meta, err = p.queryCB(ctx, req, clb)
+	if err != nil {
+		p.setNextAddrFromErr(err, req, p.source)
+	}
+
+	return meta, err
 }
 
 // QueryString sends a livestatus request from a given string.
@@ -679,6 +705,7 @@ func (p *Peer) initAllTables(ctx context.Context) (err error) {
 	defer trace.StartRegion(ctx, "initAllTables").End()
 	time1 := time.Now()
 
+	logWith(p).Debugf("starting initial objects synchronization")
 	data := NewDataStoreSet(p)
 	err = data.initAllTables(ctx)
 	if err != nil {
@@ -694,7 +721,7 @@ func (p *Peer) initAllTables(ctx context.Context) (err error) {
 	peerStatus := p.peerState.Get()
 	p.data.Store(data)
 	p.responseTime.Set(duration.Seconds())
-	logWith(p).Infof("objects created in: %s", duration.String())
+	logWith(p).Infof("initial objects synchronized in: %s", duration.String())
 	if peerStatus != PeerStatusUp {
 		p.resetErrors()
 	}
@@ -785,12 +812,15 @@ func (p *Peer) resetErrors() {
 // query sends the request to a remote livestatus.
 // It returns the unmarshaled result and any error encountered.
 func (p *Peer) query(ctx context.Context, req *Request) (ResultSet, *ResultMetaData, error) {
+	return p.queryCB(ctx, req, nil)
+}
+
+// query sends the request to a remote livestatus.
+// It returns the unmarshaled result and any error encountered.
+// The callback is optional. If set, instead of a result set, each result row will be send to the callback.
+func (p *Peer) queryCB(ctx context.Context, req *Request, clb RowResultCB) (ResultSet, *ResultMetaData, error) {
 	p.cache.maxParallelConnections <- true // wait/reserve one connection slot, channel will block if full
-	name := "COMMAND"
-	if req.Command == "" {
-		name = req.Table.String()
-	}
-	defer trace.StartRegion(ctx, "query "+name).End()
+
 	var conn net.Conn
 	var connType ConnectionType
 	var err error
@@ -843,6 +873,26 @@ func (p *Peer) query(ctx context.Context, req *Request) (ResultSet, *ResultMetaD
 	promPeerBytesSend.WithLabelValues(p.Name).Set(float64(totalBytesSend))
 	promPeerQueries.WithLabelValues(p.Name).Inc()
 
+	if clb != nil {
+		t1 := time.Now()
+		newConn, bErr := p.getQueryResponseCB(ctx, req, query, peerAddr, conn, connType, clb)
+		if bErr != nil {
+			logWith(p, req).Debugf("backend query failed: %w", bErr)
+
+			return nil, nil, bErr
+		}
+		if newConn != nil {
+			conn = newConn
+		}
+		meta := ResultMetaData{
+			Request:  req,
+			Duration: time.Since(t1),
+		}
+
+		return nil, &meta, nil
+	}
+
+	// no callback set, parse regularly
 	t1 := time.Now()
 	resBytes, newConn, err := p.getQueryResponse(ctx, req, query, peerAddr, conn, connType)
 	duration := time.Since(t1)
@@ -918,19 +968,34 @@ func (p *Peer) logJSONRequestParseErrorDetails(req *Request, resBytes []byte, er
 func (p *Peer) getQueryResponse(ctx context.Context, req *Request, query, peerAddr string, conn net.Conn, connType ConnectionType) ([]byte, net.Conn, error) {
 	// http connections
 	if connType == ConnTypeHTTP {
-		return p.getHTTPQueryResponse(ctx, req, query, peerAddr)
+		return p.getHTTPQueryResponse(ctx, req, query, peerAddr, nil)
 	}
 
-	return p.getSocketQueryResponseWithTemporaryRetries(req, query, conn)
+	return p.getSocketQueryResponseWithTemporaryRetries(req, query, conn, nil)
 }
 
-func (p *Peer) getHTTPQueryResponse(ctx context.Context, req *Request, query, peerAddr string) ([]byte, net.Conn, error) {
-	res, err := p.httpQueryWithRetries(ctx, req, peerAddr, query, 2)
+func (p *Peer) getQueryResponseCB(ctx context.Context, req *Request, query, peerAddr string, conn net.Conn, connType ConnectionType, clb RowResultCB) (rConn net.Conn, err error) { //nolint:lll // long parameter list...
+	// http connections
+	switch connType {
+	case ConnTypeHTTP:
+		_, rConn, err = p.getHTTPQueryResponse(ctx, req, query, peerAddr, clb)
+	default:
+		_, rConn, err = p.getSocketQueryResponseWithTemporaryRetries(req, query, conn, clb)
+	}
+
+	return
+}
+
+func (p *Peer) getHTTPQueryResponse(ctx context.Context, req *Request, query, peerAddr string, clb RowResultCB) ([]byte, net.Conn, error) {
+	res, totalBytes, err := p.httpQueryWithRetries(ctx, req, peerAddr, query, 2, clb)
 	if err != nil {
 		return nil, nil, err
 	}
+	if clb != nil {
+		return nil, nil, nil
+	}
 	if req.ResponseFixed16 {
-		code, expSize, err := p.parseResponseHeader(&res)
+		code, expSize, err := parseResponseHeader(&res)
 		if err != nil {
 			logWith(p, req).Debugf("LastQuery:")
 			logWith(p, req).Debugf("%s", req.String())
@@ -939,7 +1004,7 @@ func (p *Peer) getHTTPQueryResponse(ctx context.Context, req *Request, query, pe
 		}
 		res = res[16:]
 
-		err = p.validateResponseHeader(res, req, code, expSize)
+		err = p.validateResponseHeader(res, req, code, totalBytes, expSize)
 		if err != nil {
 			logWith(p, req).Debugf("LastQuery:")
 			logWith(p, req).Debugf("%s", req.String())
@@ -951,7 +1016,7 @@ func (p *Peer) getHTTPQueryResponse(ctx context.Context, req *Request, query, pe
 	return res, nil, nil
 }
 
-func (p *Peer) getSocketQueryResponse(req *Request, query string, conn net.Conn) ([]byte, error) {
+func (p *Peer) getSocketQueryResponse(req *Request, query string, conn net.Conn, clb RowResultCB) ([]byte, error) {
 	// tcp/unix connections
 	n, err := p.socketSendQuery(query, conn)
 	if err != nil {
@@ -964,16 +1029,16 @@ func (p *Peer) getSocketQueryResponse(req *Request, query string, conn net.Conn)
 		p.logErrors(closeWrite(conn))
 	}
 
-	b, err := p.parseResponse(req, conn)
+	b, err := p.parseResponse(req, conn, clb)
 
 	return b, err
 }
 
-func (p *Peer) getSocketQueryResponseWithTemporaryRetries(req *Request, query string, conn net.Conn) ([]byte, net.Conn, error) {
+func (p *Peer) getSocketQueryResponseWithTemporaryRetries(req *Request, query string, conn net.Conn, clb RowResultCB) ([]byte, net.Conn, error) {
 	// catch temporary errors
 	retries := 0
 	for {
-		b, err := p.getSocketQueryResponse(req, query, conn)
+		b, err := p.getSocketQueryResponse(req, query, conn, clb)
 		if err == nil {
 			return b, conn, nil
 		}
@@ -999,16 +1064,16 @@ func (p *Peer) getSocketQueryResponseWithTemporaryRetries(req *Request, query st
 	}
 }
 
-func (p *Peer) parseResponse(req *Request, conn net.Conn) (b []byte, err error) {
+func (p *Peer) parseResponse(req *Request, conn io.ReadCloser, clb RowResultCB) (b []byte, err error) {
 	// read result with fixed result size
 	if req.ResponseFixed16 {
-		b, err = p.parseResponseFixedSize(req, conn)
+		b, err = p.parseResponseFixedSize(req, conn, clb)
 
 		return b, err
 	}
 
 	// read result with unknown result size
-	b, err = p.parseResponseUndefinedSize(conn)
+	b, _, err = parseResponseUndefinedSize(conn, clb)
 	if err != nil && req.Command != "" {
 		// ignore errors for commands, might close connection immediately (and sending did work already...)
 		logWith(p, req).Tracef("ignoring error while reading command response: %s", err.Error())
@@ -1083,25 +1148,7 @@ func (p *Peer) socketSendQuery(query string, conn net.Conn) (int, error) {
 	return n, err
 }
 
-func (p *Peer) parseResponseUndefinedSize(conn io.Reader) ([]byte, error) {
-	// read result from connection into result buffer with undefined result size
-	body := new(bytes.Buffer)
-	for {
-		_, err := io.CopyN(body, conn, 65536)
-		if err != nil {
-			if !errors.Is(err, io.EOF) {
-				return nil, fmt.Errorf("io.CopyN: %w", err)
-			}
-
-			break
-		}
-	}
-	res := body.Bytes()
-
-	return res, nil
-}
-
-func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) ([]byte, error) {
+func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser, clb RowResultCB) ([]byte, error) {
 	header := bytes.NewBuffer(make([]byte, 0, 16))
 	_, err := io.CopyN(header, conn, 16)
 	resBytes := header.Bytes()
@@ -1116,15 +1163,33 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) ([]byte,
 			return nil, &PeerError{msg: string(resBytes), kind: ConnectionError}
 		}
 	}
-	code, expSize, err := p.parseResponseHeader(&resBytes)
+	code, expSize, err := parseResponseHeader(&resBytes)
 	if err != nil {
 		logWith(p, req).Debugf("LastQuery:")
 		logWith(p, req).Debugf("%s", req.String())
 
 		return nil, err
 	}
+
+	if clb != nil {
+		res, totalBytes, cErr := parseResponseFixedSize(conn, clb, expSize)
+		if cErr != nil {
+			return nil, fmt.Errorf("network read: %w", cErr)
+		}
+
+		err = p.validateResponseHeader(res, req, code, totalBytes, expSize)
+		if err != nil {
+			logWith(p, req).Debugf("LastQuery:")
+			logWith(p, req).Debugf("%s", req.String())
+
+			return nil, err
+		}
+
+		return nil, nil
+	}
+
 	body := bytes.NewBuffer(make([]byte, 0, expSize))
-	_, err = io.CopyN(body, conn, expSize)
+	_, err = io.CopyN(body, conn, int64(expSize))
 	if err != nil && errors.Is(err, io.EOF) {
 		err = nil
 	}
@@ -1134,7 +1199,7 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) ([]byte,
 	}
 
 	res := body.Bytes()
-	err = p.validateResponseHeader(res, req, code, expSize)
+	err = p.validateResponseHeader(res, req, code, len(res), expSize)
 	if err != nil {
 		logWith(p, req).Debugf("LastQuery:")
 		logWith(p, req).Debugf("%s", req.String())
@@ -1145,48 +1210,13 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser) ([]byte,
 	return res, nil
 }
 
-// parseResponseHeader parses the return code and content length from the first line of livestatus answer.
-// It returns the body size or an error if parsing fails.
-func (p *Peer) parseResponseHeader(resBytes *[]byte) (code int, expSize int64, err error) {
-	resSize := len(*resBytes)
-	if resSize == 0 {
-		return 0, 0, fmt.Errorf("empty response, got 0 bytes")
-	}
-	if resSize < 16 {
-		return 0, 0, fmt.Errorf("incomplete response header: '%s'", string(*resBytes))
-	}
-	header := string((*resBytes)[0:15])
-	matched := reResponseHeader.FindStringSubmatch(header)
-	if len(matched) != 3 {
-		if len(*resBytes) > ErrorContentPreviewSize {
-			*resBytes = (*resBytes)[:ErrorContentPreviewSize]
-		}
-
-		return 0, 0, fmt.Errorf("incorrect response header: '%s'", string((*resBytes)))
-	}
-	code, err = strconv.Atoi(matched[1])
-	if err != nil {
-		return 0, 0, fmt.Errorf("header parse error - %s: %s", err.Error(), string(*resBytes))
-	}
-	expSize, err = strconv.ParseInt(matched[2], 10, 64)
-	if err != nil {
-		return 0, 0, fmt.Errorf("header parse error - %s: %s", err.Error(), string(*resBytes))
-	}
-
-	if expSize > MaxJSONResponseSize {
-		return 0, 0, fmt.Errorf("response size exceeds maximum allowed size: %d", expSize)
-	}
-
-	return code, expSize, nil
-}
-
 // validateResponseHeader checks if the response header returned a valid size and return code.
-func (p *Peer) validateResponseHeader(resBytes []byte, req *Request, code int, expSize int64) (err error) {
+func (p *Peer) validateResponseHeader(resBytes []byte, req *Request, code, totalBytes, expSize int) (err error) {
 	switch code {
 	case 200:
 		// everything fine
 	default:
-		if expSize > 0 && expSize < 300 && int64(len(resBytes)) == expSize {
+		if expSize > 0 && expSize < 300 && totalBytes == expSize {
 			msg := fmt.Sprintf("bad response code: %d - %s", code, string(resBytes))
 
 			return &PeerError{msg: msg, kind: ResponseError, req: req, resBytes: resBytes, code: code}
@@ -1195,8 +1225,8 @@ func (p *Peer) validateResponseHeader(resBytes []byte, req *Request, code int, e
 
 		return &PeerError{msg: msg, kind: ResponseError, req: req, resBytes: resBytes, code: code}
 	}
-	if int64(len(resBytes)) != expSize {
-		err = fmt.Errorf("bad response size, expected %d, got %d", expSize, len(resBytes))
+	if totalBytes != expSize {
+		err = fmt.Errorf("bad response size, expected %d, got %d", expSize, totalBytes)
 
 		return &PeerError{msg: err.Error(), kind: ResponseError, req: req, resBytes: resBytes, code: code}
 	}
@@ -1566,7 +1596,7 @@ func (p *Peer) fetchThrukExtrasFromAddr(ctx context.Context, peerAddr string) (c
 	}
 	output, _, err := p.httpPostQuery(ctx, nil, peerAddr, url.Values{
 		"data": {fmt.Sprintf("{\"credential\": %q, \"options\": %s}", p.config.Auth, optionStr)},
-	}, nil)
+	}, nil, nil)
 	if err != nil {
 		return conf, thrukExtras, err
 	}
@@ -1856,27 +1886,27 @@ func safeCloseWaitChannel(waitChan chan struct{}) {
 }
 
 // httpQueryWithRetries calls HTTPQuery with given amount of retries.
-func (p *Peer) httpQueryWithRetries(ctx context.Context, req *Request, peerAddr, query string, retries int) (res []byte, err error) {
-	res, err = p.httpQuery(ctx, req, peerAddr, query)
+func (p *Peer) httpQueryWithRetries(ctx context.Context, req *Request, peerAddr, query string, retries int, clb RowResultCB) (res []byte, totalBytes int, err error) {
+	res, totalBytes, err = p.httpQuery(ctx, req, peerAddr, query, clb)
 
 	// retry on broken pipe errors
 	for retry := 1; retry <= retries && err != nil; retry++ {
 		logWith(p, req).Debugf("errored: %s", err.Error())
 		if strings.HasPrefix(err.Error(), "remote site returned rc: 0 - ERROR: broken pipe.") {
 			time.Sleep(1 * time.Second)
-			res, err = p.httpQuery(ctx, req, peerAddr, query)
+			res, totalBytes, err = p.httpQuery(ctx, req, peerAddr, query, clb)
 			if err == nil {
 				logWith(p, req).Debugf("site returned successful result after %d retries", retry)
 			}
 		}
 	}
 
-	return res, err
+	return res, totalBytes, err
 }
 
 // httpQuery sends a query over http to a Thruk backend.
 // It returns the livestatus answers and any encountered error.
-func (p *Peer) httpQuery(ctx context.Context, req *Request, peerAddr, query string) (res []byte, err error) {
+func (p *Peer) httpQuery(ctx context.Context, req *Request, peerAddr, query string, clb RowResultCB) (res []byte, totalBytes int, err error) {
 	options := make(map[string]any)
 	if p.config.RemoteName != "" {
 		options["backends"] = []string{p.config.RemoteName}
@@ -1889,7 +1919,7 @@ func (p *Peer) httpQuery(ctx context.Context, req *Request, peerAddr, query stri
 	options["args"] = []string{strings.TrimSpace(query) + "\n"}
 	optionStr, err := json.Marshal(options)
 	if err != nil {
-		return nil, fmt.Errorf("json error: %s", err.Error())
+		return nil, 0, fmt.Errorf("json error: %s", err.Error())
 	}
 
 	headers := make(map[string]string)
@@ -1900,28 +1930,31 @@ func (p *Peer) httpQuery(ctx context.Context, req *Request, peerAddr, query stri
 
 	output, result, err := p.httpPostQuery(ctx, req, peerAddr, url.Values{
 		"data": {fmt.Sprintf("{\"credential\": %q, \"options\": %s}", p.config.Auth, optionStr)},
-	}, headers)
+	}, headers, clb)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
+	}
+	if clb != nil {
+		return nil, 0, nil
 	}
 	if result.Raw != nil {
 		res = result.Raw
 
-		return res, nil
+		return res, 0, nil
 	}
 	if len(output) <= 2 {
-		return nil, &PeerError{msg: fmt.Sprintf("unknown site error, got: %#v", result), kind: ResponseError}
+		return nil, 0, &PeerError{msg: fmt.Sprintf("unknown site error, got: %#v", result), kind: ResponseError}
 	}
 	if v, ok := output[2].(string); ok {
 		// return result string as bytes array without copying
-		return unsafe.Slice(unsafe.StringData(v), len(v)), nil
+		return unsafe.Slice(unsafe.StringData(v), len(v)), len(v), nil
 	}
 
-	return nil, &PeerError{msg: fmt.Sprintf("unknown site error, got: %#v", result), kind: ResponseError}
+	return nil, 0, &PeerError{msg: fmt.Sprintf("unknown site error, got: %#v", result), kind: ResponseError}
 }
 
 // httpPostQueryResult returns response array from thruk api.
-func (p *Peer) httpPostQueryResult(ctx context.Context, query *Request, peerAddr string, postData url.Values, headers map[string]string) (result *HTTPResult, err error) {
+func (p *Peer) httpPostQueryResult(ctx context.Context, query *Request, peerAddr string, postData url.Values, headers map[string]string, clb RowResultCB) (result *HTTPResult, err error) { //nolint:lll // it is what it is...
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, peerAddr, strings.NewReader(postData.Encode()))
 	if err != nil {
 		logWith(p, query).Debugf("http(s) error: %s", fmtHTTPerr(req, err))
@@ -1942,12 +1975,15 @@ func (p *Peer) httpPostQueryResult(ctx context.Context, query *Request, peerAddr
 		return nil, fmt.Errorf("http error: %s", err.Error())
 	}
 	p.lastHTTPRequestSuccessful.Store(true)
-	contents, err := extractHTTPResponse(response)
+	contents, err := p.extractHTTPResponse(query, response, clb)
 	p.logHTTPResponse(query, response, contents)
 	if err != nil {
 		logWith(p, query).Debugf("http(s) error: %s", fmtHTTPerr(req, err))
 
 		return nil, err
+	}
+	if clb != nil {
+		return nil, nil //nolint:nilnil // in case of callbacks used, there is no result
 	}
 
 	if query != nil && query.Command != "" {
@@ -1995,10 +2031,13 @@ func (p *Peer) httpPostQueryResult(ctx context.Context, query *Request, peerAddr
 // httpPostQuery returns response array from thruk api.
 //
 //nolint:lll // it is what it is...
-func (p *Peer) httpPostQuery(ctx context.Context, req *Request, peerAddr string, postData url.Values, headers map[string]string) (output []any, result *HTTPResult, err error) {
-	result, err = p.httpPostQueryResult(ctx, req, peerAddr, postData, headers)
+func (p *Peer) httpPostQuery(ctx context.Context, req *Request, peerAddr string, postData url.Values, headers map[string]string, clb RowResultCB) (output []any, result *HTTPResult, err error) {
+	result, err = p.httpPostQueryResult(ctx, req, peerAddr, postData, headers, clb)
 	if err != nil {
 		return nil, nil, err
+	}
+	if clb != nil {
+		return nil, nil, nil
 	}
 	if result.Version != "" {
 		currentVersion := p.thrukVersion.Get()
@@ -2049,7 +2088,7 @@ func (p *Peer) httpRestQuery(ctx context.Context, peerAddr, uri string) (output 
 	}
 	result, err = p.httpPostQueryResult(ctx, nil, peerAddr, url.Values{
 		"data": {fmt.Sprintf("{\"credential\": %q, \"options\": %s}", p.config.Auth, optionStr)},
-	}, map[string]string{"Accept": "application/json"})
+	}, map[string]string{"Accept": "application/json"}, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -2078,10 +2117,17 @@ func (p *Peer) httpRestQuery(ctx context.Context, peerAddr, uri string) (output 
 }
 
 // extractHTTPResponse returns the content of a HTTP request.
-func extractHTTPResponse(response *http.Response) (contents []byte, err error) {
-	contents, err = io.ReadAll(response.Body)
-	if err != nil {
-		return nil, fmt.Errorf("io error: %s", err.Error())
+func (p *Peer) extractHTTPResponse(req *Request, response *http.Response, clb RowResultCB) (contents []byte, err error) {
+	if clb != nil && response.StatusCode == http.StatusOK {
+		_, err = p.parseResponse(req, response.Body, clb)
+		if err != nil {
+			return nil, fmt.Errorf("io error: %s", err.Error())
+		}
+	} else {
+		contents, err = io.ReadAll(response.Body)
+		if err != nil {
+			return nil, fmt.Errorf("io error: %s", err.Error())
+		}
 	}
 
 	_, err = io.Copy(io.Discard, response.Body)

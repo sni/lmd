@@ -103,6 +103,8 @@ func (ds *DataStoreSet) initAllTables(ctx context.Context) (err error) {
 func (ds *DataStoreSet) initAllTablesSerial(ctx context.Context) (err error) {
 	time1 := time.Now()
 
+	logWith(ds.peer).Debugf("starting serial initialization")
+
 	// fetch one at a time
 	for _, n := range Objects.UpdateTables {
 		t := Objects.Tables[n]
@@ -122,6 +124,8 @@ func (ds *DataStoreSet) initAllTablesSerial(ctx context.Context) (err error) {
 // initAllTablesParallel fetches all objects at once.
 func (ds *DataStoreSet) initAllTablesParallel(ctx context.Context) (err error) {
 	time1 := time.Now()
+
+	logWith(ds.peer).Debugf("starting parallel initialization")
 
 	// go with status table first
 	err = ds.initTable(ctx, Objects.Tables[TableStatus])
@@ -291,11 +295,14 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 
 	var lastReq *Request
 	offset := 0
-	results := []*ResultSet{}
-	metaData := []*ResultMetaData{}
-	totalPrepTime := time.Duration(0)
 	totalRowNum := 0
+	totalSize := 0
+	totalFetchDuration := time.Duration(0)
 	tableName := table.name.String()
+	now := currentUnixTime()
+	rows := []*DataRow{}
+	keyLen := len(keys)
+	curRowNum := 0
 
 	for {
 		req := &Request{
@@ -306,18 +313,10 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 		}
 		lastReq = req
 		peer.setQueryOptions(req)
-		res, resMeta, err := peer.Query(ctx, req)
-		if err != nil {
-			return nil, err
-		}
-
-		time1 := time.Now()
-
-		// verify result set
-		keyLen := len(keys)
-		for i, row := range res {
+		resMeta, err := peer.QueryCB(ctx, req, func(row []any, numBytes int) error {
+			curRowNum++
 			if len(row) != keyLen {
-				err := fmt.Errorf("%s result set verification failed: len mismatch in row %d, expected %d columns and got %d", store.table.name.String(), i, keyLen, len(row))
+				err := fmt.Errorf("%s result set verification failed: len mismatch in row %d, expected %d columns and got %d", store.table.name.String(), curRowNum, keyLen, len(row))
 				if peer.errorCount.Load() > 0 {
 					// silently cancel, backend broke during initialization, should have been logged already
 					log.Debugf("error during %s initialization, but backend is already failed: %s", &table.name, err.Error())
@@ -325,17 +324,28 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 					log.Errorf("error during %s initialization: %s", &table.name, err.Error())
 				}
 
-				return nil, err
+				return err
 			}
+
+			dRow, err := NewDataRow(store, row, columns, now, false)
+			if err != nil {
+				return err
+			}
+			rows = append(rows, dRow)
+			totalSize += numBytes
+
+			return nil
+		})
+		if err != nil {
+			log.Debugf("got %s result error: %s", tableName, err.Error())
+
+			return nil, err
 		}
 
-		metaData = append(metaData, resMeta)
-		results = append(results, &res)
+		totalRowNum += len(rows)
+		totalFetchDuration += resMeta.Duration
 
-		totalPrepTime += time.Since(time1).Truncate(time.Millisecond)
-		totalRowNum += len(res)
-
-		if len(res) < limit {
+		if len(rows) < limit {
 			break
 		}
 		logWith(peer, lastReq).Debugf("initial table: %15s - fetching bulk: %d", tableName, offset)
@@ -343,27 +353,23 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 		offset += limit
 	}
 
-	resMeta := ds.mergeResultMetas(metaData)
-
 	time2 := time.Now()
-	now := currentUnixTime()
-	err := store.insertDataMulti(ctx, results, columns, false)
+	now = currentUnixTime()
+	err := store.insertFromDataRows(ctx, rows)
 	if err != nil {
 		return nil, err
 	}
-
 	durationInsert := time.Since(time2).Truncate(time.Millisecond)
 
 	time3 := time.Now()
-
 	ds.peer.lastUpdate.Set(now)
 	ds.peer.lastFullUpdate.Set(now)
 	durationLock := time.Since(time3).Truncate(time.Millisecond)
 
 	promObjectCount.WithLabelValues(peer.Name, tableName).Set(float64(totalRowNum))
 
-	logWith(peer, lastReq).Debugf("initial table: %15s - fetch: %9s - prep: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
-		tableName, resMeta.Duration.Truncate(time.Millisecond), totalPrepTime, durationLock, durationInsert, totalRowNum, resMeta.Size/1024)
+	logWith(peer, lastReq).Debugf("initial table: %15s - fetch/process: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
+		tableName, totalFetchDuration.Truncate(time.Millisecond), durationLock, durationInsert, totalRowNum, totalSize/1024)
 
 	return store, nil
 }
@@ -427,29 +433,6 @@ func (ds *DataStoreSet) tryOnDemandComDownUpdate(ctx context.Context) (err error
 	}
 
 	return nil
-}
-
-func (ds *DataStoreSet) mergeResultMetas(metas []*ResultMetaData) (resMeta *ResultMetaData) {
-	if len(metas) == 0 {
-		return nil
-	}
-
-	if len(metas) == 1 {
-		return metas[0]
-	}
-
-	resMeta = metas[0]
-	for i, meta := range metas {
-		if i == 0 {
-			continue
-		}
-		resMeta.Size += meta.Size
-		resMeta.Duration += meta.Duration
-		resMeta.RowsScanned += meta.RowsScanned
-		resMeta.Total += meta.Total
-	}
-
-	return resMeta
 }
 
 // setReferences creates reference entries for all tables.
@@ -538,8 +521,7 @@ func (ds *DataStoreSet) updateFullTablesList(ctx context.Context, tables []Table
 	return err
 }
 
-// updateDeltaHosts update hosts by fetching all dynamic data with a last_check filter on the timestamp since
-// the previous update with additional updateOffset seconds.
+// updateDeltaHosts update hosts by fetching all dynamic data with given filter
 // It returns any error encountered.
 func (ds *DataStoreSet) updateDeltaHosts(ctx context.Context, filterStr string) (res ResultSet, updateSet []*ResultPrepared, err error) {
 	table := ds.get(TableHosts)
@@ -564,8 +546,7 @@ func (ds *DataStoreSet) updateDeltaHosts(ctx context.Context, filterStr string) 
 	return res, updateSet, err
 }
 
-// updateDeltaServices update services by fetching all dynamic data with a last_check filter on the timestamp since
-// the previous update with additional updateOffset seconds.
+// updateDeltaServices update services by fetching all dynamic data with given filter
 // It returns any error encountered.
 func (ds *DataStoreSet) updateDeltaServices(ctx context.Context, filterStr string) (res ResultSet, updateSet []*ResultPrepared, err error) {
 	table := ds.get(TableServices)

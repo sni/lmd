@@ -11,7 +11,7 @@ BEGIN {
 use lib('/box/tests/');
 use LMDTests;
 
-plan tests => 24;
+plan tests => 30;
 
 ###########################################################
 # verify that we use the correct binary
@@ -28,6 +28,12 @@ TestUtils::test_command({
 TestUtils::test_command({
     cmd  => '/bin/bash -c "omd status lmd"',
     like => ['/lmd:.*running/'],
+});
+
+TestUtils::test_command({
+    cmd  => '/bin/bash -c "thruk -l | grep -c OK"',
+    like => ['/^2/'],
+    waitfor => '^2',
 });
 
 ###########################################################

@@ -145,7 +145,7 @@ func (d *DataRow) setLowerCaseCache() {
 }
 
 // SetReferences creates reference entries for cross referenced objects.
-func (d *DataRow) SetReferences() (err error) {
+func (d *DataRow) SetReferences() error {
 	store := d.dataStore
 	for i := range store.table.refTables {
 		ref := &store.table.refTables[i]
@@ -169,7 +169,7 @@ func (d *DataRow) SetReferences() (err error) {
 		}
 	}
 
-	return err
+	return nil
 }
 
 // GetString returns the string value for given column.

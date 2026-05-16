@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	testLogLevel  = "Error"  // set to Trace for debugging
+	testLogLevel  = "error"  // set to Trace for debugging
 	testLogTarget = "stderr" // set to /tmp/logfile...
 )
 
@@ -120,7 +120,7 @@ func handleMockConnection(lmd *Daemon, conn net.Conn, dataFolder string, mockLog
 		return closeServer
 	}
 
-	mockLog.Debugf("request: %s", req.Table.String())
+	mockLog.Debugf("incoming mock request for table: %s", req.Table.String())
 	if req.Table == TableColumns {
 		// make the peer detect dependency columns
 		b, err := json.Marshal(getTestDataColumns(dataFolder))
@@ -234,11 +234,11 @@ func prepareTmpDataHostService(dataFolder, tempFolder string, table *Table, numH
 		}
 	}
 
-	fp, err := os.Create(fmt.Sprintf("%s/%s.map", tempFolder, name.String()))
+	file, err := os.Create(fmt.Sprintf("%s/%s.map", tempFolder, name.String()))
 	if err != nil {
 		panic("failed to open tmp file: " + err.Error())
 	}
-	_checkErr2(fp.WriteString("["))
+	_checkErr2(file.WriteString("["))
 
 	count := 0
 	writeObj := func(row map[string]any) {
@@ -247,9 +247,9 @@ func prepareTmpDataHostService(dataFolder, tempFolder string, table *Table, numH
 			panic(err)
 		}
 		if count > 1 {
-			_checkErr2(fp.WriteString(",\n"))
+			_checkErr2(file.WriteString(",\n"))
 		}
-		_checkErr2(fp.Write(enc))
+		_checkErr2(file.Write(enc))
 	}
 
 	switch name {
@@ -286,10 +286,12 @@ func prepareTmpDataHostService(dataFolder, tempFolder string, table *Table, numH
 				writeObj(newObj)
 			}
 		}
+	default:
+		panic(fmt.Sprintf("unsupported table: %s", table.name.String()))
 	}
 
-	_checkErr2(fp.WriteString("]\n"))
-	_checkErr(fp.Close())
+	_checkErr2(file.WriteString("]\n"))
+	_checkErr(file.Close())
 }
 
 func StartMockMainLoop(lmd *Daemon, sockets []string, extraConfig string) {
@@ -325,21 +327,27 @@ LogFile        = "` + testLogTarget + `"
 
 // StartTestPeer just call StartTestPeerExtra
 // if numServices is  0, empty test data will be used.
-func StartTestPeer(t testing.TB, numPeers, numHosts, numServices int) (*Peer, func() error, *Daemon) {
-	return StartTestPeerExtra(t, numPeers, numHosts, numServices, "")
+func StartTestPeer(tb testing.TB, numPeers, numHosts, numServices int) (*Peer, func() error, *Daemon) {
+	tb.Helper()
+
+	return StartTestPeerExtra(tb, numPeers, numHosts, numServices, "")
 }
 
 // StartTestPeerExtra starts:
-//   - a mock livestatus server which responds from status json
+//   - a mock livestatus server which responds from status json files
 //   - a main loop which has the mock server(s) as backend
 //
-// It returns a peer with the "mainloop" connection configured
+// It returns a peer (TestPeer) with the "mainloop" connection configured
 // if numServices is  0, empty test data will be used.
-func StartTestPeerExtra(t testing.TB, numPeers, numHosts, numServices int, extraConfig string) (peer *Peer, cleanup func() error, mockLMD *Daemon) {
+func StartTestPeerExtra(tb testing.TB, numPeers, numHosts, numServices int, extraConfig string) (peer *Peer, cleanup func() error, mockLMD *Daemon) {
+	tb.Helper()
+
 	if testLogTarget != "stderr" {
 		os.Remove(testLogTarget)
 	}
 	InitLogging(&Config{LogLevel: testLogLevel, LogFile: testLogTarget})
+
+	// start mock livestatus sources
 	mockLMD = createTestLMDInstance()
 	sockets := []string{}
 	for i := range numPeers {
@@ -347,6 +355,7 @@ func StartTestPeerExtra(t testing.TB, numPeers, numHosts, numServices int, extra
 	}
 	StartMockMainLoop(mockLMD, sockets, extraConfig)
 
+	// create peer with mainloop connection
 	lmd := createTestLMDInstance()
 	peer = NewPeer(lmd, &Connection{Source: []string{"doesnotexist", "test.sock"}, Name: "TestPeer", ID: "testid"})
 
@@ -638,8 +647,8 @@ func createTestLMDInstance() *Daemon {
 	return lmd
 }
 
-func panicFailedStartup(mocklmd *Daemon, peer *Peer, numPeers int, err error) {
-	info := []string{fmt.Sprintf("backend(s) never came online, expected %d sites", numPeers)}
+func panicFailedStartup(mockLMD *Daemon, peer *Peer, numPeers int, err error) {
+	info := []string{fmt.Sprintf("backend(s) never came online, expected %d sites to be online", numPeers)}
 	if err != nil {
 		info = append(info, err.Error())
 	}
@@ -657,9 +666,10 @@ func panicFailedStartup(mocklmd *Daemon, peer *Peer, numPeers int, err error) {
 		info = append(info, string(txt))
 	}
 
-	for _, p := range mocklmd.peerMap.Peers() {
-		log.Errorf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> mock lmd")
+	for i, p := range mockLMD.peerMap.Peers() {
+		log.Errorf(">>>>>>>>>>>>>>>>>>>>>>>>>> mock lmd num: %d", i)
 		p.logPeerStatus(log.Errorf)
+		log.Errorf("<<<<<<<<<<<<<<<<<<<<<<<<<<")
 	}
 
 	panic(strings.Join(info, "\n"))
@@ -671,9 +681,9 @@ func TestMock1(t *testing.T) {
 		os.Remove(testLogTarget)
 	}
 	InitLogging(&Config{LogLevel: testLogLevel, LogFile: testLogTarget})
-	mocklmd := createTestLMDInstance()
-	listen := StartMockLivestatusSource(mocklmd, 1, 1, 1)
-	peer := NewPeer(mocklmd, &Connection{
+	mockLMD := createTestLMDInstance()
+	listen := StartMockLivestatusSource(mockLMD, 1, 1, 1)
+	peer := NewPeer(mockLMD, &Connection{
 		Source: []string{listen},
 		Name:   "TestPeer",
 	})

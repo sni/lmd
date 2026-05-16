@@ -115,7 +115,7 @@ func (res *ResultSetSorted) Swap(i, j int) {
 
 // ResultPrepared is a list of result rows prepared to insert faster.
 type ResultPrepared struct {
-	DataRow    *DataRow
-	ResultRow  []any
-	FullUpdate bool
+	DataRow    *DataRow // reference to the storage data row
+	ResultRow  []any    // the new values to insert/update
+	FullUpdate bool     // flag wether all columns will be updated or just numeric ones
 }

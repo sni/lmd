@@ -31,7 +31,7 @@ func TestLMDPeerInitPeakMemoryUsage(t *testing.T) {
 	// clean up again
 	_, _, err = peer.QueryString("COMMAND [0] MOCK_EXIT")
 	require.NoError(t, err)
-	peer = nil
+	peer = nil //nolint:wastedassign // allow GC to free memory
 
 	peak2, alloc2 := getGoMemStats(t, false)
 
@@ -40,8 +40,8 @@ func TestLMDPeerInitPeakMemoryUsage(t *testing.T) {
 }
 
 // returns current heap allocation and peak rss in MB.
-func getGoMemStats(t testing.TB, doLog bool) (peakRSS, heapAlloc uint64) {
-	t.Helper()
+func getGoMemStats(tb testing.TB, doLog bool) (peakRSS, heapAlloc uint64) {
+	tb.Helper()
 
 	debug.SetGCPercent(10)
 	runtime.GC()
@@ -52,14 +52,14 @@ func getGoMemStats(t testing.TB, doLog bool) (peakRSS, heapAlloc uint64) {
 
 	var rUse unix.Rusage
 	if err := unix.Getrusage(unix.RUSAGE_SELF, &rUse); err != nil {
-		t.Fatalf("failed to get memory usage: %s", err.Error())
+		tb.Fatalf("failed to get memory usage: %s", err.Error())
 	}
 
 	// Maxrss is in kilobytes on Linux.
 	peakRSS = uint64(rUse.Maxrss) * 1024
 
 	if doLog {
-		t.Logf(
+		tb.Logf(
 			"peak=%03dMB heap_alloc=%03dMB heap_sys=%03dMB stack_sys=%03dMB heap_inuse=%03dMB next_gc=%03dMB",
 			peakRSS>>20,
 			memStat.HeapAlloc>>20,

@@ -141,6 +141,23 @@ func (d *DataStore) insertDataMulti(ctx context.Context, rowSet []*ResultSet, co
 	return nil
 }
 
+// insertFromDataRows adds a list of resultSets and initializes the store table from array of dataRows.
+func (d *DataStore) insertFromDataRows(ctx context.Context, rowSet []*DataRow) error {
+	defer trace.StartRegion(ctx, "InsertDataRows "+d.table.name.String()).End()
+
+	// make sure the final data block has the exact length to safe some memory
+	d.data = make([]*DataRow, 0, len(rowSet))
+	d.data = append(d.data, rowSet...)
+
+	// make sure all backends are sorted the same way
+	d.sortByPrimaryKey()
+
+	// create index
+	d.rebuildIndex()
+
+	return nil
+}
+
 // AppendData append a list of results and initializes the store table.
 func (d *DataStore) AppendData(data ResultSet, columns ColumnList) error {
 	d.lock.Lock()

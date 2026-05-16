@@ -134,7 +134,7 @@ citest: tools vendor
 	#
 	# Normal test cases
 	#
-	$(MAKE) test
+	$(MAKE) longtest
 	#
 	# Benchmark tests
 	#

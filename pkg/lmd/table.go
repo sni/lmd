@@ -13,7 +13,7 @@ type TableRef struct {
 }
 
 // TableName contains all table names.
-type TableName int
+type TableName uint8
 
 // available table names.
 const (

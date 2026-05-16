@@ -632,14 +632,23 @@ func TestHTTPCommands(t *testing.T) {
 	assert.InDeltaf(t, thrukVersion, peer.thrukVersion.Get(), 0, "version set correctly")
 }
 
-func TestHTTPPeer(t *testing.T) {
+func TestHTTPPeerInit(t *testing.T) {
 	lmd := createTestLMDInstance()
 	peer, cleanup := GetHTTPMockServerPeer(t, lmd)
 	defer cleanup()
 
-	if err := peer.initAllTables(t.Context()); err != nil {
-		t.Error(err)
-	}
+	err := peer.initAllTables(t.Context())
+	require.NoError(t, err)
+}
+
+func TestHTTPPeerUpdate(t *testing.T) {
+	lmd := createTestLMDInstance()
+	peer, cleanup := GetHTTPMockServerPeer(t, lmd)
+	defer cleanup()
+
+	ok, err := peer.tryUpdate(t.Context())
+	require.NoError(t, err)
+	assert.Truef(t, ok, "update worked")
 }
 
 func TestRequestPassthrough(t *testing.T) {
@@ -1312,7 +1321,7 @@ func TestRequestKeepalive(t *testing.T) {
 	_, err = fmt.Fprintf(conn, "%s", req.String())
 	require.NoError(t, err)
 
-	_, err = peer.parseResponseFixedSize(req, conn)
+	_, err = peer.parseResponseFixedSize(req, conn, nil)
 	require.NoError(t, err)
 
 	// open connections should be zero, we are done
@@ -1336,7 +1345,7 @@ func TestRequestKeepalive(t *testing.T) {
 	req.KeepAlive = true
 	_, err = fmt.Fprintf(conn, "%s", req.String())
 	require.NoError(t, err)
-	_, err = peer.parseResponseFixedSize(req, conn)
+	_, err = peer.parseResponseFixedSize(req, conn, nil)
 	require.NoError(t, err)
 
 	// open connections should be one
@@ -1345,7 +1354,7 @@ func TestRequestKeepalive(t *testing.T) {
 	// second request should pass as well
 	_, err = fmt.Fprintf(conn, "%s", req.String())
 	require.NoError(t, err)
-	_, err = peer.parseResponseFixedSize(req, conn)
+	_, err = peer.parseResponseFixedSize(req, conn, nil)
 	require.NoError(t, err)
 
 	// open connections should be one
@@ -1370,7 +1379,7 @@ func TestRequestKeepalive(t *testing.T) {
 	time.Sleep(KeepAliveWaitInterval)
 	assert.Equal(t, int64(0), getOpenListeners())
 
-	_, err = peer.parseResponseFixedSize(req, conn)
+	_, err = peer.parseResponseFixedSize(req, conn, nil)
 	require.NoError(t, err)
 
 	// check if connection is really closed
