@@ -43,9 +43,10 @@ func TestLMDPeerInitPeakMemoryUsage(t *testing.T) {
 func getGoMemStats(tb testing.TB, doLog bool) (peakRSS, heapAlloc uint64) {
 	tb.Helper()
 
-	debug.SetGCPercent(10)
+	prev := debug.SetGCPercent(10)
 	runtime.GC()
 	debug.FreeOSMemory()
+	debug.SetGCPercent(prev)
 
 	var memStat runtime.MemStats
 	runtime.ReadMemStats(&memStat)
