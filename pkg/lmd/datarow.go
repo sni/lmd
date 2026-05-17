@@ -43,10 +43,6 @@ func NewDataRow(store *DataStore, raw []any, columns ColumnList, timestamp float
 		return d, err
 	}
 
-	if !store.table.passthroughOnly && len(store.table.refTables) > 0 {
-		d.refs = make(map[TableName]*DataRow, len(store.table.refTables))
-	}
-
 	err = d.SetData(raw, columns, timestamp)
 	if err != nil {
 		return d, err
@@ -147,16 +143,23 @@ func (d *DataRow) setLowerCaseCache() {
 // SetReferences creates reference entries for cross referenced objects.
 func (d *DataRow) SetReferences() error {
 	store := d.dataStore
+
+	if store.table.passthroughOnly || len(store.table.refTables) == 0 {
+		return nil
+	}
+
+	d.refs = make(map[TableName]*DataRow, len(store.table.refTables))
+
 	for i := range store.table.refTables {
 		ref := &store.table.refTables[i]
 		tableName := ref.Table.name
 		refsByName := store.dataSet.get(tableName).index
-		refsByName2 := store.dataSet.get(tableName).index2
 
 		switch len(ref.Columns) {
 		case 1:
 			d.refs[tableName] = refsByName[d.GetString(ref.Columns[0])]
 		case 2:
+			refsByName2 := store.dataSet.get(tableName).index2
 			d.refs[tableName] = refsByName2[d.GetString(ref.Columns[0])][d.GetString(ref.Columns[1])]
 		}
 		if _, ok := d.refs[tableName]; !ok {
