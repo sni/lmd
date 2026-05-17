@@ -26,3 +26,8 @@
 - import_playbook: site_naemon.yml
 - import_playbook: site_icinga2.yml
 
+- hosts: all
+  tasks:
+  - shell: "omd restart demo"
+
+

@@ -245,7 +245,7 @@ lb: vendor buildtools/lb.go
 
 test-e2e: lmd
 	$(MAKE) -C t/devbox/ clean update prepare
-	$(MAKE) -C t/devbox/ test
+	$(MAKE) -C t/devbox/ test_verbose
 	$(MAKE) -C t/devbox/ clean
 
 
