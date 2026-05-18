@@ -152,7 +152,7 @@ func handleMockConnection(lmd *Daemon, conn net.Conn, dataFolder string, mockLog
 	}
 
 	filename := fmt.Sprintf("%s/%s", dataFolder, req.Table.String())
-	dat := readTestData(filename, req.Columns)
+	dat := readTestData(filename, req.Columns, req.Limit, req.Offset)
 	_checkErr2(fmt.Fprintf(conn, "%d %11d\n", 200, len(dat)))
 	_checkErr2(conn.Write(dat))
 	_checkErr(conn.Close())
@@ -497,7 +497,7 @@ func httpMockHandlerRaw(t *testing.T, wrt io.Writer, rdr *http.Request, dataFold
 		fmt.Fprint(wrt, string(b))
 	case req.Table != TableNone:
 		filename := fmt.Sprintf("%s/%s", dataFolder, req.Table.String())
-		dat := readTestData(filename, req.Columns)
+		dat := readTestData(filename, req.Columns, req.Limit, req.Offset)
 		fmt.Fprintf(wrt, "%d %11d\n", 200, len(dat))
 		fmt.Fprint(wrt, string(dat))
 	case req.Command == "COMMAND [0] test_ok":
@@ -523,8 +523,8 @@ func GetHTTPMockServerPeer(t *testing.T, lmd *Daemon) (peer *Peer, cleanup func(
 	return peer, cleanup
 }
 
-func convertTestDataMapToList(filename string, columns []string) []byte {
-	dat, err := os.ReadFile(filename + ".map")
+func convertTestDataMapToList(mapfile, datafile string, columns []string, limit *int, offset int) []byte {
+	dat, err := os.ReadFile(mapfile)
 	if err != nil {
 		panic("could not read file: " + err.Error())
 	}
@@ -534,14 +534,29 @@ func convertTestDataMapToList(filename string, columns []string) []byte {
 		panic("could not parse file: " + err.Error())
 	}
 
+	hashedDataSlice := hashedData
+	// apply request offset
+	if offset > 0 {
+		if offset > len(hashedDataSlice) {
+			hashedDataSlice = make([]map[string]any, 0)
+		} else {
+			hashedDataSlice = hashedDataSlice[offset:]
+		}
+	}
+
+	// apply request limit
+	if limit != nil && *limit >= 0 && *limit < len(hashedDataSlice) {
+		hashedDataSlice = hashedDataSlice[0:*limit]
+	}
+
 	result := make([]byte, 0)
 	result = append(result, []byte("[")...)
-	for rowNum, rowIn := range hashedData {
+	for rowNum, rowIn := range hashedDataSlice {
 		rowOut := make([]any, len(columns))
 		for idx, col := range columns {
 			val, ok := rowIn[col]
 			if !ok {
-				panic(fmt.Sprintf("missing column %s in testdata for file %s.map", col, filename))
+				panic(fmt.Sprintf("missing column %s in testdata for file %s", col, mapfile))
 			}
 			rowOut[idx] = val
 		}
@@ -556,7 +571,7 @@ func convertTestDataMapToList(filename string, columns []string) []byte {
 	}
 	result = append(result, []byte("]\n")...)
 
-	file, err := os.Create(filename + ".json")
+	file, err := os.Create(datafile)
 	if err != nil {
 		panic("failed to write json back to file: " + err.Error())
 	}
@@ -572,10 +587,15 @@ func convertTestDataMapToList(filename string, columns []string) []byte {
 	return result
 }
 
-func readTestData(filename string, columns []string) []byte {
-	dat, err := os.ReadFile(filename + ".json")
+func readTestData(filename string, columns []string, limit *int, offset int) []byte {
+	lim := 0
+	if limit != nil {
+		lim = *limit
+	}
+	datafilename := fmt.Sprintf("%s-%d-%d.json", filename, lim, offset)
+	dat, err := os.ReadFile(datafilename)
 	if os.IsNotExist(err) {
-		dat = convertTestDataMapToList(filename, columns)
+		dat = convertTestDataMapToList(filename+".map", datafilename, columns, limit, offset)
 	} else if err != nil {
 		panic("could not read file: " + err.Error())
 	}

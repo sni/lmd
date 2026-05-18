@@ -63,6 +63,21 @@ func TestPeerInitSerial(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestPeerInitChunked(t *testing.T) {
+	conf := `
+InitialSyncBlockSize = 100
+	`
+	peer, cleanup, _ := StartTestPeerExtra(t, 1, 10, 1000, conf)
+	PauseTestPeers(peer)
+
+	store := peer.data.Load()
+	err := store.initAllTablesParallel(t.Context())
+	require.NoError(t, err)
+
+	err = cleanup()
+	require.NoError(t, err)
+}
+
 func TestLMDPeerUpdate(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(t, 3, 10, 10)
 	PauseTestPeers(peer)
