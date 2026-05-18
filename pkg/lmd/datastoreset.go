@@ -295,7 +295,6 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 
 	var lastReq *Request
 	offset := 0
-	totalRowNum := 0
 	totalSize := 0
 	totalFetchDuration := time.Duration(0)
 	tableName := table.name.String()
@@ -313,7 +312,9 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 		}
 		lastReq = req
 		peer.setQueryOptions(req)
+		fetched := 0
 		resMeta, err := peer.QueryCB(ctx, req, func(row []any, numBytes int) error {
+			fetched++
 			curRowNum++
 			if len(row) != keyLen {
 				err := fmt.Errorf("%s result set verification failed: len mismatch in row %d, expected %d columns and got %d", store.table.name.String(), curRowNum, keyLen, len(row))
@@ -342,10 +343,9 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 			return nil, err
 		}
 
-		totalRowNum += len(rows)
 		totalFetchDuration += resMeta.Duration
 
-		if len(rows) < limit {
+		if fetched < limit {
 			break
 		}
 		logWith(peer, lastReq).Debugf("initial table: %15s - fetching bulk: %d", tableName, offset)
@@ -366,10 +366,10 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 	ds.peer.lastFullUpdate.Set(now)
 	durationLock := time.Since(time3).Truncate(time.Millisecond)
 
-	promObjectCount.WithLabelValues(peer.Name, tableName).Set(float64(totalRowNum))
+	promObjectCount.WithLabelValues(peer.Name, tableName).Set(float64(len(rows)))
 
 	logWith(peer, lastReq).Debugf("initial table: %15s - fetch/process: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
-		tableName, totalFetchDuration.Truncate(time.Millisecond), durationLock, durationInsert, totalRowNum, totalSize/1024)
+		tableName, totalFetchDuration.Truncate(time.Millisecond), durationLock, durationInsert, len(rows), totalSize/1024)
 
 	return store, nil
 }
