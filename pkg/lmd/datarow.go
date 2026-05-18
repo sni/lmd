@@ -34,16 +34,32 @@ type DataRow struct {
 
 // NewDataRow creates a new DataRow.
 func NewDataRow(store *DataStore, raw []any, columns ColumnList, timestamp float64, setReferences bool) (d *DataRow, err error) {
-	d = &DataRow{
-		lastUpdate: timestamp,
-		dataStore:  store,
-	}
 	if raw == nil {
 		// virtual tables without data have no references or ids
+		d = &DataRow{
+			lastUpdate: timestamp,
+			dataStore:  store,
+		}
+
 		return d, err
 	}
 
-	err = d.SetData(raw, columns, timestamp)
+	sizes := store.table.dataSizes
+	d = &DataRow{
+		lastUpdate:            timestamp,
+		dataStore:             store,
+		dataString:            make([]string, sizes[StringCol]),
+		dataStringList:        make([][]string, sizes[StringListCol]),
+		dataInt:               make([]int8, sizes[IntCol]),
+		dataInt64:             make([]int64, sizes[Int64Col]),
+		dataInt64List:         make([][]int64, sizes[Int64ListCol]),
+		dataFloat:             make([]float64, sizes[FloatCol]),
+		dataServiceMemberList: make([][]ServiceMember, sizes[ServiceMemberListCol]),
+		dataInterfaceList:     make([][]any, sizes[InterfaceListCol]),
+		dataStringLarge:       make([]StringContainer, sizes[StringLargeCol]),
+	}
+
+	err = d.UpdateValues(0, raw, columns, timestamp)
 	if err != nil {
 		return d, err
 	}
@@ -98,39 +114,6 @@ func (d *DataRow) GetID2() (id1, id2 string) {
 	}
 
 	return id1, id2
-}
-
-// SetData creates initial data.
-func (d *DataRow) SetData(raw []any, columns ColumnList, timestamp float64) error {
-	for key, size := range d.dataStore.table.dataSizes {
-		if size == 0 {
-			continue
-		}
-		switch key {
-		case StringCol:
-			d.dataString = make([]string, size)
-		case StringListCol:
-			d.dataStringList = make([][]string, size)
-		case IntCol:
-			d.dataInt = make([]int8, size)
-		case Int64Col:
-			d.dataInt64 = make([]int64, size)
-		case Int64ListCol:
-			d.dataInt64List = make([][]int64, size)
-		case FloatCol:
-			d.dataFloat = make([]float64, size)
-		case ServiceMemberListCol:
-			d.dataServiceMemberList = make([][]ServiceMember, size)
-		case InterfaceListCol:
-			d.dataInterfaceList = make([][]any, size)
-		case StringLargeCol:
-			d.dataStringLarge = make([]StringContainer, size)
-		case JSONCol, CustomVarCol, StringListSortedCol:
-			log.Panicf("not implemented: %#v", key)
-		}
-	}
-
-	return d.UpdateValues(0, raw, columns, timestamp)
 }
 
 // setLowerCaseCache sets lowercase columns.
