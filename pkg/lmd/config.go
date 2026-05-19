@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	DefaultInitialSyncBlockSize = 500000
+	DefaultInitialSyncBlockSize = 300000
 	DefaultMaxLogOutput         = 1500
 )
 

@@ -987,7 +987,7 @@ func (p *Peer) getQueryResponseCB(ctx context.Context, req *Request, query, peer
 }
 
 func (p *Peer) getHTTPQueryResponse(ctx context.Context, req *Request, query, peerAddr string, clb RowResultCB) ([]byte, net.Conn, error) {
-	res, totalBytes, err := p.httpQueryWithRetries(ctx, req, peerAddr, query, 2, clb)
+	res, _, err := p.httpQueryWithRetries(ctx, req, peerAddr, query, 2, clb)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1004,7 +1004,7 @@ func (p *Peer) getHTTPQueryResponse(ctx context.Context, req *Request, query, pe
 		}
 		res = res[16:]
 
-		err = p.validateResponseHeader(res, req, code, totalBytes, expSize)
+		err = p.validateResponseHeader(res, req, code, len(res), expSize)
 		if err != nil {
 			logWith(p, req).Debugf("LastQuery:")
 			logWith(p, req).Debugf("%s", req.String())
@@ -1168,13 +1168,13 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser, clb RowR
 		logWith(p, req).Debugf("LastQuery:")
 		logWith(p, req).Debugf("%s", req.String())
 
-		return nil, err
+		return resBytes, err
 	}
 
 	if clb != nil {
 		res, totalBytes, cErr := parseResponseFixedSize(conn, clb, expSize)
 		if cErr != nil {
-			return nil, fmt.Errorf("network read: %w", cErr)
+			return res, fmt.Errorf("network read: %w", cErr)
 		}
 
 		err = p.validateResponseHeader(res, req, code, totalBytes, expSize)
@@ -1182,7 +1182,7 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser, clb RowR
 			logWith(p, req).Debugf("LastQuery:")
 			logWith(p, req).Debugf("%s", req.String())
 
-			return nil, err
+			return res, err
 		}
 
 		return nil, nil
@@ -2119,14 +2119,14 @@ func (p *Peer) httpRestQuery(ctx context.Context, peerAddr, uri string) (output 
 // extractHTTPResponse returns the content of a HTTP request.
 func (p *Peer) extractHTTPResponse(req *Request, response *http.Response, clb RowResultCB) (contents []byte, err error) {
 	if clb != nil && response.StatusCode == http.StatusOK {
-		_, err = p.parseResponse(req, response.Body, clb)
+		contents, err = p.parseResponse(req, response.Body, clb)
 		if err != nil {
-			return nil, fmt.Errorf("io error: %s", err.Error())
+			return contents, fmt.Errorf("io error: %s", err.Error())
 		}
 	} else {
 		contents, err = io.ReadAll(response.Body)
 		if err != nil {
-			return nil, fmt.Errorf("io error: %s", err.Error())
+			return contents, fmt.Errorf("io error: %s", err.Error())
 		}
 	}
 
@@ -2815,12 +2815,16 @@ func (p *Peer) logHTTPResponse(query *Request, res *http.Response, contents []by
 		return
 	}
 
+	logWith(p, query).Tracef("***************** HTTP Response *****************")
 	responseBytes, err := httputil.DumpResponse(res, len(contents) == 0)
 	if err != nil {
 		logWith(p, query).Debugf("failed to dump http response: %s", err)
 	}
-	logWith(p, query).Tracef("***************** HTTP Response *****************")
 	if len(contents) > 0 {
+		responseBytes = append(responseBytes, contents...)
+	}
+	contents, err = io.ReadAll(res.Body)
+	if err == nil {
 		responseBytes = append(responseBytes, contents...)
 	}
 

@@ -281,6 +281,110 @@ func (ds *DataStoreSet) get(name TableName) *DataStore {
 // createObjectByType fetches all static and dynamic data from the remote site and creates the initial table.
 // It returns any error encountered.
 func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*DataStore, error) {
+	if table.name == TableStatus {
+		return ds.createObjectByTypeComplete(ctx, table)
+	}
+
+	return ds.createObjectByTypeCB(ctx, table)
+}
+
+// createObjectByTypeComplete fetches all static and dynamic data from the remote site and creates the initial table.
+// It returns any error encountered.
+func (ds *DataStoreSet) createObjectByTypeComplete(ctx context.Context, table *Table) (*DataStore, error) {
+	peer := ds.peer
+
+	store := NewDataStore(table, peer)
+	store.dataSet = ds
+	keys, columns := store.GetInitialColumns()
+
+	// fetch remote objects in blocks
+	limit := peer.lmd.Config.InitialSyncBlockSize
+	if limit <= 0 {
+		limit = DefaultInitialSyncBlockSize
+	}
+
+	var lastReq *Request
+	offset := 0
+	results := []*ResultSet{}
+	metaData := []*ResultMetaData{}
+	totalPrepTime := time.Duration(0)
+	totalRowNum := 0
+	tableName := table.name.String()
+
+	for {
+		req := &Request{
+			Table:   store.table.name,
+			Columns: keys,
+			Limit:   &limit,
+			Offset:  offset,
+		}
+		lastReq = req
+		peer.setQueryOptions(req)
+		res, resMeta, err := peer.Query(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+
+		time1 := time.Now()
+
+		// verify result set
+		keyLen := len(keys)
+		for i, row := range res {
+			if len(row) != keyLen {
+				err := fmt.Errorf("%s result set verification failed: len mismatch in row %d, expected %d columns and got %d", store.table.name.String(), i, keyLen, len(row))
+				if peer.errorCount.Load() > 0 {
+					// silently cancel, backend broke during initialization, should have been logged already
+					log.Debugf("error during %s initialization, but backend is already failed: %s", &table.name, err.Error())
+				} else {
+					log.Errorf("error during %s initialization: %s", &table.name, err.Error())
+				}
+
+				return nil, err
+			}
+		}
+
+		metaData = append(metaData, resMeta)
+		results = append(results, &res)
+
+		totalPrepTime += time.Since(time1).Truncate(time.Millisecond)
+		totalRowNum += len(res)
+
+		if len(res) < limit {
+			break
+		}
+		logWith(peer, lastReq).Debugf("initial table: %15s - fetching bulk: %d", tableName, offset)
+
+		offset += limit
+	}
+
+	resMeta := ds.mergeResultMetas(metaData)
+
+	time2 := time.Now()
+	now := currentUnixTime()
+	err := store.insertDataMulti(ctx, results, columns, false)
+	if err != nil {
+		return nil, err
+	}
+
+	durationInsert := time.Since(time2).Truncate(time.Millisecond)
+
+	time3 := time.Now()
+
+	ds.peer.lastUpdate.Set(now)
+	ds.peer.lastFullUpdate.Set(now)
+	durationLock := time.Since(time3).Truncate(time.Millisecond)
+
+	promObjectCount.WithLabelValues(peer.Name, tableName).Set(float64(totalRowNum))
+
+	logWith(peer, lastReq).Debugf("initial table: %15s - fetch: %9s - prep: %9s - lock: %9s - insert: %9s - count: %8d - size: %8d kB",
+		tableName, resMeta.Duration.Truncate(time.Millisecond), totalPrepTime, durationLock, durationInsert, totalRowNum, resMeta.Size/1024)
+
+	return store, nil
+}
+
+// createObjectByTypeCB fetches all static and dynamic data from the remote site and creates the initial table using callbacks.
+// It returns any error encountered.
+func (ds *DataStoreSet) createObjectByTypeCB(ctx context.Context, table *Table) (*DataStore, error) {
 	peer := ds.peer
 
 	store := NewDataStore(table, peer)
@@ -304,6 +408,23 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 	curRowNum := 0
 
 	for {
+		collectorReady := make(chan error)
+		collector := make(chan []any, limit/4)
+		go func() {
+			for row := range collector {
+				dRow, err := NewDataRow(store, row, columns, now, false)
+				if err != nil {
+					close(collector)
+					collectorReady <- fmt.Errorf("creating new dataRow failed: %w", err)
+
+					return
+				}
+				rows = append(rows, dRow)
+			}
+
+			collectorReady <- nil
+		}()
+
 		req := &Request{
 			Table:   store.table.name,
 			Columns: keys,
@@ -328,11 +449,7 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 				return err
 			}
 
-			dRow, err := NewDataRow(store, row, columns, now, false)
-			if err != nil {
-				return err
-			}
-			rows = append(rows, dRow)
+			collector <- row
 			totalSize += numBytes
 
 			return nil
@@ -344,6 +461,13 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 		}
 
 		totalFetchDuration += resMeta.Duration
+
+		// wait for collecting and processing all data rows
+		close(collector)
+		err = <-collectorReady
+		if err != nil {
+			return nil, err
+		}
 
 		if fetched == limit || offset > 0 {
 			logWith(peer, lastReq).Debugf("initial table: %15s - fetched bulk: %7d - %7d", tableName, offset+1, offset+fetched)
@@ -375,6 +499,29 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 		tableName, totalFetchDuration.Truncate(time.Millisecond), durationLock, durationInsert, len(rows), totalSize/1024)
 
 	return store, nil
+}
+
+func (ds *DataStoreSet) mergeResultMetas(metas []*ResultMetaData) (resMeta *ResultMetaData) {
+	if len(metas) == 0 {
+		return nil
+	}
+
+	if len(metas) == 1 {
+		return metas[0]
+	}
+
+	resMeta = metas[0]
+	for i, meta := range metas {
+		if i == 0 {
+			continue
+		}
+		resMeta.Size += meta.Size
+		resMeta.Duration += meta.Duration
+		resMeta.RowsScanned += meta.RowsScanned
+		resMeta.Total += meta.Total
+	}
+
+	return resMeta
 }
 
 // tryTimeperiodsUpdate updates timeperiods every full minute except when idling.
