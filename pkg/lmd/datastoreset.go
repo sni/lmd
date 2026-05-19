@@ -345,10 +345,13 @@ func (ds *DataStoreSet) createObjectByType(ctx context.Context, table *Table) (*
 
 		totalFetchDuration += resMeta.Duration
 
+		if fetched == limit || offset > 0 {
+			logWith(peer, lastReq).Debugf("initial table: %15s - fetched bulk: %7d - %7d", tableName, offset+1, offset+fetched)
+		}
+
 		if fetched < limit {
 			break
 		}
-		logWith(peer, lastReq).Debugf("initial table: %15s - fetching bulk: %d", tableName, offset)
 
 		offset += limit
 	}
