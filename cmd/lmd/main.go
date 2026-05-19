@@ -10,8 +10,22 @@ package main
  */
 
 import (
+	"runtime/debug"
+	"time"
+
 	"pkg/lmd"
 )
+
+// free memory every minute.
+func init() {
+	go func() {
+		t := time.Tick(1 * time.Minute)
+		for {
+			<-t
+			debug.FreeOSMemory()
+		}
+	}()
+}
 
 // Build contains the current git commit id
 // compile passing -ldflags "-X main.Build <build sha1>" to set the id.
