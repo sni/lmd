@@ -34,7 +34,7 @@ func TestPeerUpdateLastUpdate(t *testing.T) {
 	assert.True(t, updated, "expected update to be successful")
 
 	peer.lastUpdate.Set(0)
-	peer.lastTimeperiodUpdateMinute.Store(0)
+	peer.lastTimeperiodUpdateMinute.Store(-1)
 	updated, err = store.tryTimeperiodsUpdate(t.Context())
 	require.NoError(t, err)
 	assert.True(t, updated, "expected update to be successful")
