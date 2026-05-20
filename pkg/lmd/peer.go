@@ -1165,6 +1165,18 @@ func (p *Peer) parseResponseFixedSize(req *Request, conn io.ReadCloser, clb RowR
 			return nil, &PeerError{msg: string(resBytes), kind: ConnectionError}
 		}
 	}
+
+	// response from thruk http
+	if len(resBytes) > 0 && resBytes[0] == '{' {
+		resBytes, conn, err = p.extractThrukHTTPResponseTriple(resBytes, conn)
+		if err != nil {
+			logWith(p, req).Debugf("LastQuery:")
+			logWith(p, req).Debugf("%s", req.String())
+
+			return resBytes, err
+		}
+	}
+
 	code, expSize, err := parseResponseHeader(&resBytes)
 	if err != nil {
 		logWith(p, req).Debugf("LastQuery:")
@@ -2832,4 +2844,61 @@ func (p *Peer) logHTTPResponse(query *Request, res *http.Response, contents []by
 	}
 
 	logWith(p, query).Tracef("%s", string(responseBytes))
+}
+
+// extra json data from cli response
+// returns the actual header along with the json data as bytes.
+func (p *Peer) extractThrukHTTPResponseTriple(headerBytes []byte, conn io.ReadCloser) (data []byte, readBuffer io.ReadCloser, err error) {
+	data, err = io.ReadAll(conn)
+	if err != nil && errors.Is(err, io.EOF) {
+		err = nil
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+
+	combined := make([]byte, 0, len(headerBytes)+len(data))
+	combined = append(combined, headerBytes...)
+	combined = append(combined, data...)
+
+	result := &HTTPResult{}
+	err = json.Unmarshal(combined, &result)
+	if err != nil {
+		return nil, nil, fmt.Errorf("json error: %s", err.Error())
+	}
+
+	output := []any{}
+	err = json.Unmarshal(result.Output, &output)
+	if err != nil {
+		return nil, nil, fmt.Errorf("json error: %s", err.Error())
+	}
+
+	if len(output) < 3 {
+		if len(combined) > ErrorContentPreviewSize {
+			combined = combined[:ErrorContentPreviewSize]
+		}
+
+		return nil, nil, fmt.Errorf("unknown result format: %s", combined)
+	}
+
+	if rawJSON, ok := output[2].(string); ok {
+		if len(rawJSON) <= 16 {
+			if len(combined) > ErrorContentPreviewSize {
+				combined = combined[:ErrorContentPreviewSize]
+			}
+
+			return nil, nil, fmt.Errorf("unknown result format: %s", combined)
+		}
+
+		newHeader := []byte(rawJSON)[0:16]
+		data = []byte(rawJSON)[16:]
+
+		return newHeader, io.NopCloser(bytes.NewReader(data)), nil
+	}
+
+	if len(combined) > ErrorContentPreviewSize {
+		combined = combined[:ErrorContentPreviewSize]
+	}
+
+	return nil, nil, fmt.Errorf("unknown result format: %s", combined)
 }
