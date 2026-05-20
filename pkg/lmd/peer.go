@@ -449,8 +449,10 @@ func (p *Peer) setHTTPClient() {
 func (p *Peer) updateLoop(ctx context.Context) {
 	err := p.initAllTables(ctx)
 	if err != nil {
-		logWith(p).Warnf("initializing objects failed: %s", err.Error())
-		p.errorLogged.Store(true)
+		if !p.errorLogged.Load() {
+			logWith(p).Infof("initializing objects failed: %s", err.Error())
+			p.errorLogged.Store(true)
+		}
 	}
 
 	shutdownStop := func(peer *Peer, ticker *time.Ticker) {
@@ -1427,8 +1429,9 @@ func (p *Peer) setNextAddrFromErr(err error, req *Request, source []string) {
 	lastOnline := p.lastOnline.Get()
 	logWith(logContext...).Debugf("last online: %s", timeOrNever(lastOnline))
 	if lastOnline < now-float64(p.lmd.Config.StaleBackendTimeout) || (p.errorCount.Load() > int64(numAllSources) && lastOnline <= 0) {
-		if peerState != PeerStatusDown {
-			logWith(logContext...).Infof("site went offline: %s", err.Error())
+		if peerState != PeerStatusDown && peerState != PeerStatusSyncing {
+			logWith(logContext...).Infof("site state changed %s -> offline: %s", peerState.String(), err.Error())
+			p.errorLogged.Store(true)
 		}
 		// clear existing data from memory
 		p.peerState.Set(PeerStatusDown)
