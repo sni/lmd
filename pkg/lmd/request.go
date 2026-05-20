@@ -420,7 +420,7 @@ func (req *Request) BuildResponse(ctx context.Context) (*Response, error) {
 	// Run single request if possible
 	if req.lmd.nodeAccessor == nil || !req.lmd.nodeAccessor.IsClustered() {
 		// Single mode (send request and return response)
-		res, _, err := NewResponse(ctx, req, nil)
+		res, _, _, err := NewResponse(ctx, req, nil)
 
 		return res, err
 	}
@@ -438,7 +438,7 @@ func (req *Request) BuildResponse(ctx context.Context) (*Response, error) {
 
 	// Return local result if its not distributed at all
 	if isForOurBackends {
-		res, _, err := NewResponse(ctx, req, nil)
+		res, _, _, err := NewResponse(ctx, req, nil)
 
 		return res, err
 	}
@@ -449,18 +449,18 @@ func (req *Request) BuildResponse(ctx context.Context) (*Response, error) {
 
 // BuildResponseSend builds the response and sends to the given connection.
 // It returns the transferred size or an error.
-func (req *Request) BuildResponseSend(ctx context.Context, client *ClientConnection) (int64, error) {
+func (req *Request) BuildResponseSend(ctx context.Context, client *ClientConnection) (size int64, numRows int, err error) {
 	// Run single request if possible
 	if req.lmd.nodeAccessor == nil || !req.lmd.nodeAccessor.IsClustered() {
 		// Single mode (send request)
-		_, size, err := NewResponse(ctx, req, client)
+		_, size, numRows, err = NewResponse(ctx, req, client)
 
-		return size, err
+		return size, numRows, err
 	}
 
 	res, err := req.BuildResponse(ctx)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 
 	return res.Send(client)
@@ -492,7 +492,7 @@ func (req *Request) getDistributedResponse(ctx context.Context) (*Response, erro
 		if node.isMe {
 			// answer locally
 			req.SendStatsData = true
-			res, _, err := NewResponse(ctx, req, nil)
+			res, _, _, err := NewResponse(ctx, req, nil)
 			if err != nil {
 				return nil, err
 			}

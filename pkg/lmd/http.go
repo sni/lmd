@@ -58,7 +58,7 @@ func (c *HTTPServerController) queryTable(ctx context.Context, wrt http.Response
 	var res *Response
 	if d, exists := requestData["distributed"]; exists && interface2bool(d) {
 		// force local answer to avoid recursion
-		res, _, err = NewResponse(ctx, req, nil)
+		res, _, _, err = NewResponse(ctx, req, nil)
 	} else {
 		// Ask request object to send query, get response, might get distributed
 		res, err = req.BuildResponse(ctx)

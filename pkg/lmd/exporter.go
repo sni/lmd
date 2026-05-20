@@ -152,7 +152,7 @@ func (ex *Exporter) addTable(peer *Peer, table *Table) (written int64, err error
 	}
 	req.ExpandRequestedBackends()
 	req.SetRequestColumns()
-	res, _, err := NewResponse(context.TODO(), req, nil)
+	res, _, _, err := NewResponse(context.TODO(), req, nil)
 	if err != nil {
 		return 0, err
 	}

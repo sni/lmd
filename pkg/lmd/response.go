@@ -50,7 +50,7 @@ type PeerResponse struct {
 
 // NewResponse creates a new response object for a given request
 // It returns the Response object and any error encountered.
-func NewResponse(ctx context.Context, req *Request, client *ClientConnection) (res *Response, size int64, err error) {
+func NewResponse(ctx context.Context, req *Request, client *ClientConnection) (res *Response, size int64, totalRows int, err error) {
 	name := "unknown"
 	if client != nil {
 		name = client.remoteAddr
@@ -68,7 +68,7 @@ func NewResponse(ctx context.Context, req *Request, client *ClientConnection) (r
 		res.code = 502
 		err = &PeerError{msg: res.failed[req.Backends[0]], kind: ConnectionError}
 
-		return res, 0, err
+		return res, 0, 0, err
 	}
 
 	table := Objects.Tables[req.Table]
@@ -122,12 +122,12 @@ func NewResponse(ctx context.Context, req *Request, client *ClientConnection) (r
 	res.CalculateFinalStats()
 
 	if client != nil {
-		size, err = res.Send(client)
+		size, res.resultTotal, err = res.Send(client)
 
-		return nil, size, err
+		return nil, size, res.resultTotal, err
 	}
 
-	return res, 0, err
+	return res, 0, 0, err
 }
 
 func (res *Response) lockStores(data *DataStoreSet) {
@@ -430,13 +430,13 @@ func finalStatsApply(stat *Filter) (res float64) {
 }
 
 // Send converts the result object to a livestatus answer and writes the resulting bytes back to the client.
-func (res *Response) Send(client *ClientConnection) (size int64, err error) {
+func (res *Response) Send(client *ClientConnection) (size int64, rows int, err error) {
 	size, err = res.send(client.connection)
 
 	localAddr := client.connection.LocalAddr().String()
 	promFrontendBytesSend.WithLabelValues(localAddr).Add(float64(size + 1))
 
-	return size, err
+	return size, res.resultTotal, err
 }
 
 // send converts the result object to a livestatus answer and writes the resulting bytes back to the client.

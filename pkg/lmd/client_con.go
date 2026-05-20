@@ -180,10 +180,11 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 		LogErrors(cl.connection.SetDeadline(time.Now().Add(time.Duration(cl.listenTimeout) * time.Second)))
 
 		var size int64
-		size, err = cl.processRequest(ctx, req)
+		var numRows int
+		size, numRows, err = cl.processRequest(ctx, req)
 
 		duration := time.Since(time1)
-		logWith(reqctx).Infof("%s client request finished in %s, response size: %s", req.Table.String(), duration.String(), byteCountBinary(size))
+		logWith(reqctx).Infof("%11s client request finished: duration %11s | response size: %8s | rows: %8d", req.Table.String(), duration.String(), byteCountBinary(size), numRows)
 		if duration-time.Duration(req.WaitTimeout)*time.Millisecond > time.Duration(cl.logSlowQueryThreshold)*time.Second {
 			logWith(reqctx).Warnf("slow client query finished after %s, response size: %s\n%s", duration.String(), byteCountBinary(size), strings.TrimSpace(req.String()))
 		} else if size > int64(cl.logHugeQueryThreshold*1024*1024) {
@@ -210,33 +211,33 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 	return nil
 }
 
-func (cl *ClientConnection) processRequest(ctx context.Context, req *Request) (size int64, err error) {
+func (cl *ClientConnection) processRequest(ctx context.Context, req *Request) (size int64, numRows int, err error) {
 	cl.curRequest = req
 	defer func() {
 		cl.curRequest = nil
 	}()
 	defer cl.lmd.logPanicExitClient(cl)
-	size, err = req.BuildResponseSend(ctx, cl)
+	size, numRows, err = req.BuildResponseSend(ctx, cl)
 	if err != nil {
 		var netErr net.Error
 		if errors.As(err, &netErr) {
 			LogErrors((&Response{code: ReturnCodeConnectionError, request: req, err: netErr}).Send(cl))
 
-			return size, err
+			return size, numRows, err
 		}
 
 		var peerErr *PeerError
 		if errors.As(err, &peerErr) && peerErr.kind == ConnectionError {
 			LogErrors((&Response{code: ReturnCodeConnectionError, request: req, err: peerErr}).Send(cl))
 
-			return size, err
+			return size, numRows, err
 		}
 		LogErrors((&Response{code: ReturnCodeBadRequest, request: req, err: err}).Send(cl))
 
-		return size, err
+		return size, numRows, err
 	}
 
-	return size, err
+	return size, numRows, err
 }
 
 // sendRemainingCommands sends all queued commands.
