@@ -411,6 +411,9 @@ func (ds *DataStoreSet) createObjectByTypeCB(ctx context.Context, table *Table) 
 		collectorReady := make(chan error)
 		collector := make(chan []any, limit/4)
 		go func() {
+			// make sure we log panics properly
+			defer logPanicExitPeer(ds.peer)
+
 			for row := range collector {
 				dRow, err := NewDataRow(store, row, columns, now, false)
 				if err != nil {
