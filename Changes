@@ -2,7 +2,7 @@
 
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
-next:
+2.8.1    Wed May 20 16:41:54 CEST 2026
           - improve memory usage during initial synchronization
 
 2.8.0    Fri Apr 10 16:19:01 CEST 2026
