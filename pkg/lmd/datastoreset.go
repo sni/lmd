@@ -136,11 +136,16 @@ func (ds *DataStoreSet) initAllTablesParallel(ctx context.Context) (err error) {
 	// then fetch all others in parallel
 	results := make(chan error, len(Objects.UpdateTables)-1)
 	wait := &sync.WaitGroup{}
-	for _, n := range Objects.UpdateTables {
-		if n == TableStatus {
+	for _, table := range Objects.UpdateTables {
+		// status has been initialized already
+		if table == TableStatus {
 			continue
 		}
-		table := Objects.Tables[n]
+		// services require host index to be ready, so make it separate
+		if table == TableServices {
+			continue
+		}
+		table := Objects.Tables[table]
 		wait.Add(1)
 		go func(table *Table) {
 			// make sure we log panics properly
@@ -170,6 +175,12 @@ func (ds *DataStoreSet) initAllTablesParallel(ctx context.Context) (err error) {
 		if e != nil {
 			return e
 		}
+	}
+
+	// finally sync services
+	err = ds.initTable(ctx, Objects.Tables[TableServices])
+	if err != nil {
+		return err
 	}
 
 	logWith(ds.peer).Debugf("objects fetched parallel in %s", time.Since(time1).String())

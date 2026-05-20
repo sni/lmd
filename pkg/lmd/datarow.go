@@ -119,7 +119,7 @@ func (d *DataRow) GetID2() (id1, id2 string) {
 // setLowerCaseCache sets lowercase columns.
 func (d *DataRow) setLowerCaseCache() {
 	for from, to := range d.dataStore.lowerCaseColumns {
-		d.dataString[to] = strings.ToLower(d.dataString[from])
+		d.dataString[to] = unique.Make(strings.ToLower(d.dataString[from])).Value()
 	}
 }
 

@@ -199,7 +199,31 @@ func (d *DataStore) rebuildIndex() {
 			}
 		}
 	case 2:
-		d.index2 = make(map[string]map[string]*DataRow)
+		// 2 level index for host and service, since this is the only case for tables with 2 primary keys
+		if d.table.name != TableServices {
+			panic(fmt.Sprintf("assertion: unsupported table: %s", d.table.name.String()))
+		}
+		// so use the number of hosts as length (but only if hosts table has been initialized already)
+		hostStore := d.dataSet.get(TableHosts)
+		numHosts := 0
+		if hostStore != nil && hostStore.data != nil {
+			numHosts = len(hostStore.data)
+		}
+		d.index2 = make(map[string]map[string]*DataRow, numHosts)
+
+		// create map for each host
+		if numHosts > 0 {
+			hostNameCol := hostStore.GetColumn("name")
+			servicesCol := hostStore.GetColumn("services")
+
+			for _, hostRow := range hostStore.data {
+				host := hostRow.GetString(hostNameCol)
+				host = unique.Make(host).Value()
+				numServices := len(hostRow.GetStringList(servicesCol))
+				d.index2[host] = make(map[string]*DataRow, numServices)
+			}
+		}
+
 		for i := range d.data {
 			row := d.data[i]
 			id1, id2 := row.GetID2()
