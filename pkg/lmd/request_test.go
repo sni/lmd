@@ -600,7 +600,7 @@ func TestCommands(t *testing.T) {
 
 func TestHTTPCommands(t *testing.T) {
 	lmd := createTestLMDInstance()
-	peer, cleanup := GetHTTPMockServerPeer(t, lmd)
+	peer, cleanup := GetHTTPMockServerPeer(t, lmd, true)
 	defer cleanup()
 
 	res, _, err := peer.QueryString("COMMAND [0] test_ok")
@@ -634,7 +634,16 @@ func TestHTTPCommands(t *testing.T) {
 
 func TestHTTPPeerInit(t *testing.T) {
 	lmd := createTestLMDInstance()
-	peer, cleanup := GetHTTPMockServerPeer(t, lmd)
+	peer, cleanup := GetHTTPMockServerPeer(t, lmd, true)
+	defer cleanup()
+
+	err := peer.initAllTables(t.Context())
+	require.NoError(t, err)
+}
+
+func TestHTTPPeerInitNestedThruk(t *testing.T) {
+	lmd := createTestLMDInstance()
+	peer, cleanup := GetHTTPMockServerPeer(t, lmd, false)
 	defer cleanup()
 
 	err := peer.initAllTables(t.Context())
@@ -643,7 +652,7 @@ func TestHTTPPeerInit(t *testing.T) {
 
 func TestHTTPPeerUpdate(t *testing.T) {
 	lmd := createTestLMDInstance()
-	peer, cleanup := GetHTTPMockServerPeer(t, lmd)
+	peer, cleanup := GetHTTPMockServerPeer(t, lmd, true)
 	defer cleanup()
 
 	ok, err := peer.tryUpdate(t.Context())

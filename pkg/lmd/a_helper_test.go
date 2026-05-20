@@ -437,13 +437,15 @@ func CheckOpenFilesLimit(b *testing.B, minimum uint64) {
 	}
 }
 
-func StartHTTPMockServer(t *testing.T, lmd *Daemon) (testserver *httptest.Server, cleanup func()) {
+func StartHTTPMockServer(t *testing.T, lmd *Daemon, newFormat bool) (testserver *httptest.Server, cleanup func()) {
 	t.Helper()
 	nr := 0
 	numHosts := 5
 	numServices := 10
 	dataFolder := prepareTmpData("../../t/data", nr, numHosts, numServices)
-	testserver = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { httpMockHandler(r.Context(), t, w, r, lmd, dataFolder) }))
+	testserver = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpMockHandler(r.Context(), t, w, r, lmd, dataFolder, newFormat)
+	}))
 	cleanup = func() {
 		testserver.Close()
 		os.RemoveAll(dataFolder)
@@ -452,7 +454,7 @@ func StartHTTPMockServer(t *testing.T, lmd *Daemon) (testserver *httptest.Server
 	return testserver, cleanup
 }
 
-func httpMockHandler(ctx context.Context, t *testing.T, wrt io.Writer, rdr *http.Request, lmd *Daemon, dataFolder string) {
+func httpMockHandler(ctx context.Context, t *testing.T, wrt io.Writer, rdr *http.Request, lmd *Daemon, dataFolder string, newFormat bool) {
 	t.Helper()
 	var data struct {
 		// Credential string  // unused
@@ -471,7 +473,7 @@ func httpMockHandler(ctx context.Context, t *testing.T, wrt io.Writer, rdr *http
 		if err != nil {
 			t.Fatalf("failed to parse request: %s", err.Error())
 		}
-		httpMockHandlerRaw(t, wrt, rdr, dataFolder, req)
+		httpMockHandlerRaw(t, wrt, rdr, dataFolder, req, newFormat)
 
 		return
 	}
@@ -483,7 +485,7 @@ func httpMockHandler(ctx context.Context, t *testing.T, wrt io.Writer, rdr *http
 	t.Fatalf("unknown test request: %v", rdr)
 }
 
-func httpMockHandlerRaw(t *testing.T, wrt io.Writer, rdr *http.Request, dataFolder string, req *Request) {
+func httpMockHandlerRaw(t *testing.T, wrt io.Writer, rdr *http.Request, dataFolder string, req *Request, newFormat bool) {
 	t.Helper()
 
 	switch {
@@ -498,8 +500,34 @@ func httpMockHandlerRaw(t *testing.T, wrt io.Writer, rdr *http.Request, dataFold
 	case req.Table != TableNone:
 		filename := fmt.Sprintf("%s/%s", dataFolder, req.Table.String())
 		dat := readTestData(filename, req.Columns, req.Limit, req.Offset)
-		fmt.Fprintf(wrt, "%d %11d\n", 200, len(dat))
-		fmt.Fprint(wrt, string(dat))
+		if newFormat {
+			fmt.Fprintf(wrt, "%d %11d\n", 200, len(dat))
+			fmt.Fprint(wrt, string(dat))
+		} else {
+			output := []any{
+				nil,
+				0,
+				fmt.Sprintf("%d %11d\n%s", 200, len(dat), string(dat)),
+			}
+			//nolint:govet // no need to fieldalign test struct
+			nested := struct {
+				RC      int    `json:"rc"`
+				Version string `json:"version"`
+				Branch  string `json:"branch"`
+				Output  []any  `json:"output"`
+			}{
+				RC:      0,
+				Version: "2.20",
+				Branch:  "1",
+				Output:  output,
+			}
+			nestedStr, err := json.Marshal(nested)
+			if err != nil {
+				t.Fatalf("failed to marshal nested struct: %s", err.Error())
+			}
+
+			fmt.Fprintf(wrt, "%s", nestedStr)
+		}
 	case req.Command == "COMMAND [0] test_ok":
 		if v, ok := rdr.Header["Accept"]; ok && v[0] == "application/livestatus" {
 			fmt.Fprintln(wrt, "")
@@ -515,9 +543,9 @@ func httpMockHandlerRaw(t *testing.T, wrt io.Writer, rdr *http.Request, dataFold
 	}
 }
 
-func GetHTTPMockServerPeer(t *testing.T, lmd *Daemon) (peer *Peer, cleanup func()) {
+func GetHTTPMockServerPeer(t *testing.T, lmd *Daemon, newFormat bool) (peer *Peer, cleanup func()) {
 	t.Helper()
-	ts, cleanup := StartHTTPMockServer(t, lmd)
+	ts, cleanup := StartHTTPMockServer(t, lmd, newFormat)
 	peer = NewPeer(lmd, &Connection{Source: []string{ts.URL}, Name: "TestPeer", ID: "testid"})
 
 	return peer, cleanup
