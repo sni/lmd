@@ -643,12 +643,12 @@ func (res *Response) WriteColumnsResponse(json *jsoniter.Stream) {
 func (res *Response) buildLocalResponse(ctx context.Context, stores map[*Peer]*DataStore) {
 	var resultCollector chan *PeerResponse
 	waitChan := make(chan bool)
-	defer func() {
-		close(waitChan)
-	}()
 	if len(res.request.Stats) == 0 {
 		resultCollector = make(chan *PeerResponse, len(res.selectedPeers))
 		go func() {
+			// make sure we log panics properly
+			defer res.request.lmd.logPanicExit()
+
 			result := res.rawResults
 			for subRes := range resultCollector {
 				result.Total += subRes.total
@@ -656,6 +656,7 @@ func (res *Response) buildLocalResponse(ctx context.Context, stores map[*Peer]*D
 				result.DataResult = append(result.DataResult, subRes.rows...)
 			}
 			waitChan <- true
+			close(waitChan)
 		}()
 	}
 

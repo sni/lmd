@@ -623,8 +623,8 @@ func deletePidFile(f string) {
 
 // wraps log.Fatalf but removes the pid file and such...
 func (lmd *Daemon) cleanFatalf(format string, args ...any) {
-	lmd.onExit()
 	log.Errorf(format, args...)
+	lmd.onExit()
 
 	os.Exit(ExitCritical)
 }
