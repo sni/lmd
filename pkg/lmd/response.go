@@ -679,10 +679,10 @@ func (res *Response) buildLocalResponse(ctx context.Context, stores map[*Peer]*D
 
 		waitgroup.Add(1)
 		go func(peer *Peer, wg *sync.WaitGroup) {
+			defer wg.Done()
+
 			// make sure we log panics properly
 			defer logPanicExitPeer(peer)
-
-			defer wg.Done()
 
 			res.buildLocalResponseData(ctx, store, resultCollector)
 		}(peer, waitgroup)
@@ -805,11 +805,12 @@ func (res *Response) BuildPassThroughResult(ctx context.Context) {
 
 		waitgroup.Add(1)
 		go func(peer *Peer, wg *sync.WaitGroup) {
+			defer wg.Done()
+
 			// make sure we log panics properly
 			defer logPanicExitPeer(peer)
 
 			logWith(peer, passthroughRequest).Debugf("starting passthrough request")
-			defer wg.Done()
 
 			peer.passThroughQuery(ctx, res, passthroughRequest, virtualColumns, columnsIndex)
 		}(peer, waitgroup)
@@ -852,9 +853,11 @@ func SpinUpPeers(ctx context.Context, peers []*Peer) {
 		peer := peers[i]
 		waitgroup.Add(1)
 		go func(peer *Peer, wg *sync.WaitGroup) {
+			defer wg.Done()
+
 			// make sure we log panics properly
 			defer logPanicExitPeer(peer)
-			defer wg.Done()
+
 			LogErrors(peer.resumeFromIdle(ctx))
 		}(peer, waitgroup)
 	}

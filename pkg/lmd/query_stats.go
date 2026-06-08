@@ -38,6 +38,7 @@ func NewQueryStats() *QueryStats {
 	}
 
 	go func() {
+		defer LogPanicExit()
 		for {
 			select {
 			case stat := <-qStat.in:

@@ -19,6 +19,7 @@ import (
 // free memory every minute.
 func init() {
 	go func() {
+		defer lmd.LogPanicExit()
 		t := time.Tick(1 * time.Minute)
 		for {
 			<-t

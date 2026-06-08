@@ -807,6 +807,7 @@ func (lmd *Daemon) usrSignalListener() {
 	signal.Notify(osSignalUsrChannel, syscall.SIGUSR2)
 
 	go func() {
+		defer lmd.logPanicExit()
 		for {
 			sig := <-osSignalUsrChannel
 			lmd.usrSignalHandler(sig)
@@ -869,6 +870,7 @@ func waitTimeout(ctx context.Context, waitGroup *sync.WaitGroup, timeout time.Du
 	timer := time.NewTimer(timeout)
 	go func() {
 		defer close(stopChan)
+		defer LogPanicExit()
 		waitGroup.Wait()
 	}()
 	select {
@@ -886,6 +888,16 @@ func waitTimeout(ctx context.Context, waitGroup *sync.WaitGroup, timeout time.Du
 // printVersionStdout prints the version to stdout.
 func (lmd *Daemon) printVersionStdout() {
 	fmt.Fprintf(os.Stdout, "%s - version %s started with config %s\n", NAME, Version(), lmd.flags.flagConfigFile)
+}
+
+// LogPanicExit is a helper function to log panics and exit with a non-ok code.
+func LogPanicExit() {
+	if r := recover(); r != nil {
+		log.Errorf("Panic: %s", r)
+		log.Errorf("Version: %s", Version())
+		log.Errorf("%s", debug.Stack())
+		os.Exit(ExitCritical)
+	}
 }
 
 func (lmd *Daemon) logPanicExit() {

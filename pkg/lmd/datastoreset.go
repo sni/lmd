@@ -148,11 +148,11 @@ func (ds *DataStoreSet) initAllTablesParallel(ctx context.Context) (err error) {
 		table := Objects.Tables[table]
 		wait.Add(1)
 		go func(table *Table) {
-			// make sure we log panics properly
-			defer logPanicExitPeer(ds.peer)
 			defer func() {
 				wait.Done()
 			}()
+			// make sure we log panics properly
+			defer logPanicExitPeer(ds.peer)
 
 			err2 := ds.initTable(ctx, table)
 			results <- err2
@@ -166,6 +166,7 @@ func (ds *DataStoreSet) initAllTablesParallel(ctx context.Context) (err error) {
 
 	// wait till fetching all tables finished
 	go func() {
+		defer logPanicExitPeer(ds.peer)
 		wait.Wait()
 		close(results)
 	}()
