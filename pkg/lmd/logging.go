@@ -24,11 +24,16 @@ var LogMaxOutput atomic.Int32
 // LogToolsOutput is the default log output for tools.
 var LogToolsOutput string
 
+var log *factorlog.FactorLog
+
 func init() {
 	DateTimeLogFormat = `[%{Date} %{Time "15:04:05.000"}]`
 	LogFormat = `[%{Severity}][pid:%{Pid}][%{ShortFile}:%{Line}] %{Message}`
 	LogMaxOutput.Store(DefaultMaxLogOutput)
 	LogToolsOutput = LogColors + DateTimeLogFormat + LogFormat + LogColorReset
+
+	// initialize standard logger which will be configured later from the configuration file options.
+	log = factorlog.New(os.Stdout, buildFormatter(LogFormat))
 }
 
 const (
@@ -50,9 +55,6 @@ const (
 	// LogVerbosityTrace sets trace log level.
 	LogVerbosityTrace = 3
 )
-
-// initialize standard logger which will be configured later from the configuration file options.
-var log = factorlog.New(os.Stdout, buildFormatter(LogFormat))
 
 // InitLogging initializes the logging system.
 func InitLogging(conf *Config) {

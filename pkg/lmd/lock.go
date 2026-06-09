@@ -6,7 +6,7 @@ import (
 	"github.com/sasha-s/go-deadlock"
 )
 
-var deadlockOpts = deadlock.Opts
+var deadlockOpts = &deadlock.Opts
 
 // An RWMutex is a drop-in replacement for sync.RWMutex.
 type RWMutex struct {
