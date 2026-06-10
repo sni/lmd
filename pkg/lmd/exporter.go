@@ -8,7 +8,9 @@ import (
 	"io"
 	"os"
 	"os/user"
+	"slices"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -188,6 +190,7 @@ func (ex *Exporter) addTable(peer *Peer, table *Table) (written int64, err error
 
 func (ex *Exporter) initPeers(ctx context.Context) {
 	log.Debugf("starting peers")
+	waitGroupPeers := &sync.WaitGroup{}
 	ex.lmd.nodeAccessor = NewNodes(ex.lmd, []string{}, "")
 
 	for i := range ex.lmd.Config.Connections {
@@ -195,15 +198,44 @@ func (ex *Exporter) initPeers(ctx context.Context) {
 		peer := NewPeer(ex.lmd, &c)
 		log.Debugf("creating peer: %s", peer.Name)
 		ex.lmd.peerMap.Add(peer)
-		peer.Start(ctx)
+		waitGroupPeers.Add(1)
+		go func() {
+			defer logPanicExitPeer(peer)
+			initializePeerAndDiscoverSubpeers(ctx, peer, waitGroupPeers)
+		}()
 	}
 
 	log.Infof("waiting for all peers to connect and initialize")
-	ex.waitForPeerMapReady()
+	waitGroupPeers.Wait()
+	log.Debugf("waited for all peers to connect and initialize")
+
+	ex.waitForPeerMapReady(ctx)
+
 	log.Infof("all peers ready for export (%d peers)", len(ex.lmd.peerMap.Peers()))
 }
 
-func (ex *Exporter) waitForPeerMapReady() {
+// peer.Start() which will call updateTick() indefinitely
+// this function does the bare minimum needed to get a snapshot of data
+// and discover any existing subpeers.
+func initializePeerAndDiscoverSubpeers(ctx context.Context, peer *Peer, waitGroup *sync.WaitGroup) {
+	logWith(peer).Debugf("peer.initAllTables")
+	err := peer.initAllTables(ctx)
+	if err != nil {
+		logWith(peer).Warnf("failed to initialize tables: %s", err.Error())
+	}
+
+	logWith(peer).Debugf("peer.updateTick")
+	updateTickOk, err := peer.updateTick(ctx, true)
+	if err != nil {
+		logWith(peer).Warnf("failed to update peer: %s", err.Error())
+	}
+	if !updateTickOk {
+		logWith(peer).Warnf("peer update tick failed: %s", err.Error())
+	}
+	waitGroup.Done()
+}
+
+func (ex *Exporter) waitForPeerMapReady(ctx context.Context) {
 	maxAttempts := 30
 	minimumSleepTime := 10 * time.Second
 	prevCount := 0
@@ -221,6 +253,18 @@ func (ex *Exporter) waitForPeerMapReady() {
 		peers := ex.lmd.peerMap.Peers()
 		currentCount := len(peers)
 		allReady := true
+
+		// initialize and discover subpeers for new peers
+		waitGroupPeers := &sync.WaitGroup{}
+		for _, peer := range peers {
+			if !slices.Contains([]PeerStatus{PeerStatusSyncing, PeerStatusUp}, peer.peerState.Get()) {
+				waitGroupPeers.Add(1)
+				go func(ctx context.Context) {
+					initializePeerAndDiscoverSubpeers(ctx, peer, waitGroupPeers)
+				}(ctx)
+			}
+		}
+		waitGroupPeers.Wait()
 
 		for _, peer := range peers {
 			if peer.hasFlag(MultiBackend) {
