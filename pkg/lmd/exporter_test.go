@@ -25,7 +25,7 @@ func TestExporter(t *testing.T) {
 	t.Setenv("LMD_LOG_LEVEL", "warn")
 
 	// run the export
-	err := exportData(lmd)
+	_, err := exportData(lmd)
 	require.NoError(t, err)
 	require.FileExists(t, file)
 

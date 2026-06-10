@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/user"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -22,42 +21,42 @@ type Exporter struct {
 }
 
 // export peer data to tarball containing json files.
-func exportData(lmd *Daemon) (err error) {
+func exportData(lmd *Daemon) (exportedCount int, err error) {
 	file := lmd.flags.flagExport
 	localConfig := lmd.finalFlagsConfig(true)
 	lmd.Config = localConfig
 	log.Infof("starting export to %s", file)
 
 	if len(localConfig.Connections) == 0 {
-		return fmt.Errorf("no connections defined")
+		return 0, fmt.Errorf("no connections defined")
 	}
 
 	ex := &Exporter{
 		lmd: lmd,
 	}
-	err = ex.Export(file)
+	exportedCount, err = ex.Export(file)
 
-	return err
+	return exportedCount, err
 }
 
-func (ex *Exporter) Export(file string) (err error) {
+func (ex *Exporter) Export(file string) (exportedCount int, err error) {
 	ex.initPeers(context.TODO())
 
 	userinfo, err := user.Current()
 	if err != nil {
-		return fmt.Errorf("failed to fetch user info: %s", err.Error())
+		return 0, fmt.Errorf("failed to fetch user info: %s", err.Error())
 	}
 	ex.user = userinfo
 
 	groupinfo, err := user.LookupGroupId(userinfo.Gid)
 	if err != nil {
-		return fmt.Errorf("failed to fetch group info: %s", err.Error())
+		return 0, fmt.Errorf("failed to fetch group info: %s", err.Error())
 	}
 	ex.group = groupinfo
 
 	tarball, err := os.Create(file)
 	if err != nil {
-		return fmt.Errorf("failed to create tarball: %s", err.Error())
+		return 0, fmt.Errorf("failed to create tarball: %s", err.Error())
 	}
 	defer tarball.Close()
 
@@ -70,19 +69,20 @@ func (ex *Exporter) Export(file string) (err error) {
 	ex.tar = tarWriter
 	ex.exportTime = time.Now()
 
-	err = ex.exportPeers()
+	exportedCount, err = ex.exportPeers()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return exportedCount, nil
 }
 
-func (ex *Exporter) exportPeers() (err error) {
+func (ex *Exporter) exportPeers() (exportedCount int, err error) {
 	err = ex.addDir("sites/")
 	if err != nil {
-		return err
+		return 0, err
 	}
+	exportedCount = 0
 	for _, peer := range ex.lmd.peerMap.Peers() {
 		if peer.hasFlag(MultiBackend) {
 			continue
@@ -90,13 +90,13 @@ func (ex *Exporter) exportPeers() (err error) {
 		log.Debugf("exporting %s (%s)", peer.Name, peer.ID)
 		err = ex.addDir(fmt.Sprintf("sites/%s/", peer.ID))
 		if err != nil {
-			return err
+			return 0, err
 		}
 		var total int64
 		var written int64
 		written, err = ex.addTable(peer, Objects.Tables[TableSites])
 		if err != nil {
-			return err
+			return 0, err
 		}
 		total += written
 		for _, table := range Objects.Tables {
@@ -114,15 +114,16 @@ func (ex *Exporter) exportPeers() (err error) {
 			default:
 				written, err = ex.addTable(peer, table)
 				if err != nil {
-					return err
+					return 0, err
 				}
 				total += written
 			}
 		}
 		log.Infof("exported %10s (%5s), used space: %8d kb", peer.Name, peer.ID, total/1024)
+		exportedCount++
 	}
 
-	return nil
+	return exportedCount, nil
 }
 
 func (ex *Exporter) addDir(name string) (err error) {
@@ -187,9 +188,6 @@ func (ex *Exporter) addTable(peer *Peer, table *Table) (written int64, err error
 
 func (ex *Exporter) initPeers(ctx context.Context) {
 	log.Debugf("starting peers")
-	waitGroupPeers := &sync.WaitGroup{}
-	shutdownChannel := make(chan bool)
-	defer close(shutdownChannel)
 	ex.lmd.nodeAccessor = NewNodes(ex.lmd, []string{}, "")
 
 	for i := range ex.lmd.Config.Connections {
@@ -197,46 +195,69 @@ func (ex *Exporter) initPeers(ctx context.Context) {
 		peer := NewPeer(ex.lmd, &c)
 		log.Debugf("creating peer: %s", peer.Name)
 		ex.lmd.peerMap.Add(peer)
-		waitGroupPeers.Add(1)
-		go func() {
-			// make sure we log panics properly
-			defer logPanicExitPeer(peer)
-			err := peer.initAllTables(ctx)
-			if err != nil {
-				logWith(peer).Warnf("failed to initialize peer: %s", err)
-			}
-			logWith(peer).Debugf("peer ready")
-			waitGroupPeers.Done()
-		}()
+		peer.Start(ctx)
 	}
 
 	log.Infof("waiting for all peers to connect and initialize")
-	waitGroupPeers.Wait()
+	ex.waitForPeerMapReady()
+	log.Infof("all peers ready for export (%d peers)", len(ex.lmd.peerMap.Peers()))
+}
 
-	hasSubPeers := false
-	for _, peer := range ex.lmd.peerMap.Peers() {
-		if peer.parentID == "" {
-			continue
-		}
-		hasSubPeers = true
-		waitGroupPeers.Add(1)
-		go func() {
-			// make sure we log panics properly
-			defer logPanicExitPeer(peer)
-			err := peer.initAllTables(ctx)
-			if err != nil {
-				logWith(peer).Warnf("failed to initialize peer: %s", err)
+func (ex *Exporter) waitForPeerMapReady() {
+	maxAttempts := 30
+	minimumSleepTime := 10 * time.Second
+	prevCount := 0
+	// peer count should not change from previous run, and all peers should have saved data
+	// this increments the stable count, anything else resets it back to zero
+	stableAttempts := 0
+	targetStableAttempts := 3
+
+	sleepTime := time.Duration(ex.lmd.Config.UpdateInterval) * time.Second
+	sleepTime = max(sleepTime, minimumSleepTime)
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		time.Sleep(sleepTime)
+
+		peers := ex.lmd.peerMap.Peers()
+		currentCount := len(peers)
+		allReady := true
+
+		for _, peer := range peers {
+			if peer.hasFlag(MultiBackend) {
+				continue
 			}
-			logWith(peer).Debugf("peer ready")
-			waitGroupPeers.Done()
-		}()
+			if peer.data.Load() == nil {
+				allReady = false
+
+				break
+			}
+			if peer.peerState.Get() != PeerStatusUp {
+				allReady = false
+
+				break
+			}
+		}
+
+		if currentCount == prevCount && allReady {
+			stableAttempts++
+			if stableAttempts >= targetStableAttempts {
+				return
+			}
+		} else {
+			prevCount = currentCount
+			stableAttempts = 0
+		}
+
+		readyCount := 0
+		for _, p := range peers {
+			if p.data.Load() != nil {
+				readyCount++
+			}
+		}
+		log.Debugf("peer discovery attempt %d: %d peers (%d ready, %d stable)", attempt, currentCount, readyCount, stableAttempts)
 	}
 
-	if hasSubPeers {
-		log.Infof("waiting for all federated peers to connect and initialize")
-	}
-	waitGroupPeers.Wait()
-	log.Infof("all peers ready for export")
+	log.Warnf("peer discovery did not fully stabilize after %d attempts, proceeding with %d peers", maxAttempts, len(ex.lmd.peerMap.Peers()))
 }
 
 // exportableColumns generates list of columns to export.
