@@ -184,7 +184,11 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 		size, numRows, err = cl.processRequest(ctx, req)
 
 		duration := time.Since(time1)
-		logWith(reqctx).Infof("%13s client request finished: duration %12s | response size: %8s | rows: %8d", req.Table.String(), duration.String(), byteCountBinary(size), numRows)
+		logWith(reqctx).Infof("%13s client request finished: duration %12s | response size: %8s | rows: %8d",
+			req.Table.String(),
+			duration.Truncate(time.Millisecond).String(),
+			byteCountBinary(size),
+			numRows)
 		if duration-time.Duration(req.WaitTimeout)*time.Millisecond > time.Duration(cl.logSlowQueryThreshold)*time.Second {
 			logWith(reqctx).Warnf("slow client query finished after %s, response size: %s\n%s", duration.String(), byteCountBinary(size), strings.TrimSpace(req.String()))
 		} else if size > int64(cl.logHugeQueryThreshold*1024*1024) {

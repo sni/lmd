@@ -753,7 +753,12 @@ func (ds *DataStoreSet) insertDeltaDataResult(dataOffset int, res ResultSet, res
 		updateType = "full"
 	}
 
-	table.lock.Lock()
+	if len(res) == 0 {
+		return updateSet, nil
+	}
+
+	// wait for a write slot without blocking the readers if possible
+	table.lock.LockLowPriority(30 * time.Second)
 	durationLock := time.Since(time2).Truncate(time.Millisecond)
 	time3 := time.Now()
 

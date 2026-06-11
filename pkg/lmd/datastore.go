@@ -12,7 +12,7 @@ import (
 // DataStore contains the actual data rows with a reference to the table and peer.
 type DataStore struct {
 	noCopy                  noCopy
-	lock                    *RWMutex
+	lock                    *TriggeredLock                 // lock used when accessing data field
 	index                   map[string]*DataRow            // access data rows from primary key, ex.: hostname or comment id
 	index2                  map[string]map[string]*DataRow // access data rows from 2 primary keys, ex.: host and service
 	indexLowerCase          map[string][]string            // access data rows from lower case primary key
@@ -27,8 +27,14 @@ type DataStore struct {
 
 // NewDataStore creates a new datastore with columns based on given flags.
 func NewDataStore(table *Table, peer *Peer) (d *DataStore) {
+	var lockName string
+	if peer == nil {
+		lockName = fmt.Sprintf("peer: none - datastore %s", table.name.String())
+	} else {
+		lockName = fmt.Sprintf("peer: %s - datastore %s", peer.Name, table.name.String())
+	}
 	d = &DataStore{
-		lock:                    NewRWMutex("datastore " + table.name.String()),
+		lock:                    NewTriggeredLock(lockName),
 		data:                    make([]*DataRow, 0),
 		index:                   make(map[string]*DataRow),
 		index2:                  make(map[string]map[string]*DataRow),
