@@ -515,11 +515,10 @@ func (lmd *Daemon) checkFlags() {
 	}
 
 	if lmd.flags.flagDeadlock <= 0 {
-		deadlockOpts.Disable = true
+		deadLockDisable()
 	} else {
-		deadlockOpts.Disable = false
+		deadLockEnable()
 		deadlockOpts.DeadlockTimeout = time.Duration(lmd.flags.flagDeadlock) * time.Second
-		deadlockOpts.LogBuf = NewLogWriter("Error")
 	}
 
 	if lmd.flags.flagImport != "" && lmd.flags.flagExport != "" {
