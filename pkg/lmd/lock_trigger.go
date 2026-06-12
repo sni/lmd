@@ -51,6 +51,8 @@ func (l *TriggeredLock) LockLowPriority(maxWait time.Duration) {
 		return
 	}
 
+	t1 := time.Now()
+
 	// wait up to maxWait to get trigger by a finished unlock
 	select {
 	case <-l.writeTrigger:
@@ -62,6 +64,9 @@ func (l *TriggeredLock) LockLowPriority(maxWait time.Duration) {
 
 	l.lock.Lock()
 	l.drainTrigger()
+
+	duration := time.Since(t1)
+	log.Debugf("waiting for %s write lock took: %s", l.name, duration.String())
 }
 
 // drainTrigger removes all elements from the writeTrigger channel to avoid blocking future writes.
