@@ -533,7 +533,7 @@ func VirtualColServicesWithInfo(_ *Peer, d *DataRow, col *Column) any {
 	for idx := range services {
 		service, ok := servicesStore.index2[hostName][services[idx]]
 		if !ok {
-			log.Errorf("Could not find service: %s - %s\n", hostName, services[idx])
+			log.Errorf("Could not find service: %s - %s", hostName, services[idx])
 
 			continue
 		}
@@ -560,7 +560,7 @@ func VirtualColMembersWithState(_ *Peer, dRow *DataRow, _ *Column) any {
 		for idx, hostName := range members {
 			host, ok := hostsStore.index[hostName]
 			if !ok {
-				log.Errorf("Could not find host: %s\n", hostName)
+				log.Errorf("Could not find host: %s", hostName)
 
 				continue
 			}
@@ -582,7 +582,7 @@ func VirtualColMembersWithState(_ *Peer, dRow *DataRow, _ *Column) any {
 
 			service, ok := servicesStore.index2[hostName][serviceDescription]
 			if !ok {
-				log.Errorf("Could not find service: %s - %s\n", hostName, serviceDescription)
+				log.Errorf("Could not find service: %s - %s", hostName, serviceDescription)
 
 				continue
 			}
@@ -617,7 +617,7 @@ func VirtualColCommentsWithInfo(_ *Peer, row *DataRow, _ *Column) any {
 		commentID := fmt.Sprintf("%d", comments[idx])
 		comment, ok := commentsStore.index[commentID]
 		if !ok {
-			log.Errorf("Could not find comment: %s\n", commentID)
+			log.Errorf("Could not find comment: %s", commentID)
 
 			continue
 		}
@@ -658,7 +658,7 @@ func VirtualColDowntimesWithInfo(_ *Peer, row *DataRow, _ *Column) any {
 		downtimeID := fmt.Sprintf("%d", downtimes[idx])
 		downtime, ok := downtimesStore.index[downtimeID]
 		if !ok {
-			log.Errorf("Could not find downtime: %s\n", downtimeID)
+			log.Errorf("Could not find downtime: %s", downtimeID)
 
 			continue
 		}

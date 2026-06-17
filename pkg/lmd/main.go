@@ -717,7 +717,7 @@ func NewLMDHTTPClient(tlsConfig *tls.Config, proxy string) *http.Client {
 	if proxy != "" {
 		proxyURL, err := url.Parse(proxy)
 		if err != nil {
-			log.Fatalf("ERROR: cannot parse proxy into url '%s': %s\n", proxy, err.Error())
+			log.Fatalf("ERROR: cannot parse proxy into url '%s': %s", proxy, err.Error())
 		}
 		transport.Proxy = http.ProxyURL(proxyURL)
 	}
