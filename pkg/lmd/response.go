@@ -95,6 +95,7 @@ func NewResponse(ctx context.Context, req *Request, client *ClientConnection) (r
 		// set locks for required stores
 		res.lockedStores = make([]*DataStore, 0, len(res.selectedPeers)*len(res.affectedTables))
 		stores := make(map[*Peer]*DataStore)
+		start := time.Now()
 		for i := range res.selectedPeers {
 			peer := res.selectedPeers[i]
 			store, err2 := peer.getDataStore(table.name)
@@ -111,6 +112,12 @@ func NewResponse(ctx context.Context, req *Request, client *ClientConnection) (r
 			stores[peer] = store
 		}
 
+		duration := time.Since(start)
+		if duration > 5*time.Second {
+			logWith(res).Warnf("waited %s for read lock on all %d affected tables on %d backends", duration.String(), len(res.affectedTables), len(res.selectedPeers))
+		} else {
+			logWith(res).Debugf("waited %s for read lock on all %d affected tables on %d backends", duration.String(), len(res.affectedTables), len(res.selectedPeers))
+		}
 		defer res.unlockStores()
 
 		res.rawResults = &RawResultSet{}
