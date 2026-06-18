@@ -62,11 +62,17 @@ func (l *TriggeredLock) LockLowPriority(maxWait time.Duration) {
 		// timeout
 	}
 
+	waitDuration := time.Since(t1)
+	t2 := time.Now()
 	l.lock.Lock()
 	l.drainTrigger()
 
-	duration := time.Since(t1)
-	log.Debugf("waiting for %s write lock took: %s", l.name, duration.String())
+	blockDuration := time.Since(t2)
+	if blockDuration > 3*time.Second {
+		log.Warnf("waiting for %s write lock took: wait: %s | blocking: %s", l.name, waitDuration.String(), blockDuration.String())
+	} else {
+		log.Debugf("waiting for %s write lock took: wait: %s | blocking: %s", l.name, waitDuration.String(), blockDuration.String())
+	}
 }
 
 // drainTrigger removes all elements from the writeTrigger channel to avoid blocking future writes.
