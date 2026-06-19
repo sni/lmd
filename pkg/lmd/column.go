@@ -284,6 +284,7 @@ func (f *OptionalFlags) Clear() {
 type Column struct {
 	noCopy          noCopy
 	RefCol          *Column                // reference to column in other table, ex.: host_alias
+	RefTable        *TableName             // reference to other tables only required for this column
 	Table           *Table                 // // reference to the table holding this column
 	VirtualMap      *VirtualColumnMapEntry // reference to resolver for virtual columns
 	Name            string                 // name and primary key
@@ -298,7 +299,7 @@ type Column struct {
 }
 
 // NewColumn adds a column object.
-func NewColumn(table *Table, name string, storage StorageType, update FetchType, datatype DataType, restrict OptionalFlags, refCol *Column, descr string) {
+func NewColumn(table *Table, name string, storage StorageType, update FetchType, datatype DataType, restrict OptionalFlags, refCol *Column, refTab *TableName, descr string) {
 	sorted := false
 	if datatype == StringListSortedCol {
 		sorted = true
@@ -313,6 +314,7 @@ func NewColumn(table *Table, name string, storage StorageType, update FetchType,
 		FetchType:   update,
 		DataType:    datatype,
 		RefCol:      refCol,
+		RefTable:    refTab,
 		Optional:    restrict,
 		SortedList:  sorted,
 	}

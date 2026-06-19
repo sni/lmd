@@ -9,7 +9,7 @@ import (
 type TableRef struct {
 	noCopy  noCopy
 	Table   *Table     // name of the table itself, ex.: hosts table
-	Columns ColumnList // local column(s) which holds the values to determince the ID of the referenced item, ex.: host_name.
+	Columns ColumnList // local column(s) which holds the values to determine the ID of the referenced item, ex.: host_name.
 }
 
 // TableName contains all table names.
@@ -192,17 +192,21 @@ func (t *Table) GetEmptyColumn() *Column {
 
 // AddColumn adds a new column.
 func (t *Table) AddColumn(name string, update FetchType, datatype DataType, description string) {
-	NewColumn(t, name, LocalStore, update, datatype, NoFlags, nil, description)
+	NewColumn(t, name, LocalStore, update, datatype, NoFlags, nil, nil, description)
 }
 
 // AddExtraColumn adds a new column with extra attributes.
 func (t *Table) AddExtraColumn(name string, storage StorageType, update FetchType, datatype DataType, restrict OptionalFlags, description string) {
-	NewColumn(t, name, storage, update, datatype, restrict, nil, description)
+	NewColumn(t, name, storage, update, datatype, restrict, nil, nil, description)
+}
+
+func (t *Table) AddExtraRefColumn(name string, storage StorageType, update FetchType, datatype DataType, refTable TableName, description string) {
+	NewColumn(t, name, storage, update, datatype, NoFlags, nil, &refTable, description)
 }
 
 // AddPeerInfoColumn adds a new column related to peer information.
 func (t *Table) AddPeerInfoColumn(name string, datatype DataType, description string) {
-	NewColumn(t, name, VirtualStore, None, datatype, NoFlags, nil, description)
+	NewColumn(t, name, VirtualStore, None, datatype, NoFlags, nil, nil, description)
 }
 
 // AddRefColumns adds a reference column.
@@ -231,6 +235,6 @@ func (t *Table) AddRefColumns(tableName TableName, prefix string, localName []st
 		if _, ok := t.columnsIndex[refColName]; ok {
 			continue
 		}
-		NewColumn(t, refColName, RefStore, None, col.DataType, col.Optional, col, col.Description)
+		NewColumn(t, refColName, RefStore, None, col.DataType, col.Optional, col, col.RefTable, col.Description)
 	}
 }

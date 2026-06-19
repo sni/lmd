@@ -90,7 +90,7 @@ func NewResponse(ctx context.Context, req *Request, client *ClientConnection) (r
 			}
 		}
 
-		res.affectedTables = res.getAffectedTables(table)
+		res.affectedTables = res.getAffectedTables(table, req.RequestColumns)
 
 		// set locks for required stores
 		res.lockedStores = make([]*DataStore, 0, len(res.selectedPeers)*len(res.affectedTables))
@@ -163,7 +163,7 @@ func (res *Response) unlockStores() {
 	res.lockedStores = nil
 }
 
-func (res *Response) getAffectedTables(reqTable *Table) []TableName {
+func (res *Response) getAffectedTables(reqTable *Table, requestColumns []*Column) []TableName {
 	if len(reqTable.refTables) == 0 {
 		return ([]TableName{reqTable.name})
 	}
@@ -172,9 +172,13 @@ func (res *Response) getAffectedTables(reqTable *Table) []TableName {
 		res.request.Table: true,
 	}
 
-	for _, col := range res.request.RequestColumns {
+	// column specific references
+	for _, col := range requestColumns {
 		if col.StorageType == RefStore {
 			uniq[col.RefCol.Table.name] = true
+		}
+		if col.RefTable != nil {
+			uniq[*col.RefTable] = true
 		}
 	}
 
