@@ -378,11 +378,11 @@ func (lmd *Daemon) mainExport() {
 		<-osSignalChannel
 		os.Exit(1)
 	}()
-	err := exportData(lmd)
+	exportedCount, err := exportData(lmd)
 	if err != nil {
 		lmd.cleanFatalf("export failed: %s", err)
 	}
-	log.Infof("exported %d peers successfully", len(lmd.peerMap.Peers()))
+	log.Infof("exported %d peers successfully", exportedCount)
 }
 
 func (lmd *Daemon) ApplyFlags(conf *Config) {
