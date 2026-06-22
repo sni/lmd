@@ -1,6 +1,7 @@
 package lmd
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -54,24 +55,44 @@ func (l *TriggeredLock) LockLowPriority(maxWait time.Duration) {
 	t1 := time.Now()
 
 	// wait up to maxWait to get trigger by a finished unlock
-	select {
-	case <-l.writeTrigger:
-		// signaled
-	case <-time.After(maxWait):
-		log.Warnf("unable to get a write slot in time (%s)", l.name)
-		// timeout
+	locked := false
+	trying := true
+	for trying {
+		select {
+		case <-l.writeTrigger:
+			// signaled, but it doesn't mean we can get the lock, so try to acquire it
+			if l.lock.TryLock() {
+				locked = true
+				trying = false
+			}
+		case <-time.After(maxWait):
+			// timeout
+			log.Warnf("unable to get a write slot in time (%s)", l.name)
+			trying = false
+		}
 	}
 
 	waitDuration := time.Since(t1)
-	t2 := time.Now()
-	l.lock.Lock()
+
+	var blockDuration time.Duration
+	if locked {
+		blockDuration = 0
+	} else {
+		t2 := time.Now()
+		l.lock.Lock()
+		blockDuration = time.Since(t2)
+	}
+
 	l.drainTrigger()
 
-	blockDuration := time.Since(t2)
-	if blockDuration > 3*time.Second {
-		log.Warnf("waiting for %s write lock took: wait: %s | blocking: %s", l.name, waitDuration.String(), blockDuration.String())
+	logMsg := fmt.Sprintf("waiting for %12s write lock took: wait: %8s | blocking: %8s",
+		l.name,
+		waitDuration.Truncate(time.Millisecond).String(),
+		blockDuration.Truncate(time.Millisecond).String())
+	if blockDuration > 10*time.Second {
+		log.Warn(logMsg)
 	} else {
-		log.Debugf("waiting for %s write lock took: wait: %s | blocking: %s", l.name, waitDuration.String(), blockDuration.String())
+		log.Debugf(logMsg)
 	}
 }
 
