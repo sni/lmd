@@ -3,6 +3,7 @@
 package lmd
 
 import (
+	"math"
 	"runtime"
 	"runtime/debug"
 	"testing"
@@ -35,7 +36,7 @@ func TestLMDPeerInitPeakMemoryUsage(t *testing.T) {
 
 	peak2, alloc2 := getGoMemStats(t, false)
 
-	assert.LessOrEqualf(t, alloc2-alloc1, uint64(5), "allocated memory should be more or less free again (5mb tolerance): before: %dMB / after: %dMB", alloc1, alloc2)
+	assert.LessOrEqualf(t, math.Abs(float64(alloc2-alloc1)), float64(5), "allocated memory should be more or less free again (5mb tolerance): before: %dMB / after: %dMB", alloc1, alloc2)
 	assert.LessOrEqualf(t, peak2, uint64(250), "peak allocated memory should be less than 250MB after the test: %dMB", peak2)
 }
 
