@@ -31,6 +31,14 @@ type Cmd struct {
 	flags cmdFlags
 }
 
+type processArgs struct {
+	conn        net.Conn
+	query       string
+	readSize    int64
+	inputDelay  time.Duration
+	outputDelay time.Duration
+}
+
 func MainLQ(build string) {
 	Build = build
 	cmd := &Cmd{}
@@ -107,6 +115,11 @@ func MainLQ(build string) {
 		os.Exit(1)
 	}
 
+	queryChan := make(chan processArgs)
+	readyChan := make(chan bool)
+	writtenChan := make(chan bool)
+	go processQuery(queryChan, writtenChan, readyChan)
+
 	// read query from stdin
 	scanner := bufio.NewScanner(os.Stdin)
 	query := ""
@@ -114,8 +127,20 @@ func MainLQ(build string) {
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		log.Tracef("stdin: %s", line)
-		if line == "" {
-			processQuery(query, conn, readSize, inputDelay, outputDelay, false)
+		if line == "" && query != "" {
+			// wait for previous query
+			if numQueries > 0 {
+				<-readyChan
+			}
+
+			queryChan <- processArgs{
+				query:       query,
+				conn:        conn,
+				readSize:    readSize,
+				inputDelay:  inputDelay,
+				outputDelay: outputDelay,
+			}
+			<-writtenChan
 			query = ""
 			numQueries++
 
@@ -125,9 +150,31 @@ func MainLQ(build string) {
 		query += line + "\n"
 	}
 
+	query = strings.TrimSpace(query)
+
 	if query != "" {
-		processQuery(query, conn, readSize, inputDelay, outputDelay, true)
+		if numQueries > 0 {
+			<-readyChan
+		}
+		queryChan <- processArgs{
+			query:       query,
+			conn:        conn,
+			readSize:    readSize,
+			inputDelay:  inputDelay,
+			outputDelay: outputDelay,
+		}
+		<-writtenChan
 		numQueries++
+	}
+
+	if numQueries > 0 {
+		log.Tracef("waiting for final query")
+		err := closeWrite(conn)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: failed to send query: %s\n", err.Error())
+			os.Exit(1)
+		}
+		<-readyChan
 	}
 
 	if numQueries == 0 {
@@ -160,7 +207,14 @@ func applyVerboseFlags(flags *cmdFlags) {
 	}
 }
 
-func processQuery(query string, conn net.Conn, readSize int64, inputDelay, outputDelay time.Duration, finalQuery bool) {
+func processQuery(inputChan chan processArgs, writtenChan, readyChan chan bool) {
+	for args := range inputChan {
+		processQueryDo(writtenChan, args.query, args.conn, args.readSize, args.inputDelay, args.outputDelay)
+		readyChan <- true
+	}
+}
+
+func processQueryDo(writtenChan chan bool, query string, conn net.Conn, readSize int64, inputDelay, outputDelay time.Duration) {
 	log.Tracef("sending query: %s", strings.ReplaceAll(query, "\n", "\\n")+"\\n")
 	for _, c := range query {
 		_, err := fmt.Fprintf(conn, "%c", c)
@@ -174,13 +228,8 @@ func processQuery(query string, conn net.Conn, readSize int64, inputDelay, outpu
 	}
 	fmt.Fprintf(conn, "\n")
 
-	if finalQuery {
-		err := closeWrite(conn)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "ERROR: failed to send query: %s\n", err.Error())
-			os.Exit(1)
-		}
-	}
+	// signal that query has been written
+	writtenChan <- true
 
 	// read response with configured delay
 	for {
