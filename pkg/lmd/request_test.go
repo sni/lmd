@@ -587,12 +587,28 @@ func TestCommands(t *testing.T) {
 	require.Errorf(t, err, "expected error for broken command")
 	require.Nilf(t, res, "result for unsuccessful command should be empty")
 
-	assert.Equal(t, "command broken", err.Error())
+	assert.Equal(t, "400: command broken", err.Error())
+	var pErr *PeerCommandError
+	require.ErrorAsf(t, err, &pErr, "expected PeerCommandError type")
 	assert.Equal(t, 400, err.(*PeerCommandError).code)
 
 	_, _, err = peer.QueryString("COMMAND [123.456] test_broken\n\n")
 	require.Errorf(t, err, "expected error for broken command")
 	assert.Equal(t, "bad request: COMMAND [123.456] test_broken", err.Error())
+
+	err = cleanup()
+	require.NoError(t, err)
+}
+
+func TestCommandsWrappedJSON(t *testing.T) {
+	peer, cleanup, _ := StartTestPeer(t, 1, 10, 10)
+	PauseTestPeers(peer)
+
+	res, _, err := peer.QueryString("COMMAND [0] test_broken\nOutputFormat: wrapped_json\n\n")
+	require.Errorf(t, err, "expected error for broken command")
+	require.Nilf(t, res, "result for unsuccessful command should be empty")
+
+	assert.JSONEq(t, `{"failed": {"mockid0":"400: command broken"}}`, err.Error())
 
 	err = cleanup()
 	require.NoError(t, err)
@@ -611,7 +627,7 @@ func TestHTTPCommands(t *testing.T) {
 	require.Errorf(t, err, "expected error for broken command")
 	assert.Nilf(t, res, "result for successful command should be empty")
 
-	assert.Equal(t, "command broken", err.Error())
+	assert.Equal(t, "400: command broken", err.Error())
 	assert.Equal(t, 400, err.(*PeerCommandError).code)
 	assert.InDeltaf(t, 2.20, peer.thrukVersion.Get(), 0, "version set correctly")
 
@@ -627,7 +643,7 @@ func TestHTTPCommands(t *testing.T) {
 	require.Errorf(t, err, "expected error for broken command")
 	assert.Nilf(t, res, "result for successful command should be empty")
 
-	assert.Equal(t, "command broken", err.Error())
+	assert.Equal(t, "400: command broken", err.Error())
 	assert.Equal(t, 400, err.(*PeerCommandError).code)
 	assert.InDeltaf(t, thrukVersion, peer.thrukVersion.Get(), 0, "version set correctly")
 }

@@ -246,7 +246,13 @@ type PeerCommandError struct {
 
 // Error returns the error message as string.
 func (e *PeerCommandError) Error() string {
-	return e.err.Error()
+	str := strings.TrimPrefix(e.err.Error(), fmt.Sprintf("%d: ", e.code))
+
+	if e.code == 0 {
+		return str
+	}
+
+	return fmt.Sprintf("%d: %s", e.code, str)
 }
 
 // NewPeer creates a new peer object.
@@ -909,14 +915,7 @@ func (p *Peer) queryCB(ctx context.Context, req *Request, clb RowResultCB) (Resu
 	if req.Command != "" {
 		resBytes = bytes.TrimSpace(resBytes)
 		if len(resBytes) > 0 {
-			tmp := strings.SplitN(strings.TrimSpace(string(resBytes)), ":", 2)
-			if len(tmp) == 2 {
-				code, _ := strconv.Atoi(tmp[0])
-
-				return nil, nil, &PeerCommandError{err: fmt.Errorf("%s", strings.TrimSpace(tmp[1])), code: code, peer: p}
-			}
-
-			return nil, nil, fmt.Errorf("%s", tmp[0])
+			return nil, nil, p.parseCommandErrResponse(string(resBytes))
 		}
 
 		return nil, nil, nil
@@ -2185,7 +2184,7 @@ func (p *Peer) passThroughQuery(ctx context.Context, res *Response, passthroughR
 		}
 		logWith(p, req).Tracef("passthrough req errored %s", queryErr.Error())
 		res.lock.Lock()
-		res.failed[p.ID] = queryErr.Error()
+		res.failed[p.ID] = queryErr
 		res.lock.Unlock()
 
 		return
@@ -2390,7 +2389,7 @@ func (p *Peer) getTLSClientConfig() (*tls.Config, error) {
 }
 
 // sendCommandsWithRetry sends list of commands and retries until the peer is completely down.
-func (p *Peer) sendCommandsWithRetry(ctx context.Context, commands []string) (err error) {
+func (p *Peer) sendCommandsWithRetry(ctx context.Context, commands []string, req *Request) (err error) {
 	ctx = context.WithValue(ctx, CtxPeer, p.Name)
 	p.lastQuery.Set(currentUnixTime())
 	if p.idling.Load() {
@@ -2405,13 +2404,29 @@ func (p *Peer) sendCommandsWithRetry(ctx context.Context, commands []string) (er
 		switch status {
 		case PeerStatusDown:
 			logWith(ctx).Debugf("cannot send command, peer is down")
+			req.BackendErrors[p.ID] = &PeerCommandError{
+				code: ReturnCodeConnectionError,
+				peer: p,
+				err:  fmt.Errorf("cannot send command, peer is down"),
+			}
 
 			return fmt.Errorf("%s", p.lastError.Get())
 		case PeerStatusBroken:
 			logWith(ctx).Debugf("cannot send command, peer is broken")
+			req.BackendErrors[p.ID] = &PeerCommandError{
+				code: ReturnCodeConnectionError,
+				peer: p,
+				err:  fmt.Errorf("cannot send command, peer is broken"),
+			}
 
 			return fmt.Errorf("%s", p.lastError.Get())
 		case PeerStatusWarning, PeerStatusPending:
+			req.BackendErrors[p.ID] = &PeerCommandError{
+				code: ReturnCodeConnectionError,
+				peer: p,
+				err:  fmt.Errorf("cannot send command, peer is down"),
+			}
+
 			// wait till we get either a up or down
 			time.Sleep(1 * time.Second)
 		case PeerStatusUp, PeerStatusSyncing:
@@ -2419,6 +2434,7 @@ func (p *Peer) sendCommandsWithRetry(ctx context.Context, commands []string) (er
 			if err == nil {
 				return nil
 			}
+
 			var peerErr *PeerError
 			var peerCmdErr *PeerCommandError
 			switch {
@@ -2433,6 +2449,8 @@ func (p *Peer) sendCommandsWithRetry(ctx context.Context, commands []string) (er
 						   the command probably worked, but something else failed,
 						   so don't repeat the command in an endless loop
 						*/
+						req.BackendErrors[p.ID] = peerErr
+
 						return fmt.Errorf("sending command failed, number of retries exceeded")
 					}
 					retries++
@@ -2441,8 +2459,12 @@ func (p *Peer) sendCommandsWithRetry(ctx context.Context, commands []string) (er
 					continue
 				}
 			case errors.As(err, &peerCmdErr):
+				req.BackendErrors[p.ID] = peerCmdErr
+
 				return err
 			}
+
+			req.BackendErrors[p.ID] = &PeerError{msg: p.lastError.Get(), kind: ConnectionError}
 
 			return fmt.Errorf("%s", p.lastError.Get())
 		default:
@@ -2901,4 +2923,42 @@ func (p *Peer) extractThrukHTTPResponseTriple(headerBytes []byte, conn io.ReadCl
 	}
 
 	return nil, nil, fmt.Errorf("unknown result format: %s", combined)
+}
+
+// response can either be a plain error, ex.: "400: unknown command" or
+// a json response, ex.: {"failed": {"peerID":"400: command broken"}}.
+func (p *Peer) parseCommandErrResponse(response string) error {
+	response = strings.TrimSpace(response)
+
+	// this looks like a json response
+	if strings.HasPrefix(response, "{") {
+		failed := struct {
+			Failed map[string]string `json:"failed"`
+		}{}
+		err := json.Unmarshal([]byte(response), &failed)
+		if err != nil {
+			log.Errorf("failed to decode response: %s", err)
+
+			return fmt.Errorf("%s", response)
+		}
+
+		msg, ok := failed.Failed[p.ID]
+		if !ok {
+			return fmt.Errorf("%s", response)
+		}
+
+		// extract message from json error and continue with normal parsing
+		response = msg
+	}
+
+	// parse from a string response, ex.: "400: unknown command"
+	tmp := strings.SplitN(strings.TrimSpace(response), ":", 2)
+	if len(tmp) == 2 {
+		code, _ := strconv.Atoi(tmp[0])
+
+		return &PeerCommandError{err: fmt.Errorf("%s", strings.TrimSpace(tmp[1])), code: code, peer: p}
+	}
+
+	// fallback to string only error
+	return fmt.Errorf("%s", response)
 }

@@ -1,6 +1,7 @@
 package lmd
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -9,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 const (
@@ -32,6 +35,11 @@ type ClientConnection struct {
 	logSlowQueryThreshold int
 	logHugeQueryThreshold int
 	keepAlive             bool
+}
+
+type commandsPerReq struct {
+	req      *Request
+	commands []string
 }
 
 // NewClientConnection creates a new client connection object.
@@ -157,22 +165,28 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 	defer func() {
 		cl.curRequest = nil
 	}()
-	commandsByPeer := make(map[string][]string)
+	commandsToSend := make(map[string]commandsPerReq)
 	for _, req := range reqs {
 		cl.keepAlive = req.KeepAlive
 		cl.curRequest = req
-		reqctx := context.WithValue(ctx, CtxRequest, req.ID())
+		reqCtx := context.WithValue(ctx, CtxRequest, req.ID())
 		time1 := time.Now()
 		if req.Command != "" {
 			for _, pID := range req.BackendsMap {
-				commandsByPeer[pID] = append(commandsByPeer[pID], strings.TrimSpace(req.Command))
+				entry, ok := commandsToSend[pID]
+				if !ok {
+					commandsToSend[pID] = commandsPerReq{req: req}
+					entry = commandsToSend[pID]
+				}
+				entry.commands = append(entry.commands, strings.TrimSpace(req.Command))
+				commandsToSend[pID] = entry
 			}
 
 			continue
 		}
 
-		// send all pending commands so far
-		err = cl.sendRemainingCommands(reqctx, &commandsByPeer)
+		// send all pending commands so far when there is a normal query next
+		err = cl.sendRemainingCommands(ctx, commandsToSend)
 		if err != nil {
 			return err
 		}
@@ -184,16 +198,16 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 		size, numRows, err = cl.processRequest(ctx, req)
 
 		duration := time.Since(time1)
-		logWith(reqctx).Infof("%13s client request finished: duration %12s | response size: %8s | rows:%8d | backends:%4d",
+		logWith(reqCtx).Infof("%13s client request finished: duration %12s | response size: %8s | rows:%8d | backends:%4d",
 			req.Table.String(),
 			duration.Truncate(time.Millisecond).String(),
 			byteCountBinary(size),
 			numRows,
 			len(req.BackendsMap))
 		if duration-time.Duration(req.WaitTimeout)*time.Millisecond > time.Duration(cl.logSlowQueryThreshold)*time.Second {
-			logWith(reqctx).Warnf("slow client query finished after %s, response size: %s\n%s", duration.String(), byteCountBinary(size), strings.TrimSpace(req.String()))
+			logWith(reqCtx).Warnf("slow client query finished after %s, response size: %s\n%s", duration.String(), byteCountBinary(size), strings.TrimSpace(req.String()))
 		} else if size > int64(cl.logHugeQueryThreshold*1024*1024) {
-			logWith(reqctx).Warnf("huge client query finished after %s, response size: %s\n%s", duration.String(), byteCountBinary(size), strings.TrimSpace(req.String()))
+			logWith(reqCtx).Warnf("huge client query finished after %s, response size: %s\n%s", duration.String(), byteCountBinary(size), strings.TrimSpace(req.String()))
 		}
 		if cl.lmd.qStat != nil {
 			cl.lmd.qStat.in <- QueryStatIn{
@@ -208,9 +222,17 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 	}
 
 	// send all remaining commands
-	err = cl.sendRemainingCommands(ctx, &commandsByPeer)
+	err = cl.sendRemainingCommands(ctx, commandsToSend)
 	if err != nil {
 		return err
+	}
+
+	for _, req := range reqs {
+		if req.Command != "" && len(req.BackendErrors) > 0 {
+			cl.sendCommandErrors(req)
+
+			return fmt.Errorf("commands failed to send")
+		}
 	}
 
 	return nil
@@ -246,66 +268,120 @@ func (cl *ClientConnection) processRequest(ctx context.Context, req *Request) (s
 }
 
 // sendRemainingCommands sends all queued commands.
-func (cl *ClientConnection) sendRemainingCommands(ctx context.Context, commandsByPeer *map[string][]string) (err error) {
-	if len(*commandsByPeer) == 0 {
+func (cl *ClientConnection) sendRemainingCommands(ctx context.Context, commands map[string]commandsPerReq) (err error) {
+	if len(commands) == 0 {
 		return err
 	}
 	time1 := time.Now()
-	code, msg := cl.SendCommands(ctx, *commandsByPeer)
+	err = cl.sendCommandsDo(ctx, commands)
+
 	// clear the commands queue
-	*commandsByPeer = make(map[string][]string)
-	if code != ReturnCodeOK {
-		_, err = fmt.Fprintf(cl.connection, "%d: %s\n", code, msg)
+	for k := range commands {
+		delete(commands, k)
+	}
+
+	if err != nil {
+		logWith(cl).Infof("incoming command request failed in %s: %s", time.Since(time1), err.Error())
 
 		return err
 	}
-	logWith(ctx).Infof("incoming command request finished in %s", time.Since(time1))
 
-	return err
+	logWith(cl).Infof("incoming command request finished in %s", time.Since(time1))
+
+	return nil
 }
 
-// SendCommands sends commands for this request to all selected remote sites.
+// sendCommandsDo sends commands for this request to all selected remote sites.
 // It returns any error encountered.
-func (cl *ClientConnection) SendCommands(ctx context.Context, commandsByPeer map[string][]string) (code int, msg string) {
-	code = ReturnCodeOK
-	msg = "OK"
+func (cl *ClientConnection) sendCommandsDo(ctx context.Context, commands map[string]commandsPerReq) error {
 	if cl.lmd.flags.flagImport != "" {
-		return ReturnCodeInternalError, "lmd started with -import from file, cannot send commands without real backend connection."
+		return &PeerCommandError{
+			code: ReturnCodeInternalError,
+			err:  fmt.Errorf("lmd started with -import from file, cannot send commands without real backend connection"),
+		}
 	}
-	resultChan := make(chan error, len(commandsByPeer))
+
+	resultChan := make(chan error, len(commands))
 	wgroup := &sync.WaitGroup{}
-	for pID := range commandsByPeer {
+
+	for pID, command := range commands {
+		req := command.req
+		reqCtx := context.WithValue(ctx, CtxRequest, req.ID())
 		peer := cl.lmd.peerMap.Get(pID)
 		wgroup.Add(1)
 		go func(peer *Peer) {
 			defer wgroup.Done()
 			defer logPanicExitPeer(peer)
-			resultChan <- peer.sendCommandsWithRetry(ctx, commandsByPeer[peer.ID])
+			resultChan <- peer.sendCommandsWithRetry(reqCtx, command.commands, req)
 		}(peer)
 	}
 
 	// Wait up to 9.5 seconds for all commands being sent
 	if waitTimeout(ctx, wgroup, PeerCommandTimeout) {
-		return ReturnCodeCommandDelayed, "sending command timed out but will continue in background"
+		return &PeerCommandError{
+			code: ReturnCodeCommandDelayed,
+			err:  fmt.Errorf("sending command timed out but will continue in background"),
+		}
 	}
 
 	// collect errors
 	for {
 		select {
 		case err := <-resultChan:
-			var commandErr *PeerCommandError
-			switch {
-			case errors.As(err, &commandErr):
-				code = commandErr.code
-				msg = commandErr.Error()
-			default:
-				if err != nil {
-					code = ReturnCodeInternalError
-					msg = err.Error()
-				}
+			if err != nil {
+				logWith(cl).Debugf("command failed: %s", err.Error())
 			}
 		default:
-			return code, msg
+			return nil
+		}
+	}
+}
+
+func (cl *ClientConnection) sendCommandErrors(req *Request) {
+	switch req.OutputFormat {
+	case OutputFormatWrappedJSON:
+		buf := new(bytes.Buffer)
+		json := jsoniter.ConfigCompatibleWithStandardLibrary.BorrowStream(buf)
+		defer jsoniter.ConfigCompatibleWithStandardLibrary.ReturnStream(json)
+
+		json.WriteRaw("{\"failed\": {")
+		num := 0
+		for k, v := range req.BackendErrors {
+			if num > 0 {
+				json.WriteMore()
+			}
+			json.WriteObjectField(k)
+			json.WriteString(strings.TrimSpace(v.Error()))
+			num++
+		}
+		json.WriteObjectEnd()
+		json.WriteObjectEnd()
+
+		err := json.Flush()
+		if err != nil {
+			log.Debugf("json error: %s", err.Error())
+
+			return
+		}
+		json.Reset(nil)
+
+		_, err = buf.WriteTo(cl.connection)
+		if err != nil {
+			log.Debugf("failed to write error string back to client, probably disconnected already (%s)", err.Error())
+
+			return
+		}
+
+		return
+
+	default:
+		for _, err := range req.BackendErrors {
+			_, cErr := fmt.Fprintf(cl.connection, "%s\n", err.Error())
+			if cErr != nil {
+				log.Debugf("failed to write error string back to client, probably disconnected already (%s)", cErr.Error())
+
+				return
+			}
 		}
 	}
 }

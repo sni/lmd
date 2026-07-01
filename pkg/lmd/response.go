@@ -27,16 +27,16 @@ const (
 // Response contains the livestatus response data as long with some meta data.
 type Response struct {
 	noCopy         noCopy
-	err            error             // error object if the query was not successful
-	lock           *RWMutex          // must be used for Result and Failed access
-	request        *Request          // the initial request
-	rawResults     *RawResultSet     // collected results from peers
-	lockedStores   []*DataStore      // list of locked stores
-	affectedTables []TableName       // list of affected tables
-	failed         map[string]string // map of failed backends by key
-	result         ResultSet         // final processed result table
-	selectedPeers  []*Peer           // peers used for this response
-	code           int               // 200 if the query was successful
+	err            error            // error object if the query was not successful
+	lock           *RWMutex         // must be used for Result and Failed access
+	request        *Request         // the initial request
+	rawResults     *RawResultSet    // collected results from peers
+	lockedStores   []*DataStore     // list of locked stores
+	affectedTables []TableName      // list of affected tables
+	failed         map[string]error // map of failed backends by key
+	result         ResultSet        // final processed result table
+	selectedPeers  []*Peer          // peers used for this response
+	code           int              // 200 if the query was successful
 	resultTotal    int
 	rowsScanned    int // total number of data rows scanned for this result
 }
@@ -66,7 +66,7 @@ func NewResponse(ctx context.Context, req *Request, client *ClientConnection) (r
 	// if all backends are down, send an error instead of an empty result
 	if res.request.OutputFormat != OutputFormatWrappedJSON && len(res.failed) > 0 && len(res.failed) == len(req.Backends) {
 		res.code = 502
-		err = &PeerError{msg: res.failed[req.Backends[0]], kind: ConnectionError}
+		err = res.failed[req.Backends[0]]
 
 		return res, 0, 0, err
 	}
@@ -101,7 +101,7 @@ func NewResponse(ctx context.Context, req *Request, client *ClientConnection) (r
 			store, err2 := peer.getDataStore(table.name)
 			if err2 != nil {
 				res.lock.Lock()
-				res.failed[peer.ID] = err2.Error()
+				res.failed[peer.ID] = err2
 				res.lock.Unlock()
 
 				continue
@@ -192,7 +192,7 @@ func (res *Response) getAffectedTables(reqTable *Table, requestColumns []*Column
 
 func (res *Response) prepareResponse(ctx context.Context, req *Request) {
 	if res.failed == nil {
-		res.failed = make(map[string]string)
+		res.failed = make(map[string]error)
 	}
 
 	table := Objects.Tables[req.Table]
@@ -296,7 +296,7 @@ func (res *Response) Swap(i, j int) {
 // ExpandRequestedBackends fills the requests backends map.
 func (req *Request) ExpandRequestedBackends() {
 	req.BackendsMap = make(map[string]string)
-	req.BackendErrors = make(map[string]string)
+	req.BackendErrors = make(map[string]error)
 
 	// no backends selected means all backends
 	if len(req.Backends) == 0 {
@@ -311,9 +311,18 @@ func (req *Request) ExpandRequestedBackends() {
 	for _, peerKey := range req.Backends {
 		_, ok := peerMap[peerKey]
 		if !ok {
-			req.BackendErrors[peerKey] = fmt.Sprintf("bad request: backend %s does not exist", peerKey)
+			peer := req.lmd.peerMap.FindByName(peerKey)
+			if peer == nil {
+				req.BackendErrors[peerKey] = &PeerError{
+					msg:  fmt.Sprintf("bad request: backend %s does not exist", peerKey),
+					code: ReturnCodeBadRequest,
+					kind: ConnectionError,
+				}
 
-			continue
+				continue
+			}
+
+			peerKey = peer.ID
 		}
 		req.BackendsMap[peerKey] = peerKey
 	}
@@ -558,7 +567,7 @@ func (res *Response) WrappedJSON(buf io.Writer) error {
 			json.WriteMore()
 		}
 		json.WriteObjectField(k)
-		json.WriteString(strings.TrimSpace(v))
+		json.WriteString(strings.TrimSpace(v.Error()))
 		num++
 	}
 	json.WriteObjectEnd()
@@ -725,7 +734,7 @@ func (res *Response) waitTrigger(ctx context.Context, peer *Peer) {
 	_, err := peer.getDataStore(res.request.Table)
 	if err != nil {
 		res.lock.Lock()
-		res.failed[peer.ID] = err.Error()
+		res.failed[peer.ID] = err
 		res.lock.Unlock()
 
 		return
@@ -808,7 +817,7 @@ func (res *Response) BuildPassThroughResult(ctx context.Context) {
 
 		if !peer.isOnline() {
 			res.lock.Lock()
-			res.failed[peer.ID] = peer.lastError.Get()
+			res.failed[peer.ID] = fmt.Errorf("%s", peer.lastError.Get())
 			res.lock.Unlock()
 
 			continue

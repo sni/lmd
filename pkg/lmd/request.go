@@ -28,7 +28,7 @@ type Request struct {
 	StatsResult         *ResultSetStats
 	lmd                 *Daemon
 	BackendsMap         map[string]string
-	BackendErrors       map[string]string
+	BackendErrors       map[string]error
 	Limit               *int
 	id                  string
 	AuthUser            string
@@ -223,7 +223,14 @@ func ParseRequests(ctx context.Context, lmd *Daemon, c net.Conn) (reqs []*Reques
 func (req *Request) String() (str string) {
 	// Commands are easy passthrough
 	if req.Command != "" {
-		return req.Command + "\n\n"
+		str = req.Command
+		str += "\n"
+		if req.OutputFormat != OutputFormatDefault {
+			str += fmt.Sprintf("OutputFormat: %s\n", req.OutputFormat.String())
+		}
+		str += "\n"
+
+		return str
 	}
 	str = "GET " + req.Table.String() + "\n"
 	if req.ResponseFixed16 {
@@ -474,7 +481,7 @@ func (req *Request) getDistributedResponse(ctx context.Context) (*Response, erro
 	// Cluster mode (don't send this request; send sub-requests, build response)
 	var waitGroup sync.WaitGroup
 	collectedDatasets := make(chan ResultSet, len(req.lmd.nodeAccessor.nodeBackends))
-	collectedFailedHashes := make(chan map[string]string, len(req.lmd.nodeAccessor.nodeBackends))
+	collectedFailedHashes := make(chan map[string]error, len(req.lmd.nodeAccessor.nodeBackends))
 	for nodeID, nodeBackends := range req.lmd.nodeAccessor.nodeBackends {
 		node := req.lmd.nodeAccessor.Node(nodeID)
 		// limit to requested backends if necessary
@@ -484,7 +491,7 @@ func (req *Request) getDistributedResponse(ctx context.Context) (*Response, erro
 		// skip node if it doesn't have relevant backends
 		if len(subBackends) == 0 {
 			collectedDatasets <- ResultSet{}
-			collectedFailedHashes <- map[string]string{}
+			collectedFailedHashes <- map[string]error{}
 
 			continue
 		}
@@ -523,9 +530,9 @@ func (req *Request) getDistributedResponse(ctx context.Context) (*Response, erro
 			if !ok {
 				return
 			}
-			failedHashStrings := make(map[string]string, len(failedHash))
+			failedHashErrors := make(map[string]error, len(failedHash))
 			for key, val := range failedHash {
-				failedHashStrings[key] = fmt.Sprintf("%v", val)
+				failedHashErrors[key] = fmt.Errorf("%v", val)
 			}
 
 			// Parse data (table rows)
@@ -544,7 +551,7 @@ func (req *Request) getDistributedResponse(ctx context.Context) (*Response, erro
 
 			// Collect data
 			collectedDatasets <- rows
-			collectedFailedHashes <- failedHashStrings
+			collectedFailedHashes <- failedHashErrors
 		})
 		if err != nil {
 			return nil, err
@@ -676,11 +683,11 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 }
 
 // mergeDistributedResponse returns response object with merged result from distributed requests.
-func (req *Request) mergeDistributedResponse(collectedDatasets chan ResultSet, collectedFailedHashes chan map[string]string) *Response {
+func (req *Request) mergeDistributedResponse(collectedDatasets chan ResultSet, collectedFailedHashes chan map[string]error) *Response {
 	// Build response object
 	res := &Response{
 		code:    200,
-		failed:  make(map[string]string),
+		failed:  make(map[string]error),
 		request: req,
 	}
 
@@ -693,7 +700,7 @@ func (req *Request) mergeDistributedResponse(collectedDatasets chan ResultSet, c
 			// Value (sum), count (number of elements)
 			hasColumns := len(req.Columns)
 			for _, row := range currentRows {
-				// apply stats querys
+				// apply stats queries
 				key := ""
 				if hasColumns > 0 {
 					keys := make([]string, 0, hasColumns)

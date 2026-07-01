@@ -50,6 +50,19 @@ func (pm *PeerMap) Get(peerID string) *Peer {
 	return m.refs[peerID]
 }
 
+// FindByName retrieves a peer by its Name.
+func (pm *PeerMap) FindByName(peerName string) *Peer {
+	m := pm.load()
+
+	for _, peer := range m.peers {
+		if peer.Name == peerName {
+			return peer
+		}
+	}
+
+	return nil
+}
+
 // Add adds a peer to the map.
 func (pm *PeerMap) Add(peers ...*Peer) {
 	size := len(peers)

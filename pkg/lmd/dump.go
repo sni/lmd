@@ -1,4 +1,4 @@
-//go:build ignore
+// :build with debug functions
 
 package lmd
 
