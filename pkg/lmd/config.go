@@ -283,10 +283,12 @@ func (conf *Config) LogConfig() {
 		log.Debugf("args: %s", s)
 	}
 
-	replaceAuth := regexp.MustCompile(`"Auth": ".*",`)
+	replaceAuthSet := regexp.MustCompile(`"Auth": ".+",`)
+	replaceAuthEmp := regexp.MustCompile(`"Auth": "",`)
 	log.Debug("effective configuration:")
 	for s := range strings.SplitSeq(string(cfg), "\n") {
-		s = replaceAuth.ReplaceAllString(s, `"Auth": "***",`)
+		s = replaceAuthSet.ReplaceAllString(s, `"Auth": "<hidden>",`)
+		s = replaceAuthEmp.ReplaceAllString(s, `"Auth": "<empty>",`)
 		log.Debugf("conf: %s", s)
 	}
 }

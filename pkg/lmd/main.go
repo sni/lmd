@@ -476,8 +476,10 @@ func (lmd *Daemon) initializePeers(ctx context.Context) {
 				peer.shutdownChannel = lmd.shutdownChannel
 				peer.setHTTPClient()
 			} else {
+				log.Infof("peer config changed, restarting peer")
 				peer.Stop()
 				peer.data.Store(nil)
+				peer = nil
 			}
 		}
 

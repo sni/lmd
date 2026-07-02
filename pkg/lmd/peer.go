@@ -221,6 +221,10 @@ type PeerError struct {
 // Error returns the error message as string.
 func (e *PeerError) Error() string {
 	msg := e.msg
+	if msg == "EOF" {
+		return msg
+	}
+
 	if e.req != nil {
 		msg += fmt.Sprintf("\nRequest: %s", e.req.String())
 	}
@@ -320,10 +324,11 @@ func (p *Peer) Start(ctx context.Context) {
 
 // Stop stops this peer. Restart with Start.
 func (p *Peer) Stop() {
-	if !p.paused.Load() {
-		logWith(p).Infof("stopping connection")
-		p.stopChannel <- true
+	if p.paused.Load() {
+		return
 	}
+	logWith(p).Infof("stopping connection")
+	p.stopChannel <- true
 }
 
 // Query sends a livestatus request from a request object.
