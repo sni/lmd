@@ -228,10 +228,12 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 	}
 
 	for _, req := range reqs {
-		if req.Command != "" && len(req.BackendErrors) > 0 {
+		if req.Command != "" && (len(req.BackendErrors) > 0 || req.ResponseFixed16) {
 			cl.sendCommandErrors(req)
 
-			return fmt.Errorf("commands failed to send")
+			if len(req.BackendErrors) > 0 {
+				return fmt.Errorf("commands failed to send")
+			}
 		}
 	}
 
@@ -370,6 +372,7 @@ func (cl *ClientConnection) sendCommandErrors(req *Request) {
 		}
 		json.WriteObjectEnd()
 		json.WriteObjectEnd()
+		json.WriteRaw("\n")
 
 		err := json.Flush()
 		if err != nil {
@@ -378,6 +381,14 @@ func (cl *ClientConnection) sendCommandErrors(req *Request) {
 			return
 		}
 		json.Reset(nil)
+
+		if req.ResponseFixed16 {
+			result := buf.Bytes()
+			headerFixed16 := fmt.Sprintf("%d %11d\n", ReturnCodeOK, len(result))
+			buf = new(bytes.Buffer)
+			buf.WriteString(headerFixed16)
+			buf.Write(result)
+		}
 
 		_, err = buf.WriteTo(cl.connection)
 		if err != nil {

@@ -607,7 +607,11 @@ func TestCommandsWrappedJSON(t *testing.T) {
 	res, _, err := peer.QueryString("COMMAND [0] test_broken\nOutputFormat: wrapped_json\n\n")
 	require.Errorf(t, err, "expected error for broken command")
 	require.Nilf(t, res, "result for unsuccessful command should be empty")
+	assert.JSONEq(t, `{"failed": {"mockid0":"400: command broken"}}`, err.Error())
 
+	res, _, err = peer.QueryString("COMMAND [0] test_broken\nResponseHeader: fixed16\nOutputFormat: wrapped_json\n\n")
+	require.Errorf(t, err, "expected error for broken command")
+	require.Nilf(t, res, "result for unsuccessful command should be empty")
 	assert.JSONEq(t, `{"failed": {"mockid0":"400: command broken"}}`, err.Error())
 
 	err = cleanup()

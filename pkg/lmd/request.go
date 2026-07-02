@@ -295,6 +295,9 @@ func (req *Request) commandString() (str string) {
 	if req.OutputFormat != OutputFormatDefault {
 		str += fmt.Sprintf("OutputFormat: %s\n", req.OutputFormat.String())
 	}
+	if req.ResponseFixed16 {
+		str += "ResponseHeader: fixed16\n"
+	}
 	str += "\n"
 
 	return str
