@@ -312,7 +312,7 @@ func (cl *ClientConnection) sendCommandsDo(ctx context.Context, commands map[str
 		go func(peer *Peer) {
 			defer wgroup.Done()
 			defer logPanicExitPeer(peer)
-			resultChan <- peer.sendCommandsWithRetry(reqCtx, command.commands, req)
+			resultChan <- peer.sendCommandsWithRetry(reqCtx, command.commands)
 		}(peer)
 	}
 
@@ -329,9 +329,23 @@ func (cl *ClientConnection) sendCommandsDo(ctx context.Context, commands map[str
 		select {
 		case err := <-resultChan:
 			if err != nil {
-				logWith(cl).Debugf("command failed: %s", err.Error())
+				logWith(ctx).Debugf("command failed: %s", err.Error())
+
+				// sort back into the request
+				var peerCmdErr *PeerCommandError
+				if errors.As(err, &peerCmdErr) {
+					for pID, command := range commands {
+						req := command.req
+						if peerCmdErr.peer != nil && peerCmdErr.peer.ID == pID {
+							req.BackendErrors[pID] = peerCmdErr
+						}
+					}
+				} else {
+					return err
+				}
 			}
 		default:
+			// no more results
 			return nil
 		}
 	}

@@ -223,14 +223,7 @@ func ParseRequests(ctx context.Context, lmd *Daemon, c net.Conn) (reqs []*Reques
 func (req *Request) String() (str string) {
 	// Commands are easy passthrough
 	if req.Command != "" {
-		str = req.Command
-		str += "\n"
-		if req.OutputFormat != OutputFormatDefault {
-			str += fmt.Sprintf("OutputFormat: %s\n", req.OutputFormat.String())
-		}
-		str += "\n"
-
-		return str
+		return req.commandString()
 	}
 	str = "GET " + req.Table.String() + "\n"
 	if req.ResponseFixed16 {
@@ -288,6 +281,20 @@ func (req *Request) String() (str string) {
 		str += fmt.Sprintf("Sort: %s %s\n", req.Sort[i].Name, req.Sort[i].Direction.String())
 	}
 
+	str += "\n"
+
+	return str
+}
+
+func (req *Request) commandString() (str string) {
+	str = req.Command
+	str += "\n"
+	if len(req.Backends) > 0 {
+		str += "Backends: " + strings.Join(req.Backends, " ") + "\n"
+	}
+	if req.OutputFormat != OutputFormatDefault {
+		str += fmt.Sprintf("OutputFormat: %s\n", req.OutputFormat.String())
+	}
 	str += "\n"
 
 	return str

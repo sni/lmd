@@ -2389,7 +2389,7 @@ func (p *Peer) getTLSClientConfig() (*tls.Config, error) {
 }
 
 // sendCommandsWithRetry sends list of commands and retries until the peer is completely down.
-func (p *Peer) sendCommandsWithRetry(ctx context.Context, commands []string, req *Request) (err error) {
+func (p *Peer) sendCommandsWithRetry(ctx context.Context, commands []string) (err error) {
 	ctx = context.WithValue(ctx, CtxPeer, p.Name)
 	p.lastQuery.Set(currentUnixTime())
 	if p.idling.Load() {
@@ -2404,29 +2404,21 @@ func (p *Peer) sendCommandsWithRetry(ctx context.Context, commands []string, req
 		switch status {
 		case PeerStatusDown:
 			logWith(ctx).Debugf("cannot send command, peer is down")
-			req.BackendErrors[p.ID] = &PeerCommandError{
+
+			return &PeerCommandError{
 				code: ReturnCodeConnectionError,
 				peer: p,
 				err:  fmt.Errorf("cannot send command, peer is down"),
 			}
-
-			return fmt.Errorf("%s", p.lastError.Get())
 		case PeerStatusBroken:
 			logWith(ctx).Debugf("cannot send command, peer is broken")
-			req.BackendErrors[p.ID] = &PeerCommandError{
+
+			return &PeerCommandError{
 				code: ReturnCodeConnectionError,
 				peer: p,
 				err:  fmt.Errorf("cannot send command, peer is broken"),
 			}
-
-			return fmt.Errorf("%s", p.lastError.Get())
 		case PeerStatusWarning, PeerStatusPending:
-			req.BackendErrors[p.ID] = &PeerCommandError{
-				code: ReturnCodeConnectionError,
-				peer: p,
-				err:  fmt.Errorf("cannot send command, peer is down"),
-			}
-
 			// wait till we get either a up or down
 			time.Sleep(1 * time.Second)
 		case PeerStatusUp, PeerStatusSyncing:
@@ -2449,9 +2441,7 @@ func (p *Peer) sendCommandsWithRetry(ctx context.Context, commands []string, req
 						   the command probably worked, but something else failed,
 						   so don't repeat the command in an endless loop
 						*/
-						req.BackendErrors[p.ID] = peerErr
-
-						return fmt.Errorf("sending command failed, number of retries exceeded")
+						return peerErr
 					}
 					retries++
 					time.Sleep(1 * time.Second)
@@ -2459,14 +2449,14 @@ func (p *Peer) sendCommandsWithRetry(ctx context.Context, commands []string, req
 					continue
 				}
 			case errors.As(err, &peerCmdErr):
-				req.BackendErrors[p.ID] = peerCmdErr
-
-				return err
+				return peerCmdErr
 			}
 
-			req.BackendErrors[p.ID] = &PeerError{msg: p.lastError.Get(), kind: ConnectionError}
-
-			return fmt.Errorf("%s", p.lastError.Get())
+			return &PeerCommandError{
+				code: ReturnCodeConnectionError,
+				peer: p,
+				err:  fmt.Errorf("%s", p.lastError.Get()),
+			}
 		default:
 			logWith(ctx).Panicf("PeerStatus %v not implemented", status)
 		}
