@@ -30,7 +30,7 @@ prepare:
 	$(MAKE) provision
 
 provision:
-	timeout --foreground -s KILL -v 30m docker exec $(DOCKER_COMPOSE_TTY) "devbox-devbox-1" env TERM=xterm bash -c "/box/provision/ansible.sh"
+	timeout --foreground -s KILL -v 30m docker compose exec $(DOCKER_COMPOSE_TTY) --user root devbox env TERM=xterm bash -c "/box/provision/ansible.sh"
 
 box_prepared:
 	@[ $$(docker compose ps | grep devbox | grep Up | wc -l) -eq 1 ] || $(MAKE) prepare
