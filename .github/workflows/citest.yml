@@ -10,9 +10,9 @@ jobs:
         os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@main
     - name: Install Go
-      uses: actions/setup-go@v7
+      uses: actions/setup-go@main
       with:
         go-version-file: './go.mod'
     - run: make clean
@@ -20,7 +20,7 @@ jobs:
     - run: make longtest
     - run: make
     - name: extract built binary
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@main
       with:
         name: lmd
         path: lmd
