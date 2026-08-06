@@ -420,7 +420,7 @@ func (ds *DataStoreSet) createObjectByTypeCB(ctx context.Context, table *Table) 
 	curRowNum := 0
 
 	for {
-		collectorReady := make(chan error)
+		collectorReady := make(chan error, 1)
 		collector := make(chan []any, limit/4)
 		go func() {
 			// make sure we log panics properly
@@ -471,6 +471,7 @@ func (ds *DataStoreSet) createObjectByTypeCB(ctx context.Context, table *Table) 
 		})
 		if err != nil {
 			log.Debugf("got %s result error: %s", tableName, err.Error())
+			close(collector)
 
 			return nil, err
 		}
