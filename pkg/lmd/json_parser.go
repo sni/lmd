@@ -270,7 +270,7 @@ reading:
 				errPos := pos
 				for {
 					// try to append more data, error might result from incomplete data for current row
-					data, err = streamReadMore(buf, data, totalBytesRead+bytesReadForRow, maxReadSize, bufferSize)
+					data, err = streamReadMore(buf, data, totalBytesRead+bytesReadForRow+len(data), maxReadSize, bufferSize)
 					if err != nil {
 						return nil, 0, fmt.Errorf("read error: %s", err.Error())
 					}
