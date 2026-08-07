@@ -2,7 +2,7 @@
 
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
-next:
+2.8.3    Fri Aug  7 11:52:34 CEST 2026
           - fix synchronization issue with icinga2
           - improve export in federation mode
 
