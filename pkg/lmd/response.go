@@ -208,7 +208,7 @@ func (res *Response) prepareResponse(ctx context.Context, req *Request) {
 		if req.lmd.nodeAccessor == nil || !req.lmd.nodeAccessor.IsOurBackend(peer.ID) {
 			continue
 		}
-		if peer.hasFlag(MultiBackend) {
+		if peer.hasFlag(MultiBackend) && table.name != TableSites && table.name != TableBackends {
 			continue
 		}
 		res.selectedPeers = append(res.selectedPeers, peer)
