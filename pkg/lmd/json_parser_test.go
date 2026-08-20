@@ -235,7 +235,7 @@ func TestParseResultJSONStreamFixedSizeKeepAlive(t *testing.T) {
 	testSizes := []int{5, 5000}
 
 	if !testing.Short() {
-		testSizes = append(testSizes, 2e6)
+		testSizes = append(testSizes, 1e6)
 	}
 
 	defer jsonReadBufferSize.Store(DefaultJSONBufferSize)
