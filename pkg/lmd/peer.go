@@ -94,6 +94,7 @@ type Peer struct { //nolint:govet // not fieldalignment relevant
 	config          *Connection     // reference to the peer configuration from the config file
 	shutdownChannel chan bool       // channel used to wait to finish shutdown
 	statusStore     *DataStore      // the cached pseudo store for the status table
+	cacheLock       sync.Mutex      // protects cache.connectionPool from concurrent replacement
 	cache           struct {
 		HTTPClient             *http.Client  // cached http client for http backends
 		connectionPool         chan net.Conn // tcp connection get stored here for reuse
@@ -313,12 +314,16 @@ func (p *Peer) Start(ctx context.Context) {
 	p.waitGroup.Add(1)
 	p.paused.Store(false)
 	logWith(p).Infof("starting connection")
-	go func(peer *Peer, wg *sync.WaitGroup) {
+	go func(peer *Peer, wGroup *sync.WaitGroup) {
 		// make sure we log panics properly
 		defer logPanicExitPeer(peer)
+		// always release the wait group and unpause, even if updateLoop panics,
+		// otherwise the peer would be stuck forever and could never be restarted
+		defer func() {
+			p.paused.Store(true)
+			wGroup.Done()
+		}()
 		peer.updateLoop(ctx)
-		p.paused.Store(true)
-		wg.Done()
 	}(p, p.waitGroup)
 }
 
@@ -844,9 +849,9 @@ func (p *Peer) queryCB(ctx context.Context, req *Request, clb RowResultCB) (Resu
 			// give back connection
 			if err == nil {
 				logWith(p, req).Tracef("put connection back into pool")
-				p.cache.connectionPool <- conn
+				p.putCachedConnection(conn)
 			} else {
-				p.cache.connectionPool <- nil
+				p.putCachedConnection(nil)
 			}
 		default:
 			conn.Close()
@@ -1366,8 +1371,9 @@ func (p *Peer) openConnection(peerAddr string, connType ConnectionType) (conn ne
 
 // GetCachedConnection returns the next free cached connection or nil of none found.
 func (p *Peer) GetCachedConnection(req *Request) (conn net.Conn) {
+	pool := p.getConnectionPool()
 	select {
-	case conn = <-p.cache.connectionPool:
+	case conn = <-pool:
 		if conn != nil {
 			logWith(p, req).Tracef("using cached connection")
 		} else {
@@ -1380,6 +1386,20 @@ func (p *Peer) GetCachedConnection(req *Request) (conn net.Conn) {
 
 		return nil
 	}
+}
+
+// getConnectionPool returns the current connection pool channel, guarded against concurrent replacement.
+func (p *Peer) getConnectionPool() chan net.Conn {
+	p.cacheLock.Lock()
+	defer p.cacheLock.Unlock()
+
+	return p.cache.connectionPool
+}
+
+// putCachedConnection puts a connection (or nil) back into the current pool.
+func (p *Peer) putCachedConnection(conn net.Conn) {
+	pool := p.getConnectionPool()
+	pool <- conn
 }
 
 func extractConnType(rawAddr string) (string, ConnectionType) {
@@ -1428,8 +1448,7 @@ func (p *Peer) setNextAddrFromErr(err error, req *Request, source []string) {
 	p.peerAddr.Set(source[nextNum])
 
 	// invalidate connection cache
-	p.closeConnectionPool()
-	p.cache.connectionPool = make(chan net.Conn, p.lmd.Config.MaxParallelPeerConnections)
+	p.resetConnectionPool()
 
 	switch peerState {
 	case PeerStatusUp, PeerStatusPending, PeerStatusSyncing:
@@ -1459,10 +1478,17 @@ func (p *Peer) setNextAddrFromErr(err error, req *Request, source []string) {
 	}
 }
 
-func (p *Peer) closeConnectionPool() {
+// resetConnectionPool closes all pooled connections and replaces the pool with a fresh
+// one under lock, so concurrent readers/writers never observe a torn channel reference.
+func (p *Peer) resetConnectionPool() {
+	p.cacheLock.Lock()
+	defer p.cacheLock.Unlock()
+
+	old := p.cache.connectionPool
+	p.cache.connectionPool = make(chan net.Conn, p.lmd.Config.MaxParallelPeerConnections)
 	for {
 		select {
-		case conn := <-p.cache.connectionPool:
+		case conn := <-old:
 			if conn != nil {
 				conn.Close()
 			}

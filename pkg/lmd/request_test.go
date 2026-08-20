@@ -1324,7 +1324,7 @@ func TestRequestKeepalive(t *testing.T) {
 	`
 	peer, cleanup, mocklmd := StartTestPeerExtra(t, 1, 10, 10, extraConfig)
 	PauseTestPeers(peer)
-	peer.closeConnectionPool()
+	peer.resetConnectionPool()
 
 	getOpenListeners := func() int64 {
 		time.Sleep(KeepAliveWaitInterval)
