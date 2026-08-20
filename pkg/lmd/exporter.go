@@ -248,11 +248,14 @@ func (ex *Exporter) waitForPeerMapReady(ctx context.Context) {
 	sleepTime = max(sleepTime, minimumSleepTime)
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		time.Sleep(sleepTime)
+		if attempt > 1 {
+			time.Sleep(sleepTime)
+		}
 
 		peers := ex.lmd.peerMap.Peers()
 		currentCount := len(peers)
 		allReady := true
+		hasMultiBackends := false
 
 		// initialize and discover subpeers for new peers
 		waitGroupPeers := &sync.WaitGroup{}
@@ -268,6 +271,8 @@ func (ex *Exporter) waitForPeerMapReady(ctx context.Context) {
 
 		for _, peer := range peers {
 			if peer.hasFlag(MultiBackend) {
+				hasMultiBackends = true
+
 				continue
 			}
 			if peer.data.Load() == nil {
@@ -282,6 +287,7 @@ func (ex *Exporter) waitForPeerMapReady(ctx context.Context) {
 			}
 		}
 
+		log.Debugf("%d / %d / %s", currentCount, prevCount, allReady)
 		if currentCount == prevCount && allReady {
 			stableAttempts++
 			if stableAttempts >= targetStableAttempts {
@@ -290,6 +296,9 @@ func (ex *Exporter) waitForPeerMapReady(ctx context.Context) {
 		} else {
 			prevCount = currentCount
 			stableAttempts = 0
+		}
+		if !hasMultiBackends && allReady {
+			return
 		}
 
 		readyCount := 0
