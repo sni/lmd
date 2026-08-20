@@ -709,10 +709,10 @@ func (lmd *Daemon) applyArgFlags(opts ArrayFlags, localConfig *Config) {
 // NewLMDHTTPClient creates a http.Client with the given tls.Config.
 func NewLMDHTTPClient(tlsConfig *tls.Config, proxy string) *http.Client {
 	transport := &http.Transport{
-		Dial: (&net.Dialer{
+		DialContext: (&net.Dialer{
 			Timeout:   10 * time.Second,
 			KeepAlive: 10 * time.Second,
-		}).Dial,
+		}).DialContext,
 		TLSHandshakeTimeout: 10 * time.Second,
 		TLSClientConfig:     tlsConfig,
 	}

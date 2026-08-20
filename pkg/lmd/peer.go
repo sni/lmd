@@ -406,8 +406,7 @@ func (p *Peer) SendCommands(ctx context.Context, commands []string) error {
 	p.setQueryOptions(commandRequest)
 	_, _, err := p.Query(ctx, commandRequest)
 	if err != nil {
-		var peerCmdErr *PeerCommandError
-		if errors.As(err, &peerCmdErr) {
+		if peerCmdErr, ok := errors.AsType[*PeerCommandError](err); ok {
 			logWith(ctx).Debugf("sending command failed (invalid query) - %d: %s", peerCmdErr.code, peerCmdErr.Error())
 		} else {
 			logWith(ctx).Warnf("sending command failed: %s", err.Error())
@@ -669,8 +668,7 @@ func (p *Peer) initTablesIfRestartRequiredError(ctx context.Context, err error) 
 	if err == nil {
 		return nil
 	}
-	var peerErr *PeerError
-	if errors.As(err, &peerErr) {
+	if peerErr, ok := errors.AsType[*PeerError](err); ok {
 		if peerErr.kind == RestartRequiredError {
 			return p.initAllTables(ctx)
 		}
@@ -683,8 +681,7 @@ func (p *Peer) scheduleUpdateIfRestartRequiredError(err error) bool {
 	if err == nil {
 		return false
 	}
-	var peerErr *PeerError
-	if errors.As(err, &peerErr) {
+	if peerErr, ok := errors.AsType[*PeerError](err); ok {
 		if peerErr.kind == RestartRequiredError {
 			p.scheduleImmediateUpdate()
 
@@ -1105,8 +1102,7 @@ func isTemporary(err error) bool {
 	case errors.Is(err, syscall.EPIPE):
 		return true
 	}
-	var peerErr *PeerError
-	if errors.As(err, &peerErr) {
+	if peerErr, ok := errors.AsType[*PeerError](err); ok {
 		if peerErr.srcErr != nil {
 			return isTemporary(peerErr.srcErr)
 		}
@@ -1418,8 +1414,7 @@ func extractConnType(rawAddr string) (string, ConnectionType) {
 }
 
 func (p *Peer) setNextAddrFromErr(err error, req *Request, source []string) {
-	var peerCmdErr *PeerCommandError
-	if errors.As(err, &peerCmdErr) {
+	if _, ok := errors.AsType[*PeerCommandError](err); ok {
 		// client errors do not affect remote site status
 		return
 	}

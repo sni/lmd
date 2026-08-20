@@ -139,8 +139,7 @@ func (cl *ClientConnection) answer(ctx context.Context) error {
 
 // sendErrorResponse creates response for all given requests.
 func (cl *ClientConnection) sendErrorResponse(err error) error {
-	var netErr net.Error
-	if errors.As(err, &netErr) {
+	if _, ok := errors.AsType[net.Error](err); ok {
 		if cl.keepAlive {
 			logWith(cl).Debugf("closing keepalive connection")
 		} else {
@@ -248,8 +247,7 @@ func (cl *ClientConnection) processRequest(ctx context.Context, req *Request) (s
 	defer cl.lmd.logPanicExitClient(cl)
 	size, numRows, err = req.BuildResponseSend(ctx, cl)
 	if err != nil {
-		var netErr net.Error
-		if errors.As(err, &netErr) {
+		if netErr, ok := errors.AsType[net.Error](err); ok {
 			LogErrors((&Response{code: ReturnCodeConnectionError, request: req, err: netErr}).Send(cl))
 
 			return size, numRows, err
@@ -334,8 +332,7 @@ func (cl *ClientConnection) sendCommandsDo(ctx context.Context, commands map[str
 				logWith(ctx).Debugf("command failed: %s", err.Error())
 
 				// sort back into the request
-				var peerCmdErr *PeerCommandError
-				if errors.As(err, &peerCmdErr) {
+				if peerCmdErr, ok := errors.AsType[*PeerCommandError](err); ok {
 					for pID, command := range commands {
 						req := command.req
 						if peerCmdErr.peer != nil && peerCmdErr.peer.ID == pID {

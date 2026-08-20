@@ -6,6 +6,7 @@ linters:
     - depguard
     - err113
     - exhaustruct
+    - exhaustruct_v5
     - funcorder
     - gochecknoglobals
     - gochecknoinits
@@ -58,6 +59,11 @@ linters:
             - Panicf
     lll:
       line-length: 175
+    staticcheck:
+      checks:
+        - "all"
+        - "-SA4023"
+        - "-ST1003"
   exclusions:
     #warn-unused: true
     generated: lax
