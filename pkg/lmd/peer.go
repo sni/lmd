@@ -1418,6 +1418,14 @@ func (p *Peer) setNextAddrFromErr(err error, req *Request, source []string) {
 		// client errors do not affect remote site status
 		return
 	}
+
+	// if lmd is started in the import mode, the imported file may have unreachable peers in current execution environment
+	// passthrough tables like 'log' fail their queries due to unreachable peers, ignore their errors and return early
+	// otherwise the peer is set to down, and their data is removed
+	if p.lmd.flags.flagImport != "" {
+		return
+	}
+
 	promPeerFailedConnections.WithLabelValues(p.Name).Inc()
 
 	peerState := p.peerState.Get()
