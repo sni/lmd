@@ -38,6 +38,42 @@ with a slower poll interval. As soon as the first client requests some data,
 LMD will do a spin up and run a synchronous update (with small timeout) and
 change back to the normal poll interval.
 
+## Icinga 2 REST API
+
+Icinga 2 can be connected directly through its [REST API](https://icinga.com/docs/icinga-2/latest/doc/12-icinga2-api/):
+
+```toml
+[[Connections]]
+name = "Icinga 2"
+id = "icinga2-rest"
+source = ["https://icinga.example.org:5665/v1"]
+flags = ["icinga2-restv1"]
+auth = "lmd:password"
+```
+
+The source path defaults to `/v1`. Credentials can also be supplied in the URL;
+URL credentials take precedence over `auth`. The existing TLS certificate, CA,
+proxy, and timeout settings apply.
+
+Enable Icinga's `api` feature and grant the API user `status/query`,
+`objects/query/*`, and `filter-expression`. Object permissions can be restricted
+to Host, Service, HostGroup, ServiceGroup, User, UserGroup, TimePeriod,
+CheckCommand, Comment, and Downtime. Commands additionally require their
+`actions/<action>` or `objects/modify/<Type>` permissions.
+
+LMD caches status, hosts, services, groups, contacts, time periods, check commands,
+comments, and downtimes. Host/service updates use check and state-change timestamps;
+`UpdateOffset` provides an overlap window. Object additions and removals are checked
+every minute. `FullUpdateInterval` reloads all objects, including configuration
+attributes. Keep it enabled to pick up changes that do not advance check timestamps.
+Commands issued through LMD force a refresh of runtime state.
+
+Supported commands include forced checks, comments, acknowledgements, downtimes,
+and per-object check/notification/event-handler/flapping/performance-data toggles.
+Unsupported commands return an error. The REST API has no log endpoint, so log
+queries are unavailable. Columns without a REST mapping retain their empty or zero
+defaults. Object responses are fetched without pagination.
+
 ## Usage
 
 If you want to use LMD with Thruk within OMD, see the [omd/lmd

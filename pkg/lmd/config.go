@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -35,6 +36,11 @@ type Connection struct {
 	Flags          []string `toml:"flags"`
 	TLSSkipVerify  int      `toml:"tlsskipverify"`
 	NoConfigTool   int      `toml:"noconfigtool"` // skip adding config tool to sites query
+}
+
+// hasFlag returns true if the given flag string is set on this connection.
+func (c *Connection) hasFlag(flag string) bool {
+	return slices.Contains(c.Flags, flag)
 }
 
 // Equals checks if two connection objects are identical.
@@ -172,6 +178,11 @@ func NewConfig(files []string) *Config {
 	conf.Connections = allConnections
 
 	for num := range conf.Connections {
+		// icinga2 restv1 backends use the source url as the api base,
+		// do not append the thruk /thruk/cgi-bin/remote.cgi path
+		if conf.Connections[num].hasFlag("icinga2-restv1") {
+			continue
+		}
 		for j := range conf.Connections[num].Source {
 			if strings.HasPrefix(conf.Connections[num].Source[j], "http") {
 				conf.Connections[num].Source[j] = completePeerHTTPAddr(conf.Connections[num].Source[j])

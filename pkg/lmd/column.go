@@ -162,6 +162,9 @@ const (
 	// Icinga2 flag is set if the remote site is a icinga 2 installation.
 	Icinga2
 
+	// Icinga2RestV1 flag is set if the remote site is a icinga 2 installation accessed via the REST v1 API.
+	Icinga2RestV1
+
 	// Naemon flag is set if the remote site is a naemon installation.
 	Naemon
 
@@ -207,6 +210,7 @@ var OptionalFlagsStrings = []struct { //nolint:govet // no need to align this st
 	{HTTPSub, "HTTPSub"},
 	{Shinken, "Shinken"},
 	{Icinga2, "Icinga2"},
+	{Icinga2RestV1, "Icinga2RestV1"},
 	{Naemon, "Naemon"},
 	{HasDependencyColumn, "HasDependencyColumn"},
 	{HasLastUpdateColumn, "HasLastUpdateColumn"},

@@ -123,6 +123,7 @@ type Peer struct { //nolint:govet // not fieldalignment relevant
 	lastTimeperiodUpdateMinute atomic.Int32                   // minute when timeperiods last have been updated
 	forceDelta                 atomic.Bool                    // flag to force next delta update
 	forceComments              atomic.Bool                    // flag to force comments/downtimes update on next periodic check
+	restv1FullDelta            atomic.Bool                    // flag to force a full delta after a command on Icinga2 RESTv1 backends
 
 	flags                     uint32           // optional flags, like LMD, Icinga2, etc...
 	lastQuery                 atomicFloat64    // unix timestamp of last query
@@ -873,6 +874,10 @@ func (p *Peer) queryCB(ctx context.Context, req *Request, clb RowResultCB) (Resu
 	if connType == ConnTypeHTTP {
 		req.KeepAlive = false
 	}
+	// icinga2 RESTv1 backends speak the REST API, not the livestatus protocol
+	if p.hasFlag(Icinga2RestV1) {
+		return p.icinga2RestV1Query(ctx, req, clb)
+	}
 	query := req.String()
 	if log.IsV(LogVerbosityTrace) {
 		logWith(p, req).Tracef("query: %s", query)
@@ -1605,6 +1610,10 @@ func (p *Peer) checkAvailableTables(ctx context.Context) (err error) {
 }
 
 func (p *Peer) fetchThrukExtras(ctx context.Context) (conf, thrukExtras map[string]any, err error) {
+	// no thruk extras on icinga2 RESTv1 backends
+	if p.hasFlag(Icinga2RestV1) {
+		return conf, thrukExtras, err
+	}
 	// no http client is a sure sign for no http connection
 	if p.cache.HTTPClient == nil {
 		return conf, thrukExtras, err
@@ -1709,6 +1718,10 @@ func (p *Peer) buildCombinedAddressList() (list []string) {
 }
 
 func (p *Peer) fetchRemotePeers(ctx context.Context, store *DataStoreSet) (sites []any, err error) {
+	// no remote peers on icinga2 RESTv1 backends
+	if p.hasFlag(Icinga2RestV1) {
+		return nil, nil
+	}
 	// no http client is a sure sign for no http connection
 	if p.cache.HTTPClient == nil {
 		return nil, nil
@@ -2568,6 +2581,10 @@ func (p *Peer) resetFlags() {
 		case "icinga2":
 			logWith(p).Debugf("remote connection Icinga2 flag set")
 			p.setFlag(Icinga2)
+		case "icinga2-restv1":
+			logWith(p).Debugf("remote connection Icinga2RestV1 flag set")
+			p.setFlag(Icinga2)
+			p.setFlag(Icinga2RestV1)
 		default:
 			if p.lmd.flags.flagImport == "" {
 				logWith(p).Warnf("unknown flag: %s", flag)

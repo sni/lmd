@@ -34,7 +34,7 @@ import (
 
 const (
 	// VERSION contains the actual lmd version.
-	VERSION = "2.8.3"
+	VERSION = "2.9.0"
 	// NAME defines the name of this project.
 	NAME = "lmd"
 

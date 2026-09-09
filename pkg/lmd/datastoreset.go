@@ -45,6 +45,9 @@ func (ds *DataStoreSet) setSyncStrategy() {
 	case peer.hasFlag(MultiBackend):
 		logWith(peer).Debugf("using sync strategy: MultiBackend")
 		ds.sync = &SyncStrategyMultiBackend{}
+	case peer.hasFlag(Icinga2RestV1):
+		logWith(peer).Debugf("using sync strategy: Icinga2RestV1")
+		ds.sync = &SyncStrategyIcinga2RestV1{}
 	case peer.hasFlag(HasLastUpdateColumn):
 		logWith(peer).Debugf("using sync strategy: LastUpdate")
 		ds.sync = &SyncStrategyLastUpdate{}
@@ -94,6 +97,9 @@ func (ds *DataStoreSet) initAllTables(ctx context.Context) (err error) {
 	err = ds.rebuildContactsGroups()
 	if err != nil {
 		return err
+	}
+	if ds.peer.hasFlag(Icinga2RestV1) {
+		ds.rebuildHostServiceStats()
 	}
 
 	return nil
@@ -625,6 +631,9 @@ func (ds *DataStoreSet) setReferences() (err error) {
 // updateFull runs a full update on all dynamic values for all tables which have dynamic updated columns.
 // It returns any error occurred or nil if the update was successful.
 func (ds *DataStoreSet) updateFull(ctx context.Context) (err error) {
+	if ds.peer.hasFlag(Icinga2RestV1) {
+		return ds.peer.initAllTables(ctx)
+	}
 	time1 := time.Now()
 	err = ds.updateFullTablesList(ctx, Objects.UpdateTables)
 	if err != nil {
@@ -864,6 +873,9 @@ func (ds *DataStoreSet) updateFullTable(ctx context.Context, tableName TableName
 
 // update both comments and downtimes.
 func (ds *DataStoreSet) updateCommentsAndDowntimes(ctx context.Context) (err error) {
+	if ds.peer.hasFlag(Icinga2RestV1) {
+		return ds.restv1UpdateAnnotations(ctx)
+	}
 	ds.peer.forceComments.Store(false)
 	err = ds.updateDeltaCommentsOrDowntimes(ctx, TableComments)
 	if err != nil {

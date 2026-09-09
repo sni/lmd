@@ -167,6 +167,8 @@ linters:
         text: 'G703: Path traversal via taint analysis'
       - path: (.+)\.go$
         text: variable name 't1' is too short
+      - path: (.+)\.go$
+        text: variable name 'id' is too short
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0

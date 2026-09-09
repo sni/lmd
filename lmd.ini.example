@@ -158,6 +158,20 @@ id     = "icinga2"
 source = ["[::1]:6557"]
 flags  = ["icinga2"]
 
+# icinga2 rest api backend, fetched through the /v1/objects/... and /v1/status endpoints.
+# use the "icinga2-restv1" flag to activate the rest api translation layer.
+# the source url is used as the api base (path defaults to /v1),
+# credentials can be embedded in the source url or set with the auth option.
+# requires status/query, objects/query/* and filter-expression API permissions.
+# keep FullUpdateInterval enabled to refresh configuration attributes as well.
+[[Connections]]
+name              = "Icinga2 REST Backend"
+id                = "icinga2-restv1"
+source            = ["https://icinga2.monitoring/v1"]
+auth              = "monitoring:<password>"
+flags             = ["icinga2-restv1"]
+tlsSkipVerify     = 0
+
 # connect to thruk http(s) api
 [[Connections]]
 name   = "Thruk HTTP"
