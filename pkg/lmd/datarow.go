@@ -617,7 +617,7 @@ func VirtualColCommentsWithInfo(_ *Peer, row *DataRow, _ *Column) any {
 		commentID := fmt.Sprintf("%d", comments[idx])
 		comment, ok := commentsStore.index[commentID]
 		if !ok {
-			log.Errorf("Could not find comment: %s", commentID)
+			log.Debugf("Could not find comment: %s", commentID)
 
 			continue
 		}
@@ -658,7 +658,7 @@ func VirtualColDowntimesWithInfo(_ *Peer, row *DataRow, _ *Column) any {
 		downtimeID := fmt.Sprintf("%d", downtimes[idx])
 		downtime, ok := downtimesStore.index[downtimeID]
 		if !ok {
-			log.Errorf("Could not find downtime: %s", downtimeID)
+			log.Debugf("Could not find downtime: %s", downtimeID)
 
 			continue
 		}
