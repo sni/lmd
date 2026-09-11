@@ -136,19 +136,19 @@ source = ["192.168.33.10:6557"]
 # use tcp connections with multiple sources for clusters
 [[Connections]]
 name   = "Monitoring Site A"
-id     = "id1"
+id     = "id2"
 source = ["192.168.33.10:6557", "192.168.33.20:6557"]
 
 # or local unix sockets as remote sites
 [[Connections]]
 name   = "Local Site"
-id     = "id2"
+id     = "id3"
 source = ["/var/tmp/nagios/run/live.sock"]
 
 # use tcp connections with ipv6 address
 [[Connections]]
 name   = "Monitoring Site A IPv6"
-id     = "id3"
+id     = "id4"
 source = ["[::1]:6557"]
 
 # tcp connection to icinga2 with explicit flag set in case of autodetection fails
@@ -175,7 +175,7 @@ tlsSkipVerify     = 0
 # connect to thruk http(s) api
 [[Connections]]
 name   = "Thruk HTTP"
-id     = "id4"
+id     = "id5"
 source = ["http://thruk.monitoring/omdsite/"]
 auth   = "authkey..."
 
