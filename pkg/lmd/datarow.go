@@ -1130,6 +1130,8 @@ func interface2stringLarge(raw any) *StringContainer {
 
 func interface2stringList(raw any, sorted bool) []string {
 	switch list := raw.(type) {
+	case nil:
+		return []string{}
 	case *[]string:
 		return dedupStringList(*list, sorted)
 	case []string:
@@ -1166,6 +1168,8 @@ func interface2stringList(raw any, sorted bool) []string {
 
 func interface2stringListNoDedup(raw any) []string {
 	switch list := raw.(type) {
+	case nil:
+		return []string{}
 	case *[]string:
 		return *list
 	case []string:
@@ -1199,6 +1203,8 @@ func interface2stringListNoDedup(raw any) []string {
 
 func interface2serviceMemberList(raw any) []ServiceMember {
 	switch list := raw.(type) {
+	case nil:
+		return []ServiceMember{}
 	case *[]ServiceMember:
 		return *list
 	case []ServiceMember:
