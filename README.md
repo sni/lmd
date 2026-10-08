@@ -38,6 +38,22 @@ with a slower poll interval. As soon as the first client requests some data,
 LMD will do a spin up and run a synchronous update (with small timeout) and
 change back to the normal poll interval.
 
+## Usage
+
+If you want to use LMD with Thruk within OMD, see the [omd/lmd page](https://omd.consol.de/docs/omd/packages/lmd/)
+for a quick start. The [OMD-Labs Edition](https://labs.consol.de/omd/) is already prepared to use LMD.
+
+## Naemon
+
+Naemon works out of the box with its naemon-livestatus module.
+
+```toml
+[[Connections]]
+name = "Naemon"
+id = "naemon"
+source = ["naemon-host:6557"]
+```
+
 ## Icinga 2 REST API
 
 Icinga 2 can be connected directly through its [REST API](https://icinga.com/docs/icinga-2/latest/doc/12-icinga2-api/):
@@ -61,43 +77,47 @@ to Host, Service, HostGroup, ServiceGroup, User, UserGroup, TimePeriod,
 CheckCommand, Comment, and Downtime. Commands additionally require their
 `actions/<action>` or `objects/modify/<Type>` permissions.
 
-LMD caches status, hosts, services, groups, contacts, time periods, check commands,
-comments, and downtimes. Host/service updates use check and state-change timestamps;
-`UpdateOffset` provides an overlap window. Object additions and removals are checked
-every minute. `FullUpdateInterval` reloads all objects, including configuration
-attributes. Keep it enabled to pick up changes that do not advance check timestamps.
-Commands issued through LMD force a refresh of runtime state.
+### Limits
 
-Supported commands include forced checks, comments, acknowledgements, downtimes,
-and per-object check/notification/event-handler/flapping/performance-data toggles.
-Unsupported commands return an error. The REST API has no log endpoint, so log
-queries are unavailable. Columns without a REST mapping retain their empty or zero
-defaults. Object responses are fetched without pagination.
+#### Commands
 
-## Usage
+Supported commands for Icinga2 in Rest API mode include forced checks, comments,
+acknowledgements, downtimes, and per-object
+check/notification/event-handler/flapping/performance-data toggles. Unsupported
+commands return an error. The REST API has no log endpoint, so log queries are
+unavailable. Columns without a REST mapping retain their empty or zero defaults.
+Object responses are fetched without pagination.
 
-If you want to use LMD with Thruk within OMD, see the [omd/lmd
-page](https://labs.consol.de/omd/packages/lmd/) for a quick start. The
-[OMD-Labs Edition](https://labs.consol.de/omd/) is already prepared to use LMD.
+#### Logs
+
+Logs are not supported at all with Icinga2 Rest API connections.
 
 ## Installation
 
-    %> go install github.com/sni/lmd/v2/lmd@latest
+```bash
+%> go install github.com/sni/lmd/v2/lmd@latest
+```
 
 or
 
-    %> git clone https://github.com/sni/lmd
-    %> cd lmd
-    %> make
+```bash
+%> git clone https://github.com/sni/lmd
+%> cd lmd
+%> make
+```
 
 Quick start with command line parameters:
 
-    lmd -o listen=:3333 -o connection=test,remote_host:6557
+```bash
+%> lmd -o listen=:3333 -o connection=test,remote_host:6557
+```
 
 Or copy lmd.ini.example to lmd.ini and change to your needs. Then run lmd.
 You can specify the path to your config file with `--config`.
 
-    lmd --config=/etc/lmd/lmd.ini
+```bash
+lmd --config=/etc/lmd/lmd.ini
+```
 
 ## Configuration
 
@@ -108,23 +128,29 @@ There are several different connection types.
 
 Remote Livestatus connections via tcp can be defined as:
 
-    [[Connections]]
-    name   = "Monitoring Site A"
-    id     = "id1"
-    source = ["192.168.33.10:6557"]
+```toml
+[[Connections]]
+name   = "Monitoring Site A"
+id     = "id1"
+source = ["192.168.33.10:6557"]
+```
 
 If the source is a cluster, you can specify multiple addresses like
 
-    source = ["192.168.33.10:6557", "192.168.33.20:6557"]
+```toml
+source = ["192.168.33.10:6557", "192.168.33.20:6557"]
+```
 
 ### Unix Socket Livestatus
 
 Local unix sockets Livestatus connections can be defined as:
 
-    [[Connections]]
-    name   = "Monitoring Site A"
-    id     = "id1"
-    source = ["/var/tmp/nagios/live.sock"]
+```toml
+[[Connections]]
+name   = "Monitoring Site A"
+id     = "id1"
+source = ["/var/tmp/nagios/live.sock"]
+```
 
 ### Cluster Mode
 
@@ -134,8 +160,10 @@ All backend connections will be split up and divided upon all cluster nodes. Inc
 In order to setup cluster operations, you need to add a http(s) listener and a list of nodes.
 All nodes should share the same configuration file.
 
-    Listen  = ["/var/tmp/lmd.sock", "http://*:8080"]
-    Nodes   = ["http://10.0.0.1:8080", "http://10.0.0.2:8080"]
+```toml
+Listen  = ["/var/tmp/lmd.sock", "http://*:8080"]
+Nodes   = ["http://10.0.0.1:8080", "http://10.0.0.2:8080"]
+```
 
 ## What is different in LMD
 
@@ -165,15 +193,19 @@ backends. If none specific, all are returned.
 
 ex.:
 
-    Backends: id1 id2
+```livestatus
+Backends: id1 id2
+```
 
 ### Offset Header
 
 The offset header can be used to only retrieve a subset of the complete result
 set. Best used together with the sort header.
 
-    Offset: 100
-    Limit: 10
+```livestatus
+Offset: 100
+Limit: 10
+```
 
 This will return entries 100-109 from the overall result set.
 
@@ -182,18 +214,24 @@ This will return entries 100-109 from the overall result set.
 The sort header can be used to sort the results by one or more columns.
 Multiple sort header can be used.
 
-    Sort: <column name> <asc/desc>
+```livestatus
+Sort: <column name> <asc/desc>
+```
 
 Sorting by custom variables is possible like this:
 
-    Sort: custom_variables <name> <asc/desc>
+```livestatus
+Sort: custom_variables <name> <asc/desc>
+```
 
 ex.:
 
-    GET hosts
-    Sort: state asc
-    Sort: name desc
-    Sort: custom_variables WORKER asc
+```livestatus
+GET hosts
+Sort: state asc
+Sort: name desc
+Sort: custom_variables WORKER asc
+```
 
 ### Additional Columns
 
@@ -225,23 +263,33 @@ packages every 3 seconds.
 
 LMD can be started with a golang tcp debug profiler:
 
-    lmd -config lmd.ini -debug-profiler localhost:6060
+```bash
+%> lmd -config lmd.ini -debug-profiler localhost:6060
+```
 
 You can then fetch memory heap profile with:
 
-    curl http://localhost:6060/debug/pprof/heap --output heap.tar.gz
+```bash
+curl http://localhost:6060/debug/pprof/heap --output heap.tar.gz
+```
 
 or directly run the profiler from go:
 
-    go tool pprof -web http://localhost:6060/debug/pprof/heap
+```bash
+go tool pprof -web http://localhost:6060/debug/pprof/heap
+```
 
 Accordingly cpu profile can be created by:
 
-    curl http://localhost:6060/debug/pprof/profile --output cpu.tar.gz
+```bash
+curl http://localhost:6060/debug/pprof/profile --output cpu.tar.gz
+```
 
 Those profiles can then be further processed by gos pprof tool:
 
-    go tool pprof cpu.tar.gz
+```bash
+go tool pprof cpu.tar.gz
+```
 
 ## Ideas
 
@@ -250,4 +298,3 @@ Some ideas may or may not be implemented in the future
 - Add transparent and half-transparent mode which just handles the map/reduce without cache.
   This is implemented for log table and commands anyway already. Just requires an additional header.
 - Cache last 24h of logfiles to speed up most logfile requests
-- Fix updating comments (takes too long after sending commands)
