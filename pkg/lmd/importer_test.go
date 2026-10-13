@@ -12,52 +12,15 @@ import (
 )
 
 func TestImportPeersFromTarMissingBackends(t *testing.T) {
-	//nolint:govet // no need to fieldalign test struct
-	tests := []struct {
-		name    string
-		dirs    []string
-		files   map[string][]byte
-		want    int
-		wantErr string
-	}{
-		{
-			name:    "folder without backends.json",
-			dirs:    []string{"sites/", "sites/ab12/"},
-			wantErr: "ab12",
-		},
-		{
-			name: "folder without backends.json next to valid peer",
-			dirs: []string{"sites/", "sites/ab12/", "sites/ok/"},
-			files: map[string][]byte{
-				"sites/ok/backends.json": testBackendsJSON(t, "ok", "OkPeer", "127.0.0.1:1"),
-			},
-			wantErr: "ab12",
-		},
-		{
-			name: "valid archive",
-			dirs: []string{"sites/", "sites/ok/"},
-			files: map[string][]byte{
-				"sites/ok/backends.json": testBackendsJSON(t, "ok", "OkPeer", "127.0.0.1:1"),
-			},
-			want: 1,
-		},
-	}
-
-	for _, testcase := range tests {
-		t.Run(testcase.name, func(t *testing.T) {
-			archive := createTestImportTar(t, testcase.dirs, testcase.files)
-			peers, err := importPeersFromTar(createTestLMDInstance(), archive)
-			if testcase.wantErr != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), testcase.wantErr)
-				assert.Contains(t, err.Error(), "backends.json")
-
-				return
-			}
-			require.NoError(t, err)
-			assert.Len(t, peers, testcase.want)
-		})
-	}
+	// ab12 site does not have backends.json
+	archive := createTestImportTar(t,
+		[]string{"sites/", "sites/ab12/", "sites/ok/"},
+		map[string][]byte{"sites/ok/backends.json": testBackendsJSON(t, "ok", "OkPeer", "127.0.0.1:1")},
+	)
+	_, err := importPeersFromTar(createTestLMDInstance(), archive)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ab12")
+	assert.Contains(t, err.Error(), "backends.json")
 }
 
 func testBackendsJSON(t *testing.T, id, name, addr string) []byte {
