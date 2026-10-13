@@ -14,6 +14,12 @@ import (
 	"sync/atomic"
 )
 
+var (
+	reImportFileTable = regexp.MustCompile(`/([a-z]+)\.json$`)
+	reImportTarFile   = regexp.MustCompile(`^sites/([^/]+)/([a-z]+)\.json$`)
+	reImportTarFolder = regexp.MustCompile(`^sites/([^/]+)/?$`)
+)
+
 func initializePeersWithImport(lmd *Daemon, importFile string) (err error) {
 	stat, err := os.Stat(importFile)
 	if err != nil {
@@ -125,8 +131,6 @@ func importPeerFromDir(peers []*Peer, folder string, lmd *Daemon) ([]*Peer, erro
 	return peers, nil
 }
 
-var reImportFileTable = regexp.MustCompile(`/([a-z]+)\.json$`)
-
 // importPeerFromFile imports next file.
 func importPeerFromFile(peers []*Peer, filename string, lmd *Daemon) ([]*Peer, error) {
 	log.Debugf("reading %s", filename)
@@ -189,8 +193,6 @@ func scanImportTar(tarFile string, callbackFn func(header *tar.Header, tarReader
 	return nil
 }
 
-var reImportTarFile = regexp.MustCompile(`^sites/([^/]+)/([a-z]+)\.json$`)
-
 // importTarFileNames returns peer id and table name for a file inside an export archive.
 func importTarFileNames(filename string) (peerID, table string, err error) {
 	matches := reImportTarFile.FindStringSubmatch(filename)
@@ -200,8 +202,6 @@ func importTarFileNames(filename string) (peerID, table string, err error) {
 
 	return matches[1], matches[2], nil
 }
-
-var reImportTarFolder = regexp.MustCompile(`^sites/([^/]+)/?$`)
 
 // importTarFolderID returns the peer id for a peer folder inside an export archive.
 func importTarFolderID(foldername string) (peerID string, ok bool) {
