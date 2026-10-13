@@ -14,11 +14,6 @@ import (
 	"sync/atomic"
 )
 
-var (
-	reImportFileTable = regexp.MustCompile(`/([a-z]+)\.json$`)
-	reImportTarFile   = regexp.MustCompile(`^sites/([^/]+)/([a-z]+)\.json$`)
-)
-
 func initializePeersWithImport(lmd *Daemon, importFile string) (err error) {
 	stat, err := os.Stat(importFile)
 	if err != nil {
@@ -130,6 +125,8 @@ func importPeerFromDir(peers []*Peer, folder string, lmd *Daemon) ([]*Peer, erro
 	return peers, nil
 }
 
+var reImportFileTable = regexp.MustCompile(`/([a-z]+)\.json$`)
+
 // importPeerFromFile imports next file.
 func importPeerFromFile(peers []*Peer, filename string, lmd *Daemon) ([]*Peer, error) {
 	log.Debugf("reading %s", filename)
@@ -154,7 +151,7 @@ func importPeerFromFile(peers []*Peer, filename string, lmd *Daemon) ([]*Peer, e
 	return importData(peers, table, rows, columns, lmd)
 }
 
-// scanImportTar calls fn callback for every regular file in the tarball.
+// scanImportTar calls fn callback for every folder and regular file in the tarball.
 func scanImportTar(tarFile string, callbackFn func(header *tar.Header, tarReader io.Reader) error) error {
 	file, err := os.Open(tarFile)
 	if err != nil {
@@ -180,10 +177,9 @@ func scanImportTar(tarFile string, callbackFn func(header *tar.Header, tarReader
 		}
 
 		switch header.Typeflag {
-		case tar.TypeDir:
-		case tar.TypeReg:
+		case tar.TypeDir, tar.TypeReg:
 			if err := callbackFn(header, tarReader); err != nil {
-				return fmt.Errorf("gzip/tarball error %s in file %s: %s", tarFile, header.Name, err.Error())
+				return fmt.Errorf("gzip/tarball error %s in entry %s: %s", tarFile, header.Name, err.Error())
 			}
 		default:
 			return fmt.Errorf("gzip/tarball error %s: unsupported type in file %s: %c", tarFile, header.Name, header.Typeflag)
@@ -192,6 +188,8 @@ func scanImportTar(tarFile string, callbackFn func(header *tar.Header, tarReader
 
 	return nil
 }
+
+var reImportTarFile = regexp.MustCompile(`^sites/([^/]+)/([a-z]+)\.json$`)
 
 // importTarFileNames returns peer id and table name for a file inside an export archive.
 func importTarFileNames(filename string) (peerID, table string, err error) {
@@ -203,17 +201,38 @@ func importTarFileNames(filename string) (peerID, table string, err error) {
 	return matches[1], matches[2], nil
 }
 
+var reImportTarFolder = regexp.MustCompile(`^sites/([^/]+)/?$`)
+
+// importTarFolderID returns the peer id for a peer folder inside an export archive.
+func importTarFolderID(foldername string) (peerID string, ok bool) {
+	matches := reImportTarFolder.FindStringSubmatch(foldername)
+	if len(matches) != 2 {
+		return "", false
+	}
+
+	return matches[1], true
+}
+
 // importPeersFromTar imports all peers from tarball.
 func importPeersFromTar(lmd *Daemon, tarFile string) (peers []*Peer, err error) {
 	backendsTableName := Objects.Tables[TableBackends].name.String()
+	discoveredPeerFolderIDs := make(map[string]struct{})
 	peersByID := make(map[string]*Peer)
 
 	// first pass: create all peers from their backends.json
 	err = scanImportTar(tarFile, func(header *tar.Header, tarReader io.Reader) error {
+		if header.Typeflag == tar.TypeDir {
+			if peerID, ok := importTarFolderID(header.Name); ok {
+				discoveredPeerFolderIDs[peerID] = struct{}{}
+			}
+
+			return nil
+		}
 		peerID, tableName, err2 := importTarFileNames(header.Name)
 		if err2 != nil {
 			return err2
 		}
+		discoveredPeerFolderIDs[peerID] = struct{}{}
 		if tableName != backendsTableName {
 			return nil
 		}
@@ -236,12 +255,21 @@ func importPeersFromTar(lmd *Daemon, tarFile string) (peers []*Peer, err error) 
 		return nil, err
 	}
 
+	for peerID := range discoveredPeerFolderIDs {
+		if _, ok := peersByID[peerID]; !ok {
+			return nil, fmt.Errorf("folder sites/%s/ does not contain a %s.json in %s", peerID, backendsTableName, tarFile)
+		}
+	}
+
 	if len(peers) == 0 {
-		return nil, fmt.Errorf("no %s.json found in %s", backendsTableName, tarFile)
+		return nil, fmt.Errorf("no peer found while importing, possibly missing %s.json in %s", backendsTableName, tarFile)
 	}
 
 	// second pass: import all other tables
 	err = scanImportTar(tarFile, func(header *tar.Header, tarReader io.Reader) error {
+		if header.Typeflag == tar.TypeDir {
+			return nil
+		}
 		peerID, tableName, err2 := importTarFileNames(header.Name)
 		if err2 != nil {
 			return err2
