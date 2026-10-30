@@ -395,6 +395,7 @@ func NewHostsTable() (t *Table) {
 
 	// naemon specific
 	t.AddExtraColumn("obsess", LocalStore, Dynamic, IntCol, Naemon, "The obsessing over host")
+	t.AddExtraColumn("check_timeout", LocalStore, Static, Int64Col, Naemon, "Maximum time in seconds a host check may take before it is terminated")
 	t.AddExtraColumn("depends_exec", LocalStore, Static, StringListSortedCol, HasDependencyColumn, "List of hosts this hosts depends on for execution")
 	t.AddExtraColumn("depends_notify", LocalStore, Static, StringListSortedCol, HasDependencyColumn, "List of hosts this hosts depends on for notification")
 	t.AddExtraColumn("should_be_scheduled", LocalStore, Dynamic, IntCol, Naemon, "Whether Naemon still tries to run checks on this host (0/1)")
@@ -566,6 +567,7 @@ func NewServicesTable() (t *Table) {
 
 	// naemon specific
 	t.AddExtraColumn("obsess", LocalStore, Dynamic, IntCol, Naemon, "The obsessing over service")
+	t.AddExtraColumn("check_timeout", LocalStore, Static, Int64Col, Naemon, "Maximum time in seconds a service check may take before it is terminated")
 	t.AddExtraColumn("depends_exec", LocalStore, Static, ServiceMemberListCol, HasDependencyColumn, "List of services this services depends on for execution")
 	t.AddExtraColumn("depends_notify", LocalStore, Static, ServiceMemberListCol, HasDependencyColumn, "List of services this services depends on for notification")
 	t.AddExtraColumn("parents", LocalStore, Static, ServiceMemberListCol, HasServiceParentsColumn, "List of services descriptions this services depends on")
