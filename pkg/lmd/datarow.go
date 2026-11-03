@@ -465,13 +465,15 @@ func (d *DataRow) GetCustomVarValue(col *Column, name string) string {
 
 		return ref.GetCustomVarValue(col.RefCol, name)
 	}
-	namesCol := d.dataStore.GetColumn("custom_variable_names")
+	namesCol, valuesCol := d.dictSourceColumns(col)
+	if namesCol.Optional != NoFlags && !d.dataStore.peer.hasFlag(namesCol.Optional) {
+		return ""
+	}
 	names := d.dataStringList[namesCol.Index]
 	for idx, n := range names {
 		if n != name {
 			continue
 		}
-		valuesCol := d.dataStore.GetColumn("custom_variable_values")
 		values := d.dataStringList[valuesCol.Index]
 		if idx >= len(values) {
 			return ""
@@ -680,9 +682,8 @@ func VirtualColDowntimesWithInfo(_ *Peer, row *DataRow, _ *Column) any {
 }
 
 // VirtualColCustomVariables returns a custom variables hash.
-func VirtualColCustomVariables(_ *Peer, row *DataRow, _ *Column) any {
-	namesCol := row.dataStore.GetColumn("custom_variable_names")
-	valuesCol := row.dataStore.GetColumn("custom_variable_values")
+func VirtualColCustomVariables(_ *Peer, row *DataRow, col *Column) any {
+	namesCol, valuesCol := row.dictSourceColumns(col)
 	names := row.dataStringList[namesCol.Index]
 	values := row.dataStringList[valuesCol.Index]
 	res := make(map[string]string, len(names))
@@ -691,6 +692,21 @@ func VirtualColCustomVariables(_ *Peer, row *DataRow, _ *Column) any {
 	}
 
 	return res
+}
+
+// dictColumns maps dictionary columns to their names and values columns.
+var dictColumns = map[string][2]string{
+	"custom_variables": {"custom_variable_names", "custom_variable_values"},
+	"labels":           {"label_names", "label_values"},
+	"label_sources":    {"label_source_names", "label_source_values"},
+	"tags":             {"tag_names", "tag_values"},
+}
+
+// dictSourceColumns returns the names and values columns of a dictionary column.
+func (d *DataRow) dictSourceColumns(col *Column) (names, values *Column) {
+	src := dictColumns[col.Name]
+
+	return d.dataStore.GetColumn(src[0]), d.dataStore.GetColumn(src[1])
 }
 
 // VirtualColTotalServices returns number of services.
@@ -1592,8 +1608,7 @@ func (d *DataRow) WriteJSONVirtualColumn(jsonwriter *jsoniter.Stream, col *Colum
 		}
 		jsonwriter.WriteArrayEnd()
 	case CustomVarCol:
-		namesCol := d.dataStore.GetColumn("custom_variable_names")
-		valuesCol := d.dataStore.GetColumn("custom_variable_values")
+		namesCol, valuesCol := d.dictSourceColumns(col)
 		if namesCol.Optional != NoFlags && !d.dataStore.peer.hasFlag(namesCol.Optional) {
 			jsonwriter.WriteObjectStart()
 			jsonwriter.WriteObjectEnd()

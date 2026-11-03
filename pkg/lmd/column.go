@@ -57,6 +57,9 @@ var VirtualColumnList = []VirtualColumnMapEntry{
 	{name: "downtimes_with_info", resolveFunc: VirtualColDowntimesWithInfo},
 	{name: "members_with_state", resolveFunc: VirtualColMembersWithState},
 	{name: "custom_variables", resolveFunc: VirtualColCustomVariables},
+	{name: "labels", resolveFunc: VirtualColCustomVariables},
+	{name: "label_sources", resolveFunc: VirtualColCustomVariables},
+	{name: "tags", resolveFunc: VirtualColCustomVariables},
 	{name: "total_services", resolveFunc: VirtualColTotalServices},
 	{name: "flags", resolveFunc: VirtualColFlags},
 	{name: "localtime", resolveFunc: VirtualColLocaltime},
@@ -168,6 +171,9 @@ const (
 	// Naemon flag is set if the remote site is a naemon installation.
 	Naemon
 
+	// CheckMK flag is set if the remote site is a checkmk installation.
+	CheckMK
+
 	// HasDependencyColumn flag is set if the remote site has depends_exec and depends_notify columns.
 	HasDependencyColumn
 
@@ -212,6 +218,7 @@ var OptionalFlagsStrings = []struct { //nolint:govet // no need to align this st
 	{Icinga2, "Icinga2"},
 	{Icinga2RestV1, "Icinga2RestV1"},
 	{Naemon, "Naemon"},
+	{CheckMK, "CheckMK"},
 	{HasDependencyColumn, "HasDependencyColumn"},
 	{HasLastUpdateColumn, "HasLastUpdateColumn"},
 	{HasLMDLastCacheUpdateColumn, "HasLMDLastCacheUpdateColumn"},

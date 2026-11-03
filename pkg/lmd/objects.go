@@ -206,6 +206,12 @@ func NewTimeperiodsTable() (t *Table) {
 	t.AddExtraColumn("exclusions", LocalStore, Static, StringListCol, Naemon, "exclusions")
 	t.AddExtraColumn("id", LocalStore, Static, Int64Col, Naemon, "The id of the timeperiods")
 
+	// checkmk specific
+	t.AddExtraColumn("next_transition", LocalStore, Dynamic, Int64Col, CheckMK, "The time of the next transition. 0 if there is no further transition")
+	t.AddExtraColumn("next_transition_id", LocalStore, Dynamic, Int64Col, CheckMK, "The index of the next transition")
+	t.AddExtraColumn("num_transitions", LocalStore, Dynamic, Int64Col, CheckMK, "The total number of computed transitions from 0->1 or 1->0")
+	t.AddExtraColumn("transitions", LocalStore, Dynamic, InterfaceListCol, CheckMK, "The list of future transitions of the timeperiod")
+
 	t.AddPeerInfoColumn("lmd_last_cache_update", FloatCol, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")
@@ -229,22 +235,33 @@ func NewContactsTable() (t *Table) {
 	t.AddColumn("service_notifications_enabled", Static, IntCol, "Wether the contact will be notified about service problems in general (0/1)")
 
 	t.AddExtraColumn("id", LocalStore, Static, StringCol, Naemon, "The internal id of the contact")
-	t.AddExtraColumn("modified_attributes", LocalStore, Dynamic, Int64Col, Naemon, "A bitmask specifying which attributes have been modified")
-	t.AddExtraColumn("modified_attributes_list", LocalStore, Dynamic, StringListSortedCol, Naemon, "A bitmask specifying which attributes have been modified")
+	t.AddExtraColumn("modified_attributes", LocalStore, Dynamic, Int64Col, Naemon|CheckMK, "A bitmask specifying which attributes have been modified")
+	t.AddExtraColumn("modified_attributes_list", LocalStore, Dynamic, StringListSortedCol, Naemon|CheckMK, "A bitmask specifying which attributes have been modified")
 
-	t.AddExtraColumn("in_service_notification_period", LocalStore, Dynamic, IntCol, Naemon, "Boolean flag if the contact is currently in its host notification period")
-	t.AddExtraColumn("in_host_notification_period", LocalStore, Dynamic, IntCol, Naemon, "Boolean flag if the contact is currently in its host notification period")
+	t.AddExtraColumn("in_service_notification_period", LocalStore, Dynamic, IntCol, Naemon|CheckMK, "Boolean flag if the contact is currently in its host notification period")
+	t.AddExtraColumn("in_host_notification_period", LocalStore, Dynamic, IntCol, Naemon|CheckMK, "Boolean flag if the contact is currently in its host notification period")
 
-	t.AddExtraColumn("address1", LocalStore, Static, StringCol, Naemon, "Additional address information for the contact")
-	t.AddExtraColumn("address2", LocalStore, Static, StringCol, Naemon, "Additional address information for the contact")
-	t.AddExtraColumn("address3", LocalStore, Static, StringCol, Naemon, "Additional address information for the contact")
-	t.AddExtraColumn("address4", LocalStore, Static, StringCol, Naemon, "Additional address information for the contact")
-	t.AddExtraColumn("address5", LocalStore, Static, StringCol, Naemon, "Additional address information for the contact")
-	t.AddExtraColumn("address6", LocalStore, Static, StringCol, Naemon, "Additional address information for the contact")
+	t.AddExtraColumn("address1", LocalStore, Static, StringCol, Naemon|CheckMK, "Additional address information for the contact")
+	t.AddExtraColumn("address2", LocalStore, Static, StringCol, Naemon|CheckMK, "Additional address information for the contact")
+	t.AddExtraColumn("address3", LocalStore, Static, StringCol, Naemon|CheckMK, "Additional address information for the contact")
+	t.AddExtraColumn("address4", LocalStore, Static, StringCol, Naemon|CheckMK, "Additional address information for the contact")
+	t.AddExtraColumn("address5", LocalStore, Static, StringCol, Naemon|CheckMK, "Additional address information for the contact")
+	t.AddExtraColumn("address6", LocalStore, Static, StringCol, Naemon|CheckMK, "Additional address information for the contact")
 
-	t.AddExtraColumn("custom_variable_names", LocalStore, Static, StringListCol, Naemon, "A list of all custom variables of the contact")
-	t.AddExtraColumn("custom_variable_values", LocalStore, Dynamic, StringListCol, Naemon, "A list of the values of all custom variables of the contact")
+	t.AddExtraColumn("custom_variable_names", LocalStore, Static, StringListCol, Naemon|CheckMK, "A list of all custom variables of the contact")
+	t.AddExtraColumn("custom_variable_values", LocalStore, Dynamic, StringListCol, Naemon|CheckMK, "A list of the values of all custom variables of the contact")
 	t.AddExtraColumn("custom_variables", VirtualStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
+
+	// checkmk specific
+	t.AddExtraColumn("label_names", LocalStore, Static, StringListCol, CheckMK, "A list of the names of the labels")
+	t.AddExtraColumn("label_values", LocalStore, Static, StringListCol, CheckMK, "A list of the values of the labels")
+	t.AddExtraColumn("label_source_names", LocalStore, Static, StringListCol, CheckMK, "A list of the names of the label sources")
+	t.AddExtraColumn("label_source_values", LocalStore, Static, StringListCol, CheckMK, "A list of the values of the label sources")
+	t.AddExtraColumn("tag_names", LocalStore, Static, StringListCol, CheckMK, "A list of the names of the tags")
+	t.AddExtraColumn("tag_values", LocalStore, Static, StringListCol, CheckMK, "A list of the values of the tags")
+	t.AddExtraColumn("labels", VirtualStore, None, CustomVarCol, CheckMK, "A dictionary of the labels")
+	t.AddExtraColumn("label_sources", VirtualStore, None, CustomVarCol, CheckMK, "A dictionary of the label sources")
+	t.AddExtraColumn("tags", VirtualStore, None, CustomVarCol, CheckMK, "A dictionary of the tags")
 
 	t.AddExtraColumn("groups", LocalStore, Static, StringListSortedCol, HasContactsGroupColumn, "List of groups this contact is part of.")
 
@@ -418,6 +435,41 @@ func NewHostsTable() (t *Table) {
 	// icinga2 specific
 	t.AddExtraColumn("address6", LocalStore, Static, StringCol, Icinga2, "IPv6 address")
 
+	// checkmk specific
+	t.AddExtraColumn("acknowledgement_type", LocalStore, Dynamic, IntCol, CheckMK, "Type of acknowledgement (0: none, 1: normal, 2: sticky)")
+	t.AddExtraColumn("check_command_expanded", LocalStore, Static, StringCol, CheckMK, "Logical command name for active checks, with macros expanded")
+	t.AddExtraColumn("check_flapping_recovery_notification", LocalStore, Dynamic, IntCol, CheckMK, "Whether to check to send a recovery notification when flapping stops (0/1)")
+	t.AddExtraColumn("comments_with_extra_info", LocalStore, Dynamic, InterfaceListCol, CheckMK, "A list of all comments with id, author, comment, entry type and entry time")
+	t.AddExtraColumn("downtimes_with_extra_info", LocalStore, Dynamic, InterfaceListCol, CheckMK, "A list of the scheduled downtimes with extra info")
+	t.AddExtraColumn("filename", LocalStore, Static, StringCol, CheckMK, "The value of the custom variable FILENAME")
+	t.AddExtraColumn("flappiness", LocalStore, Dynamic, FloatCol, CheckMK, "The current level of flappiness, this corresponds with the recent frequency of state changes")
+	t.AddExtraColumn("in_service_period", LocalStore, Dynamic, IntCol, CheckMK, "Whether this object is currently in its service period (0/1)")
+	t.AddExtraColumn("label_names", LocalStore, Static, StringListCol, CheckMK, "A list of the names of the labels")
+	t.AddExtraColumn("label_values", LocalStore, Static, StringListCol, CheckMK, "A list of the values of the labels")
+	t.AddExtraColumn("label_source_names", LocalStore, Static, StringListCol, CheckMK, "A list of the names of the label sources")
+	t.AddExtraColumn("label_source_values", LocalStore, Static, StringListCol, CheckMK, "A list of the values of the label sources")
+	t.AddExtraColumn("metrics", LocalStore, Dynamic, StringListCol, CheckMK, "A list of all metrics of this object that historically existed")
+	t.AddExtraColumn("mk_inventory_last", LocalStore, Dynamic, Int64Col, CheckMK, "The timestamp of the last HW/SW Inventory for this host (0: no inventory)")
+	t.AddExtraColumn("mk_logwatch_files", LocalStore, Dynamic, StringListCol, CheckMK, "This list of logfiles with problems fetched via mk_logwatch")
+	t.AddExtraColumn("no_more_notifications", LocalStore, Dynamic, IntCol, CheckMK, "Whether to stop sending notifications (0/1)")
+	t.AddExtraColumn("notification_postponement_reason", LocalStore, Dynamic, StringCol, CheckMK, "Reason for postponing the pending notification, empty if nothing is postponed")
+	t.AddExtraColumn("num_services_handled_problems", LocalStore, Dynamic, Int64Col, CheckMK, "The number of the host's services which have handled problems")
+	t.AddExtraColumn("num_services_unhandled_problems", LocalStore, Dynamic, Int64Col, CheckMK, "The number of the host's services which have unhandled problems")
+	t.AddExtraColumn("pending_flex_downtime", LocalStore, Dynamic, IntCol, CheckMK, "Number of pending flexible downtimes")
+	t.AddExtraColumn("previous_hard_state", LocalStore, Dynamic, IntCol, CheckMK, "Previous hard state (that hard state before the current/last hard state)")
+	t.AddExtraColumn("service_period", LocalStore, Static, StringCol, CheckMK, "Time period during which the object is expected to be available")
+	t.AddExtraColumn("services_with_fullstate", LocalStore, Dynamic, InterfaceListCol, CheckMK, "A list of all services including full state information")
+	t.AddExtraColumn("smartping_timeout", LocalStore, Static, Int64Col, CheckMK, "Maximum expected time between two received packets in ms")
+	t.AddExtraColumn("statusmap_image", LocalStore, Static, StringCol, CheckMK, "The name of an image file for the status map")
+	t.AddExtraColumn("tag_names", LocalStore, Static, StringListCol, CheckMK, "A list of the names of the tags")
+	t.AddExtraColumn("tag_values", LocalStore, Static, StringListCol, CheckMK, "A list of the values of the tags")
+	t.AddExtraColumn("x_3d", LocalStore, Static, FloatCol, CheckMK, "3D-Coordinates: X")
+	t.AddExtraColumn("y_3d", LocalStore, Static, FloatCol, CheckMK, "3D-Coordinates: Y")
+	t.AddExtraColumn("z_3d", LocalStore, Static, FloatCol, CheckMK, "3D-Coordinates: Z")
+	t.AddExtraColumn("labels", VirtualStore, None, CustomVarCol, CheckMK, "A dictionary of the labels")
+	t.AddExtraColumn("label_sources", VirtualStore, None, CustomVarCol, CheckMK, "A dictionary of the label sources")
+	t.AddExtraColumn("tags", VirtualStore, None, CustomVarCol, CheckMK, "A dictionary of the tags")
+
 	t.AddExtraColumn("custom_variables", VirtualStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
 	t.AddExtraRefColumn("services_with_info", VirtualStore, None, InterfaceListCol, TableServices, "The services, including info, that is associated with the host")
 	t.AddExtraRefColumn("services_with_state", VirtualStore, None, InterfaceListCol, TableServices, "The services, including state info, that is associated with the host")
@@ -463,6 +515,12 @@ func NewHostgroupsTable() (t *Table) {
 	t.AddColumn("worst_host_state", Dynamic, IntCol, "The worst host state of the hostgroup")
 	t.AddColumn("worst_service_hard_state", Dynamic, IntCol, "The worst state of all services that belong to a host of this group (OK <= WARN <= UNKNOWN <= CRIT)")
 	t.AddColumn("worst_service_state", Dynamic, IntCol, "The worst service state of the hostgroup")
+
+	// checkmk specific
+	t.AddExtraColumn("num_hosts_handled_problems", LocalStore, Dynamic, Int64Col, CheckMK, "The number of hosts in the group that have handled problems")
+	t.AddExtraColumn("num_hosts_unhandled_problems", LocalStore, Dynamic, Int64Col, CheckMK, "The number of hosts in the group that have unhandled problems")
+	t.AddExtraColumn("num_services_handled_problems", LocalStore, Dynamic, Int64Col, CheckMK, "The total number of services of hosts in this group with handled problems")
+	t.AddExtraColumn("num_services_unhandled_problems", LocalStore, Dynamic, Int64Col, CheckMK, "The total number of services of hosts in this group with unhandled problems")
 
 	t.AddPeerInfoColumn("lmd_last_cache_update", FloatCol, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
@@ -587,6 +645,35 @@ func NewServicesTable() (t *Table) {
 	t.AddExtraColumn("got_business_rule", LocalStore, Dynamic, IntCol, Shinken, "Whether the service state is an business rule based host or not (0/1)")
 	t.AddExtraColumn("parent_dependencies", LocalStore, Dynamic, StringCol, Shinken, "List of the dependencies (logical, network or business one) of this service")
 
+	// checkmk specific
+	t.AddExtraColumn("cache_interval", LocalStore, Dynamic, Int64Col, CheckMK, "Interval in which cached agent data is recreated (0 for other services)")
+	t.AddExtraColumn("cached_at", LocalStore, Dynamic, Int64Col, CheckMK, "For checks that base on cached agent data the time when this data was created. 0 for other services.")
+	t.AddExtraColumn("check_command_expanded", LocalStore, Static, StringCol, CheckMK, "Logical command name for active checks, with macros expanded")
+	t.AddExtraColumn("check_flapping_recovery_notification", LocalStore, Dynamic, IntCol, CheckMK, "Whether to check to send a recovery notification when flapping stops (0/1)")
+	t.AddExtraColumn("comments_with_extra_info", LocalStore, Dynamic, InterfaceListCol, CheckMK, "A list of all comments with id, author, comment, entry type and entry time")
+	t.AddExtraColumn("downtimes_with_extra_info", LocalStore, Dynamic, InterfaceListCol, CheckMK, "A list of the scheduled downtimes with extra info")
+	t.AddExtraColumn("flappiness", LocalStore, Dynamic, FloatCol, CheckMK, "The current level of flappiness, this corresponds with the recent frequency of state changes")
+	t.AddExtraColumn("hard_state", LocalStore, Dynamic, IntCol, CheckMK, "The effective hard state of this object")
+	t.AddExtraColumn("in_passive_check_period", LocalStore, Dynamic, IntCol, CheckMK, "Whether this service is currently in its passive check period (0/1)")
+	t.AddExtraColumn("in_service_period", LocalStore, Dynamic, IntCol, CheckMK, "Whether this object is currently in its service period (0/1)")
+	t.AddExtraColumn("label_names", LocalStore, Static, StringListCol, CheckMK, "A list of the names of the labels")
+	t.AddExtraColumn("label_values", LocalStore, Static, StringListCol, CheckMK, "A list of the values of the labels")
+	t.AddExtraColumn("label_source_names", LocalStore, Static, StringListCol, CheckMK, "A list of the names of the label sources")
+	t.AddExtraColumn("label_source_values", LocalStore, Static, StringListCol, CheckMK, "A list of the values of the label sources")
+	t.AddExtraColumn("metrics", LocalStore, Dynamic, StringListCol, CheckMK, "A list of all metrics of this object that historically existed")
+	t.AddExtraColumn("no_more_notifications", LocalStore, Dynamic, IntCol, CheckMK, "Whether to stop sending notifications (0/1)")
+	t.AddExtraColumn("notification_postponement_reason", LocalStore, Dynamic, StringCol, CheckMK, "Reason for postponing the pending notification, empty if nothing is postponed")
+	t.AddExtraColumn("passive_check_period", LocalStore, Static, StringCol, CheckMK, "Time period in which this (passive) service will be checked")
+	t.AddExtraColumn("pending_flex_downtime", LocalStore, Dynamic, IntCol, CheckMK, "Number of pending flexible downtimes")
+	t.AddExtraColumn("prediction_files", LocalStore, Dynamic, StringListCol, CheckMK, "List currently available predictions")
+	t.AddExtraColumn("previous_hard_state", LocalStore, Dynamic, IntCol, CheckMK, "Previous hard state (that hard state before the current/last hard state)")
+	t.AddExtraColumn("service_period", LocalStore, Static, StringCol, CheckMK, "Time period during which the object is expected to be available")
+	t.AddExtraColumn("tag_names", LocalStore, Static, StringListCol, CheckMK, "A list of the names of the tags")
+	t.AddExtraColumn("tag_values", LocalStore, Static, StringListCol, CheckMK, "A list of the values of the tags")
+	t.AddExtraColumn("labels", VirtualStore, None, CustomVarCol, CheckMK, "A dictionary of the labels")
+	t.AddExtraColumn("label_sources", VirtualStore, None, CustomVarCol, CheckMK, "A dictionary of the label sources")
+	t.AddExtraColumn("tags", VirtualStore, None, CustomVarCol, CheckMK, "A dictionary of the tags")
+
 	t.AddRefColumns(TableHosts, "host", []string{"host_name"})
 
 	t.AddExtraColumn("custom_variables", VirtualStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
@@ -625,6 +712,10 @@ func NewServicegroupsTable() (t *Table) {
 	t.AddColumn("num_services_hard_unknown", Dynamic, Int64Col, "The number of services in the group that are UNKNOWN")
 	t.AddColumn("num_services_hard_warn", Dynamic, Int64Col, "The number of services in the group that are WARN")
 	t.AddColumn("worst_service_state", Dynamic, IntCol, "The worst service state of the service group")
+
+	// checkmk specific
+	t.AddExtraColumn("num_services_handled_problems", LocalStore, Dynamic, Int64Col, CheckMK, "The number of services in the group that have handled problems")
+	t.AddExtraColumn("num_services_unhandled_problems", LocalStore, Dynamic, Int64Col, CheckMK, "The number of services in the group that have unhandled problems")
 
 	t.AddPeerInfoColumn("lmd_last_cache_update", FloatCol, "Timestamp of the last LMD update of this object")
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
@@ -681,6 +772,11 @@ func NewDowntimesTable() (t *Table) {
 	t.AddColumn("type", Static, IntCol, "The type of the downtime: 0 if it is active, 1 if it is pending")
 	t.AddColumn("host_name", Static, StringCol, "Host name")
 	t.AddColumn("service_description", Static, StringCol, "Description of the service (also used as key)")
+
+	// checkmk specific
+	t.AddExtraColumn("is_pending", LocalStore, Static, IntCol, CheckMK, "1 if the downtime is currently pending (not active), 0 if it is active")
+	t.AddExtraColumn("origin", LocalStore, Static, IntCol, CheckMK, "A 0 if the downtime has been set by a command, a 1 if it has been configured by a rule")
+	t.AddExtraColumn("recurring", LocalStore, Static, IntCol, CheckMK, "For recurring downtimes: 1: hourly, 2: daily, 3: weekly, 4: two-weekly, 5: four-weekly. Otherwise 0")
 
 	t.AddRefColumns(TableHosts, "host", []string{"host_name"})
 	t.AddRefColumns(TableServices, "service", []string{"host_name", "service_description"})

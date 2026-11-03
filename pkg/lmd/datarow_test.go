@@ -6,6 +6,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestDictColumnsSources(t *testing.T) {
+	for _, table := range Objects.Tables {
+		for _, col := range table.columns {
+			if col.DataType != CustomVarCol || col.StorageType != VirtualStore {
+				continue
+			}
+			src, ok := dictColumns[col.Name]
+			assert.Truef(t, ok, "%s.%s missing in dictColumns", table.name.String(), col.Name)
+			assert.NotNilf(t, table.GetColumn(src[0]), "%s.%s missing", table.name.String(), src[0])
+			assert.NotNilf(t, table.GetColumn(src[1]), "%s.%s missing", table.name.String(), src[1])
+		}
+	}
+}
+
 func TestInterface2HashMap1(t *testing.T) {
 	in := map[string]any{"key": 5}
 	exp := map[string]string{"key": "5"}
