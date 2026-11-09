@@ -420,7 +420,12 @@ func (d *DataRow) GetValueByColumn(col *Column) any {
 			log.Panicf("unsupported column %s (type %s) in table %s", col.Name, col.DataType.String(), d.dataStore.table.name.String())
 		}
 	case RefStore:
-		return d.refs[col.RefColTableName].GetValueByColumn(col.RefCol)
+		ref := d.refs[col.RefColTableName]
+		if ref == nil {
+			return col.GetEmptyValue()
+		}
+
+		return ref.GetValueByColumn(col.RefCol)
 	case VirtualStore:
 		return d.getVirtualRowValue(col)
 	}
