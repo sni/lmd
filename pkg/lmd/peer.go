@@ -453,7 +453,7 @@ func (p *Peer) setHTTPClient() {
 	if err != nil {
 		logWith(p).Fatalf("failed to initialize peer: %s", err.Error())
 	}
-	client := NewLMDHTTPClient(tlsConfig, p.config.Proxy)
+	client := NewLMDHTTPClient(tlsConfig, p.config.Proxy, time.Duration(p.lmd.Config.ConnectTimeout)*time.Second)
 	client.Timeout = time.Duration(p.lmd.Config.NetTimeout) * time.Second
 
 	logWith(p).Debugf("set new http client cache")
@@ -1362,7 +1362,7 @@ func (p *Peer) openConnection(peerAddr string, connType ConnectionType) (conn ne
 	if err != nil {
 		logWith(p).Tracef("connection test failed: %s", err.Error())
 
-		return nil, fmt.Errorf("connection error %w: %s", err, err.Error())
+		return nil, fmt.Errorf("connection error %w", err)
 	}
 
 	logWith(p).Tracef("connection ok")

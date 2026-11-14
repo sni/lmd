@@ -3,6 +3,7 @@ package lmd
 import (
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +17,7 @@ func TestPrometheus(t *testing.T) {
 	PauseTestPeers(peer)
 
 	tlsconfig := getMinimalTLSConfig(peer.lmd.Config)
-	netClient := NewLMDHTTPClient(tlsconfig, "")
+	netClient := NewLMDHTTPClient(tlsconfig, "", 10*time.Second)
 	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://127.0.0.1:50999/metrics", http.NoBody)
 	response, err := netClient.Do(req)
 	require.NoError(t, err)

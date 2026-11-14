@@ -84,7 +84,7 @@ func NewNodes(lmd *Daemon, addresses []string, listen string) *Nodes {
 		lmd:             lmd,
 	}
 	tlsConfig := getMinimalTLSConfig(lmd.Config)
-	node.httpClient = NewLMDHTTPClient(tlsConfig, "")
+	node.httpClient = NewLMDHTTPClient(tlsConfig, "", time.Duration(lmd.Config.ConnectTimeout)*time.Second)
 	for i := range lmd.Config.Connections {
 		node.backends = append(node.backends, lmd.Config.Connections[i].ID)
 	}
