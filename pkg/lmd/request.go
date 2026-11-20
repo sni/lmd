@@ -686,8 +686,16 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 		requestData["sort"] = sorted
 	}
 
-	// Get hash with metadata in addition to table rows
-	requestData["outputformat"] = OutputFormatWrappedJSON
+	// Get hash with metadata in addition to table rows. The remote node
+	// re-parses the request data through the same parser, which expects the
+	// output format as a string; sending the enum marshals it as an integer
+	// that the parser rejects, so the sub-request fails.
+	requestData["outputformat"] = "wrapped_json"
+
+	// Forward the AuthUser header so the remote node filters its rows too.
+	if req.AuthUser != "" {
+		requestData["authuser"] = req.AuthUser
+	}
 
 	return requestData
 }

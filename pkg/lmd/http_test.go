@@ -103,3 +103,35 @@ func TestHTTPRouter(t *testing.T) {
 	err = cleanup()
 	require.NoError(t, err)
 }
+
+// a value coming from the HTTP table API may contain line breaks which would
+// end the current header line and append further headers or a whole COMMAND
+// request to the backend query. Make sure such requests fail loudly.
+func TestHTTPRequestValuesDoNotBreakHeaderLines(t *testing.T) {
+	tests := []struct {
+		field string
+		value string
+	}{
+		{"filter", "name = alpha\nKeepAlive: on\n\nCOMMAND [1700000000] DISABLE_NOTIFICATIONS"},
+		{"stats", "name = alpha\nKeepAlive: on\n\nCOMMAND [1700000000] DISABLE_NOTIFICATIONS"},
+		{"columns", "name\nKeepAlive: on\n\nCOMMAND [1700000000] DISABLE_NOTIFICATIONS"},
+		{"backends", "mock0\nKeepAlive: on\n\nCOMMAND [1700000000] DISABLE_NOTIFICATIONS"},
+		{"sort", "name\nKeepAlive:on\n\nCOMMAND"},
+		{"authuser", "admin\nKeepAlive: on\n\nCOMMAND"},
+	}
+	for _, test := range tests {
+		t.Run(test.field, func(t *testing.T) {
+			requestData := map[string]any{
+				"table": "hosts",
+			}
+			if test.field == "authuser" {
+				// authuser is a plain string, not a list
+				requestData[test.field] = test.value
+			} else {
+				requestData[test.field] = []any{test.value}
+			}
+			_, err := parseRequestDataToRequest(requestData)
+			assert.Error(t, err, "%s value must be rejected", test.field)
+		})
+	}
+}

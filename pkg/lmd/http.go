@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
@@ -165,6 +166,32 @@ func (c *HTTPServerController) query(wrt http.ResponseWriter, request *http.Requ
 	}
 }
 
+// rejectLineBreaks returns an error if value contains a line break. Such a
+// value would end the current livestatus header line and allow appending
+// further headers or a whole COMMAND request to the backend query.
+func rejectLineBreaks(field, value string) error {
+	if strings.ContainsAny(value, "\r\n") {
+		return fmt.Errorf("bad request: line break in %s value", field)
+	}
+
+	return nil
+}
+
+// requestValueList converts a JSON request list to validated strings,
+// rejecting entries that carry line breaks.
+func requestValueList(field string, val any) ([]string, error) {
+	var values []string
+	for _, item := range interface2interfaceList(val) {
+		name := interface2stringNoDedup(item)
+		if cerr := rejectLineBreaks(field, name); cerr != nil {
+			return nil, cerr
+		}
+		values = append(values, name)
+	}
+
+	return values, nil
+}
+
 func parseRequestDataToRequest(requestData map[string]any) (req *Request, err error) {
 	// New request object for specified table
 	req = &Request{}
@@ -203,55 +230,68 @@ func parseRequestDataToRequest(requestData map[string]any) (req *Request, err er
 		if err != nil {
 			return req, err
 		}
-		if len(req.Stats) > 0 {
-			req.SendStatsData = true
-		}
+		req.SendStatsData = len(req.Stats) > 0
 	}
 
 	// Sort
-	var requestDataSort []any
+	var requestDataSort []string
 	if val, ok := requestData["sort"]; ok {
-		lines, ok := val.([]any)
-		if ok {
-			requestDataSort = lines
+		requestDataSort, err = requestValueList("Sort", val)
+		if err != nil {
+			return req, err
 		}
 	}
 	for _, line := range requestDataSort {
-		err := parseSortHeader(&req.Sort, []byte(interface2stringNoDedup(line)))
+		err = parseSortHeader(&req.Sort, []byte(line))
 		if err != nil {
 			return req, err
 		}
 	}
 
 	// Columns
-	var columns []string
 	if val, ok := requestData["columns"]; ok {
-		for _, column := range interface2interfaceList(val) {
-			name := interface2stringNoDedup(column)
-			if name != "empty" {
-				columns = append(columns, name)
-			}
+		columns, cerr := requestValueList("Columns", val)
+		if cerr != nil {
+			return req, cerr
 		}
+		req.Columns = slices.DeleteFunc(columns, func(name string) bool { return name == "empty" })
 	}
-	req.Columns = columns
 	req.SetRequestColumns()
+
+	// Resolve the sort columns so the fields carry their column reference.
+	// The socket path does this in ParseRequests; without it a sort field has
+	// a nil column, which panics (and drops the connection) when the result is
+	// sorted.
+	if cerr := req.SetSortColumns(); cerr != nil {
+		return req, cerr
+	}
 
 	// Format
 	if val, ok := requestData["outputformat"]; ok {
-		err := parseOutputFormat(&req.OutputFormat, []byte(interface2stringNoDedup(val)))
-		if err != nil {
-			return req, err
+		if cerr := parseOutputFormat(&req.OutputFormat, []byte(interface2stringNoDedup(val))); cerr != nil {
+			return req, cerr
 		}
 	}
 
 	// Backends
 	var backends []string
 	if val, ok := requestData["backends"]; ok {
-		for _, backend := range interface2interfaceList(val) {
-			backends = append(backends, interface2stringNoDedup(backend))
+		backends, err = requestValueList("Backends", val)
+		if err != nil {
+			return req, err
 		}
 	}
 	req.Backends = backends
+
+	// AuthUser forwarded by a distributing node for a distributed sub-request,
+	// so the remote node filters its rows the same way.
+	if val, ok := requestData["authuser"]; ok {
+		authUser := interface2stringNoDedup(val)
+		if err := rejectLineBreaks("AuthUser", authUser); err != nil {
+			return req, err
+		}
+		req.AuthUser = authUser
+	}
 
 	return req, nil
 }
@@ -261,8 +301,12 @@ func parseHTTPFilterRequestData(req *Request, val any, prefix string) (err error
 	var filterLines []string
 	if lines, ok := val.([]any); ok {
 		for _, line := range lines {
-			filterLine := prefix + ": " + interface2stringNoDedup(line) + "\n"
-			filterLines = append(filterLines, filterLine)
+			lineStr := interface2stringNoDedup(line)
+			// a line break would add a new header line to the request
+			if err2 := rejectLineBreaks(prefix, lineStr); err2 != nil {
+				return err2
+			}
+			filterLines = append(filterLines, prefix+": "+lineStr+"\n")
 		}
 	}
 	if strVal, ok := val.(string); ok {

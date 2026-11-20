@@ -2,6 +2,17 @@
 
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
+next:
+          - Security: strip line breaks from HTTP request values (filter, stats, columns,
+            sort, backends, wait, auth) so they cannot end the current Livestatus header
+            line and append further headers or a whole COMMAND to the backend query
+          - fix distributed sub-requests sending the output format as an integer the
+            remote node's parser rejects, which made cluster mode answer no query
+          - forward AuthUser in distributed sub-requests so the remote nodes filter their
+            rows the same way
+          - resolve the sort columns in HTTP requests; a missing column reference made a
+            request with a sort field panic and close the connection without a response
+
 2.9.1    Fri Oct 23 09:27:15 CEST 2026
           - update dependencies
           - improve import mode
