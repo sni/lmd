@@ -12,6 +12,15 @@ next:
             rows the same way
           - resolve the sort columns in HTTP requests; a missing column reference made a
             request with a sort field panic and close the connection without a response
+          - Security: authenticate cluster nodes. Ping responses must carry a signature
+            over the ping nonce, the node identity and the backend list made with the
+            shared ClusterAuth secret; unsigned or forged pings are rejected so an
+            unauthenticated process can no longer register as a node, trigger backend
+            redistribution or inject rows into distributed query results
+          - Security: limit the size of cluster node /query responses to
+            MaxJSONResponseSize
+          - BREAKING: cluster mode (Nodes configured) now requires a non-empty ClusterAuth
+            shared secret on all cluster nodes, otherwise startup fails
 
 2.9.1    Fri Oct 23 09:27:15 CEST 2026
           - update dependencies

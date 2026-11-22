@@ -121,7 +121,7 @@ func (c *HTTPServerController) ping(wrt http.ResponseWriter, request *http.Reque
 	c.queryPing(wrt, requestData)
 }
 
-func (c *HTTPServerController) queryPing(wrt http.ResponseWriter, _ map[string]any) {
+func (c *HTTPServerController) queryPing(wrt http.ResponseWriter, requestData map[string]any) {
 	// Response data
 	wrt.Header().Set("Content-Type", "application/json")
 	id := c.lmd.nodeAccessor.ID
@@ -129,6 +129,8 @@ func (c *HTTPServerController) queryPing(wrt http.ResponseWriter, _ map[string]a
 	jsonData["identifier"] = id
 	jsonData["peers"] = c.lmd.nodeAccessor.assignedBackends
 	jsonData["version"] = Version()
+	jsonData["authsig"] = clusterAuthSignature(c.lmd.Config.ClusterAuth,
+		interface2stringNoDedup(requestData["authnonce"]), id, c.lmd.nodeAccessor.assignedBackends)
 
 	// Send data
 	err := json.NewEncoder(wrt).Encode(jsonData)

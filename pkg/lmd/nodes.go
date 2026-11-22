@@ -3,9 +3,13 @@ package lmd
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"maps"
 	"net/http"
 	"regexp"
@@ -123,6 +127,12 @@ func NewNodes(lmd *Daemon, addresses []string, listen string) *Nodes {
 			}
 		}
 		node.nodeAddresses = append(node.nodeAddresses, nodeAddress)
+	}
+
+	// Cluster mode requires the shared secret: unauthenticated pings would let
+	// any process on the network spoof node identities and backend assignments.
+	if len(node.nodeAddresses) > 1 && lmd.Config.ClusterAuth == "" {
+		lmd.cleanFatalf("cluster mode requires a ClusterAuth shared secret on all cluster nodes")
 	}
 
 	return node
@@ -252,6 +262,7 @@ func (n *Nodes) checkNodeAvailability(ctx context.Context) {
 		requestData := make(map[string]any)
 		requestData["identifier"] = ownIdentifier
 		requestData["peers"] = strings.Join(n.nodeBackends[node.id], ";")
+		requestData["authnonce"] = generateUUID()
 		log.Tracef("pinging node %s...", node)
 		waitGroup.Add(1)
 		go func(waitGroup *sync.WaitGroup, node *NodeAddress) {
@@ -476,9 +487,9 @@ func (n *Nodes) SendQuery(ctx context.Context, node *NodeAddress, name string, p
 		return fmt.Errorf("httpclient: %w", err)
 	}
 
-	// Read response data
+	// Read response data (size-bounded: partner responses are untrusted input)
 	defer res.Body.Close()
-	decoder := json.NewDecoder(res.Body)
+	decoder := json.NewDecoder(io.LimitReader(res.Body, int64(MaxJSONResponseSize)))
 	var responseData any
 	if err := decoder.Decode(&responseData); err != nil {
 		// Parsing response failed
@@ -524,6 +535,15 @@ func generateUUID() (uuid string) {
 	return uuid
 }
 
+// clusterAuthSignature signs the ping response fields with the shared cluster
+// secret, so a node proves it without sending the secret over the wire.
+func clusterAuthSignature(secret, nonce, identifier string, peers []string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	fmt.Fprintf(mac, "%s\n%s\n%s", nonce, identifier, strings.Join(peers, ";"))
+
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
 func (n *Nodes) sendPing(ctx context.Context, node *NodeAddress, initializing bool, requestData map[string]any) (isOnline, forceRedistribute bool) {
 	done := make(chan bool)
 	ownIdentifier := n.ID
@@ -536,8 +556,24 @@ func (n *Nodes) sendPing(ctx context.Context, node *NodeAddress, initializing bo
 			return
 		}
 
-		// Node id
+		// Reject unauthenticated responses: a forged ping would register the rogue identity
+		// and its claimed backends, triggering backend redistribution and query fan-out.
+		// The response must carry an HMAC of (nonce, identifier, peers) with the shared
+		// cluster secret; a fresh nonce per ping cycle also rejects replayed signatures.
+		nonce := interface2stringNoDedup(requestData["authnonce"])
 		responseIdentifier := interface2stringNoDedup(dataMap["identifier"])
+		responsePeers := make([]string, 0)
+		for _, id := range interface2interfaceList(dataMap["peers"]) {
+			responsePeers = append(responsePeers, interface2stringNoDedup(id))
+		}
+		expected := clusterAuthSignature(n.lmd.Config.ClusterAuth, nonce, responseIdentifier, responsePeers)
+		if !hmac.Equal([]byte(interface2stringNoDedup(dataMap["authsig"])), []byte(expected)) {
+			log.Warnf("rejecting ping response from node %s: missing or invalid cluster auth", node)
+
+			return
+		}
+
+		// Node id
 		if node.id == "" {
 			node.id = responseIdentifier
 		} else if node.id != responseIdentifier {

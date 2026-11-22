@@ -87,6 +87,7 @@ type Config struct {
 	ListenPrometheus           string       `toml:"ListenPrometheus"`
 	Connections                []Connection `toml:"Connections"`
 	Nodes                      []string     `toml:"Nodes"`
+	ClusterAuth                string       `toml:"ClusterAuth"` // shared secret authenticating cluster node pings
 	Listen                     []string     `toml:"Listen"`
 	TLSClientPems              []string     `toml:"TLSClientPems"`
 	StaleBackendTimeout        int          `toml:"StaleBackendTimeout"`

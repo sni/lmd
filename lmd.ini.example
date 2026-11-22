@@ -8,6 +8,13 @@ Listen          = ["127.0.0.1:3333", "/tmp/lmd.sock", "http://*:8080", "https://
 # A bare ip address may be provided if the port is the same on all nodes.
 #Nodes           = ["10.0.0.1", "http://10.0.0.2:8080"]
 
+# REQUIRED in cluster mode (Nodes configured): shared secret authenticating
+# cluster node communication. Must be set to the same value on all cluster
+# nodes. Ping responses carry a signature over the ping nonce and the node's
+# identity/peer list; nodes with a missing or invalid signature are rejected
+# and treated as offline.
+#ClusterAuth    = "your-secret"
+
 # Timeout for incoming client requests on `Listen` threads.
 # Also the maximum request duration.
 ListenTimeout = 60

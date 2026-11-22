@@ -160,9 +160,15 @@ All backend connections will be split up and divided upon all cluster nodes. Inc
 In order to setup cluster operations, you need to add a http(s) listener and a list of nodes.
 All nodes should share the same configuration file.
 
+Cluster nodes authenticate each other with a shared secret so that an unauthenticated
+process on the network cannot register as a node, stop real backends, or inject query
+results. This secret is **required** in cluster mode: set `ClusterAuth` to the same
+non-empty value on every cluster node, otherwise startup fails.
+
 ```toml
-Listen  = ["/var/tmp/lmd.sock", "http://*:8080"]
-Nodes   = ["http://10.0.0.1:8080", "http://10.0.0.2:8080"]
+Listen      = ["/var/tmp/lmd.sock", "http://*:8080"]
+Nodes       = ["http://10.0.0.1:8080", "http://10.0.0.2:8080"]
+ClusterAuth = "your-shared-secret"
 ```
 
 ## What is different in LMD
