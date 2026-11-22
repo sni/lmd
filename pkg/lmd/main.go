@@ -727,6 +727,11 @@ func NewLMDHTTPClient(tlsConfig *tls.Config, proxy string, connectTimeout time.D
 		Timeout:   HTTPClientTimeout,
 		Transport: transport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			origin := via[0].URL
+			// Redirects can replay a POST body containing backend credentials.
+			if req.URL.Scheme != origin.Scheme || req.URL.Host != origin.Host {
+				return errors.New("refusing redirect outside backend origin")
+			}
 			if strings.Contains(req.URL.RawQuery, "/omd/error.py%3fcode=500") {
 				log.Warnf("HTTP request redirected to %s which indicates an internal error in the backend", req.URL.String())
 

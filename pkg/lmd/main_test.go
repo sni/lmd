@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"sync"
@@ -14,6 +16,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestBackendRedirectOrigin(t *testing.T) {
+	client := NewLMDHTTPClient(nil, "", time.Second)
+	origin := httptest.NewRequest(http.MethodPost, "https://backend.example/query", http.NoBody)
+	history := []*http.Request{origin}
+	require.NoError(t, client.CheckRedirect(httptest.NewRequest(http.MethodPost, "https://backend.example/new", http.NoBody), history))
+	for _, target := range []string{"https://other.example/", "http://backend.example/", "https://backend.example:8443/"} {
+		require.Error(t, client.CheckRedirect(httptest.NewRequest(http.MethodPost, target, http.NoBody), history), target)
+	}
+}
 
 func TestMainFunc(t *testing.T) {
 	peer, cleanup, _ := StartTestPeer(t, 1, 10, 10)
