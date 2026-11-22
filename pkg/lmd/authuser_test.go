@@ -1,11 +1,36 @@
 package lmd
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestDistributedAuthUserHost(t *testing.T) {
+	peer, cleanup, lmd := StartTestPeer(t, 1, 2, 2)
+	t.Cleanup(func() { assert.NoError(t, cleanup()) })
+	PauseTestPeers(peer)
+	want, _, err := peer.QueryString("GET hosts\nColumns: name\nAuthUser: authuser\n\n")
+	require.NoError(t, err)
+	require.Len(t, want, 1)
+
+	req := Request{Table: TableHosts, Columns: []string{"name"}, AuthUser: "authuser"}
+	body, err := json.Marshal(req.buildDistributedRequestData([]string{"mockid0"}))
+	require.NoError(t, err)
+	var data map[string]any
+	require.NoError(t, json.Unmarshal(body, &data))
+	w := httptest.NewRecorder()
+	controller := HTTPServerController{lmd: lmd}
+	controller.queryTable(t.Context(), w, data)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	var result struct{ Data ResultSet }
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
+	require.Equal(t, want, result.Data)
+}
 
 /**
  * Tests that only one host entry is returned when setting the AuthUser.
