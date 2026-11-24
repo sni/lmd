@@ -3,6 +3,8 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
 next:
+          - Security: enforce MaxQueryFilter on the rest path as well, so a
+            rest request cannot carry more filters than the limit allows
           - add MaxQuerySize option to limit the size in bytes of a single query
             on the livestatus and rest paths, preventing a single client request
             from holding unbounded filter memory

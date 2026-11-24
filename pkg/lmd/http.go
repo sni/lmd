@@ -54,6 +54,11 @@ func (c *HTTPServerController) queryTable(ctx context.Context, wrt http.Response
 
 	// Fetch backend data
 	req.lmd = c.lmd
+	if c.lmd.Config.MaxQueryFilter > 0 && req.NumFilter > c.lmd.Config.MaxQueryFilter {
+		c.errorOutput(fmt.Errorf("bad request: maximum number of query filter reached"), wrt)
+
+		return
+	}
 	req.ExpandRequestedBackends()
 
 	var res *Response

@@ -2,6 +2,7 @@ package lmd
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -102,6 +103,29 @@ func TestHTTPRouter(t *testing.T) {
 	// run cleanup
 	err = cleanup()
 	require.NoError(t, err)
+}
+
+// MaxQueryFilter caps the number of filters of a REST request, mirroring
+// the socket path guard.
+func TestHTTPMaxQueryFilter(t *testing.T) {
+	peer, cleanup, lmd := StartTestPeer(t, 1, 2, 2)
+	t.Cleanup(func() { assert.NoError(t, cleanup()) })
+	PauseTestPeers(peer)
+	lmd.Config.MaxQueryFilter = 5
+
+	var filters []any
+	for i := range 10 {
+		filters = append(filters, "name = host"+string(rune('a'+i)))
+	}
+	requestData := map[string]any{
+		"table":  "hosts",
+		"filter": filters,
+	}
+	w := httptest.NewRecorder()
+	controller := HTTPServerController{lmd: lmd}
+	controller.queryTable(t.Context(), w, requestData)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "maximum number of query filter")
 }
 
 // MaxQuerySize caps the total filter bytes of a REST request so a single
