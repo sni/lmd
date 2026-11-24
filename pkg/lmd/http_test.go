@@ -104,6 +104,21 @@ func TestHTTPRouter(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// MaxQuerySize caps the total filter bytes of a REST request so a single
+// request cannot hold unbounded filter memory.
+func TestHTTPMaxQuerySize(t *testing.T) {
+	requestData := map[string]any{
+		"table":  "hosts",
+		"filter": "Filter: name = " + strings.Repeat("a", 1000),
+	}
+	_, err := parseRequestDataToRequest(requestData, 100)
+	require.Error(t, err, "filter bytes exceeding maxQuerySize must be rejected")
+
+	req, err := parseRequestDataToRequest(requestData, 0)
+	require.NoError(t, err, "maxQuerySize 0 disables the check")
+	assert.Len(t, req.Filter, 1)
+}
+
 // a value coming from the HTTP table API may contain line breaks which would
 // end the current header line and append further headers or a whole COMMAND
 // request to the backend query. Make sure such requests fail loudly.
@@ -130,7 +145,7 @@ func TestHTTPRequestValuesDoNotBreakHeaderLines(t *testing.T) {
 			} else {
 				requestData[test.field] = []any{test.value}
 			}
-			_, err := parseRequestDataToRequest(requestData)
+			_, err := parseRequestDataToRequest(requestData, 0)
 			assert.Error(t, err, "%s value must be rejected", test.field)
 		})
 	}

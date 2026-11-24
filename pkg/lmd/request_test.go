@@ -55,6 +55,22 @@ func TestRequestHeader(t *testing.T) {
 	}
 }
 
+// MaxQuerySize caps the total bytes of a request so a single request cannot
+// hold unbounded filter memory.
+func TestRequestMaxQuerySize(t *testing.T) {
+	lmd := createTestLMDInstance()
+	lmd.Config.MaxQuerySize = 100
+	lmd.Config.MaxQueryFilter = 0
+	query := "GET hosts\nFilter: name = " + strings.Repeat("a", 1000) + "\n"
+	_, _, err := NewRequest(t.Context(), lmd, bufio.NewReader(strings.NewReader(query)), ParseOptimize)
+	require.Error(t, err, "request bytes exceeding MaxQuerySize must be rejected")
+
+	lmd.Config.MaxQuerySize = 0
+	req, _, err := NewRequest(t.Context(), lmd, bufio.NewReader(strings.NewReader(query)), ParseOptimize)
+	require.NoError(t, err, "MaxQuerySize 0 disables the check")
+	assert.Len(t, req.Filter, 1)
+}
+
 func TestRequestHeaderTable(t *testing.T) {
 	lmd := createTestLMDInstance()
 	buf := bufio.NewReader(bytes.NewBufferString("GET hosts\n"))

@@ -97,6 +97,7 @@ type Config struct {
 	LogMaxOutput               int          `toml:"LogMaxOutput"`
 	UpdateInterval             int64        `toml:"Updateinterval"`
 	MaxQueryFilter             int          `toml:"MaxQueryFilter"`
+	MaxQuerySize               int          `toml:"MaxQuerySize"`
 	ConnectTimeout             int          `toml:"ConnectTimeout"`
 	IdleTimeout                int64        `toml:"IdleTimeout"`
 	IdleInterval               int64        `toml:"IdleInterval"`
@@ -144,6 +145,7 @@ func NewConfig(files []string) *Config {
 		TLSMinVersion:              "tls1.1",
 		MaxParallelPeerConnections: 3,
 		MaxQueryFilter:             DefaultMaxQueryFilter,
+		MaxQuerySize:               DefaultMaxQuerySize,
 	}
 
 	// combine listeners from all files

@@ -74,6 +74,9 @@ const (
 	// DefaultMaxQueryFilter sets the default number of max query filters.
 	DefaultMaxQueryFilter = 1000
 
+	// DefaultMaxQuerySize sets the maximum number of bytes a single request may hold.
+	DefaultMaxQuerySize = 1024 * 1024
+
 	// ThrukMultiBackendMinVersion is the minimum required thruk version.
 	ThrukMultiBackendMinVersion = 2.23
 )

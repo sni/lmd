@@ -45,7 +45,7 @@ func (c *HTTPServerController) queryTable(ctx context.Context, wrt http.Response
 		return
 	}
 
-	req, err := parseRequestDataToRequest(requestData)
+	req, err := parseRequestDataToRequest(requestData, c.lmd.Config.MaxQuerySize)
 	if err != nil {
 		c.errorOutput(err, wrt)
 
@@ -194,7 +194,9 @@ func requestValueList(field string, val any) ([]string, error) {
 	return values, nil
 }
 
-func parseRequestDataToRequest(requestData map[string]any) (req *Request, err error) {
+// parseRequestDataToRequest converts the request data into a request object.
+// maxQuerySize limits the total bytes of filter lines, 0 disables the check.
+func parseRequestDataToRequest(requestData map[string]any, maxQuerySize int) (req *Request, err error) {
 	// New request object for specified table
 	req = &Request{}
 	table, err := NewTableName(interface2stringNoDedup(requestData["table"]))
@@ -220,7 +222,7 @@ func parseRequestDataToRequest(requestData map[string]any) (req *Request, err er
 
 	// Filter String in livestatus syntax
 	if val, ok := requestData["filter"]; ok {
-		err = parseHTTPFilterRequestData(req, val, "Filter")
+		err = parseHTTPFilterRequestData(req, val, "Filter", maxQuerySize)
 		if err != nil {
 			return req, err
 		}
@@ -228,7 +230,7 @@ func parseRequestDataToRequest(requestData map[string]any) (req *Request, err er
 
 	// Stats String in livestatus syntax
 	if val, ok := requestData["stats"]; ok {
-		err = parseHTTPFilterRequestData(req, val, "Stats")
+		err = parseHTTPFilterRequestData(req, val, "Stats", maxQuerySize)
 		if err != nil {
 			return req, err
 		}
@@ -298,7 +300,9 @@ func parseRequestDataToRequest(requestData map[string]any) (req *Request, err er
 	return req, nil
 }
 
-func parseHTTPFilterRequestData(req *Request, val any, prefix string) (err error) {
+// parseHTTPFilterRequestData parses and stores the given filter lines.
+// maxQuerySize limits the total bytes of filter lines, 0 disables the check.
+func parseHTTPFilterRequestData(req *Request, val any, prefix string, maxQuerySize int) (err error) {
 	// Get filter lines, e.g., "Filter: col = val", "Or: 2"
 	var filterLines []string
 	if lines, ok := val.([]any); ok {
@@ -316,11 +320,16 @@ func parseHTTPFilterRequestData(req *Request, val any, prefix string) (err error
 	}
 
 	// Parse and store filter
+	var size int
 	for i := range filterLines {
 		filterLine := filterLines[i]
 		filterLine = strings.TrimSpace(filterLine)
 		if filterLine == "" {
 			continue
+		}
+		size += len(filterLine)
+		if maxQuerySize > 0 && size > maxQuerySize {
+			return fmt.Errorf("bad request: query size %d exceeds maximum of %d bytes", size, maxQuerySize)
 		}
 		if err2 := req.ParseRequestHeaderLine([]byte(filterLine), ParseOptimize); err2 != nil {
 			return err2

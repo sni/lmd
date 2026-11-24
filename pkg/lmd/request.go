@@ -347,6 +347,10 @@ func NewRequest(ctx context.Context, lmd *Daemon, buf *bufio.Reader, options Par
 		if len(line) == 0 {
 			break
 		}
+		// bound the total bytes a single request may hold, independent of the filter count
+		if lmd.Config.MaxQuerySize > 0 && size > lmd.Config.MaxQuerySize {
+			return nil, 0, fmt.Errorf("bad request: query size %d exceeds maximum of %d bytes", size, lmd.Config.MaxQuerySize)
+		}
 
 		logWith(ctx).Debugf("request: %s", line)
 		perr := req.ParseRequestHeaderLine(line, options)

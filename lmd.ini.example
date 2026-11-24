@@ -129,6 +129,9 @@ GroupAuthorization = "strict"
 # MaxQueryFilter sets the maximum number of query filters. Set to zero to disable this check.
 MaxQueryFilter = 1000
 
+# MaxQuerySize sets the maximum number of bytes a single query may hold. Set to zero to disable this check.
+MaxQuerySize = 1048576
+
 # LMD can check clock differences if supported by the remote peer. Time delta is crucial
 # for synchronization. MaxClockDelta is the maximum amount of seconds a clock is allowed
 # to go off. Set to zero to disable this check.
