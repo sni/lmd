@@ -18,6 +18,12 @@ const (
 	// HTTPServerRequestTimeout sets the read/write timeout for the HTTP Server.
 	HTTPServerRequestTimeout = 30 * time.Second
 
+	// MaxHTTPRequestBodyBytes sets the maximum number of bytes a rest request body may hold.
+	MaxHTTPRequestBodyBytes = 10 * 1024 * 1024
+
+	// MaxHTTPHeaderBytes sets the maximum number of bytes a rest request header may hold.
+	MaxHTTPHeaderBytes = 1024 * 1024
+
 	// RequestReadTimeout sets the read timeout when listening to incoming requests.
 	RequestReadTimeout = 2 * time.Minute
 
@@ -201,11 +207,14 @@ func (l *Listener) localListenerHTTP(httpType, listen string) {
 	l.waitGroupInit.Done()
 
 	// Wait for and handle http requests
+	// limit rest request bodies and headers, so a single client cannot buffer
+	// unbounded data; over-limit bodies are rejected with 413
 	server := &http.Server{
-		Handler:           router,
+		Handler:           http.MaxBytesHandler(router, MaxHTTPRequestBodyBytes),
 		ReadTimeout:       HTTPServerRequestTimeout,
 		WriteTimeout:      HTTPServerRequestTimeout,
 		ReadHeaderTimeout: HTTPServerRequestTimeout,
+		MaxHeaderBytes:    MaxHTTPHeaderBytes,
 	}
 	if err := server.Serve(l.Connection); err != nil {
 		log.Infof("stopping listener on %s", listen)

@@ -105,6 +105,33 @@ func TestHTTPRouter(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// request bodies exceeding MaxHTTPRequestBodyBytes are rejected with 413.
+func TestHTTPMaxRequestBody(t *testing.T) {
+	peer, cleanup, lmd := StartTestPeer(t, 3, 10, 10)
+	t.Cleanup(func() { assert.NoError(t, cleanup()) })
+	PauseTestPeers(peer)
+
+	baseURL := "http://localhost:9998"
+	lmd.waitGroupInit.Add(1)
+	listener := NewListener(lmd, baseURL)
+	lmd.waitGroupInit.Wait()
+	t.Cleanup(func() { listener.Connection.Close() })
+
+	// body larger than MaxHTTPRequestBodyBytes
+	blob := strings.Repeat("a", MaxHTTPRequestBodyBytes+1024)
+	resp, err := http.Post(baseURL+"/query", "application/json", strings.NewReader(`{"_name":"table","table":"hosts","blob":"`+blob+`"}`))
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusRequestEntityTooLarge, resp.StatusCode)
+	assert.Contains(t, resp.Header.Get("Content-Type"), "application/json")
+	resp.Body.Close()
+
+	// small body still works
+	resp, err = http.Post(baseURL+"/query", "application/json", strings.NewReader(`{"_name":"ping"}`))
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	resp.Body.Close()
+}
+
 // MaxQueryFilter caps the number of filters of a REST request, mirroring
 // the socket path guard.
 func TestHTTPMaxQueryFilter(t *testing.T) {

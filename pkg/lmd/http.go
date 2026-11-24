@@ -18,6 +18,37 @@ type HTTPServerController struct {
 	lmd *Daemon
 }
 
+// tooLargeOutput sends a 413 response for a request body exceeding the size limit.
+func (c *HTTPServerController) tooLargeOutput(wrt http.ResponseWriter) {
+	j := make(map[string]any)
+	j["error"] = "request body too large"
+	wrt.Header().Set("Content-Type", "application/json")
+	wrt.WriteHeader(http.StatusRequestEntityTooLarge)
+	err := json.NewEncoder(wrt).Encode(j)
+	if err != nil {
+		log.Debugf("encoder failed: %e", err)
+	}
+}
+
+// decodeRequestData decodes a json request body into requestData.
+// It returns ok=false after sending an error response.
+func (c *HTTPServerController) decodeRequestData(wrt http.ResponseWriter, body io.ReadCloser) (requestData map[string]any, ok bool) {
+	requestData = make(map[string]any)
+	defer body.Close()
+	if err := json.NewDecoder(body).Decode(&requestData); err != nil && !errors.Is(err, io.EOF) {
+		if _, isMax := errors.AsType[*http.MaxBytesError](err); isMax {
+			c.tooLargeOutput(wrt)
+		} else {
+			log.Errorf("failed to parse request parameters: %s", err.Error())
+			c.errorOutput(fmt.Errorf("request not understood"), wrt)
+		}
+
+		return nil, false
+	}
+
+	return requestData, true
+}
+
 func (c *HTTPServerController) errorOutput(err error, wrt http.ResponseWriter) {
 	j := make(map[string]any)
 	j["error"] = err.Error()
@@ -94,13 +125,8 @@ func (c *HTTPServerController) queryTable(ctx context.Context, wrt http.Response
 
 func (c *HTTPServerController) table(wrt http.ResponseWriter, request *http.Request, params httprouter.Params) {
 	// Read request data
-	requestData := make(map[string]any)
-	defer request.Body.Close()
-	decoder := json.NewDecoder(request.Body)
-	if err := decoder.Decode(&requestData); err != nil && !errors.Is(err, io.EOF) {
-		log.Errorf("failed to parse request parameters: %s", err.Error())
-		c.errorOutput(fmt.Errorf("request not understood"), wrt)
-
+	requestData, ok := c.decodeRequestData(wrt, request.Body)
+	if !ok {
 		return
 	}
 
@@ -114,13 +140,8 @@ func (c *HTTPServerController) table(wrt http.ResponseWriter, request *http.Requ
 
 func (c *HTTPServerController) ping(wrt http.ResponseWriter, request *http.Request, _ httprouter.Params) {
 	// Read request data
-	requestData := make(map[string]any)
-	defer request.Body.Close()
-	decoder := json.NewDecoder(request.Body)
-	if err := decoder.Decode(&requestData); err != nil && !errors.Is(err, io.EOF) {
-		log.Errorf("failed to parse request parameters: %s", err.Error())
-		c.errorOutput(fmt.Errorf("request not understood"), wrt)
-
+	requestData, ok := c.decodeRequestData(wrt, request.Body)
+	if !ok {
 		return
 	}
 	c.queryPing(wrt, requestData)
@@ -148,14 +169,10 @@ func (c *HTTPServerController) query(wrt http.ResponseWriter, request *http.Requ
 	// Read request data
 	contentType := request.Header.Get("Content-Type")
 	requestData := make(map[string]any)
-	defer request.Body.Close()
 	if contentType == "application/json" {
-		decoder := json.NewDecoder(request.Body)
-		err := decoder.Decode(&requestData)
-		if err != nil && !errors.Is(err, io.EOF) {
-			log.Errorf("failed to parse request parameters: %s", err.Error())
-			c.errorOutput(fmt.Errorf("request not understood"), wrt)
-
+		var ok bool
+		requestData, ok = c.decodeRequestData(wrt, request.Body)
+		if !ok {
 			return
 		}
 	}
