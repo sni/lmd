@@ -37,6 +37,7 @@ var (
 	reShinkenVersion = regexp.MustCompile(`\-shinken$`)
 	reIcinga2Version = regexp.MustCompile(`^(r[\d.-]+|.*\-icinga2)$`)
 	reNaemonVersion  = regexp.MustCompile(`\-naemon$`)
+	reCheckMKVersion = regexp.MustCompile(`^Check_MK `)
 	reThrukVersion   = regexp.MustCompile(`^(\d+\.\d+|\d+).*?$`)
 )
 
@@ -1536,6 +1537,11 @@ func (p *Peer) checkStatusFlags(ctx context.Context, store *DataStoreSet) (err e
 		if !p.hasFlag(Naemon) {
 			logWith(p).Debugf("remote connection Naemon flag set")
 			p.setFlag(Naemon)
+		}
+	case reCheckMKVersion.MatchString(row.GetStringByName("program_version")):
+		if !p.hasFlag(CheckMK) {
+			logWith(p).Debugf("remote connection CheckMK flag set")
+			p.setFlag(CheckMK)
 		}
 	}
 
