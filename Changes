@@ -2,7 +2,7 @@
 
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
-next:
+2.9.3    Fri Nov 27 23:02:54 CET 2026
           - fix backend JSON parsing: malformed rows could stall peer updates
             and graceful shutdown, and valid rows split across reads could be rejected
           - Security: limit the size of rest request bodies (10 MiB) and headers
