@@ -55,32 +55,20 @@ func parseJSONResult(data []byte) (res ResultSet, remaining []byte, err error) {
 
 		rowNum++
 		row, pos, jErr := json.ReadArray(data)
-		linePos = pos
-		if jErr != nil {
-			var newPos int
+		for jErr != nil {
 			errPos := pos
-			for {
-				tryRecoverJSON(data[errPos:], jErr)
-				row, newPos, jErr = json.ReadArray(data)
-				if jErr == nil {
-					err = nil
-
-					break
-				}
-				err = jErr
-				// position of error did not advance
-				if newPos == errPos {
-					break
-				}
-			}
-			pos = newPos
-			linePos = pos
-			finalPos += pos
-			if err != nil {
+			tryRecoverJSON(data[pos:], jErr)
+			row, pos, jErr = json.ReadArray(data)
+			if pos <= errPos {
 				break
 			}
 		}
 		finalPos += pos
+		if jErr != nil {
+			linePos, err = pos, jErr
+
+			break
+		}
 		res = append(res, row)
 
 		data, trim = trimLeftTracking(data[pos:])
@@ -265,35 +253,21 @@ reading:
 			var jErr error
 			var pos int
 			row, pos, jErr = json.ReadArray(data)
-			if jErr != nil { //nolint:nestif // cannot be refactored easily
-				var newPos int
+			for jErr != nil {
 				errPos := pos
-				for {
-					// try to append more data, error might result from incomplete data for current row
-					data, err = streamReadMore(buf, data, totalBytesRead+bytesReadForRow+len(data), maxReadSize, bufferSize)
+				prevLen := len(data)
+				numRead := totalBytesRead + bytesReadForRow + prevLen
+				// try to append more data, error might result from incomplete data for current row
+				if maxReadSize < 0 || numRead < maxReadSize {
+					data, err = streamReadMore(buf, data, numRead, maxReadSize, bufferSize)
 					if err != nil {
 						return nil, 0, fmt.Errorf("read error: %s", err.Error())
 					}
-					if data == nil {
-						return nil, 0, fmt.Errorf("read error: data is nil")
-					}
-
-					tryRecoverJSON(data[errPos:], jErr)
-					row, newPos, jErr = json.ReadArray(data)
-					if jErr == nil {
-						err = nil
-
-						break
-					}
-					err = jErr
-					// position of error did not advance
-					if newPos == errPos {
-						break
-					}
 				}
-				pos = newPos
-				if err != nil {
-					break
+				tryRecoverJSON(data[pos:], jErr)
+				row, pos, jErr = json.ReadArray(data)
+				if jErr != nil && pos <= errPos && len(data) == prevLen {
+					return nil, 0, jErr
 				}
 			}
 			bytesReadForRow += pos

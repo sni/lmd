@@ -171,6 +171,22 @@ func TestParseResultJSONBrokenNaN(t *testing.T) {
 	assert.Len(t, res, 2)
 }
 
+func TestParseResultJSONRecoveryStopsAtInvalidValue(t *testing.T) {
+	const data = `[[nan,?]]`
+
+	_, _, err := parseJSONResult([]byte(data))
+	require.Error(t, err)
+
+	for _, size := range []int{-1, len(data)} {
+		_, _, err = parseResponseMaxSizeCB(strings.NewReader(data), func([]any, int) error {
+			t.Fatal("malformed row reached callback")
+
+			return nil
+		}, size)
+		require.Error(t, err)
+	}
+}
+
 func TestParseResultJSONBrokenError(t *testing.T) {
 	lmd := createTestLMDInstance()
 	req, _, err := NewRequest(t.Context(), lmd, bufio.NewReader(bytes.NewBufferString("GET hosts\nColumns: name hourly_value\nOutputFormat: json\n")), ParseOptimize)
