@@ -356,6 +356,28 @@ func TestParseResultJSONStreamUnknownSize(t *testing.T) {
 	assert.Equalf(t, len(data), numRead, "number of bytes parsed should match input")
 }
 
+func TestParseResultJSONStreamIncompleteRow(t *testing.T) {
+	const prefix = "[[\"host1\",\n\n"
+	for _, suffix := range []string{"", `"service1"]]`} {
+		data := prefix + suffix
+		var rows ResultSet
+		_, bytesRead, err := parseResponseMaxSizeCB(strings.NewReader(data), func(row []any, _ int) error {
+			rows = append(rows, row)
+
+			return nil
+		}, -1)
+		if suffix == "" {
+			require.Error(t, err)
+			require.Empty(t, rows)
+
+			continue
+		}
+		require.NoError(t, err)
+		require.Equal(t, ResultSet{{"host1", "service1"}}, rows)
+		require.Equal(t, len(data), bytesRead)
+	}
+}
+
 func TestParseResultJSONStreamUnknownSizeMultiLine(t *testing.T) {
 	data := []byte(`[
 	 ["host1", 1, [1,2,3]],

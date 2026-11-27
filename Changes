@@ -3,6 +3,8 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
 next:
+          - fix backend JSON parsing: malformed rows could stall peer updates
+            and graceful shutdown, and valid rows split across reads could be rejected
           - Security: limit the size of rest request bodies (10 MiB) and headers
             (1 MiB), so a single client cannot buffer unbounded data; over-limit
             bodies are rejected with 413

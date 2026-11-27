@@ -253,6 +253,10 @@ reading:
 			var jErr error
 			var pos int
 			row, pos, jErr = json.ReadArray(data)
+			if jErr != nil {
+				// ReadSlice may reuse its buffer when we read the rest of the row.
+				data = bytes.Clone(data)
+			}
 			for jErr != nil {
 				errPos := pos
 				prevLen := len(data)
